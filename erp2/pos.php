@@ -141,7 +141,7 @@ $initial  = mb_substr(trim($userName) !== '' ? trim($userName) : '?', 0, 1);
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="<?= erp2_esc(Csrf::token()) ?>">
 <title>کاشێر — دەرمانخانە</title>
-<link rel="icon" type="image/png" sizes="32x32" href="<?= APP_URL ?>/assets/images/icons/favicon-32.png">
+<link rel="icon" sizes="32x32" href="<?= erp2_esc(Branding::hasCustomLogo() ? Branding::logoUrl() : APP_URL . '/assets/images/icons/favicon-32.png') ?>">
 <link rel="preload" href="<?= APP_URL ?>/fonts/NRT%20Font/NRT-Reg.woff" as="font" type="font/woff" crossorigin>
 <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/fonts.css">
 <link rel="stylesheet" href="<?= APP_URL ?>/assets/vendor/fontawesome/css/all.min.css">

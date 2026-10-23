@@ -37,7 +37,7 @@ $customCSS = <<<CSS
 .wh-row td{background:#fafafa;font-size:12px}
 .wh-chip{display:inline-block;margin:2px 4px 2px 0;padding:2px 8px;border-radius:12px;background:#eceff1;font-size:11.5px}
 .wh-chip b{direction:ltr;display:inline-block}
-.exp-btn{cursor:pointer;color:#0078D4}
+.exp-btn{cursor:pointer;color:var(--win-accent, #0078D4)}
 .erp-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:14px}
 .erp-card{background:#fff;border:1px solid #e3e3e3;border-radius:8px;padding:10px 12px}
 .erp-card .lbl{font-size:11.5px;color:#6b6b6b}

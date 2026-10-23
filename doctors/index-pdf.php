@@ -16,7 +16,6 @@ require_once __DIR__ . '/../services/InvoicePdfService.php';
 
 require __DIR__ . '/../includes/clinic_branding.php';
 
-$logoPath = __DIR__ . '/../assets/images/logo.png';
 
 // Plain-text version of the period for the PDF: mPDF lays dates out
 // correctly on its own with <bdo>, and does not need the screen's LRM marks.

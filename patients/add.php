@@ -304,7 +304,7 @@ require_once __DIR__ . '/../includes/header.php';
     padding: 14px 16px;
 }
 
-.icon-blue { background: linear-gradient(135deg, #0078d4, #0063b1); }
+.icon-blue { background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1)); }
 
 .form-grid {
     display: grid;
@@ -453,7 +453,7 @@ require_once __DIR__ . '/../includes/header.php';
     font-size: 11px; font-weight: 700; position: sticky; top: 0;
 }
 .city-combo-item { padding: 8px 14px; cursor: pointer; font-size: 13px; color: #37474f; }
-.city-combo-item:hover { background: #e3f2fd; color: #0078d4; }
+.city-combo-item:hover { background: #e3f2fd; color: var(--win-accent, #0078d4); }
 .city-combo-empty { padding: 12px 14px; color: #9aa7b3; font-size: 12px; text-align: center; }
 
 /* ── Profile photo preview ── */
@@ -523,7 +523,7 @@ require_once __DIR__ . '/../includes/header.php';
     box-shadow: 0 12px 40px rgba(0,0,0,.25); overflow: hidden;
 }
 #addCityDialog .city-dialog-header {
-    background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);
     color: #fff; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
 }
 #addCityDialog .city-dialog-header h4 { margin: 0; font-size: 14px; display: flex; align-items: center; gap: 8px; }
@@ -548,7 +548,7 @@ require_once __DIR__ . '/../includes/header.php';
     padding: 8px 16px; border-radius: 6px; font-size: 12px; font-weight: 600;
     cursor: pointer; border: none; display: inline-flex; align-items: center; gap: 6px;
 }
-#addCityDialog .city-btn-primary { background: #0078d4; color: #fff; }
+#addCityDialog .city-btn-primary { background: var(--win-accent, #0078d4); color: #fff; }
 #addCityDialog .city-btn-secondary { background: #eceff1; color: #546e7a; }
 </style>
 
@@ -629,7 +629,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <div id="cityComboDropdown" class="city-combo-dropdown"></div>
                         </div>
                         <button type="button" onclick="openAddCityDialog()" title="زیادکردنی شاری نوێ"
-                                style="padding: 0 10px; background: #0078d4; color: #fff; border: 1px solid #0078d4; border-radius: 4px; cursor: pointer;">
+                                style="padding: 0 10px; background: var(--win-accent, #0078d4); color: #fff; border: 1px solid var(--win-accent, #0078d4); border-radius: 4px; cursor: pointer;">
                             <i class="fas fa-plus"></i>
                         </button>
                     </div>

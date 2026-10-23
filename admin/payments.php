@@ -202,7 +202,7 @@ $stats = $paymentManager->getStatistics(['date_from' => $dateFrom, 'date_to' => 
 }
 
 .filter-label-payments i {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-size: 12px;
 }
 
@@ -222,8 +222,8 @@ $stats = $paymentManager->getStatistics(['date_from' => $dateFrom, 'date_to' => 
 }
 
 .filter-control-payments:focus {
-    border-color: #0078d4;
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+    border-color: var(--win-accent, #0078d4);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
     outline: none;
 }
 
@@ -267,7 +267,7 @@ $stats = $paymentManager->getStatistics(['date_from' => $dateFrom, 'date_to' => 
 .payment-number-cell {
     font-family: var(--app-font-family);
     font-weight: 700;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-size: 13px;
 }
 
@@ -278,7 +278,7 @@ $stats = $paymentManager->getStatistics(['date_from' => $dateFrom, 'date_to' => 
 }
 
 .patient-link-payment:hover {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 .amount-cell-payment {

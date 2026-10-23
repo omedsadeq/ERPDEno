@@ -2666,7 +2666,7 @@ $doctorCap = max(0, $unrequestedBalance);
     transform: none;
 }
 .panel-header {
-    background: linear-gradient(135deg, #0078d4 0%, #0063b1 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-deep, #0063b1) 100%);
     padding: 12px 16px;
     border-bottom: none;
 }
@@ -2746,14 +2746,14 @@ $doctorCap = max(0, $unrequestedBalance);
     font-size: 13px;
 }
 .btn-primary {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
-    box-shadow: 0 2px 8px rgba(0, 120, 212, 0.25);
+    box-shadow: 0 2px 8px rgba(var(--win-accent-rgb, 0, 120, 212), 0.25);
 }
 .btn-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 120, 212, 0.35);
-    background: linear-gradient(135deg, #0067c0, #005a9e);
+    box-shadow: 0 4px 12px rgba(var(--win-accent-rgb, 0, 120, 212), 0.35);
+    background: linear-gradient(135deg, var(--text-accent, #0067c0), var(--win-accent-dark, #005a9e));
 }
 .btn-secondary {
     background: linear-gradient(135deg, #e0e0e0, #bdbdbd);
@@ -2797,15 +2797,15 @@ $doctorCap = max(0, $unrequestedBalance);
 }
 .btn-outline {
     background: white;
-    color: #0078d4;
-    border: 2px solid #0078d4;
-    box-shadow: 0 2px 8px rgba(0, 120, 212, 0.15);
+    color: var(--win-accent, #0078d4);
+    border: 2px solid var(--win-accent, #0078d4);
+    box-shadow: 0 2px 8px rgba(var(--win-accent-rgb, 0, 120, 212), 0.15);
 }
 .btn-outline:hover {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 120, 212, 0.25);
+    box-shadow: 0 4px 12px rgba(var(--win-accent-rgb, 0, 120, 212), 0.25);
 }
 .btn-sm {
     padding: 6px 12px;
@@ -2972,7 +2972,7 @@ $doctorCap = max(0, $unrequestedBalance);
 .table tfoot td {
     border: 1px solid #e5e5e5;
     padding: 12px 10px;
-    border-top: 2px solid #0078D4;
+    border-top: 2px solid var(--win-accent, #0078D4);
 }
 
 /* Windows 10 Style Alerts */
@@ -2993,7 +2993,7 @@ $doctorCap = max(0, $unrequestedBalance);
     color: white;
 }
 .alert-info {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
 }
 .alert-warning {
@@ -3134,8 +3134,8 @@ $doctorCap = max(0, $unrequestedBalance);
 }
 .tooth.selected {
     border-color: var(--primary-color);
-    background: rgba(0, 120, 212, 0.06);
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.25);
+    background: rgba(var(--win-accent-rgb, 0, 120, 212), 0.06);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.25);
 }
 
 .tooth-svg { display: block; width: 38px; height: 50px; }
@@ -3349,7 +3349,7 @@ $doctorCap = max(0, $unrequestedBalance);
 .dentition-opt:hover:not(.is-active):not(:disabled) { background: #e2e9f2; color: #33475b; }
 .dentition-opt.is-active {
     background: #fff;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     box-shadow: 0 1px 3px rgba(16, 42, 67, 0.14);
 }
 .dentition-opt:disabled { opacity: .55; cursor: not-allowed; }
@@ -3380,7 +3380,7 @@ $doctorCap = max(0, $unrequestedBalance);
     font-weight: 700;
     letter-spacing: 0.02em;
 }
-.dentition-pane-title i { font-size: 10px; color: #0078d4; }
+.dentition-pane-title i { font-size: 10px; color: var(--win-accent, #0078d4); }
 .dentition-pane-title .dentition-pane-count {
     padding: 1px 7px;
     border-radius: 999px;
@@ -3635,7 +3635,7 @@ $doctorCap = max(0, $unrequestedBalance);
     transform: translate(-50%, -50%) scale(1);
 }
 .tooth-detail-header {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
     padding: 12px;
     display: flex;
@@ -3667,9 +3667,9 @@ $doctorCap = max(0, $unrequestedBalance);
 }
 .treatment-surface-tag {
     font-size: 10px;
-    background: rgba(0, 120, 212, 0.08);
+    background: rgba(var(--win-accent-rgb, 0, 120, 212), 0.08);
     color: #0067b8;
-    border: 1px solid rgba(0, 120, 212, 0.25);
+    border: 1px solid rgba(var(--win-accent-rgb, 0, 120, 212), 0.25);
     padding: 1px 7px;
     border-radius: 10px;
 }
@@ -3848,8 +3848,8 @@ $doctorCap = max(0, $unrequestedBalance);
     transition: all 0.3s ease;
 }
 .pricing-box:hover {
-    border-color: #0078d4;
-    box-shadow: 0 2px 8px rgba(0, 120, 212, 0.15);
+    border-color: var(--win-accent, #0078d4);
+    box-shadow: 0 2px 8px rgba(var(--win-accent-rgb, 0, 120, 212), 0.15);
 }
 .price-row {
     display: flex;
@@ -3882,13 +3882,13 @@ $doctorCap = max(0, $unrequestedBalance);
     opacity: 0.85;
 }
 .agreement-price-row .price-label {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-weight: 600;
 }
 .agreement-price-input {
     width: 120px;
     padding: 8px 12px;
-    border: 2px solid #0078d4;
+    border: 2px solid var(--win-accent, #0078d4);
     border-radius: 8px;
     font-size: 15px;
     font-weight: 700;
@@ -3899,7 +3899,7 @@ $doctorCap = max(0, $unrequestedBalance);
 }
 .agreement-price-input:focus {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.2);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.2);
     border-color: #4caf50;
 }
 .agreement-price-input::placeholder {
@@ -3970,8 +3970,8 @@ $doctorCap = max(0, $unrequestedBalance);
     transition: all 0.3s ease;
 }
 .arch-view-panel:hover {
-    border-color: #0078d4;
-    box-shadow: 0 4px 12px rgba(0, 120, 212, 0.15);
+    border-color: var(--win-accent, #0078d4);
+    box-shadow: 0 4px 12px rgba(var(--win-accent-rgb, 0, 120, 212), 0.15);
     transform: translateY(-2px);
 }
 .arch-view-panel.has-treatments {
@@ -3996,7 +3996,7 @@ $doctorCap = max(0, $unrequestedBalance);
     fill: #4caf50;
 }
 .arch-tooth-indicator:hover {
-    fill: #0078d4;
+    fill: var(--win-accent, #0078d4);
     transform: scale(1.1);
 }
 .arch-view-info {
@@ -4016,7 +4016,7 @@ $doctorCap = max(0, $unrequestedBalance);
     font-size: 15px;
 }
 .arch-view-title i {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-size: 18px;
 }
 .arch-view-stats {
@@ -4032,7 +4032,7 @@ $doctorCap = max(0, $unrequestedBalance);
 .arch-stat .stat-value {
     font-size: 18px;
     font-weight: 700;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     display: block;
 }
 .arch-stat .stat-label {
@@ -4060,7 +4060,7 @@ $doctorCap = max(0, $unrequestedBalance);
     color: #546e7a;
 }
 .arch-summary-item i {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 .arch-summary-item.total {
     background: linear-gradient(135deg, #4caf50, #66bb6a);
@@ -4228,7 +4228,7 @@ $doctorCap = max(0, $unrequestedBalance);
     max-width: 450px;
 }
 .dialog-header {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
     padding: 12px 16px;
     display: flex;
@@ -4320,9 +4320,9 @@ $doctorCap = max(0, $unrequestedBalance);
     background: white;
 }
 .form-control:focus {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     outline: none;
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
 }
 textarea.form-control {
     resize: vertical;
@@ -4365,8 +4365,8 @@ textarea.form-control {
     background: white;
 }
 .case-image-slot:hover {
-    border-color: #0078d4;
-    box-shadow: 0 4px 12px rgba(0, 120, 212, 0.15);
+    border-color: var(--win-accent, #0078d4);
+    box-shadow: 0 4px 12px rgba(var(--win-accent-rgb, 0, 120, 212), 0.15);
 }
 .slot-header {
     display: flex;
@@ -4379,7 +4379,7 @@ textarea.form-control {
 .slot-number {
     width: 24px;
     height: 24px;
-    background: #0078d4;
+    background: var(--win-accent, #0078d4);
     color: white;
     border-radius: 50%;
     display: flex;
@@ -4453,8 +4453,8 @@ textarea.form-control {
     min-height: 140px;
 }
 .empty-slot:hover {
-    color: #0078d4;
-    background: rgba(0, 120, 212, 0.05);
+    color: var(--win-accent, #0078d4);
+    background: rgba(var(--win-accent-rgb, 0, 120, 212), 0.05);
 }
 .empty-slot i {
     font-size: 36px;
@@ -4789,7 +4789,7 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
 .rx-search-wrap { position: relative; margin-bottom: 14px; }
 .rx-label { display:block; font-size:12px; color:#666; margin-bottom:5px; font-weight:600; }
 .rx-input { width:100%; border:1.5px solid #e0e0e0; border-radius:8px; padding:9px 11px; font:13px inherit; background:#fff; color:#222; }
-.rx-input:focus { outline:none; border-color:#0078d4; box-shadow:0 0 0 3px rgba(0,120,212,.1); }
+.rx-input:focus { outline:none; border-color:var(--win-accent, #0078d4); box-shadow:0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), .1); }
 .rx-ac { position:absolute; z-index:60; left:0; right:0; background:#fff; border:1px solid #ccc; border-radius:8px;
          box-shadow:0 8px 22px rgba(0,0,0,.16); max-height:280px; overflow:auto; margin-top:4px; }
 .rx-ac-item { padding:9px 12px; cursor:pointer; border-bottom:1px solid #f2f2f2; display:flex; justify-content:space-between; gap:10px; }
@@ -4803,7 +4803,7 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
 .rx-table td { padding:6px 10px; border-bottom:1px solid #f2f2f2; }
 .rx-table tr:last-child td { border-bottom:0; }
 .rx-table input { width:100%; border:1px solid #e2e2e2; border-radius:6px; padding:6px 8px; font:13px inherit; }
-.rx-table input:focus { outline:none; border-color:#0078d4; }
+.rx-table input:focus { outline:none; border-color:var(--win-accent, #0078d4); }
 .rx-del { color:#c62828; cursor:pointer; text-align:center; }
 .rx-stock { direction:ltr; text-align:left; font-variant-numeric:tabular-nums; color:#2e7d32; font-weight:600; }
 .rx-empty { text-align:center; color:#999; padding:22px 12px; font-size:13px; }
@@ -4964,7 +4964,7 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                             <h5 style="margin: 0; font-size: 14px;">
                                 <?php if (($case['scope_type'] ?? 'tooth') === 'arch'): ?>
-                                <i class="fas fa-teeth" style="color: #0078d4;"></i> چارتی ئەرک
+                                <i class="fas fa-teeth" style="color: var(--win-accent, #0078d4);"></i> چارتی ئەرک
                                 <span class="badge badge-blue" style="font-size: 10px; padding: 3px 8px; margin-right: 8px;">
                                     <?= $case['selected_arch'] === 'both' ? 'هەردوو ئەرک' : ($case['selected_arch'] === 'upper' ? 'سەرەوە' : 'خوارەوە') ?>
                                 </span>
@@ -5182,7 +5182,7 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                             <h4 style="margin:0;">چارەسەرەکان</h4>
                             <!-- View toggle -->
                             <div style="display:flex; border:1px solid var(--border-color); border-radius:8px; overflow:hidden;">
-                                <button id="btnTreatTable" onclick="switchTreatView('table')" style="padding:5px 12px; font-size:12px; border:none; cursor:pointer; background:#0078d4; color:#fff; font-family:inherit;">
+                                <button id="btnTreatTable" onclick="switchTreatView('table')" style="padding:5px 12px; font-size:12px; border:none; cursor:pointer; background:var(--win-accent, #0078d4); color:#fff; font-family:inherit;">
                                     <i class="fas fa-table"></i> جدول
                                 </button>
                                 <button id="btnTreatChart" onclick="switchTreatView('chart')" style="padding:5px 12px; font-size:12px; border:none; cursor:pointer; background:var(--bg-color); color:var(--text-secondary); font-family:inherit;">
@@ -5247,7 +5247,7 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                     <div id="treatmentChartView" style="display:none;">
                         <div style="background:var(--bg-color);border:1px solid var(--border-color);border-radius:12px;padding:20px;">
                             <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-                                <i class="fas fa-chart-bar" style="color:#0078d4;font-size:18px;"></i>
+                                <i class="fas fa-chart-bar" style="color:var(--win-accent, #0078d4);font-size:18px;"></i>
                                 <strong style="font-size:15px;">تەوەری چارەسەرەکان بە بڕی پارە</strong>
                                 <span style="margin-right:auto;font-size:12px;color:var(--text-secondary);">کۆی گشتی: <?= number_format($case['total_amount'], 2) ?></span>
                             </div>
@@ -6179,7 +6179,7 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
                         <div style="background:var(--bg-secondary,#f5f5f5);padding:10px;border-radius:6px;text-align:center;">
                             <div style="font-size:11px;color:var(--text-secondary);">کۆی گشتی</div>
-                            <div style="font-weight:700;color:#0078d4;"><?= number_format($case['total_amount']) ?></div>
+                            <div style="font-weight:700;color:var(--win-accent, #0078d4);"><?= number_format($case['total_amount']) ?></div>
                         </div>
                         <div style="background:var(--bg-secondary,#f5f5f5);padding:10px;border-radius:6px;text-align:center;">
                             <div style="font-size:11px;color:var(--text-secondary);">ماوەی پارە</div>
@@ -6228,7 +6228,7 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
 <!-- Standalone Appointment Dialog (book an appointment for this patient) -->
 <div class="dialog-overlay" id="appointmentDialog">
     <div class="dialog" style="max-width: 560px;">
-        <div class="dialog-header" style="background: linear-gradient(135deg, #0078d4, #0063b1);">
+        <div class="dialog-header" style="background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));">
             <h3 class="dialog-title" style="color:#fff;"><i class="fas fa-calendar-plus"></i> مەوعیدی نوێ بۆ <?= htmlspecialchars($case['patient_name'] ?? 'نەخۆش') ?></h3>
             <button type="button" class="dialog-close" onclick="closeDialog('appointmentDialog')" style="color:#fff;"><i class="fas fa-times"></i></button>
         </div>
@@ -6291,12 +6291,12 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
 
 <style>
 .apt-slot { display:inline-block; padding:7px 4px; min-width:64px; text-align:center; border:1.5px solid #e0e0e0; border-radius:6px; font-size:12px; font-weight:600; background:#fff; color:#37474f; cursor:pointer; transition:all .15s; margin:2px; }
-.apt-slot:hover:not(.busy):not(.break) { border-color:#0078d4; background:#e3f2fd; color:#0078d4; }
-.apt-slot.selected { background:#0078d4; color:#fff; border-color:#0078d4; }
+.apt-slot:hover:not(.busy):not(.break) { border-color:var(--win-accent, #0078d4); background:#e3f2fd; color:var(--win-accent, #0078d4); }
+.apt-slot.selected { background:var(--win-accent, #0078d4); color:#fff; border-color:var(--win-accent, #0078d4); }
 .apt-slot.busy { background:#ffebee; border-color:#ffcdd2; color:#c62828; cursor:not-allowed; opacity:.7; }
 /* Booked slots stay selectable (overlapping bookings allowed) */
 .apt-slot.booked { background:#ffebee; border-color:#ffcdd2; color:#c62828; cursor:pointer; }
-.apt-slot.booked.selected { background:#0078d4; color:white; border-color:#0078d4; }
+.apt-slot.booked.selected { background:var(--win-accent, #0078d4); color:white; border-color:var(--win-accent, #0078d4); }
 .apt-slot.break { background:#fff3e0; border-color:#ffe0b2; color:#e65100; cursor:not-allowed; opacity:.7; }
 </style>
 
@@ -6447,7 +6447,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <i class="fas fa-hand-pointer"></i> هەڵبژاردنی چارەسەر...
                             </button>
                             <button type="button" onclick="openAddTreatmentDialog()" title="زیادکردنی چارەسەری نوێ"
-                                    style="padding: 0 14px; background: #0078d4; color: #fff; border: 1px solid #0078d4; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                                    style="padding: 0 14px; background: var(--win-accent, #0078d4); color: #fff; border: 1px solid var(--win-accent, #0078d4); border-radius: 6px; cursor: pointer; font-size: 14px;">
                                 <i class="fas fa-plus"></i>
                             </button>
                         </div>
@@ -6752,7 +6752,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mt-row .mt-cat { flex: 0 0 auto; font-size: 10px; color: #6d28d9; background: #f3ebff; border-radius: 10px; padding: 3px 9px; white-space: nowrap; }
 .mt-row .mt-price { flex: 0 0 auto; font-weight: 700; font-size: 13px; color: #0d9488; white-space: nowrap; direction: ltr; }
-.mt-row .mt-edit { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 7px; border: 1px solid #e0e6ed; background: #fff; cursor: pointer; font-size: 12px; color: #0078d4; }
+.mt-row .mt-edit { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 7px; border: 1px solid #e0e6ed; background: #fff; cursor: pointer; font-size: 12px; color: var(--win-accent, #0078d4); }
 .mt-row .mt-edit:hover { background: #e3f2fd; border-color: #a9d3f5; }
 .mt-row .mt-del { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 7px; border: 1px solid #f0d4d4; background: #fff; cursor: pointer; font-size: 12px; color: #c62026; }
 .mt-row .mt-del:hover { background: #fdecec; border-color: #f0a9a9; }
@@ -6871,8 +6871,8 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
     font-family: inherit;
 }
 .tp-cat.on {
-    background: #0078d4;
-    border-color: #0078d4;
+    background: var(--win-accent, #0078d4);
+    border-color: var(--win-accent, #0078d4);
     color: #fff;
     font-weight: 600;
 }
@@ -6897,8 +6897,8 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
     transition: all 0.12s;
 }
 .tp-item:hover {
-    border-color: #0078d4;
-    background: rgba(0, 120, 212, 0.05);
+    border-color: var(--win-accent, #0078d4);
+    background: rgba(var(--win-accent-rgb, 0, 120, 212), 0.05);
 }
 .tp-item-icon { flex-shrink: 0; display: flex; align-items: center; }
 .tp-item-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--text-color, #222); }
@@ -6923,7 +6923,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
     min-height: 38px;
     text-align: right;
 }
-.tp-trigger:hover { border-color: #0078d4; }
+.tp-trigger:hover { border-color: var(--win-accent, #0078d4); }
 .tp-btn-icon { display: flex; align-items: center; flex-shrink: 0; }
 .tp-btn-name { flex: 1; color: var(--text-color, #222); font-weight: 600; }
 .tp-btn-price { font-weight: 700; color: #107c10; font-size: 12.5px; }
@@ -6952,8 +6952,8 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
     font-family: inherit;
 }
 .surface-chip.on {
-    background: #0078d4;
-    border-color: #0078d4;
+    background: var(--win-accent, #0078d4);
+    border-color: var(--win-accent, #0078d4);
     color: #fff;
     font-weight: 600;
 }
@@ -6973,7 +6973,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
     align-items: center;
     gap: 8px;
 }
-.arch-occ-topbar-label i { color: #0078d4; }
+.arch-occ-topbar-label i { color: var(--win-accent, #0078d4); }
 .arch-occ-chip {
     background: #e7f1fb;
     color: #0067b8;
@@ -7092,9 +7092,9 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
     color: var(--text-color, #333);
 }
 .arch-tooth { cursor: pointer; }
-.arch-tooth:hover .at-body { stroke: #0078d4; stroke-width: 2.6px; }
-.arch-tooth.selected .at-body { stroke: #0078d4; stroke-width: 3px; }
-.arch-num:hover rect { stroke: #0078d4; }
+.arch-tooth:hover .at-body { stroke: var(--win-accent, #0078d4); stroke-width: 2.6px; }
+.arch-tooth.selected .at-body { stroke: var(--win-accent, #0078d4); stroke-width: 3px; }
+.arch-num:hover rect { stroke: var(--win-accent, #0078d4); }
 
 /* Modern Treatment Dialog Styles */
 .treatment-dialog-modern {
@@ -7107,7 +7107,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 }
 
 .treatment-dialog-header {
-    background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);
     color: white;
     padding: 16px 20px;
     display: flex;
@@ -7173,7 +7173,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 }
 
 .treatment-alert-warning a {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     text-decoration: underline;
 }
 
@@ -7205,7 +7205,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 }
 
 .treatment-form-field label i {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-size: 11px;
 }
 
@@ -7226,8 +7226,8 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 
 .treatment-form-field input:focus,
 .treatment-form-field select:focus {
-    border-color: #0078d4;
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+    border-color: var(--win-accent, #0078d4);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
     outline: none;
 }
 
@@ -7299,7 +7299,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 }
 
 .treatment-pricing-section .use-default-btn {
-    background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);
     border: none;
     color: white;
     width: 32px;
@@ -7372,12 +7372,12 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 }
 
 .treatment-btn-primary {
-    background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);
     color: white;
 }
 
 .treatment-btn-primary:hover {
-    background: linear-gradient(135deg, #005a9e 0%, #004578 100%);
+    background: linear-gradient(135deg, var(--win-accent-dark, #005a9e) 0%, #004578 100%);
     transform: translateY(-1px);
 }
 
@@ -7405,7 +7405,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 <!-- Add New Treatment (to treatments table) Dialog -->
 <div class="dialog-overlay" id="addNewTreatmentDialog">
     <div class="dialog" style="max-width: 420px;">
-        <div class="dialog-header" style="background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%); color: #fff;">
+        <div class="dialog-header" style="background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%); color: #fff;">
             <h4 class="dialog-title" style="color: #fff;"><i class="fas fa-briefcase-medical"></i> زیادکردنی چارەسەری نوێ</h4>
             <button class="dialog-close" onclick="closeDialog('addNewTreatmentDialog')" style="color:#fff;"><i class="fas fa-times"></i></button>
         </div>
@@ -7440,7 +7440,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
         </div>
         <div class="dialog-footer" style="padding: 10px 16px; background: #f5f7f9; border-top: 1px solid #e0e0e0; display: flex; gap: 8px; flex-direction: row-reverse;">
             <button type="button" onclick="submitNewTreatment()" id="submitNewTreatmentBtn"
-                    style="padding: 8px 16px; background: linear-gradient(135deg, #0078d4, #005a9e); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+                    style="padding: 8px 16px; background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-dark, #005a9e)); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
                 <i class="fas fa-check"></i> زیادکردن
             </button>
             <button type="button" onclick="closeDialog('addNewTreatmentDialog')"
@@ -7666,7 +7666,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
                     </div>
                     <div class="arch-pricing-content">
                         <div class="arch-price-row">
-                            <span class="arch-price-label" style="color: #0078d4; font-weight: 600;">
+                            <span class="arch-price-label" style="color: var(--win-accent, #0078d4); font-weight: 600;">
                                 <i class="fas fa-arrow-up"></i> ماکزیلا / سەرەوە:
                             </span>
                             <input type="number" id="upperArchPrice" oninput="calculateSeparateTotal()" placeholder="کۆی نرخ..." class="blue-input">
@@ -7788,7 +7788,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
                 <div class="pl-col">
                 <!-- Next Appointment -->
                 <div class="procedure-log-form-group procedure-log-next-appointment" style="background: #f8f9fa; padding: 10px; border-radius: 8px; margin-top: 0;">
-                    <label style="color: #0078d4; margin-bottom: 12px;"><i class="fas fa-calendar-plus"></i> جاری داهاتوو (مەوعید)</label>
+                    <label style="color: var(--win-accent, #0078d4); margin-bottom: 12px;"><i class="fas fa-calendar-plus"></i> جاری داهاتوو (مەوعید)</label>
                     <!-- Bound to the same appointment engine as the standalone booking:
                          real availability + conflict prevention, not a blind time entry. -->
                     <input type="hidden" name="next_appointment_time" id="procedureNextAppointmentTime" value="">
@@ -8099,7 +8099,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 }
 
 .arch-pricing-content input.blue-input {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
 }
 
 .arch-pricing-content input.purple-input {
@@ -8401,7 +8401,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 .procedure-log-card .log-next-appointment small {
@@ -8472,7 +8472,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 }
 
 .procedure-log-dialog-header {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     padding: 12px 18px;
     display: flex;
     justify-content: space-between;
@@ -8544,9 +8544,9 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 .procedure-log-form-group input:focus,
 .procedure-log-form-group select:focus,
 .procedure-log-form-group textarea:focus {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     outline: none;
-    box-shadow: 0 0 0 3px rgba(0,120,212,0.1);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
 }
 
 .procedure-log-form-group textarea {
@@ -8581,12 +8581,12 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 }
 
 .procedure-log-arch-option:hover {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     background: #f0f7ff;
 }
 
 .procedure-log-arch-option.selected {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     background: #e3f2fd;
 }
 
@@ -8596,7 +8596,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 
 .procedure-log-arch-option i {
     font-size: 14px;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 .procedure-log-arch-option span {
@@ -8650,12 +8650,12 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 }
 
 .procedure-log-btn-primary {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
 }
 
 .procedure-log-btn-primary:hover {
-    background: linear-gradient(135deg, #0063b1, #005299);
+    background: linear-gradient(135deg, var(--win-accent-deep, #0063b1), #005299);
     transform: translateY(-1px);
 }
 
@@ -8740,8 +8740,8 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 .si-intent-btn.cash input { accent-color: #4caf50; }
 .si-intent-btn.debt:hover, .si-intent-btn.debt.selected { border-color: #c62828; background: linear-gradient(135deg, #ffebee, #ffcdd2); color: #c62828; }
 .si-intent-btn.debt input { accent-color: #c62828; }
-.si-intent-btn.installment:hover, .si-intent-btn.installment.selected { border-color: #0078d4; background: linear-gradient(135deg, #e3f2fd, #bbdefb); color: #0d5aa7; }
-.si-intent-btn.installment input { accent-color: #0078d4; }
+.si-intent-btn.installment:hover, .si-intent-btn.installment.selected { border-color: var(--win-accent, #0078d4); background: linear-gradient(135deg, #e3f2fd, #bbdefb); color: #0d5aa7; }
+.si-intent-btn.installment input { accent-color: var(--win-accent, #0078d4); }
 .si-intent-btn.is-disabled { opacity: .48; cursor: not-allowed; filter: grayscale(.35); }
 .send-invoice-dialog { width:min(820px,calc(100vw - 28px));max-width:820px!important; }
 .si-finance-summary { display:flex;flex-direction:column;gap:7px;margin:14px 0;padding:14px;background:#f7f9fb;border:1px solid #dbe3ea;border-radius:10px; }
@@ -9495,7 +9495,7 @@ function openDeleteInvoiceDialog(invoiceId, invoiceNumber) {
     background: var(--accent-color, #0078d4);
 }
 
-.installment-overview-card.accent-primary { --accent-color: #0078d4; }
+.installment-overview-card.accent-primary { --accent-color: var(--win-accent, #0078d4); }
 .installment-overview-card.accent-warning { --accent-color: #ff9800; }
 .installment-overview-card.accent-success { --accent-color: #2e7d32; }
 .installment-overview-card.accent-danger { --accent-color: #d32f2f; }
@@ -12347,14 +12347,14 @@ window.switchTreatView = function(view) {
     if (view === 'chart') {
         tableDiv.style.display = 'none';
         chartDiv.style.display = 'block';
-        btnChart.style.background = '#0078d4';
+        btnChart.style.background = 'var(--win-accent, #0078d4)';
         btnChart.style.color = '#fff';
         btnTable.style.background = 'var(--bg-color)';
         btnTable.style.color = 'var(--text-secondary)';
     } else {
         chartDiv.style.display = 'none';
         tableDiv.style.display = 'block';
-        btnTable.style.background = '#0078d4';
+        btnTable.style.background = 'var(--win-accent, #0078d4)';
         btnTable.style.color = '#fff';
         btnChart.style.background = 'var(--bg-color)';
         btnChart.style.color = 'var(--text-secondary)';
@@ -14542,7 +14542,7 @@ function buildQuadrantToothGrid(quadrant, selected, btnClass, idPrefix, onclickF
                     onclick="${onclickFn}(${toothNum}, '${quadrant}')"
                     id="${idPrefix}${toothNum}"
                     title="${escapeHtml(toothNames[toothNum] || ('ددان ' + toothNum))}"
-                    style="padding: 15px; border: 2px solid ${isSelected ? '#0078D4' : '#ddd'};
+                    style="padding: 15px; border: 2px solid ${isSelected ? 'var(--win-accent, #0078D4)' : '#ddd'};
                            background: ${isSelected ? '#E3F2FD' : 'white'};
                            border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: 600;
                            transition: all 0.2s;">${palmerNum}</button>`;
@@ -14564,7 +14564,7 @@ function toggleToothSelection(toothNum, quadrant) {
     } else {
         // Add
         selectedTeeth[quadrant].push(toothNum);
-        btn.style.border = '2px solid #0078D4';
+        btn.style.border = '2px solid var(--win-accent, #0078D4)';
         btn.style.background = '#E3F2FD';
     }
 }
@@ -14585,7 +14585,7 @@ function toggleToothSelectionFast(toothNum, quadrant) {
         // Add
         selectedTeeth[quadrant].push(toothNum);
         if (btn) {
-            btn.style.border = '2px solid #0078D4';
+            btn.style.border = '2px solid var(--win-accent, #0078D4)';
             btn.style.background = '#E3F2FD';
         }
     }
@@ -14903,7 +14903,7 @@ function toggleEditToothSelectionFast(toothNum, quadrant) {
         // Add
         editSelectedTeeth[quadrant].push(toothNum);
         if (btn) {
-            btn.style.border = '2px solid #0078D4';
+            btn.style.border = '2px solid var(--win-accent, #0078D4)';
             btn.style.background = '#E3F2FD';
         }
     }
@@ -15841,16 +15841,16 @@ console.log('✓ All functions loaded - Fast mode enabled');
 }
 
 .smart-time-slot:hover:not(.busy):not(.break) {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     background: #e3f2fd;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     transform: translateY(-1px);
 }
 
 .smart-time-slot.selected {
-    background: #0078d4;
+    background: var(--win-accent, #0078d4);
     color: white;
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
 }
 
 .smart-time-slot.busy {
@@ -15870,9 +15870,9 @@ console.log('✓ All functions loaded - Fast mode enabled');
 }
 
 .smart-time-slot.booked.selected {
-    background: #0078d4;
+    background: var(--win-accent, #0078d4);
     color: white;
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
 }
 
 .smart-time-slot.break {
@@ -16051,9 +16051,9 @@ console.log('✓ All functions loaded - Fast mode enabled');
 }
 
 #appointmentDuration:focus {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     outline: none;
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
 }
 
 /* Appointment Row Grid */
@@ -16083,9 +16083,9 @@ console.log('✓ All functions loaded - Fast mode enabled');
 }
 
 .appointment-field input[type="date"]:focus {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     outline: none;
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
 }
 </style>
 
@@ -16596,7 +16596,7 @@ document.addEventListener('keydown', function(e) {
 }
 
 .modal-dialog .modal-header {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     padding: 18px 24px;
     border-radius: 16px 16px 0 0;
     display: flex;
@@ -16655,13 +16655,13 @@ document.addEventListener('keydown', function(e) {
 }
 
 .upload-zone:hover {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     background: #f0f7ff;
 }
 
 .upload-zone .upload-icon {
     font-size: 48px;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     margin-bottom: 12px;
 }
 

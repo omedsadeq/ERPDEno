@@ -183,8 +183,8 @@ class CashboxLedger
                 $name = $this->doctorName($key);
                 $ref = 'SPLIT-' . date('Ymd');
                 $now = date('Y-m-d H:i:s');
-                $this->append($key, -$toCenter, 'transfer_out', 'پشکی لێزان (' . $pct . '%) لە پارەی پێش دابەشکردنی ڕاستەوخۆ — ' . count($rows) . ' وەسڵ', null, $now, ['reference_no' => $ref]);
-                $this->append(self::CENTER, $toCenter, 'transfer_in', 'پشکی لێزان (' . $pct . '%) لە سندوقی ' . $name . ' — پارەی پێش دابەشکردنی ڕاستەوخۆ', null, $now, ['reference_no' => $ref]);
+                $this->append($key, -$toCenter, 'transfer_out', 'پشکی ' . Branding::shortName() . ' (' . $pct . '%) لە پارەی پێش دابەشکردنی ڕاستەوخۆ — ' . count($rows) . ' وەسڵ', null, $now, ['reference_no' => $ref]);
+                $this->append(self::CENTER, $toCenter, 'transfer_in', 'پشکی ' . Branding::shortName() . ' (' . $pct . '%) لە سندوقی ' . $name . ' — پارەی پێش دابەشکردنی ڕاستەوخۆ', null, $now, ['reference_no' => $ref]);
             }
             AuditLog::log('cashbox_opening_split', 'cashbox_accounts', null, null, [
                 'account' => $key, 'doctor_rate' => $rate === null ? null : $rate / 100,
@@ -345,7 +345,7 @@ class CashboxLedger
         if ($doctor) $this->append($state['account_key'], -$doctor, 'amanat_move', 'گواستنەوەی قەبزی کۆن بۆ قاسەی ئامانەت', $actorId, $now, $extra + ['source_revision'=>++$revision]);
         if ($center) {
             $this->ensureAccount(self::CENTER);
-            $this->append(self::CENTER, -$center, 'amanat_move', 'گەڕاندنەوەی پشکی ئامانەت لە قاسەی لێزان', $actorId, $now, $extra + ['source_revision'=>++$revision]);
+            $this->append(self::CENTER, -$center, 'amanat_move', 'گەڕاندنەوەی پشکی ئامانەت لە قاسەی ' . Branding::shortName(), $actorId, $now, $extra + ['source_revision'=>++$revision]);
         }
         $this->db->update('cashbox_sources', [
             'account_key'=>self::AMANAT, 'booked_amount'=>'0.00', 'split_rate'=>null,
@@ -429,7 +429,7 @@ class CashboxLedger
                     $revision++;
                     if ($expense) {
                         $kind = 'expense_share';
-                        $why = 'بەشی دکتۆر (' . self::percentLabel((int)$rate) . '%) لە ' . $event[3] . ' — بۆ قاسەی لێزان';
+                        $why = 'بەشی دکتۆر (' . self::percentLabel((int)$rate) . '%) لە ' . $event[3] . ' — بۆ قاسەی ' . Branding::shortName();
                     } else {
                         $entryKind = $kind ?? ($toDoctor > 0 ? 'receipt' : 'refund');
                         $why = $toCenter ? $event[3] . ' — پشکی دکتۆر ' . self::percentLabel((int)$rate) . '%' : $event[3];
@@ -442,7 +442,7 @@ class CashboxLedger
                     $this->ensureAccount(self::CENTER);
                     $why = $expense
                         ? 'بەشی ' . $doctorName . ' (' . self::percentLabel((int)$rate) . '%) لە ' . $event[3]
-                        : 'پشکی لێزان ' . self::percentLabel(10000 - (int)$rate) . '% — ' . $event[3] . ' — ' . $doctorName;
+                        : 'پشکی ' . Branding::shortName() . ' ' . self::percentLabel(10000 - (int)$rate) . '% — ' . $event[3] . ' — ' . $doctorName;
                     $this->append(self::CENTER, $toCenter, $expense ? 'expense_share' : 'center_share', $why, $actor, $event[1], $extra + ['source_revision'=>$revision]);
                 }
             }
@@ -666,7 +666,7 @@ class CashboxLedger
             $extra = ['reference_no' => $reference];
             $out = $in = $pay = null;
             if ($transferCents > 0) {
-                $out = $this->append($doctorKey, -$transferCents, 'transfer_out', 'پشکی سەنتەر گوازرایەوە بۆ قاسەی لێزان — حیسابی ' . $reference, $actorId, $now, $extra);
+                $out = $this->append($doctorKey, -$transferCents, 'transfer_out', 'پشکی سەنتەر گوازرایەوە بۆ قاسەی ' . Branding::shortName() . ' — حیسابی ' . $reference, $actorId, $now, $extra);
                 $in = $this->append(self::CENTER, $transferCents, 'transfer_in', 'پشکی سەنتەر لە سندوقی ' . $doctorName . ' — حیسابی ' . $reference, $actorId, $now, $extra);
             }
             if ($payoutCents > 0) {
@@ -694,7 +694,7 @@ class CashboxLedger
                 $a = $this->db->fetch('SELECT balance FROM cashbox_accounts WHERE account_key=? FOR UPDATE', [$e['account_key']]);
                 $delta = -self::cents($e['amount']);
                 if ($delta < 0 && -$delta > self::cents($a['balance'])) {
-                    throw new DomainException('نەقدی قاسەی لێزان بۆ گەڕاندنەوەی ئەم حیسابە بەس نییە');
+                    throw new DomainException('نەقدی قاسەی ' . Branding::shortName() . ' بۆ گەڕاندنەوەی ئەم حیسابە بەس نییە');
                 }
                 $this->append($e['account_key'], $delta, 'reversal', $reason, $actorId, date('Y-m-d H:i:s'),
                     ['reverses_entry_id' => $id, 'reference_no' => $e['reference_no']]);

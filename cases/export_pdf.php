@@ -101,12 +101,12 @@ $html = '
             text-align: center;
             margin-bottom: 20px;
             padding-bottom: 15px;
-            border-bottom: 2px solid #0078d4;
+            border-bottom: 2px solid ' . Branding::primaryColor() . ';
         }
         .clinic-name {
             font-size: 24px;
             font-weight: bold;
-            color: #0078d4;
+            color: ' . Branding::primaryColor() . ';
             margin-bottom: 5px;
         }
         .report-title {
@@ -138,13 +138,13 @@ $html = '
             margin-bottom: 20px;
         }
         th {
-            background: linear-gradient(to bottom, #0078d4, #005a9e);
+            background: linear-gradient(to bottom, ' . Branding::primaryColor() . ', ' . Branding::themeVars()['--win-accent-dark'] . ');
             color: white;
             padding: 10px 6px;
             font-size: 11px;
             font-weight: bold;
             text-align: center;
-            border: 1px solid #0078d4;
+            border: 1px solid ' . Branding::primaryColor() . ';
         }
         td {
             padding: 8px 6px;
@@ -158,7 +158,7 @@ $html = '
         tr:hover {
             background-color: #f0f7ff;
         }
-        .amount-total { color: #0078d4; font-weight: bold; }
+        .amount-total { color: ' . Branding::primaryColor() . '; font-weight: bold; }
         .amount-paid { color: #4caf50; font-weight: bold; }
         .amount-remaining { color: #f44336; font-weight: bold; }
         .amount-remaining.zero { color: #4caf50; }
@@ -194,7 +194,7 @@ $html = '
             font-weight: bold;
             margin-bottom: 3px;
         }
-        .summary-value.total { color: #0078d4; }
+        .summary-value.total { color: ' . Branding::primaryColor() . '; }
         .summary-value.paid { color: #4caf50; }
         .summary-value.discount { color: #ff9800; }
         .summary-value.remaining { color: #f44336; }

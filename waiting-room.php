@@ -867,7 +867,7 @@ $waitingRoomRejectReasons = $db->fetchAll("
 <style>
 /* Professional Waiting Room Styles - Compact */
 .wr-page-header {
-    background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);
     border-radius: 8px;
     padding: 12px 16px;
     margin-bottom: 12px;
@@ -938,7 +938,7 @@ $waitingRoomRejectReasons = $db->fetchAll("
     transform: translateY(-1px);
 }
 
-.wr-stat-card.active { border-right: 3px solid #0078d4; }
+.wr-stat-card.active { border-right: 3px solid var(--win-accent, #0078d4); }
 .wr-stat-card.waiting { border-right: 3px solid #ff9800; }
 .wr-stat-card.in-progress { border-right: 3px solid #2196f3; }
 .wr-stat-card.completed { border-right: 3px solid #4caf50; }
@@ -953,7 +953,7 @@ $waitingRoomRejectReasons = $db->fetchAll("
     line-height: 1;
 }
 
-.wr-stat-card.active .wr-stat-value { color: #0078d4; }
+.wr-stat-card.active .wr-stat-value { color: var(--win-accent, #0078d4); }
 .wr-stat-card.waiting .wr-stat-value { color: #ff9800; }
 .wr-stat-card.in-progress .wr-stat-value { color: #2196f3; }
 .wr-stat-card.completed .wr-stat-value { color: #4caf50; }
@@ -970,7 +970,7 @@ $waitingRoomRejectReasons = $db->fetchAll("
 
 .wr-stat-card.is-selected {
     background: #f8fbff;
-    box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.14);
+    box-shadow: 0 0 0 2px rgba(var(--win-accent-rgb, 0, 120, 212), 0.14);
 }
 
 .wr-stat-card.is-selected .wr-stat-label {
@@ -1196,9 +1196,9 @@ $waitingRoomRejectReasons = $db->fetchAll("
 }
 
 .wr-filter-control:focus {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     background: white;
-    box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.1);
+    box-shadow: 0 0 0 2px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
     outline: none;
 }
 
@@ -1426,7 +1426,7 @@ $waitingRoomRejectReasons = $db->fetchAll("
 }
 
 .wr-patient-name a:hover {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 .wr-priority-badge {
@@ -1632,15 +1632,15 @@ $waitingRoomRejectReasons = $db->fetchAll("
 }
 
 .wr-patient-card.clickable:hover {
-    border-color: #0078d4;
-    box-shadow: 0 4px 12px rgba(0, 120, 212, 0.15);
+    border-color: var(--win-accent, #0078d4);
+    box-shadow: 0 4px 12px rgba(var(--win-accent-rgb, 0, 120, 212), 0.15);
     transform: translateY(-1px);
 }
 
 .wr-patient-card.selected {
-    border-color: #0078d4;
-    background: linear-gradient(135deg, rgba(0, 120, 212, 0.08) 0%, rgba(0, 120, 212, 0.03) 100%);
-    box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2);
+    border-color: var(--win-accent, #0078d4);
+    background: linear-gradient(135deg, rgba(var(--win-accent-rgb, 0, 120, 212), 0.08) 0%, rgba(var(--win-accent-rgb, 0, 120, 212), 0.03) 100%);
+    box-shadow: 0 0 0 2px rgba(var(--win-accent-rgb, 0, 120, 212), 0.2);
 }
 
 .wr-patient-card.selected::after {
@@ -1650,7 +1650,7 @@ $waitingRoomRejectReasons = $db->fetchAll("
     top: 0;
     bottom: 0;
     width: 4px;
-    background: linear-gradient(180deg, #0078d4 0%, #00a8ff 100%);
+    background: linear-gradient(180deg, var(--win-accent, #0078d4) 0%, #00a8ff 100%);
     border-radius: 4px 0 0 4px;
 }
 
@@ -1693,7 +1693,7 @@ $waitingRoomRejectReasons = $db->fetchAll("
 }
 
 .wr-detail-header {
-    background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);
     color: white;
     padding: 16px 20px;
     display: flex;
@@ -1903,8 +1903,8 @@ $waitingRoomRejectReasons = $db->fetchAll("
 
 .wr-detail-btn-view {
     background: white;
-    color: #0078d4;
-    border: 1px solid #0078d4;
+    color: var(--win-accent, #0078d4);
+    border: 1px solid var(--win-accent, #0078d4);
 }
 
 .wr-detail-btn-view:hover {
@@ -1924,9 +1924,9 @@ $waitingRoomRejectReasons = $db->fetchAll("
 }
 
 .wr-search-input:focus {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     background-color: white;
-    box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.1);
+    box-shadow: 0 0 0 2px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
     outline: none;
 }
 
@@ -1999,7 +1999,7 @@ $waitingRoomRejectReasons = $db->fetchAll("
 }
 
 .wr-dialog-header {
-    background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);
     color: white;
     padding: 12px 16px;
     display: flex;
@@ -2065,9 +2065,9 @@ $waitingRoomRejectReasons = $db->fetchAll("
 }
 
 .wr-form-control:focus {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     background: white;
-    box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.1);
+    box-shadow: 0 0 0 2px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
     outline: none;
 }
 
@@ -2083,9 +2083,9 @@ $waitingRoomRejectReasons = $db->fetchAll("
 
 .wr-add-work-btn {
     min-width: 40px;
-    border: 1px solid #0078d4;
+    border: 1px solid var(--win-accent, #0078d4);
     border-radius: 6px;
-    background: #0078d4;
+    background: var(--win-accent, #0078d4);
     color: #fff;
     cursor: pointer;
     font-size: 15px;
@@ -2093,13 +2093,13 @@ $waitingRoomRejectReasons = $db->fetchAll("
 }
 
 .wr-add-work-btn:hover {
-    background: #005a9e;
+    background: var(--win-accent-dark, #005a9e);
     transform: translateY(-1px);
 }
 
 .wr-add-work-btn:focus {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.2);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.2);
 }
 
 .wr-inline-error {
@@ -2140,7 +2140,7 @@ textarea.wr-form-control {
 
 .wr-quick-btn-primary {
     background: white;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     border: 2px solid rgba(255,255,255,0.3);
 }
 
@@ -2258,7 +2258,7 @@ textarea.wr-form-control {
     right: 0;
     left: 0;
     background: #fff;
-    border: 1.5px solid #0078d4;
+    border: 1.5px solid var(--win-accent, #0078d4);
     border-radius: 8px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.13);
     z-index: 2000;
@@ -2287,7 +2287,7 @@ textarea.wr-form-control {
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #0078d4, #00a8ff);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), #00a8ff);
     color: white;
     display: flex;
     align-items: center;
@@ -5410,7 +5410,7 @@ document.addEventListener('submit', function(e) {
         confirmButtonText: '<i class="fas fa-door-open"></i> ژووری ' + rooms[0],
         denyButtonText: '<i class="fas fa-door-open"></i> ژووری ' + rooms[1],
         cancelButtonText: 'هەڵوەشاندنەوە',
-        confirmButtonColor: '#0078D4',
+        confirmButtonColor: 'var(--win-accent, #0078D4)',
         denyButtonColor: '#107C10'
     }).then(function(res) {
         let chosen = null;

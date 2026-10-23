@@ -73,7 +73,7 @@ class OfficialLetter
             'letter_show_logo'            => '1',
             'letter_header_line'          => '1',
             'letter_footer_mode'          => 'text',   // text | image | none
-            'letter_footer_text'          => $clinicAddress . "\n" . $clinicPhone1 . '  -  ' . $clinicPhone2,
+            'letter_footer_text'          => $clinicAddress . "\n" . implode('  -  ', $clinicPhones),
             'letter_number_format'        => '{n}',
             'letter_number_yearly'        => '1',
             'letter_digits'               => 'ku',     // ku = ١٢٣ | latin = 123
@@ -589,8 +589,9 @@ class OfficialLetter
         if ($file !== '' && is_file(APP_ROOT . '/' . self::ASSET_DIR . '/' . $file)) {
             return APP_ROOT . '/' . self::ASSET_DIR . '/' . $file;
         }
-        if ($kind === 'logo' && is_file(APP_ROOT . '/assets/images/logo.png')) {
-            return APP_ROOT . '/assets/images/logo.png';
+        // No letter-specific logo: the centre's logo (admin/settings.php).
+        if ($kind === 'logo' && is_file(Branding::logoPath())) {
+            return Branding::logoPath();
         }
         return null;
     }
@@ -610,7 +611,7 @@ class OfficialLetter
             if ($path === null) {
                 $urls[$kind] = null;
             } elseif ($kind === 'logo' && !self::hasUpload('logo', $cfg)) {
-                $urls[$kind] = APP_URL . '/assets/images/logo.png';
+                $urls[$kind] = Branding::logoUrl();
             } else {
                 $urls[$kind] = APP_URL . '/letters/asset.php?k=' . $kind . '&v=' . (int)@filemtime($path);
             }

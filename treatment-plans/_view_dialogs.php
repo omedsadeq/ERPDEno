@@ -316,7 +316,7 @@ if (!isset($plan)) { exit; }
                 <div class="arch-pricing-header purple"><i class="fas fa-layer-group"></i> نرخی جیاواز بۆ هەر ئەرکێک</div>
                 <div class="arch-pricing-content">
                     <div class="arch-price-row">
-                        <span class="arch-price-label" style="color: #0078d4; font-weight: 600;"><i class="fas fa-arrow-up"></i> ماکزیلا / سەرەوە:</span>
+                        <span class="arch-price-label" style="color: var(--win-accent, #0078d4); font-weight: 600;"><i class="fas fa-arrow-up"></i> ماکزیلا / سەرەوە:</span>
                         <input type="number" id="arUpperPrice" min="0" oninput="arCalc()" placeholder="نرخ..." class="blue-input">
                     </div>
                     <div class="arch-price-row">

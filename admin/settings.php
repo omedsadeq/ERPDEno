@@ -32,32 +32,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     Csrf::require();
     $action = $_POST['action'];
 
-    if ($action === 'save_settings') {
-        // Handle logo file upload
-        if (isset($_FILES['clinic_logo_file']) && $_FILES['clinic_logo_file']['error'] === UPLOAD_ERR_OK) {
-            $uploadDir = __DIR__ . '/../logo/';
+    if ($action === 'save_branding') {
+        // «ناسنامە و ڕەنگ» — names, contacts, logo, colours (classes/Branding.php).
+        $brandChanges = Branding::save((array)($_POST['brand'] ?? []));
 
-            // Create logo directory if it doesn't exist
-            if (!is_dir($uploadDir)) {
-                mkdir($uploadDir, 0755, true);
+        $oldLogo = Branding::get(Branding::LOGO);
+        if (!empty($_FILES['brand_logo']) && $_FILES['brand_logo']['error'] !== UPLOAD_ERR_NO_FILE) {
+            try {
+                Branding::setLogo(Branding::storeLogoUpload($_FILES['brand_logo']), $brandChanges);
+                Branding::deleteLogoFile($oldLogo);
+            } catch (RuntimeException $e) {
+                $_SESSION['branding_flash'] = $e->getMessage();
             }
-
-            $fileInfo = pathinfo($_FILES['clinic_logo_file']['name']);
-            $extension = strtolower($fileInfo['extension']);
-            // SVG removed: it is served inline and can carry embedded scripts (stored XSS).
-            $allowedExts = ['jpg', 'jpeg', 'png', 'gif'];
-
-            if (in_array($extension, $allowedExts)) {
-                $fileName = 'logo.' . $extension;
-                $uploadPath = $uploadDir . $fileName;
-
-                if (move_uploaded_file($_FILES['clinic_logo_file']['tmp_name'], $uploadPath)) {
-                    // Update the logo path in POST data
-                    $_POST['settings']['clinic_logo_path'] = 'logo/' . $fileName;
-                }
-            }
+        } elseif (($_POST['brand_logo_reset'] ?? '') === '1') {
+            Branding::setLogo('', $brandChanges);
+            Branding::deleteLogoFile($oldLogo);
         }
 
+        if ($brandChanges) {
+            AuditLog::log('settings_branding', 'settings', null,
+                array_map(fn($c) => $c[0], $brandChanges), array_map(fn($c) => $c[1], $brandChanges));
+        }
+        header('Location: ' . APP_URL . '/admin/settings.php?tab=clinic&saved=1');
+        exit;
+    } elseif ($action === 'reset_branding') {
+        $brandChanges = Branding::reset();
+        if ($brandChanges) {
+            AuditLog::log('settings_branding_reset', 'settings', null,
+                array_map(fn($c) => $c[0], $brandChanges), array_map(fn($c) => $c[1], $brandChanges));
+        }
+        header('Location: ' . APP_URL . '/admin/settings.php?tab=clinic&brand_reset=1');
+        exit;
+    } elseif ($action === 'save_settings') {
         if (isset($_POST['settings']['app_font_scale'])) {
             $allowedFontScales = ['1', '1.15', '1.3'];
             $requestedFontScale = (string)$_POST['settings']['app_font_scale'];
@@ -285,13 +291,13 @@ require_once __DIR__ . '/../includes/header.php';
 
 .tab-settings:hover {
     background: rgba(255, 255, 255, 0.6);
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 .tab-settings.active {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
-    box-shadow: 0 2px 8px rgba(0, 120, 212, 0.3);
+    box-shadow: 0 2px 8px rgba(var(--win-accent-rgb, 0, 120, 212), 0.3);
 }
 
 .tab-settings i {
@@ -345,8 +351,8 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 .form-control-compact:focus {
-    border-color: #0078d4;
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+    border-color: var(--win-accent, #0078d4);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
     outline: none;
 }
 
@@ -425,7 +431,7 @@ require_once __DIR__ . '/../includes/header.php';
     margin-bottom: 6px;
 }
 
-.access-card-title i { color: #0078d4; }
+.access-card-title i { color: var(--win-accent, #0078d4); }
 
 .access-card-desc {
     font-size: 12.5px;
@@ -468,7 +474,7 @@ require_once __DIR__ . '/../includes/header.php';
 }
 .call-doctors-count {
     background: #e3f2fd;
-    color: #0063b1;
+    color: var(--win-accent-deep, #0063b1);
     border-radius: 12px;
     padding: 2px 10px;
     font-size: 11.5px;
@@ -511,7 +517,7 @@ require_once __DIR__ . '/../includes/header.php';
 .call-doctor-room { font-size: 11px; color: #78909c; }
 .call-doctor input:checked + .call-doctor-box { border-color: #4caf50; background: #f1f8f2; }
 .call-doctor input:checked + .call-doctor-box .call-doctor-tick { background: #4caf50; border-color: #4caf50; color: #fff; }
-.call-doctor input:focus-visible + .call-doctor-box { outline: 2px solid #0078d4; outline-offset: 2px; }
+.call-doctor input:focus-visible + .call-doctor-box { outline: 2px solid var(--win-accent, #0078d4); outline-offset: 2px; }
 
 /* Toggle switch — same component as admin/doctor-permissions.php */
 .toggle-switch {
@@ -586,7 +592,7 @@ require_once __DIR__ . '/../includes/header.php';
 .access-stat-value {
     font-size: 20px;
     font-weight: 700;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 .access-stat-label {
@@ -601,14 +607,20 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 .access-stat-link:hover {
-    border-color: #0078d4;
-    box-shadow: 0 2px 8px rgba(0,120,212,.12);
+    border-color: var(--win-accent, #0078d4);
+    box-shadow: 0 2px 8px rgba(var(--win-accent-rgb, 0, 120, 212), .12);
 }
 </style>
 
 <?php if (isset($_GET['saved'])): ?>
 <div class="alert alert-success" data-auto-hide><i class="fas fa-check-circle alert-icon"></i> ڕێکخستنەکان پاشەکەوتکران</div>
 <?php endif; ?>
+<?php if (isset($_GET['brand_reset'])): ?>
+<div class="alert alert-success" data-auto-hide><i class="fas fa-undo alert-icon"></i> ناسنامە و ڕەنگ گەڕایەوە بۆ بنەڕەتی <?= htmlspecialchars(Branding::DEFAULTS[Branding::NAME]) ?></div>
+<?php endif; ?>
+<?php if (!empty($_SESSION['branding_flash'])): ?>
+<div class="alert alert-warning"><i class="fas fa-exclamation-triangle alert-icon"></i> <?= htmlspecialchars($_SESSION['branding_flash']) ?></div>
+<?php unset($_SESSION['branding_flash']); endif; ?>
 <?php if (isset($_GET['auto_ran'])): ?>
 <div class="alert alert-success" data-auto-hide><i class="fas fa-robot alert-icon"></i>
     <?= $_GET['auto_ran'] === 'busy' ? 'پەسەندکردنی خۆکار لە ئێستادا کار دەکات — چەند چرکەیەکی تر سەیر بکەرەوە' : (int)$_GET['auto_ran'] . ' وەسڵ خۆکار پەسەندکرا' ?>
@@ -648,7 +660,7 @@ require_once __DIR__ . '/../includes/header.php';
             <i class="fas fa-tooth"></i> چارەسەرەکان
         </button>
         <button class="tab-settings <?= $activeTab === 'clinic' ? 'active' : '' ?>" onclick="location='?tab=clinic'">
-            <i class="fas fa-hospital"></i> کلینیک
+            <i class="fas fa-palette"></i> ناسنامە و ڕەنگ
         </button>
         <button class="tab-settings <?= $activeTab === 'print' ? 'active' : '' ?>" onclick="location='?tab=print'">
             <i class="fas fa-print"></i> چاپ
@@ -1008,13 +1020,13 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="access-card-text">
                         <div class="access-card-title">
                             <i class="fas fa-code-branch"></i>
-                            هەر پارەیەک وەردەگیرێت، <b>ڕێژەی دکتۆر</b> بچێتە سندوقی دکتۆر و <b>ئەوەی تر</b> بچێتە <b>قاسەی لێزان</b>
+                            هەر پارەیەک وەردەگیرێت، <b>ڕێژەی دکتۆر</b> بچێتە سندوقی دکتۆر و <b>ئەوەی تر</b> بچێتە <b>قاسەی <?= htmlspecialchars(Branding::shortName()) ?></b>
                         </div>
                         <div class="access-card-desc">
-                            بۆ نموونە د. بە ڕێژەی 80%: لە 100,000، <b>80,000</b> دەچێتە سندوقەکەی و <b>20,000</b> دەچێتە قاسەی لێزان —
+                            بۆ نموونە د. بە ڕێژەی 80%: لە 100,000، <b>80,000</b> دەچێتە سندوقەکەی و <b>20,000</b> دەچێتە قاسەی <?= htmlspecialchars(Branding::shortName()) ?> —
                             لە هەمان کاتی وەرگرتنی پارەکەدا (پسووڵەی پەسەندکراو، قەبز، قیست، قەرزی کۆن). گەڕاندنەوە و تەعدیل بە هەمان ڕێژە دەگەڕێنەوە.
                             <br>
-                            خەرجی تاقیگە و کۆگای دکتۆر: ڕێژەی دکتۆر لێی لە سندوقەکەی دەچێتە قاسەی لێزان (چونکە لێزان خەرجییەکەی داوە).
+                            خەرجی تاقیگە و کۆگای دکتۆر: ڕێژەی دکتۆر لێی لە سندوقەکەی دەچێتە قاسەی <?= htmlspecialchars(Branding::shortName()) ?> (چونکە <?= htmlspecialchars(Branding::shortName()) ?> خەرجییەکەی داوە).
                             ڕێژەی هەر پارەیەک لەسەری دەمێنێت؛ گۆڕینی ڕێژەی دکتۆر تەنها پارەی نوێ دەگرێتەوە.
                             ڕێژەکان لە ئەکاونتی دکتۆر (<a href="<?= APP_URL ?>/admin/users.php" target="_blank">بەکارهێنەران</a>) دیاری دەکرێن.
                         </div>
@@ -1030,8 +1042,8 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="access-note">
                     <i class="fas fa-exclamation-triangle"></i>
                     <span>
-                        کاتێک <b>چالاک</b> دەکرێت، بۆ هەر دکتۆرێک یەک جار پشکی لێزان لە هەموو پارەی پێشووی ناو سندوقەکەی
-                        (لە ١/١٠ەوە) بە یەک جووڵە دەگوازرێتەوە بۆ قاسەی لێزان. هیچ جووڵەیەکی کۆن ناسڕدرێتەوە یان ناگۆڕدرێت.
+                        کاتێک <b>چالاک</b> دەکرێت، بۆ هەر دکتۆرێک یەک جار پشکی <?= htmlspecialchars(Branding::shortName()) ?> لە هەموو پارەی پێشووی ناو سندوقەکەی
+                        (لە ١/١٠ەوە) بە یەک جووڵە دەگوازرێتەوە بۆ قاسەی <?= htmlspecialchars(Branding::shortName()) ?>. هیچ جووڵەیەکی کۆن ناسڕدرێتەوە یان ناگۆڕدرێت.
                     </span>
                 </div>
             </div>
@@ -1078,11 +1090,6 @@ require_once __DIR__ . '/../includes/header.php';
             <h4 class="mb-3">ڕێکخستنەکانی گشتی</h4>
 
             <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">ناوی سیستەم</label>
-                    <input type="text" name="settings[app_name]" class="form-control"
-                           value="<?= htmlspecialchars($settingsMap['app_name'] ?? APP_NAME) ?>">
-                </div>
                 <div class="form-group">
                     <label class="form-label">دراوە</label>
                     <select name="settings[currency]" class="form-control">
@@ -1252,87 +1259,9 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
     <?php endif; ?>
 
-    <!-- Clinic Settings -->
+    <!-- Centre identity & colours (classes/Branding.php) -->
     <?php if ($activeTab === 'clinic'): ?>
-    <div class="panel-body">
-        <form method="POST" action="" enctype="multipart/form-data">
-            <input type="hidden" name="action" value="save_settings">
-            <input type="hidden" name="return_tab" value="clinic">
-            <h4 class="mb-3">زانیاری کلینیک</h4>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">ناوی کلینیک (کوردی)</label>
-                    <input type="text" name="settings[clinic_name]" class="form-control"
-                           value="<?= htmlspecialchars($settingsMap['clinic_name'] ?? '') ?>"
-                           placeholder="کلینیکی ددان">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">ناوی کلینیک (ئینگلیزی)</label>
-                    <input type="text" name="settings[clinic_name_en]" class="form-control"
-                           value="<?= htmlspecialchars($settingsMap['clinic_name_en'] ?? '') ?>"
-                           placeholder="Dental Clinic">
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">ژێرناونیشان</label>
-                <input type="text" name="settings[clinic_subtitle]" class="form-control"
-                       value="<?= htmlspecialchars($settingsMap['clinic_subtitle'] ?? '') ?>"
-                       placeholder="سەنتەری تایبەتی...">
-            </div>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">ژمارەی پەیوەندی 1</label>
-                    <input type="text" name="settings[clinic_phone]" class="form-control"
-                           value="<?= htmlspecialchars($settingsMap['clinic_phone'] ?? '') ?>"
-                           placeholder="075000000">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">ژمارەی پەیوەندی 2</label>
-                    <input type="text" name="settings[clinic_phone_2]" class="form-control"
-                           value="<?= htmlspecialchars($settingsMap['clinic_phone_2'] ?? '') ?>"
-                           placeholder="0502222">
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">ناونیشان</label>
-                <textarea name="settings[clinic_address]" class="form-control" rows="2"><?= htmlspecialchars($settingsMap['clinic_address'] ?? '') ?></textarea>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">ئیمەیڵ</label>
-                <input type="email" name="settings[clinic_email]" class="form-control"
-                       value="<?= htmlspecialchars($settingsMap['clinic_email'] ?? '') ?>">
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">وێنەی لۆگۆ</label>
-                <input type="file" name="clinic_logo_file" id="clinic_logo_file" class="form-control" accept="image/*" onchange="previewLogo(this)">
-                <small class="form-text">فایلی وێنە هەڵبژێرە (JPG, PNG, GIF, SVG)</small>
-
-                <?php
-                $currentLogoPath = $settingsMap['clinic_logo_path'] ?? 'logo/logo.jpg';
-                $logoFullPath = __DIR__ . '/../' . $currentLogoPath;
-                if (file_exists($logoFullPath)):
-                ?>
-                <div id="logoPreview" style="margin-top: 15px; text-align: center;">
-                    <p style="font-size: 10pt; color: #666; margin-bottom: 10px;">لۆگۆی ئێستا:</p>
-                    <img src="<?= APP_URL . '/' . $currentLogoPath ?>?v=<?= time() ?>" style="max-width: 200px; max-height: 100px; border: 1px solid #ddd; padding: 10px; border-radius: 8px;">
-                </div>
-                <?php endif; ?>
-
-                <input type="hidden" name="settings[clinic_logo_path]" value="<?= htmlspecialchars($currentLogoPath) ?>">
-                <input type="hidden" name="settings[clinic_logo]" value="<?= htmlspecialchars($settingsMap['clinic_logo'] ?? '🦷') ?>">
-            </div>
-
-            <button type="submit" class="btn btn-primary">
-                <i class="fas fa-save"></i> پاشەکەوتکردن
-            </button>
-        </form>
-    </div>
+    <?php require __DIR__ . '/_branding_tab.php'; ?>
     <?php endif; ?>
 
     <!-- Print Settings -->
@@ -1505,30 +1434,6 @@ function editTreatment(t) {
     openDialog('editTreatmentDialog');
 }
 
-function previewLogo(input) {
-    const previewDiv = document.getElementById('logoPreview');
-
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-
-        reader.onload = function(e) {
-            if (previewDiv) {
-                previewDiv.innerHTML = '<p style="font-size: 10pt; color: #666; margin-bottom: 10px;">پێشبینینی لۆگۆی نوێ:</p>' +
-                    '<img src="' + e.target.result + '" style="max-width: 200px; max-height: 100px; border: 1px solid #ddd; padding: 10px; border-radius: 8px;">';
-            } else {
-                const newPreview = document.createElement('div');
-                newPreview.id = 'logoPreview';
-                newPreview.style.marginTop = '15px';
-                newPreview.style.textAlign = 'center';
-                newPreview.innerHTML = '<p style="font-size: 10pt; color: #666; margin-bottom: 10px;">پێشبینینی لۆگۆی نوێ:</p>' +
-                    '<img src="' + e.target.result + '" style="max-width: 200px; max-height: 100px; border: 1px solid #ddd; padding: 10px; border-radius: 8px;">';
-                input.parentElement.appendChild(newPreview);
-            }
-        };
-
-        reader.readAsDataURL(input.files[0]);
-    }
-}
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

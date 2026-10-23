@@ -335,7 +335,7 @@ html, body {
         </div>
         <div class="rc-head-text">
             <div class="rc-clinic-ku"><?= htmlspecialchars($clinicName) ?></div>
-            <div class="rc-contact"><span class="ico">✆</span> <?= htmlspecialchars($clinicPhone1) ?> - <?= htmlspecialchars($clinicPhone2) ?></div>
+            <div class="rc-contact"><span class="ico">✆</span> <?= htmlspecialchars(implode(' - ', $clinicPhones)) ?></div>
             <div class="rc-addr"><span class="ico">◉</span> <?= htmlspecialchars($clinicAddress) ?></div>
         </div>
     </div>

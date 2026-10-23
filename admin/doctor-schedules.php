@@ -66,7 +66,7 @@ $dayNames = $scheduleManager->getOrderedDayNames();
 
 /* Doctor Selector */
 .doctor-selector {
-    background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);
     border-radius: 12px;
     padding: 16px 20px;
     margin-bottom: 16px;
@@ -101,7 +101,7 @@ $dayNames = $scheduleManager->getOrderedDayNames();
 }
 
 .schedule-header {
-    background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);
     color: white;
     padding: 14px 20px;
     font-weight: 600;
@@ -205,8 +205,8 @@ $dayNames = $scheduleManager->getOrderedDayNames();
 }
 
 .time-input:focus {
-    border-color: #0078d4;
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+    border-color: var(--win-accent, #0078d4);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
     outline: none;
 }
 
@@ -443,8 +443,8 @@ $dayNames = $scheduleManager->getOrderedDayNames();
 }
 
 .dialog-schedule .form-control:focus {
-    border-color: #0078d4;
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+    border-color: var(--win-accent, #0078d4);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
     outline: none;
 }
 

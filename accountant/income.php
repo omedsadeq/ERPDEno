@@ -166,7 +166,7 @@ $manReturn = $rangeQs($from, $to);
             <img src="<?= dsEsc($logoUrl) ?>" alt="" onerror="this.style.display='none'">
             <div class="en">
                 <b><?= dsEsc($clinicNameEn) ?></b>
-                <div><?= dsEsc($clinicPhone1) ?> · <?= dsEsc($clinicPhone2) ?></div>
+                <div><?= dsEsc(implode(' · ', $clinicPhones)) ?></div>
             </div>
         </div>
 
@@ -198,7 +198,7 @@ $manReturn = $rangeQs($from, $to);
                         <?php foreach ($colSel as $k): ?><th><?= dsEsc($expenseKinds[$k]) ?></th><?php endforeach; ?>
                         <th>کۆی گشتی</th>
                         <th class="doc">پشکی دکتۆر<small>بە ڕێژەی خۆی</small></th>
-                        <th class="ctr">پشکی سەنتەر<small>بۆ لێزان</small></th>
+                        <th class="ctr">پشکی سەنتەر<small>بۆ <?= htmlspecialchars(Branding::shortName()) ?></small></th>
                     </tr>
                 </thead>
                 <tbody>

@@ -66,7 +66,7 @@ $notification->markAllAsSeen($userId);
     justify-content: space-between;
     margin-bottom: 20px;
     padding: 16px 20px;
-    background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);
     border-radius: 12px;
     color: white;
 }
@@ -129,7 +129,7 @@ $notification->markAllAsSeen($userId);
 }
 
 .notification-card.unread {
-    background: linear-gradient(135deg, rgba(0, 120, 212, 0.06) 0%, rgba(0, 120, 212, 0.02) 100%);
+    background: linear-gradient(135deg, rgba(var(--win-accent-rgb, 0, 120, 212), 0.06) 0%, rgba(var(--win-accent-rgb, 0, 120, 212), 0.02) 100%);
 }
 
 .notification-card.unread::before {
@@ -139,7 +139,7 @@ $notification->markAllAsSeen($userId);
     top: 0;
     bottom: 0;
     width: 4px;
-    background: linear-gradient(180deg, #0078d4 0%, #00a8ff 100%);
+    background: linear-gradient(180deg, var(--win-accent, #0078d4) 0%, #00a8ff 100%);
 }
 
 .notification-icon {

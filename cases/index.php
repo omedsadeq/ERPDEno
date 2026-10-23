@@ -146,7 +146,7 @@ if ($isAdmin) {
 .filter-group select:focus {
     outline: none;
     border-color: var(--win-accent);
-    box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.1);
+    box-shadow: 0 0 0 2px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
 }
 
 /* Quick Date Filters */
@@ -308,7 +308,7 @@ if ($isAdmin) {
 .case-number-link {
     font-family: var(--app-font-family);
     font-weight: 700;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     text-decoration: none;
     font-size: 14px;
 }
@@ -324,7 +324,7 @@ if ($isAdmin) {
 }
 
 .patient-name-cell:hover {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 .doctor-name-cell {
@@ -338,7 +338,7 @@ if ($isAdmin) {
 }
 
 .amount-value.total {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 .amount-value.paid {

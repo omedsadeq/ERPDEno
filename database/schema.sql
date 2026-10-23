@@ -531,10 +531,10 @@ INSERT INTO treatments (treatment_code, treatment_name, treatment_name_en, categ
 
 -- Default Settings
 INSERT INTO settings (setting_key, setting_value, setting_type, description) VALUES
-('clinic_name', 'کلینیکی ددانی نوێ', 'text', 'ناوی کلینیک'),
-('clinic_phone', '0750-000-0000', 'text', 'ژمارەی تەلەفۆن'),
+('clinic_name', 'سەنتەری لێزان', 'text', 'ناوی کلینیک'),
+('clinic_phone', '0750 693 2626', 'text', 'ژمارەی تەلەفۆن'),
 ('clinic_address', 'سۆران: ترافیک لایەتی دەروازەی سۆران، بەرامبەر میلان کڵاس', 'text', 'ناونیشان'),
-('clinic_email', 'info@dental.com', 'text', 'ئیمەیڵ'),
+('clinic_email', '', 'text', 'ئیمەیڵ'),
 ('clinic_logo', '', 'image', 'لۆگۆی کلینیک'),
 ('currency', 'IQD', 'text', 'جۆری دراو'),
 ('currency_symbol', 'د.ع', 'text', 'نیشانەی دراو'),

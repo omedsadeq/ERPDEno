@@ -137,7 +137,7 @@ $html = '
     h2 { text-align: center; color: #1a1a2e; margin: 0 0 3px; font-size: 15px; }
     h3 { color: #0f172a; margin: 10px 0 4px; font-size: 12px; border-bottom: 2px solid #16a34a; padding-bottom: 3px; }
     .meta { text-align: center; font-size: 10px; color: #555; margin-bottom: 8px; }
-    .filters-meta { text-align: center; font-size: 9px; color: #0078d4; margin-bottom: 6px; background: #f0f7ff; padding: 4px; border-radius: 4px; }
+    .filters-meta { text-align: center; font-size: 9px; color: ' . Branding::primaryColor() . '; margin-bottom: 6px; background: #f0f7ff; padding: 4px; border-radius: 4px; }
     .stats { margin: 0 auto 8px; border-collapse: collapse; width: 100%; }
     .stats td { border: 1px solid #ddd; text-align: center; padding: 5px; }
     .stats .v { font-size: 13px; font-weight: bold; }

@@ -187,14 +187,14 @@ require_once __DIR__ . '/../includes/header.php';
 .report-title .icon {
     width: 45px;
     height: 45px;
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
     font-size: 20px;
-    box-shadow: 0 4px 12px rgba(0, 120, 212, 0.3);
+    box-shadow: 0 4px 12px rgba(var(--win-accent-rgb, 0, 120, 212), 0.3);
 }
 
 .report-actions {
@@ -287,9 +287,9 @@ require_once __DIR__ . '/../includes/header.php';
 
 .filter-group input:focus,
 .filter-group select:focus {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     outline: none;
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
 }
 
 .filter-group input[type="text"] {
@@ -298,7 +298,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 .btn-filter {
     padding: 9px 18px;
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
     border: none;
     border-radius: 8px;
@@ -312,7 +312,7 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 .btn-filter:hover {
-    background: linear-gradient(135deg, #0063b1, #005a9e);
+    background: linear-gradient(135deg, var(--win-accent-deep, #0063b1), var(--win-accent-dark, #005a9e));
     transform: translateY(-1px);
 }
 
@@ -362,7 +362,7 @@ require_once __DIR__ . '/../includes/header.php';
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
-.stat-card.total { border-right-color: #0078d4; }
+.stat-card.total { border-right-color: var(--win-accent, #0078d4); }
 .stat-card.active { border-right-color: #4caf50; }
 .stat-card.archived { border-right-color: #9e9e9e; }
 .stat-card.amount { border-right-color: #ff9800; }
@@ -407,7 +407,7 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 .table-count {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
     padding: 5px 12px;
     border-radius: 14px;
@@ -457,14 +457,14 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 .folder-link {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     text-decoration: none;
     font-weight: 600;
     transition: all 0.2s;
 }
 
 .folder-link:hover {
-    color: #005a9e;
+    color: var(--win-accent-dark, #005a9e);
     text-decoration: underline;
 }
 
@@ -538,13 +538,13 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 .btn-view {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
 }
 
 .btn-view:hover {
     transform: translateY(-2px) scale(1.05);
-    box-shadow: 0 4px 12px rgba(0, 120, 212, 0.3);
+    box-shadow: 0 4px 12px rgba(var(--win-accent-rgb, 0, 120, 212), 0.3);
 }
 
 .btn-patient {
@@ -601,18 +601,18 @@ require_once __DIR__ . '/../includes/header.php';
 
 .pagination a {
     background: white;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     border: 1.5px solid #e0e0e0;
 }
 
 .pagination a:hover {
-    background: #0078d4;
+    background: var(--win-accent, #0078d4);
     color: white;
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
 }
 
 .pagination .active {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
     border: none;
 }
@@ -976,8 +976,8 @@ function exportPDF() {
     // Add header for PDF
     const header = document.createElement('div');
     header.innerHTML = `
-        <div style="text-align: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #0078d4;">
-            <h2 style="margin: 0; color: #0078d4;">ڕاپۆرتی دۆسیەکان</h2>
+        <div style="text-align: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid var(--win-accent, #0078d4);">
+            <h2 style="margin: 0; color: var(--win-accent, #0078d4);">ڕاپۆرتی دۆسیەکان</h2>
             <p style="margin: 5px 0 0; color: #666; font-size: 12px;">کۆی گشتی: <?= number_format($totalFolders) ?> دۆسیە - بەرواری ڕاپۆرت: <?= date('Y/m/d') ?></p>
         </div>
     `;

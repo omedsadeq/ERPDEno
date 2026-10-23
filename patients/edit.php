@@ -132,9 +132,9 @@ foreach ($medicalConditions as $cond) {
     align-items: center;
     justify-content: center;
     font-size: 16px;
-    background: linear-gradient(135deg, var(--primary-color), #0063b1);
+    background: linear-gradient(135deg, var(--primary-color), var(--win-accent-deep, #0063b1));
     color: white;
-    box-shadow: 0 2px 6px rgba(0, 120, 212, 0.2);
+    box-shadow: 0 2px 6px rgba(var(--win-accent-rgb, 0, 120, 212), 0.2);
 }
 .form-section-title {
     font-size: 15px;
@@ -155,7 +155,7 @@ foreach ($medicalConditions as $cond) {
 .form-label i {
     font-size: 14px;
 }
-.form-label.label-blue { color: #0078d4; }
+.form-label.label-blue { color: var(--win-accent, #0078d4); }
 .form-label.label-green { color: #107c10; }
 .form-label.label-purple { color: #8764b8; }
 .form-label.label-orange { color: #ff8c00; }
@@ -212,13 +212,13 @@ foreach ($medicalConditions as $cond) {
 }
 .condition-card:hover {
     border-color: var(--primary-color);
-    box-shadow: 0 2px 8px rgba(0, 120, 212, 0.12);
+    box-shadow: 0 2px 8px rgba(var(--win-accent-rgb, 0, 120, 212), 0.12);
     transform: translateY(-1px);
 }
 .condition-card.active {
     border-color: var(--primary-color);
     background: linear-gradient(to bottom, #e3f2fd, white);
-    box-shadow: 0 2px 10px rgba(0, 120, 212, 0.18);
+    box-shadow: 0 2px 10px rgba(var(--win-accent-rgb, 0, 120, 212), 0.18);
 }
 .condition-card-header {
     display: flex;

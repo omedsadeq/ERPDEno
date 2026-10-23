@@ -286,7 +286,7 @@ html::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; border:
 .pr-table tr:hover td { background:#fafcff; }
 .pr-table .pname { font-weight:700; color:#0f172a; text-align:start; }
 .pr-table .pcode { font-size:11px; color:#64748b; display:block; direction:ltr; }
-.pr-table .phone { direction:ltr; font-family:var(--app-font-family); font-size:12px; color:#0078d4; text-decoration:none; }
+.pr-table .phone { direction:ltr; font-family:var(--app-font-family); font-size:12px; color:var(--win-accent, #0078d4); text-decoration:none; }
 .pr-table .v-total    { color:#0f172a; font-weight:700; }
 .pr-table .v-discount { color:#f59e0b; font-weight:700; }
 .pr-table .v-paid     { color:#15803d; font-weight:700; }
@@ -295,7 +295,7 @@ html::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; border:
 .pr-table .status-badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:600; }
 .pr-table .st-completed { background:#e8f5e9; color:#2e7d32; }
 .pr-table .st-pending   { background:#fff3e0; color:#f57c00; }
-.pr-table .st-approved  { background:#e3f2fd; color:#0078d4; }
+.pr-table .st-approved  { background:#e3f2fd; color:var(--win-accent, #0078d4); }
 .pr-table .st-cancelled { background:#ffebee; color:#c62828; }
 .pr-table .st-rejected  { background:#ffebee; color:#c62828; }
 

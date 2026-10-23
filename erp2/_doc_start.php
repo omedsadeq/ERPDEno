@@ -203,7 +203,7 @@ $dsJson = json_encode($dsCfg, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_A
 .ds-head-pick .form-control[readonly] { background: #f8fafc; cursor: pointer; font-weight: 600; }
 .ds-head-btn { flex: 0 0 auto; height: 32px; padding: 0 10px; border: 1px solid #c8d3da; border-radius: 5px; background: #fff;
     color: #334155; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; }
-.ds-head-btn:hover { border-color: #0078D4; color: #0078D4; }
+.ds-head-btn:hover { border-color: var(--win-accent, #0078D4); color: var(--win-accent, #0078D4); }
 @media (prefers-reduced-motion: reduce) { .ds-overlay { backdrop-filter: none; } }
 </style>
 

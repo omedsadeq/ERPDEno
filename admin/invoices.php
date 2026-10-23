@@ -337,7 +337,7 @@ $doctors = $db->fetchAll("SELECT id, full_name FROM users WHERE role = 'doctor' 
 
 .filter-control:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
     outline: none;
 }
 
@@ -361,7 +361,7 @@ $doctors = $db->fetchAll("SELECT id, full_name FROM users WHERE role = 'doctor' 
 }
 
 .invoices-panel-header {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     padding: 8px 12px;
     color: white;
 }
@@ -422,7 +422,7 @@ $doctors = $db->fetchAll("SELECT id, full_name FROM users WHERE role = 'doctor' 
 .case-number-cell {
     font-family: var(--app-font-family);
     font-weight: 700;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-size: 11px;
 }
 
@@ -441,11 +441,11 @@ $doctors = $db->fetchAll("SELECT id, full_name FROM users WHERE role = 'doctor' 
 }
 
 .patient-name-link:hover {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 .patient-name-link i {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-size: 8px;
 }
 
@@ -481,7 +481,7 @@ $doctors = $db->fetchAll("SELECT id, full_name FROM users WHERE role = 'doctor' 
 }
 
 .amount-cell.total {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-size: 11px;
 }
 
@@ -947,7 +947,7 @@ function displayInvoiceDetails(invoice) {
                     <div style="padding: 5px; border-bottom: 1px solid #eee;">
                         <strong>${t.treatment_name}</strong>
                         ${t.tooth_number ? ` - ددان ${t.tooth_number}` : ''}
-                        <span style="float: left; color: #0078D4;">${numberFormat(t.final_price)}</span>
+                        <span style="float: left; color: var(--win-accent, #0078D4);">${numberFormat(t.final_price)}</span>
                     </div>
                 `).join('')}
             </div>

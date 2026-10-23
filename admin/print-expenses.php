@@ -135,8 +135,8 @@ $html = '
             font-size: 10pt;
         }
         h2 {
-            color: #0078D4;
-            border-bottom: 1px solid #0078D4;
+            color: ' . Branding::primaryColor() . ';
+            border-bottom: 1px solid ' . Branding::primaryColor() . ';
             padding-bottom: 4px;
             margin-top: 10px;
             margin-bottom: 6px;
@@ -147,7 +147,7 @@ $html = '
             margin-bottom: 8px;
         }
         .expenses-table th {
-            background: #0078D4;
+            background: ' . Branding::primaryColor() . ';
             color: white;
             padding: 4px 3px;
             text-align: center;
@@ -183,12 +183,12 @@ $html = '
             font-weight: bold;
         }
         .totals-table .grand-total {
-            background: #0078D4;
+            background: ' . Branding::primaryColor() . ';
             color: white;
         }
         .summary-box {
             background: #f0f8ff;
-            border: 1px solid #0078D4;
+            border: 1px solid ' . Branding::primaryColor() . ';
             padding: 4px;
             margin-bottom: 6px;
         }
@@ -211,7 +211,7 @@ $html = '
             display: table-cell;
             width: 40%;
             text-align: left;
-            color: #0078D4;
+            color: ' . Branding::primaryColor() . ';
             font-weight: bold;
         }
     </style>
@@ -221,10 +221,10 @@ $html = '
     <table width="100%" style="margin-bottom: 6px; border-collapse: collapse;">
         <tr>
             <td width="50%" style="padding: 1px;">
-                <table width="100%" style="border: 1px solid #0078D4; background: #f0f8ff;">
+                <table width="100%" style="border: 1px solid ' . Branding::primaryColor() . '; background: #f0f8ff;">
                     <tr>
                         <td style="padding: 2px 4px; font-weight: bold; text-align: right; border-bottom: 1px solid #ccc;">جۆری ڕاپۆرت :</td>
-                        <td style="padding: 2px 4px; background: white; border-bottom: 1px solid #ccc; font-weight: bold; color: #0078D4;">' . $reportTitle . '</td>
+                        <td style="padding: 2px 4px; background: white; border-bottom: 1px solid #ccc; font-weight: bold; color: ' . Branding::primaryColor() . ';">' . $reportTitle . '</td>
                     </tr>
                     <tr>
                         <td style="padding: 2px 4px; font-weight: bold; text-align: right; border-bottom: 1px solid #ccc;">لە بەروار :</td>
@@ -237,7 +237,7 @@ $html = '
                 </table>
             </td>
             <td width="50%" style="padding: 1px;">
-                <table width="100%" style="border: 1px solid #0078D4; background: #f0f8ff;">
+                <table width="100%" style="border: 1px solid ' . Branding::primaryColor() . '; background: #f0f8ff;">
                     <tr>
                         <td style="padding: 2px 4px; font-weight: bold; text-align: right; border-bottom: 1px solid #ccc;">بەرواری چاپکردن :</td>
                         <td style="padding: 2px 4px; background: white; border-bottom: 1px solid #ccc;">' . date('Y-m-d H:i') . '</td>
@@ -248,7 +248,7 @@ $html = '
                     </tr>
                     <tr>
                         <td style="padding: 2px 4px; font-weight: bold; text-align: right;">ژمارەی تۆماکان :</td>
-                        <td style="padding: 2px 4px; background: white; font-weight: bold; color: #0078D4;">' . $totalCount . '</td>
+                        <td style="padding: 2px 4px; background: white; font-weight: bold; color: ' . Branding::primaryColor() . ';">' . $totalCount . '</td>
                     </tr>
                 </table>
             </td>

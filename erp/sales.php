@@ -85,7 +85,7 @@ table.tg thead th{position:sticky;top:0;background:#eef2f5;border-bottom:2px sol
 table.tg td{border-bottom:1px solid #f0f0f0;padding:0}
 table.tg tr.sel td{background:#e8f4fd}
 table.tg input{width:100%;border:0;background:transparent;padding:7px 8px;font-size:13px;font-family:inherit}
-table.tg input:focus{background:#fff8dc;outline:2px solid #0078D4;outline-offset:-2px}
+table.tg input:focus{background:#fff8dc;outline:2px solid var(--win-accent, #0078D4);outline-offset:-2px}
 table.tg input[readonly]{color:#555}
 .tg-n{text-align:left;direction:ltr;font-variant-numeric:tabular-nums}
 .tg-del{width:34px;text-align:center;color:#c62828;cursor:pointer}

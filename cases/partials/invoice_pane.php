@@ -306,7 +306,7 @@ $paneHidden = !empty($paneAlwaysVisible) ? false : ($tid !== $activeInvoiceId);
                 <?php if ($isDraft && $case['status'] === 'open'): ?>
                 <!-- Quick-entry row, one per draft tab -->
                 <tr class="rt-add-row" data-add-for="<?= $tid ?>">
-                    <td class="rt-c-no"><i class="fas fa-plus" style="color:#0078D4;"></i></td>
+                    <td class="rt-c-no"><i class="fas fa-plus" style="color:var(--win-accent, #0078D4);"></i></td>
                     <td class="rt-c-desc">
                         <?php if (empty($toothTreatments)): ?>
                         <button type="button" class="btn btn-sm" onclick="openManageTreatmentsDialog()"

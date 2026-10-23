@@ -114,19 +114,19 @@ require_once __DIR__ . '/../includes/header.php';
     width: 50px;
     height: 50px;
     border-radius: 10px;
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 22px;
-    box-shadow: 0 2px 8px rgba(0, 120, 212, 0.25);
+    box-shadow: 0 2px 8px rgba(var(--win-accent-rgb, 0, 120, 212), 0.25);
     flex-shrink: 0;
     transition: all 0.3s ease;
 }
 .folder-icon-box:hover {
     transform: translateY(-2px) scale(1.05);
-    box-shadow: 0 4px 12px rgba(0, 120, 212, 0.35);
+    box-shadow: 0 4px 12px rgba(var(--win-accent-rgb, 0, 120, 212), 0.35);
 }
 .folder-header-info h2 {
     margin: 0 0 4px;
@@ -140,12 +140,12 @@ require_once __DIR__ . '/../includes/header.php';
     color: #757575;
 }
 .folder-header-info a {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     text-decoration: none;
     transition: all 0.2s ease;
 }
 .folder-header-info a:hover {
-    color: #0063b1;
+    color: var(--win-accent-deep, #0063b1);
     text-decoration: underline;
 }
 
@@ -164,7 +164,7 @@ require_once __DIR__ . '/../includes/header.php';
     transform: translateY(-2px);
 }
 .panel-header {
-    background: linear-gradient(135deg, #0078d4 0%, #0063b1 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-deep, #0063b1) 100%);
     padding: 12px 16px;
     border-bottom: none;
 }
@@ -244,15 +244,15 @@ require_once __DIR__ . '/../includes/header.php';
     transition: all 0.2s ease;
 }
 .table-actions .btn-icon.btn-primary {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
-    box-shadow: 0 2px 6px rgba(0, 120, 212, 0.2);
+    box-shadow: 0 2px 6px rgba(var(--win-accent-rgb, 0, 120, 212), 0.2);
     border: none;
 }
 .table-actions .btn-icon.btn-primary:hover {
     transform: translateY(-1px) scale(1.08);
-    box-shadow: 0 3px 10px rgba(0, 120, 212, 0.35);
-    background: linear-gradient(135deg, #0067c0, #005a9e);
+    box-shadow: 0 3px 10px rgba(var(--win-accent-rgb, 0, 120, 212), 0.35);
+    background: linear-gradient(135deg, var(--text-accent, #0067c0), var(--win-accent-dark, #005a9e));
 }
 .table-actions .btn-icon i {
     font-size: 12px;
@@ -373,14 +373,14 @@ require_once __DIR__ . '/../includes/header.php';
     font-size: 13px;
 }
 .btn-primary {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
-    box-shadow: 0 2px 8px rgba(0, 120, 212, 0.25);
+    box-shadow: 0 2px 8px rgba(var(--win-accent-rgb, 0, 120, 212), 0.25);
 }
 .btn-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 120, 212, 0.35);
-    background: linear-gradient(135deg, #0067c0, #005a9e);
+    box-shadow: 0 4px 12px rgba(var(--win-accent-rgb, 0, 120, 212), 0.35);
+    background: linear-gradient(135deg, var(--text-accent, #0067c0), var(--win-accent-dark, #005a9e));
 }
 .btn-secondary {
     background: linear-gradient(135deg, #e0e0e0, #bdbdbd);
@@ -404,15 +404,15 @@ require_once __DIR__ . '/../includes/header.php';
 }
 .btn-outline {
     background: white;
-    color: #0078d4;
-    border: 2px solid #0078d4;
-    box-shadow: 0 2px 8px rgba(0, 120, 212, 0.15);
+    color: var(--win-accent, #0078d4);
+    border: 2px solid var(--win-accent, #0078d4);
+    box-shadow: 0 2px 8px rgba(var(--win-accent-rgb, 0, 120, 212), 0.15);
 }
 .btn-outline:hover {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 120, 212, 0.25);
+    box-shadow: 0 4px 12px rgba(var(--win-accent-rgb, 0, 120, 212), 0.25);
 }
 .btn-sm {
     padding: 6px 12px;
@@ -428,12 +428,12 @@ require_once __DIR__ . '/../includes/header.php';
     border-radius: 8px;
 }
 .btn-icon.btn-primary {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
-    box-shadow: 0 2px 8px rgba(0, 120, 212, 0.25);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
+    box-shadow: 0 2px 8px rgba(var(--win-accent-rgb, 0, 120, 212), 0.25);
 }
 .btn-icon.btn-primary:hover {
     transform: translateY(-2px) scale(1.05);
-    box-shadow: 0 4px 12px rgba(0, 120, 212, 0.35);
+    box-shadow: 0 4px 12px rgba(var(--win-accent-rgb, 0, 120, 212), 0.35);
 }
 .w-100 {
     width: 100%;
@@ -492,7 +492,7 @@ require_once __DIR__ . '/../includes/header.php';
     flex-direction: column;
 }
 .dialog-header {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
     padding: 12px 16px;
     display: flex;
@@ -578,9 +578,9 @@ require_once __DIR__ . '/../includes/header.php';
     background: white;
 }
 .form-control:focus {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     outline: none;
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
 }
 textarea.form-control {
     resize: vertical;
@@ -665,12 +665,12 @@ strong {
 
 /* Windows 10 Style Table Link */
 .table a {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-weight: 600;
     transition: all 0.2s ease;
 }
 .table a:hover {
-    color: #0063b1;
+    color: var(--win-accent-deep, #0063b1);
     text-decoration: underline;
 }
 
@@ -692,7 +692,7 @@ strong {
     color: white;
 }
 .alert-info {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
 }
 .alert-warning {
@@ -1281,9 +1281,9 @@ strong {
     background: #f5f9ff;
 }
 .scope-option.selected {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     background: linear-gradient(135deg, #e3f2fd, #bbdefb);
-    box-shadow: 0 2px 8px rgba(0, 120, 212, 0.2);
+    box-shadow: 0 2px 8px rgba(var(--win-accent-rgb, 0, 120, 212), 0.2);
 }
 .scope-option input[type="radio"] {
     display: none;
@@ -1292,7 +1292,7 @@ strong {
     width: 44px;
     height: 44px;
     border-radius: 10px;
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
     display: flex;
     align-items: center;

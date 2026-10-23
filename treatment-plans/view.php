@@ -260,7 +260,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                             <h5 style="margin: 0; font-size: 14px;">
                                 <?php if ($isArch): ?>
-                                <i class="fas fa-teeth" style="color: #0078d4;"></i> چارتی ئەرک
+                                <i class="fas fa-teeth" style="color: var(--win-accent, #0078d4);"></i> چارتی ئەرک
                                 <span class="badge badge-blue" style="font-size: 10px; padding: 3px 8px; margin-right: 8px;" id="pvArchChip"><?= $archLabel ?></span>
                                 <?php else: ?>
                                 چارتی ددان

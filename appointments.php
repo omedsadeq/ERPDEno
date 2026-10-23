@@ -747,9 +747,9 @@ require_once __DIR__ . '/includes/header.php';
 }
 
 .filter-chip-apt.active {
-    background: #0078d4;
+    background: var(--win-accent, #0078d4);
     color: white;
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
 }
 
 .chip-badge-apt {
@@ -788,8 +788,8 @@ require_once __DIR__ . '/includes/header.php';
 
 .calendar-nav-btn:hover {
     background: #f5f5f5;
-    border-color: #0078d4;
-    color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
+    color: var(--win-accent, #0078d4);
 }
 
 .calendar-nav-date {
@@ -857,14 +857,14 @@ require_once __DIR__ . '/includes/header.php';
 }
 
 .filter-control-appointments:focus {
-    border-color: #0078d4;
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+    border-color: var(--win-accent, #0078d4);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
     outline: none;
 }
 
 /* A filter that is actually narrowing the list must look like it */
 .filter-control-appointments.filter-active-apt {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     background: #eef4fb;
     color: #0d47a1;
     font-weight: 600;
@@ -909,7 +909,7 @@ require_once __DIR__ . '/includes/header.php';
 
 .patient-name-apt {
     font-weight: 700;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     text-decoration: none;
     font-size: 13px;
 }
@@ -921,7 +921,7 @@ require_once __DIR__ . '/includes/header.php';
 .time-cell-apt {
     font-weight: 700;
     font-size: 14px;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-family: var(--app-font-family);
 }
 
@@ -970,9 +970,9 @@ require_once __DIR__ . '/includes/header.php';
 }
 
 .time-slot-modern:hover {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     background: #e3f2fd;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     transform: translateY(-1px);
 }
 
@@ -1020,7 +1020,7 @@ require_once __DIR__ . '/includes/header.php';
 }
 
 .side-panel-header {
-    background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);
     color: white;
     padding: 12px 16px;
     font-weight: 600;
@@ -1055,7 +1055,7 @@ require_once __DIR__ . '/includes/header.php';
 }
 
 .guide-list li i {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-size: 10px;
     margin-top: 3px;
 }
@@ -1378,7 +1378,7 @@ require_once __DIR__ . '/includes/header.php';
 }
 
 .view-toggle-btn.active {
-    background: #0078d4;
+    background: var(--win-accent, #0078d4);
     color: white;
 }
 
@@ -1419,19 +1419,19 @@ require_once __DIR__ . '/includes/header.php';
 
 .fc .fc-button:hover {
     background: #f5f5f5 !important;
-    border-color: #0078d4 !important;
+    border-color: var(--win-accent, #0078d4) !important;
 }
 
 .fc .fc-button-primary:not(:disabled).fc-button-active,
 .fc .fc-button-primary:not(:disabled):active {
-    background: #0078d4 !important;
+    background: var(--win-accent, #0078d4) !important;
     color: white !important;
-    border-color: #0078d4 !important;
+    border-color: var(--win-accent, #0078d4) !important;
 }
 
 .fc .fc-daygrid-day.fc-day-today,
 .fc .fc-timegrid-col.fc-day-today {
-    background: rgba(0, 120, 212, 0.05) !important;
+    background: rgba(var(--win-accent-rgb, 0, 120, 212), 0.05) !important;
 }
 
 .fc .fc-event {
@@ -1505,16 +1505,16 @@ require_once __DIR__ . '/includes/header.php';
 }
 
 .smart-time-slot:hover:not(.busy):not(.break) {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     background: #e3f2fd;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     transform: translateY(-1px);
 }
 
 .smart-time-slot.selected {
-    background: #0078d4;
+    background: var(--win-accent, #0078d4);
     color: white;
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
 }
 
 .smart-time-slot.busy {
@@ -1535,9 +1535,9 @@ require_once __DIR__ . '/includes/header.php';
 }
 
 .smart-time-slot.booked.selected {
-    background: #0078d4;
+    background: var(--win-accent, #0078d4);
     color: white;
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
 }
 
 .smart-time-slot.break {
@@ -1570,7 +1570,7 @@ require_once __DIR__ . '/includes/header.php';
 
 .legend-item.available::before {
     background: #e3f2fd;
-    border: 1px solid #0078d4;
+    border: 1px solid var(--win-accent, #0078d4);
 }
 
 .legend-item.busy::before {
@@ -2267,7 +2267,7 @@ $dayName = $days[$dayNum];
                                                 'promised_amount' => $apt['promised_amount'] ?? '',
                                             ], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT);
                                             ?>
-                                            <button type="button" class="dropdown-item" style="color: #0078d4;"
+                                            <button type="button" class="dropdown-item" style="color: var(--win-accent, #0078d4);"
                                                     data-apt='<?= htmlspecialchars($editData, ENT_QUOTES) ?>'
                                                     onclick="openEditAppointmentDialog(this)">
                                                 <i class="fas fa-edit"></i> دەستکاری
@@ -2465,7 +2465,7 @@ $dayName = $days[$dayNum];
                                 <?php endforeach; ?>
                             </select>
                             <button type="button" class="apt-btn-add-work" onclick="openAddWorkTypeDialog()" title="زیادکردنی ئیشی نوێ"
-                                    style="padding: 0 10px; background: #0078d4; color: #fff; border: 1px solid #0078d4; border-radius: 4px; cursor: pointer;">
+                                    style="padding: 0 10px; background: var(--win-accent, #0078d4); color: #fff; border: 1px solid var(--win-accent, #0078d4); border-radius: 4px; cursor: pointer;">
                                 <i class="fas fa-plus"></i>
                             </button>
                         </div>
@@ -2626,7 +2626,7 @@ async function strLoadList() {
         box.innerHTML = rows.map(b => `
             <label style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid #eef2f5;cursor:pointer;font-size:12px;background:#fff;">
                 <input type="checkbox" class="str-check" value="${parseInt(b.id)}" checked onchange="strSyncAll()">
-                <span style="font-weight:700;color:#0078d4;direction:ltr;">${esc((b.start_time || '').substring(0, 5))}</span>
+                <span style="font-weight:700;color:var(--win-accent, #0078d4);direction:ltr;">${esc((b.start_time || '').substring(0, 5))}</span>
                 <span style="flex:1;">${esc(b.patient_name || 'مەوعید')}</span>
             </label>`).join('');
         strSyncAll();
@@ -2665,7 +2665,7 @@ document.getElementById('sendToReceptionForm')?.addEventListener('submit', funct
 <!-- Add Work Type Dialog -->
 <div class="dialog-overlay" id="addWorkTypeDialog">
     <div class="dialog apt-dialog-modern" style="max-width: 400px;">
-        <div class="apt-dialog-header" style="background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);">
+        <div class="apt-dialog-header" style="background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);">
             <h4><i class="fas fa-briefcase-medical"></i> زیادکردنی ئیشی نوێ</h4>
             <button type="button" class="apt-dialog-close" onclick="closeDialog('addWorkTypeDialog')"><i class="fas fa-times"></i></button>
         </div>
@@ -2717,7 +2717,7 @@ document.getElementById('sendToReceptionForm')?.addEventListener('submit', funct
                     </div>
                     <!-- Inline Add Reason Form -->
                     <?php if ($hasFullAccess): ?>
-                    <div id="addReasonForm" style="display: none; margin-top: 10px; padding: 12px; background: #f0f8ff; border: 1px solid #0078d4; border-radius: 8px;">
+                    <div id="addReasonForm" style="display: none; margin-top: 10px; padding: 12px; background: #f0f8ff; border: 1px solid var(--win-accent, #0078d4); border-radius: 8px;">
                         <div style="display: flex; gap: 8px; align-items: center;">
                             <input type="text" id="newReasonText" placeholder="هۆکاری نوێ بنووسە..." style="flex: 1; padding: 8px 12px; border: 1.5px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-family: inherit;">
                             <button type="button" onclick="saveNewReason()" class="btn btn-primary" style="padding: 8px 14px; border-radius: 6px;">
@@ -2811,7 +2811,7 @@ document.getElementById('sendToReceptionForm')?.addEventListener('submit', funct
             <?php endif; ?>
         </div>
         <div class="apt-dialog-footer" style="padding: 12px 20px; background: #f8f9fa; border-top: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
-            <a href="<?= APP_URL ?>/cancellation-report.php" style="font-size: 12px; color: #0078d4; text-decoration: none;">
+            <a href="<?= APP_URL ?>/cancellation-report.php" style="font-size: 12px; color: var(--win-accent, #0078d4); text-decoration: none;">
                 <i class="fas fa-external-link-alt"></i> ڕاپۆرتی تەواو
             </a>
             <button type="button" class="apt-btn-secondary" onclick="closeDialog('cancelledListDialog')">
@@ -3064,7 +3064,7 @@ function rldRender(rows) {
 <!-- Edit Appointment Dialog -->
 <div class="dialog-overlay" id="editAppointmentDialog">
     <div class="dialog apt-dialog-modern">
-        <div class="apt-dialog-header" style="background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);">
+        <div class="apt-dialog-header" style="background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);">
             <h4><i class="fas fa-edit"></i> دەستکاری مەوعید</h4>
             <button type="button" class="apt-dialog-close" onclick="closeDialog('editAppointmentDialog')"><i class="fas fa-times"></i></button>
         </div>
@@ -3076,11 +3076,11 @@ function rldRender(rows) {
                 <!-- Patient info (read-only) -->
                 <div id="editPatientBanner"
                      style="background: #e3f2fd; padding: 10px 12px; border-radius: 6px; margin-bottom: 10px; display: flex; gap: 10px; align-items: center;">
-                    <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #0078d4, #005a9e); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700;">
+                    <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-dark, #005a9e)); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700;">
                         <i class="fas fa-user"></i>
                     </div>
                     <div style="flex: 1;">
-                        <div id="editPatientName" style="font-weight: 700; color: #0078d4; font-size: 14px;"></div>
+                        <div id="editPatientName" style="font-weight: 700; color: var(--win-accent, #0078d4); font-size: 14px;"></div>
                         <div id="editPatientPhone" style="font-size: 12px; color: #546e7a; direction: ltr; text-align: right;"></div>
                     </div>
                 </div>
@@ -3305,7 +3305,7 @@ function rldRender(rows) {
 }
 
 .apt-dialog-header {
-    background: linear-gradient(135deg, #0078d4 0%, #0063b1 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-deep, #0063b1) 100%);
     color: white;
     padding: 12px 16px;
     display: flex;
@@ -3380,7 +3380,7 @@ function rldRender(rows) {
 }
 
 .apt-form-field label i {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-size: 10px;
 }
 
@@ -3405,8 +3405,8 @@ function rldRender(rows) {
 
 .apt-form-field input:focus,
 .apt-form-field select:focus {
-    border-color: #0078d4;
-    box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.1);
+    border-color: var(--win-accent, #0078d4);
+    box-shadow: 0 0 0 2px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
     outline: none;
     background: #fff;
 }
@@ -3432,7 +3432,7 @@ function rldRender(rows) {
     left: 0;
     right: 0;
     background: white;
-    border: 1.5px solid #0078d4;
+    border: 1.5px solid var(--win-accent, #0078d4);
     border-top: none;
     border-radius: 0 0 6px 6px;
     max-height: 160px;
@@ -3445,7 +3445,7 @@ function rldRender(rows) {
     display: none;
     padding: 6px 10px;
     background: linear-gradient(135deg, #e8f4fd, #f5faff);
-    border: 1.5px solid #0078d4;
+    border: 1.5px solid var(--win-accent, #0078d4);
     border-radius: 6px;
     margin-top: 6px;
     align-items: center;
@@ -3480,7 +3480,7 @@ function rldRender(rows) {
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
     display: flex;
     align-items: center;
@@ -3537,7 +3537,7 @@ function rldRender(rows) {
 }
 
 .apt-time-section > label i {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-size: 10px;
 }
 
@@ -3596,7 +3596,7 @@ function rldRender(rows) {
 }
 
 .apt-advanced-toggle:hover {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 .apt-advanced-toggle span {
@@ -3656,12 +3656,12 @@ function rldRender(rows) {
 }
 
 .apt-btn-primary {
-    background: linear-gradient(135deg, #0078d4 0%, #0063b1 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-deep, #0063b1) 100%);
     color: white;
 }
 
 .apt-btn-primary:hover {
-    background: linear-gradient(135deg, #0063b1 0%, #004c8c 100%);
+    background: linear-gradient(135deg, var(--win-accent-deep, #0063b1) 0%, #004c8c 100%);
 }
 
 .apt-btn-secondary {
@@ -3706,7 +3706,7 @@ function toggleAdvancedOptions() {
     left: 0;
     right: 0;
     background: white;
-    border: 1.5px solid #0078d4;
+    border: 1.5px solid var(--win-accent, #0078d4);
     border-top: none;
     border-radius: 0 0 8px 8px;
     max-height: 200px;
@@ -3737,7 +3737,7 @@ function toggleAdvancedOptions() {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #0078d4, #005a9e);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-dark, #005a9e));
     color: white;
     display: flex;
     align-items: center;
@@ -3767,7 +3767,7 @@ function toggleAdvancedOptions() {
     margin-top: 8px;
     padding: 10px 14px;
     background: linear-gradient(135deg, #e3f2fd, #f0f7ff);
-    border: 1.5px solid #0078d4;
+    border: 1.5px solid var(--win-accent, #0078d4);
     border-radius: 8px;
     display: flex;
     align-items: center;
@@ -3778,7 +3778,7 @@ function toggleAdvancedOptions() {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #0078d4, #005a9e);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-dark, #005a9e));
     color: white;
     display: flex;
     align-items: center;
@@ -3793,7 +3793,7 @@ function toggleAdvancedOptions() {
 
 .selected-patient-display .patient-name {
     font-weight: 700;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-size: 15px;
 }
 
@@ -3846,8 +3846,8 @@ function toggleAdvancedOptions() {
 }
 
 .dialog-modern-apt .form-control:focus {
-    border-color: #0078d4;
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+    border-color: var(--win-accent, #0078d4);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
     outline: none;
 }
 </style>
@@ -4330,9 +4330,9 @@ function selectPatient(id, name, phone) {
 
     // Show selected patient with modern styling
     selectedDisplay.innerHTML = `
-        <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #0078d4, #005a9e); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;">${name.charAt(0)}</div>
+        <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-dark, #005a9e)); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;">${name.charAt(0)}</div>
         <div style="flex: 1;">
-            <div style="font-weight: 600; color: #0078d4; font-size: 14px;">${escapeHtml(name)}</div>
+            <div style="font-weight: 600; color: var(--win-accent, #0078d4); font-size: 14px;">${escapeHtml(name)}</div>
             <div style="font-size: 11px; color: #757575; direction: ltr; text-align: right;">${phone || 'بێ ژمارە'}</div>
         </div>
         <button type="button" onclick="resetPatientSearch()" style="width: 28px; height: 28px; border-radius: 50%; background: #ffebee; color: #f44336; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;" title="لابردن">

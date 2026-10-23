@@ -153,7 +153,7 @@ html::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; border:
 .an-filter { background:#fff; border:1px solid #e3e8ee; border-radius:10px; padding:10px 12px; margin-bottom:14px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 .an-chip { padding:6px 14px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; border-radius:20px; cursor:pointer; font-size:13px; text-decoration:none; display:inline-flex; align-items:center; gap:5px; }
 .an-chip:hover { background:#e2e8f0; color:#0f172a; }
-.an-chip.active { background:#0078d4; border-color:#0078d4; color:#fff; }
+.an-chip.active { background:var(--win-accent, #0078d4); border-color:var(--win-accent, #0078d4); color:#fff; }
 .an-sep { width:1px; height:24px; background:#e2e8f0; }
 .an-filter input[type=date], .an-filter select { padding:6px 8px; border:1px solid #cfd8dc; border-radius:6px; font-size:13px; }
 .an-filter label { font-size:12px; color:#607d8b; }
@@ -163,7 +163,7 @@ html::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; border:
 .an-stats { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:16px; }
 .an-card { background:#fff; border:1px solid #e3e8ee; border-radius:10px; padding:14px; position:relative; overflow:hidden; }
 .an-card::before { content:''; position:absolute; inset-block:0; inset-inline-end:0; width:4px; background:var(--accent, #0078d4); }
-.an-card.blue   { --accent:#0078d4; }
+.an-card.blue   { --accent:var(--win-accent, #0078d4); }
 .an-card.green  { --accent:#16a34a; }
 .an-card.orange { --accent:#ea580c; }
 .an-card.red    { --accent:#dc2626; }
@@ -190,9 +190,9 @@ html::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; border:
 .an-table .nodebt { color:#9aa7b3; font-size:11px; }
 .status-badge { display:inline-block; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600; }
 .st-scheduled   { background:#fff4e5; color:#e65100; }
-.st-confirmed   { background:#e3f2fd; color:#0078d4; }
+.st-confirmed   { background:#e3f2fd; color:var(--win-accent, #0078d4); }
 .st-waiting     { background:#fff3e0; color:#f57c00; }
-.st-in_progress { background:#e3f2fd; color:#0078d4; }
+.st-in_progress { background:#e3f2fd; color:var(--win-accent, #0078d4); }
 .st-completed   { background:#e8f5e9; color:#2e7d32; }
 .st-cancelled   { background:#ffebee; color:#c62828; }
 .st-no_show     { background:#fce4ec; color:#ad1457; }

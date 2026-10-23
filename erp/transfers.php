@@ -34,7 +34,7 @@ table.tg{width:100%;border-collapse:collapse;font-size:13px}
 table.tg thead th{position:sticky;top:0;background:#eef2f5;border-bottom:2px solid #c8d3da;padding:7px 8px;font-size:12px;font-weight:600;text-align:right;z-index:1}
 table.tg td{border-bottom:1px solid #f0f0f0;padding:0}
 table.tg input{width:100%;border:0;background:transparent;padding:7px 8px;font-size:13px;font-family:inherit}
-table.tg input:focus{background:#fff8dc;outline:2px solid #0078D4;outline-offset:-2px}
+table.tg input:focus{background:#fff8dc;outline:2px solid var(--win-accent, #0078D4);outline-offset:-2px}
 .tg-n{text-align:left;direction:ltr;font-variant-numeric:tabular-nums}
 .tg-del{width:34px;text-align:center;color:#c62828;cursor:pointer}
 .tg-idx{width:34px;text-align:center;color:#999;font-size:12px}

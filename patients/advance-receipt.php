@@ -60,17 +60,8 @@ $allocations = $manager->allocationsOf($advanceId);
 require_once __DIR__ . '/../classes/NextAppointment.php';
 $nextAppointment = NextAppointment::forPatient((int)$advance['patient_id'], 0, (int)($advance['doctor_id'] ?? 0));
 
-$settingsData = $db->fetchAll('SELECT setting_key, setting_value FROM settings');
-$settings = [];
-foreach ($settingsData as $s) {
-    $settings[$s['setting_key']] = $s['setting_value'];
-}
-$clinicName    = $settings['clinic_name'] ?? 'لێزان بۆ پزیشکی ددان';
-$clinicNameEn  = $settings['clinic_name_en'] ?? 'LEZAN DENTAL CLINICS';
-$clinicPhone1  = $settings['clinic_phone'] ?? '';
-$clinicPhone2  = $settings['clinic_phone2'] ?? '';
-$clinicAddress = $settings['clinic_address'] ?? '';
-$logoUrl       = APP_URL . '/assets/images/logo.png';
+// Same letterhead as cases/receipt.php and cases/voucher.php.
+require __DIR__ . '/../includes/clinic_branding.php';
 
 $methodLabels = ['cash' => 'نەقد', 'card' => 'کارت', 'transfer' => 'گواستنەوە', 'other' => 'هی تر'];
 
@@ -109,7 +100,7 @@ html, body {
 }
 
 /* ── Letterhead ── */
-.rc-head { display: flex; align-items: center; gap: 8px; padding-bottom: 4px; border-bottom: 2px solid #29a3dc; }
+.rc-head { display: flex; align-items: center; gap: 8px; padding-bottom: 4px; border-bottom: 2px solid <?= $printAccent ?>; }
 .rc-logo { flex: 0 0 auto; }
 .rc-logo img { display: block; width: 21mm; height: auto; }
 .rc-head-text { flex: 1 1 auto; text-align: right; line-height: 1.5; }
@@ -117,7 +108,7 @@ html, body {
 /* LTR so the two numbers keep their printed order — an RTL run flips them. */
 .rc-contact { font-size: 8.5pt; color: #3f4a56; direction: ltr; text-align: right; }
 .rc-contact span { display: inline-block; }
-.rc-contact .ico { color: #29a3dc; font-weight: 700; }
+.rc-contact .ico { color: <?= $printAccent ?>; font-weight: 700; }
 .rc-addr { font-size: 8pt; color: #4a5560; }
 
 /* ── Identification block ── */
@@ -198,7 +189,7 @@ body.is-embedded .sheet { margin: 0 auto; box-shadow: none; }
                 <span><?= av_h($clinicPhone1) ?><?= $clinicPhone2 !== '' ? ' - ' . av_h($clinicPhone2) : '' ?></span>
             </div>
             <div class="rc-addr">
-                <span class="ico" style="color:#29a3dc;">◉</span>
+                <span class="ico" style="color:<?= $printAccent ?>;">◉</span>
                 <?= av_h($clinicAddress) ?>
             </div>
         </div>

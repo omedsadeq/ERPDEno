@@ -159,13 +159,13 @@ require_once __DIR__ . '/includes/header.php';
 }
 
 .btn-back {
-    background: #0078d4;
+    background: var(--win-accent, #0078d4);
     color: white;
     text-decoration: none;
 }
 
 .btn-back:hover {
-    background: #005a9e;
+    background: var(--win-accent-dark, #005a9e);
 }
 
 /* Filters */
@@ -208,13 +208,13 @@ require_once __DIR__ . '/includes/header.php';
 
 .filter-group input:focus,
 .filter-group select:focus {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     outline: none;
 }
 
 .btn-filter {
     padding: 8px 16px;
-    background: #0078d4;
+    background: var(--win-accent, #0078d4);
     color: white;
     border: none;
     border-radius: 6px;
@@ -224,7 +224,7 @@ require_once __DIR__ . '/includes/header.php';
 }
 
 .btn-filter:hover {
-    background: #005a9e;
+    background: var(--win-accent-dark, #005a9e);
 }
 
 /* Stats Cards */

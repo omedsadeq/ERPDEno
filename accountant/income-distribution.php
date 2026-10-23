@@ -216,7 +216,7 @@ require_once __DIR__ . '/../includes/header.php';
 
     <div class="idd-cards">
         <div class="idd-card lezan">
-            <div class="k"><i class="fas fa-building-columns"></i> قاسەی لێزان</div>
+            <div class="k"><i class="fas fa-building-columns"></i> قاسەی <?= htmlspecialchars(Branding::shortName()) ?></div>
             <div class="v"><?= dsEsc($c($centerBox)) ?></div>
             <div class="s">نەقدی ئێستای قاسەی سەنتەر</div>
         </div>
@@ -224,9 +224,9 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="k"><i class="fas fa-percent"></i> پشکی سەنتەر لەم ماوەیە</div>
             <div class="v"><?= dsEsc($c($totals['ctr'])) ?></div>
             <?php if (CashboxLedger::splitEnabled()): ?>
-            <div class="s">ڕاستەوخۆ دەچێتە قاسەی لێزان — هەر پارەیەک کە وەردەگیرێت</div>
+            <div class="s">ڕاستەوخۆ دەچێتە قاسەی <?= htmlspecialchars(Branding::shortName()) ?> — هەر پارەیەک کە وەردەگیرێت</div>
             <?php else: ?>
-            <div class="s">+ خەرجی تاقیگە و کۆگا = <?= dsEsc($c($totals['due'])) ?> بۆ قاسەی لێزان</div>
+            <div class="s">+ خەرجی تاقیگە و کۆگا = <?= dsEsc($c($totals['due'])) ?> بۆ قاسەی <?= htmlspecialchars(Branding::shortName()) ?></div>
             <?php endif; ?>
         </div>
         <div class="idd-card doc">
@@ -248,7 +248,7 @@ require_once __DIR__ . '/../includes/header.php';
             <table class="idd-tbl">
                 <thead><tr>
                     <th>#</th><th>دکتۆر</th><th>ڕێژە</th><th class="n">کۆی نەقد</th><th class="n">خەرجی</th><th class="n">سافی</th>
-                    <th class="n doc">پشکی دکتۆر</th><th class="n ctr">پشکی سەنتەر</th><th class="n ctr" title="پشکی سەنتەر + خەرجی تاقیگە و کۆگا">بۆ قاسەی لێزان</th>
+                    <th class="n doc">پشکی دکتۆر</th><th class="n ctr">پشکی سەنتەر</th><th class="n ctr" title="پشکی سەنتەر + خەرجی تاقیگە و کۆگا">بۆ قاسەی <?= htmlspecialchars(Branding::shortName()) ?></th>
                     <th class="n">نەقدی ناو سندوق</th><th>حیساب</th>
                 </tr></thead>
                 <tbody>
@@ -265,7 +265,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <td class="n"><b><?= dsEsc($m($ds['netAfterExpenses'])) ?></b></td>
                         <td class="n doc"><?= $r['rate'] !== null ? dsEsc($m((float)$ds['doctorShare'])) : '—' ?></td>
                         <td class="n ctr"><?= $r['rate'] !== null ? dsEsc($m((float)$ds['centerShare'])) : '—' ?></td>
-                        <td class="n ctr"><?php if ($r['rate'] === null): ?>—<?php elseif (CashboxLedger::splitEnabled()): ?><span title="پشکی لێزان کاتی وەرگرتنی پارەکە ڕاستەوخۆ چووەتە قاسەی لێزان"><i class="fas fa-check"></i> ڕاستەوخۆ</span><?php else: ?><?= dsEsc($c($r['shares']['center_due'])) ?><?php endif; ?></td>
+                        <td class="n ctr"><?php if ($r['rate'] === null): ?>—<?php elseif (CashboxLedger::splitEnabled()): ?><span title="پشکی <?= htmlspecialchars(Branding::shortName()) ?> کاتی وەرگرتنی پارەکە ڕاستەوخۆ چووەتە قاسەی <?= htmlspecialchars(Branding::shortName()) ?>"><i class="fas fa-check"></i> ڕاستەوخۆ</span><?php else: ?><?= dsEsc($c($r['shares']['center_due'])) ?><?php endif; ?></td>
                         <td class="n"><?= dsEsc($c($r['box'])) ?></td>
                         <td>
                         <?php if ($r['existing']): $ex = $r['existing']; ?>
@@ -320,7 +320,7 @@ require_once __DIR__ . '/../includes/header.php';
             <table class="idd-tbl">
                 <thead><tr>
                     <th>ژمارە</th><th>دکتۆر</th><th>ماوە</th><th class="n">سافی</th><th class="n doc">پشکی دکتۆر</th><th class="n ctr">پشکی سەنتەر</th>
-                    <th class="n">گواستراوە بۆ لێزان</th><th class="n">ڕاکێشان (درا بە دکتۆر)</th><th class="n">ماوەی سندوق</th><th>دۆخ</th><th></th>
+                    <th class="n">گواستراوە بۆ <?= htmlspecialchars(Branding::shortName()) ?></th><th class="n">ڕاکێشان (درا بە دکتۆر)</th><th class="n">ماوەی سندوق</th><th>دۆخ</th><th></th>
                 </tr></thead>
                 <tbody>
                 <?php if (!$history): ?>
@@ -393,11 +393,11 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
                 <?php if (CashboxLedger::splitEnabled()): ?>
                 <div class="idd-left" style="background:#f0fdfa;border-color:#99f6e4;color:#0f766e;">
-                    <span><i class="fas fa-check-circle"></i> پشکی لێزان و بەشی دکتۆر لە خەرجی، کاتی وەرگرتنی پارەکە ڕاستەوخۆ چووەتە قاسەی لێزان — سندوقی دکتۆر تەنها پشکی خۆی تێدایە.</span>
+                    <span><i class="fas fa-check-circle"></i> پشکی <?= htmlspecialchars(Branding::shortName()) ?> و بەشی دکتۆر لە خەرجی، کاتی وەرگرتنی پارەکە ڕاستەوخۆ چووەتە قاسەی <?= htmlspecialchars(Branding::shortName()) ?> — سندوقی دکتۆر تەنها پشکی خۆی تێدایە.</span>
                 </div>
                 <?php endif; ?>
                 <div class="idd-move">
-                    <label class="ctr"<?= CashboxLedger::splitEnabled() ? ' hidden' : '' ?>>گواستنەوە بۆ قاسەی لێزان
+                    <label class="ctr"<?= CashboxLedger::splitEnabled() ? ' hidden' : '' ?>>گواستنەوە بۆ قاسەی <?= htmlspecialchars(Branding::shortName()) ?>
                         <input type="number" name="transfer" id="iddTransfer" min="0" step="0.01" required>
                     </label>
                     <label class="doc">ڕاکێشان — دەدرێت بە دکتۆر
@@ -429,7 +429,7 @@ require_once __DIR__ . '/../includes/header.php';
             <input type="hidden" name="action" value="cancel">
             <input type="hidden" name="settlement_id" id="iddCancelId">
             <div class="dialog-body">
-                <p style="font-size:12.5px;color:#64748b;line-height:1.8;margin-top:0;">پشکی سەنتەر لە قاسەی لێزانەوە دەگەڕێتەوە بۆ سندوقی دکتۆر و ڕاکێشانەکەش دەگەڕێتەوە ناو سندوق. حیسابەکە وەک مێژوو دەمێنێتەوە.</p>
+                <p style="font-size:12.5px;color:#64748b;line-height:1.8;margin-top:0;">پشکی سەنتەر لە قاسەی <?= htmlspecialchars(Branding::shortName()) ?>ەوە دەگەڕێتەوە بۆ سندوقی دکتۆر و ڕاکێشانەکەش دەگەڕێتەوە ناو سندوق. حیسابەکە وەک مێژوو دەمێنێتەوە.</p>
                 <textarea name="reason" class="form-control" rows="3" minlength="3" maxlength="600" required placeholder="هۆکاری هەڵوەشاندنەوە"></textarea>
             </div>
             <div class="dialog-footer">

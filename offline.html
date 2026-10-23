@@ -48,12 +48,12 @@
         height: 84px;
         margin: 0 auto 20px;
         border-radius: 50%;
-        background: rgba(0, 120, 212, 0.1);
+        background: rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
         display: flex;
         align-items: center;
         justify-content: center;
     }
-    .icon svg { width: 44px; height: 44px; fill: #0078D4; }
+    .icon svg { width: 44px; height: 44px; fill: var(--win-accent, #0078D4); }
     h1 { font-size: 20px; margin-bottom: 10px; color: #1A1A1A; }
     p { font-size: 14px; color: #5C5C5C; line-height: 1.7; margin-bottom: 24px; }
     button {
@@ -61,7 +61,7 @@
         font-size: 15px;
         font-weight: 600;
         color: #fff;
-        background: #0078D4;
+        background: var(--win-accent, #0078D4);
         border: none;
         border-radius: 8px;
         padding: 12px 32px;

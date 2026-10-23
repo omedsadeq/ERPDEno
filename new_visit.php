@@ -1098,7 +1098,7 @@ function dh_duration_options_mysqli($selected = 30) {
 }
 
 /* Icon Colors */
-.icon-blue { background: linear-gradient(135deg, #0078d4, #0063b1); }
+.icon-blue { background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1)); }
 .icon-green { background: linear-gradient(135deg, #4caf50, #388e3c); }
 .icon-purple { background: linear-gradient(135deg, #9c27b0, #7b1fa2); }
 .icon-orange { background: linear-gradient(135deg, #ff9800, #f57c00); }
@@ -1489,11 +1489,11 @@ textarea {
 
 /* Combined "save + send to waiting" submit button */
 .form-actions .btn-save-send {
-    background: linear-gradient(135deg, #0078d4, #005a9e);
-    box-shadow: 0 3px 10px rgba(0, 120, 212, 0.3);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-dark, #005a9e));
+    box-shadow: 0 3px 10px rgba(var(--win-accent-rgb, 0, 120, 212), 0.3);
 }
 .form-actions .btn-save-send:hover {
-    background: linear-gradient(135deg, #005a9e, #004578);
+    background: linear-gradient(135deg, var(--win-accent-dark, #005a9e), #004578);
 }
 
 /* Profile Preview */
@@ -1502,7 +1502,7 @@ textarea {
 }
 
 .profile-preview a {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-weight: 600;
     text-decoration: none;
     display: inline-flex;
@@ -1620,7 +1620,7 @@ textarea {
                             <?php endwhile; endif; ?>
                         </select>
                         <button type="button" onclick="openAddWorkTypeNv()" title="زیادکردنی ئیشی نوێ"
-                                style="padding: 0 10px; background: #0078d4; color: #fff; border: 1px solid #0078d4; border-radius: 4px; cursor: pointer;">
+                                style="padding: 0 10px; background: var(--win-accent, #0078d4); color: #fff; border: 1px solid var(--win-accent, #0078d4); border-radius: 4px; cursor: pointer;">
                             <i class="fas fa-plus"></i>
                         </button>
                     </div>
@@ -1694,7 +1694,7 @@ textarea {
 <!-- Add Work Type Dialog -->
 <div id="addWorkTypeDialogNv" class="dialog-overlay">
     <div class="dialog apt-dialog-modern" style="max-width: 400px;">
-        <div class="apt-dialog-header" style="background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);">
+        <div class="apt-dialog-header" style="background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);">
             <h4><i class="fas fa-briefcase-medical"></i> زیادکردنی ئیشی نوێ</h4>
             <button type="button" class="apt-dialog-close" onclick="closeAddWorkTypeNv()"><i class="fas fa-times"></i></button>
         </div>
@@ -1715,7 +1715,7 @@ textarea {
 <!-- Add City Dialog -->
 <div id="addCityDialog" class="dialog-overlay">
     <div class="dialog apt-dialog-modern" style="max-width: 400px;">
-        <div class="apt-dialog-header" style="background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);">
+        <div class="apt-dialog-header" style="background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);">
             <h4><i class="fas fa-map-marker-alt"></i> زیادکردنی شاری نوێ</h4>
             <button type="button" class="apt-dialog-close" onclick="closeAddCityDialog()"><i class="fas fa-times"></i></button>
         </div>
@@ -1780,7 +1780,7 @@ textarea {
                         <?php endwhile; endif; ?>
                     </select>
                     <button type="button" onclick="openAddWorkTypeNv()" title="زیادکردنی ئیشی نوێ"
-                            style="padding: 0 10px; background: #0078d4; color: #fff; border: 1px solid #0078d4; border-radius: 4px; cursor: pointer;">
+                            style="padding: 0 10px; background: var(--win-accent, #0078d4); color: #fff; border: 1px solid var(--win-accent, #0078d4); border-radius: 4px; cursor: pointer;">
                         <i class="fas fa-plus"></i>
                     </button>
                 </div>
@@ -1910,7 +1910,7 @@ textarea {
     font-size: 18px;
     flex-shrink: 0;
 }
-.post-visit-appointment .post-visit-action-icon { background: linear-gradient(135deg, #0078d4, #005a9e); }
+.post-visit-appointment .post-visit-action-icon { background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-dark, #005a9e)); }
 .post-visit-waiting .post-visit-action-icon { background: linear-gradient(135deg, #00a884, #007a63); }
 .post-visit-action strong {
     display: block;
@@ -1931,7 +1931,7 @@ textarea {
 /* Pass flex layout through a wrapping <form> so the body scrolls and the footer stays visible */
 .dialog.apt-dialog-modern > form { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .apt-dialog-header {
-    background: linear-gradient(135deg, #0078d4 0%, #0063b1 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-deep, #0063b1) 100%);
     color: #fff; padding: 12px 16px;
     display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
 }
@@ -1949,20 +1949,20 @@ textarea {
 .apt-form-field.apt-field-full { grid-column: 1 / -1; }
 .apt-form-field.apt-field-2col { grid-column: span 2; }
 .apt-form-field label { font-size: 11px; font-weight: 600; color: #546e7a; display: flex; align-items: center; gap: 5px; }
-.apt-form-field label i { color: #0078d4; font-size: 10px; }
+.apt-form-field label i { color: var(--win-accent, #0078d4); font-size: 10px; }
 .apt-form-field label .required { color: #f44336; font-size: 10px; }
 .apt-form-field input, .apt-form-field select {
     padding: 8px 10px; border: 1.5px solid #e0e0e0; border-radius: 6px;
     font-size: 12px; font-family: inherit; transition: all .2s; background: #fafafa;
 }
 .apt-form-field input:focus, .apt-form-field select:focus {
-    border-color: #0078d4; box-shadow: 0 0 0 2px rgba(0,120,212,.1); outline: none; background: #fff;
+    border-color: var(--win-accent, #0078d4); box-shadow: 0 0 0 2px rgba(var(--win-accent-rgb, 0, 120, 212), .1); outline: none; background: #fff;
 }
 
 /* Smart Time Picker */
 .apt-time-section { margin-top: 16px; padding-top: 16px; border-top: 1px solid #f0f0f0; }
 .apt-time-section > label { font-size: 11px; font-weight: 600; color: #546e7a; display: flex; align-items: center; gap: 5px; margin-bottom: 6px; }
-.apt-time-section > label i { color: #0078d4; font-size: 10px; }
+.apt-time-section > label i { color: var(--win-accent, #0078d4); font-size: 10px; }
 .apt-time-section > label .required { color: #f44336; font-size: 10px; }
 .apt-time-grid-container {
     background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 6px;
@@ -1979,13 +1979,13 @@ textarea {
     font-size: 12px; font-weight: 600; background: #fff; color: #37474f;
 }
 .smart-time-slot:hover:not(.busy):not(.break) {
-    border-color: #0078d4; background: #e3f2fd; color: #0078d4; transform: translateY(-1px);
+    border-color: var(--win-accent, #0078d4); background: #e3f2fd; color: var(--win-accent, #0078d4); transform: translateY(-1px);
 }
-.smart-time-slot.selected { background: #0078d4; color: #fff; border-color: #0078d4; }
+.smart-time-slot.selected { background: var(--win-accent, #0078d4); color: #fff; border-color: var(--win-accent, #0078d4); }
 .smart-time-slot.busy { background: #ffebee; border-color: #ffcdd2; color: #c62828; cursor: not-allowed; opacity: .7; }
 /* Booked slots stay selectable (overlapping bookings allowed) */
 .smart-time-slot.booked { background: #ffebee; border-color: #ffcdd2; color: #c62828; cursor: pointer; }
-.smart-time-slot.booked.selected { background: #0078d4; color: #fff; border-color: #0078d4; }
+.smart-time-slot.booked.selected { background: var(--win-accent, #0078d4); color: #fff; border-color: var(--win-accent, #0078d4); }
 .smart-time-slot.break { background: #fff3e0; border-color: #ffe0b2; color: #e65100; cursor: not-allowed; opacity: .7; }
 .apt-time-legend { display: flex; gap: 12px; margin-top: 6px; font-size: 10px; color: #78909c; }
 .apt-time-legend span { display: flex; align-items: center; gap: 3px; }
@@ -2003,7 +2003,7 @@ textarea {
     font-size: 11px; font-weight: 700; position: sticky; top: 0;
 }
 .city-combo-item { padding: 8px 14px; cursor: pointer; font-size: 13px; color: #37474f; }
-.city-combo-item:hover { background: #e3f2fd; color: #0078d4; }
+.city-combo-item:hover { background: #e3f2fd; color: var(--win-accent, #0078d4); }
 .city-combo-empty { padding: 12px 14px; color: #9aa7b3; font-size: 12px; text-align: center; }
 .apt-time-legend .legend-available i { color: #4caf50; font-size: 6px; }
 .apt-time-legend .legend-busy i { color: #f44336; font-size: 6px; }
@@ -2046,7 +2046,7 @@ textarea {
     padding: 8px 0; margin-top: 10px; cursor: pointer; color: #78909c;
     font-size: 11px; font-weight: 600; border-top: 1px dashed #e0e0e0; transition: color .2s;
 }
-.apt-advanced-toggle:hover { color: #0078d4; }
+.apt-advanced-toggle:hover { color: var(--win-accent, #0078d4); }
 .apt-advanced-toggle span { display: flex; align-items: center; gap: 5px; }
 .apt-toggle-icon { transition: transform .3s; font-size: 10px; }
 .apt-advanced-toggle.open .apt-toggle-icon { transform: rotate(180deg); }
@@ -2063,8 +2063,8 @@ textarea {
     cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all .2s;
     border: none; font-family: inherit;
 }
-.apt-btn-primary { background: linear-gradient(135deg, #0078d4 0%, #0063b1 100%); color: #fff; }
-.apt-btn-primary:hover { background: linear-gradient(135deg, #0063b1 0%, #004c8c 100%); }
+.apt-btn-primary { background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-deep, #0063b1) 100%); color: #fff; }
+.apt-btn-primary:hover { background: linear-gradient(135deg, var(--win-accent-deep, #0063b1) 0%, #004c8c 100%); }
 .apt-btn-secondary { background: #fff; color: #546e7a; border: 1.5px solid #e0e0e0; }
 .apt-btn-secondary:hover { background: #f5f5f5; }
 
@@ -2553,7 +2553,7 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
                             <div id="cityComboDropdown" class="city-combo-dropdown"></div>
                         </div>
                         <button type="button" onclick="openAddCityDialog()" title="زیادکردنی شاری نوێ"
-                                style="padding: 0 10px; background: #0078d4; color: #fff; border: 1px solid #0078d4; border-radius: 4px; cursor: pointer;">
+                                style="padding: 0 10px; background: var(--win-accent, #0078d4); color: #fff; border: 1px solid var(--win-accent, #0078d4); border-radius: 4px; cursor: pointer;">
                             <i class="fas fa-plus"></i>
                         </button>
                     </div>
@@ -2651,7 +2651,7 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
                             <div id="wtComboDropdown" class="city-combo-dropdown"></div>
                         </div>
                         <button type="button" onclick="openAddWorkTypeNv()" title="زیادکردنی ئیشی نوێ"
-                                style="padding: 0 10px; background: #0078d4; color: #fff; border: 1px solid #0078d4; border-radius: 4px; cursor: pointer;">
+                                style="padding: 0 10px; background: var(--win-accent, #0078d4); color: #fff; border: 1px solid var(--win-accent, #0078d4); border-radius: 4px; cursor: pointer;">
                             <i class="fas fa-plus"></i>
                         </button>
                     </div>

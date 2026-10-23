@@ -54,28 +54,9 @@ if (AccessGuard::isRestrictedDoctor() && (int)($request['requested_by'] ?? 0) !=
 
 global $XRAY_TYPES, $XRAY_REASONS, $XRAY_STATUS;
 
-// Load clinic settings
-$settingsData = $db->fetchAll("SELECT setting_key, setting_value FROM settings");
-$settings = [];
-foreach ($settingsData as $s) {
-    $settings[$s['setting_key']] = $s['setting_value'];
-}
-
-$clinicName = $settings['clinic_name'] ?? 'لێزان بۆ پزیشکی ددان';
-$clinicNameEn = $settings['clinic_name_en'] ?? 'LEZAN DENTAL CLINICS';
-// ژمارەی پەیوەندی 1 comes from Settings, but the row is still holding the
-// 0750-000-0000 placeholder that shipped with the install — zeros are not a
-// number a patient can ring, so the sheet falls back to the clinic's real line
-// until Settings is corrected. Phones 2 and 3 have no Settings field at all
-// (admin/settings.php writes clinic_phone_2, which nothing here reads), so
-// they have always printed from these constants.
-$clinicPhone = trim((string)($settings['clinic_phone'] ?? ''));
-if ($clinicPhone === '' || preg_replace('/\D/', '', $clinicPhone) === '07500000000') {
-    $clinicPhone = '0750 693 2626';
-}
-$clinicPhone2 = $settings['clinic_phone2'] ?? '0750 632 7575';
-$clinicPhone3 = $settings['clinic_phone3'] ?? '0751 192 2326';
-$clinicAddress = $settings['clinic_address'] ?? 'سۆران: ترافیک لایەتی دەروازەی سۆران، بەرامبەر میلان کڵاس';
+// Clinic letterhead — names, three phones, address, logo (classes/Branding.php).
+require __DIR__ . '/../includes/clinic_branding.php';
+$clinicPhone = $clinicPhone1;
 
 // Calculate age if date_of_birth exists
 $patientAge = '';
@@ -212,7 +193,12 @@ function generateReceiptHtml($request, $clinicName, $clinicNameEn, $clinicPhone,
             . '</div>';
     }
 
-    $logoPath = $isPdf ? __DIR__ . '/../assets/images/logo.png' : APP_URL . '/assets/images/logo.png';
+    $logoPath = htmlspecialchars($isPdf ? Branding::logoPath() : Branding::logoUrl());
+    $phonesLine = implode(' - ', array_map('htmlspecialchars', array_filter([$clinicPhone, $clinicPhone2, $clinicPhone3], 'strlen')));
+    $socialsHtml = '';
+    foreach (Branding::socials() as $icon => $handle) {
+        $socialsHtml .= '<span class="footer-item">' . $icon . ' ' . htmlspecialchars($handle) . '</span>';
+    }
 
     // Both tooth fields feed the one cross — the doctor may have used the
     // periapical chart, the Determine chart, or both.
@@ -830,7 +816,7 @@ function generateReceiptHtml($request, $clinicName, $clinicNameEn, $clinicPhone,
                         <div class="clinic-name-ar">' . htmlspecialchars($clinicName) . '</div>
                         <div class="clinic-dept">بەشی تیشک ( أشعة )</div>
                         <div class="clinic-contact">
-                            📞 ' . htmlspecialchars($clinicPhone) . ' - ' . htmlspecialchars($clinicPhone2) . ' - ' . htmlspecialchars($clinicPhone3) . '
+                            📞 ' . $phonesLine . '
                         </div>
                         <div class="clinic-address">
                             📍 ' . htmlspecialchars($clinicAddress) . '
@@ -1028,10 +1014,7 @@ function generateReceiptHtml($request, $clinicName, $clinicNameEn, $clinicPhone,
                 <!-- Footer -->
                 <div class="footer">
                     <div class="footer-social">
-                        <span class="footer-item">📘 ' . htmlspecialchars($clinicNameEn) . '</span>
-                        <span class="footer-item">📷 lezan.dental.clinics</span>
-                        <span class="footer-item">👤 lezanclinics</span>
-                        <span class="footer-item">🌐 www.lezandentalclinics.com</span>
+                        ' . $socialsHtml . '
                     </div>
                     <div style="margin-top: 5px; font-size: 9pt; color: #999;">
                         ژمارەی داواکاری: <strong>' . htmlspecialchars($request['request_number']) . '</strong>

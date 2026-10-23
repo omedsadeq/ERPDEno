@@ -96,11 +96,11 @@ html, body {
     padding: 8px; background: #fff; border-bottom: 1px solid #d8dee6;
 }
 .rc-bar button, .rc-bar a {
-    padding: 7px 18px; border: 1px solid #29a3dc; border-radius: 6px;
-    background: #29a3dc; color: #fff; font: inherit; font-size: 12pt;
+    padding: 7px 18px; border: 1px solid <?= $printAccent ?>; border-radius: 6px;
+    background: <?= $printAccent ?>; color: #fff; font: inherit; font-size: 12pt;
     cursor: pointer; text-decoration: none;
 }
-.rc-bar .rc-bar-alt { background: #fff; color: #29a3dc; }
+.rc-bar .rc-bar-alt { background: #fff; color: <?= $printAccent ?>; }
 
 /* ── Embedded in another page's print dialog ──
    No toolbar (the dialog has one) and no page chrome — the iframe body IS the
@@ -111,18 +111,18 @@ body.is-embedded .sheet { margin: 0 auto; min-height: 0; box-shadow: none; }
 
 .rc-head {
     display: flex; align-items: center; gap: 8px;
-    padding-bottom: 4px; border-bottom: 2px solid #29a3dc;
+    padding-bottom: 4px; border-bottom: 2px solid <?= $printAccent ?>;
 }
 .rc-logo img { display: block; width: 21mm; height: auto; }
 .rc-head-text { flex: 1 1 auto; text-align: right; line-height: 1.5; }
 .rc-clinic-ku { font-size: 15pt; font-weight: 700; color: #1b2b3a; }
 .rc-contact { font-size: 8.5pt; color: #3f4a56; direction: ltr; text-align: right; }
-.rc-contact .ico { color: #29a3dc; font-weight: 700; }
+.rc-contact .ico { color: <?= $printAccent ?>; font-weight: 700; }
 .rc-addr { font-size: 8pt; color: #4a5560; }
 
 .rc-title {
     margin: 6px 0 4px; padding: 4px 8px;
-    background: #eef7fc; border-right: 3px solid #29a3dc; border-radius: 4px;
+    background: #eef7fc; border-right: 3px solid <?= $printAccent ?>; border-radius: 4px;
     font-size: 11.5pt; font-weight: 700; color: #1b2b3a;
 }
 .rc-meta { display: flex; flex-wrap: wrap; gap: 3px 18px; margin-bottom: 6px; }
@@ -193,10 +193,10 @@ ob_start();
             <div class="rc-clinic-ku"><?= htmlspecialchars($clinicName) ?></div>
             <div class="rc-contact">
                 <span class="ico">✆</span>
-                <span><?= htmlspecialchars($clinicPhone1) ?> - <?= htmlspecialchars($clinicPhone2) ?></span>
+                <span><?= htmlspecialchars(implode(' - ', $clinicPhones)) ?></span>
             </div>
             <div class="rc-addr">
-                <span class="ico" style="color:#29a3dc;">◉</span>
+                <span class="ico" style="color:<?= $printAccent ?>;">◉</span>
                 <?= htmlspecialchars($clinicAddress) ?>
             </div>
         </div>

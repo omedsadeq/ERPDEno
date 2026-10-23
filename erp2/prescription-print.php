@@ -140,7 +140,7 @@ $selfUrl = fn(array $q) => '?' . http_build_query(array_merge(['id' => $id, 'siz
     <div class="lh">
         <img src="<?= $e($logoUrl) ?>" alt="" onerror="this.remove()">
         <div class="ku"><b><?= $e($clinicName) ?></b><small><?= $e($clinicAddress) ?></small></div>
-        <div class="ph"><?= $e($clinicPhone1) ?><br><?= $e($clinicPhone2) ?></div>
+        <div class="ph"><?= implode('<br>', array_map($e, $clinicPhones)) ?></div>
     </div>
 
     <div class="ttl">

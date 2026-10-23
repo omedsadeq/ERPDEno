@@ -1172,7 +1172,7 @@ if (!empty($errors)) {
 }
 
 /* Icon Colors */
-.icon-blue { background: linear-gradient(135deg, #0078d4, #0063b1); }
+.icon-blue { background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1)); }
 .icon-green { background: linear-gradient(135deg, #4caf50, #388e3c); }
 .icon-purple { background: linear-gradient(135deg, #9c27b0, #7b1fa2); }
 .icon-orange { background: linear-gradient(135deg, #ff9800, #f57c00); }

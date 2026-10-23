@@ -1758,7 +1758,7 @@
         const summary = data.summary || {};
         const intent = data.intent || {};
 
-        $('acDrawerTitle').innerHTML = '<i class="fas fa-file-invoice" style="color:#0063b1;"></i> پسووڵە ' + esc(inv.invoice_no || '');
+        $('acDrawerTitle').innerHTML = '<i class="fas fa-file-invoice" style="color:var(--win-accent-deep, #0063b1);"></i> پسووڵە ' + esc(inv.invoice_no || '');
 
         // Patient identity + کشف حساب + مەبەست now render into the persistent
         // #acDrawerSub slot (outside the scrolling body) instead of being the

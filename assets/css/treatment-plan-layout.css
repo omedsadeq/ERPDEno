@@ -1,21 +1,21 @@
 /* Case-page presentation for treatment plans. All selectors are scoped to
    the plan workspace or the patient's plans tab; accounting is unchanged. */
-.tp-workspace { --tp-blue:#0078d4; --tp-ink:#183449; --tp-rule:#e1e8ef; color:var(--tp-ink); }
+.tp-workspace { --tp-blue:var(--win-accent, #0078d4); --tp-ink:#183449; --tp-rule:#e1e8ef; color:var(--tp-ink); }
 .tp-workspace .panel { border:1px solid var(--tp-rule); border-radius:10px; box-shadow:0 2px 7px #18344908; overflow:hidden; }
 .tp-workspace .tp-plan-header { margin-bottom:10px !important; }
 .tp-workspace .tp-plan-header > .panel-body { padding:14px 16px; }
 .tp-workspace .tp-plan-header h2 { font-size:19px; line-height:1.8; }
 .tp-workspace .tp-plan-header h2 .badge { font-size:10.5px !important; padding:3px 8px !important; }
 .tp-workspace .tp-plan-header .text-secondary { font-size:12px; }
-.tp-workspace .tp-plan-avatar { width:46px; height:46px; flex-shrink:0; display:grid; place-items:center; border-radius:11px; background:#e7f2fd; color:#0078d4; font-size:20px; }
+.tp-workspace .tp-plan-avatar { width:46px; height:46px; flex-shrink:0; display:grid; place-items:center; border-radius:11px; background:#e7f2fd; color:var(--win-accent, #0078d4); font-size:20px; }
 .tp-workspace .btn { border-radius:7px; font-family:inherit; }
 .tp-workspace .tp-plan-header .btn { min-height:34px; font-size:12px; padding:6px 11px !important; }
 .tp-workspace .case-total-chip { margin-top:8px; padding:5px 9px; background:#f7fafc; border-color:#e1e8ef; }
 .tp-workspace .ctc-value.is-paid { color:#087964; }
 .tp-workspace .tp-notice,
-#tab-plans .tp-notice { display:flex; align-items:center; gap:9px; padding:9px 12px; margin:0 0 12px; border:1px solid #dbe8f5; border-inline-start:3px solid #0078d4; border-radius:7px; background:#f4f9fe; color:#49627a; font-size:12px; line-height:1.7; }
+#tab-plans .tp-notice { display:flex; align-items:center; gap:9px; padding:9px 12px; margin:0 0 12px; border:1px solid #dbe8f5; border-inline-start:3px solid var(--win-accent, #0078d4); border-radius:7px; background:#f4f9fe; color:#49627a; font-size:12px; line-height:1.7; }
 .tp-workspace .tp-notice > i,
-#tab-plans .tp-notice > i { color:#0078d4; margin:0; font-size:14px; }
+#tab-plans .tp-notice > i { color:var(--win-accent, #0078d4); margin:0; font-size:14px; }
 .tp-plan-grid { display:grid; grid-template-columns:minmax(0,1fr) 270px; gap:14px; align-items:start; }
 .tp-plan-main,.tp-plan-sidebar { min-width:0; }
 .tp-plan-sidebar .panel { margin-bottom:12px !important; }
@@ -29,11 +29,11 @@
 .tp-workspace .tp-route-state small { font-size:11px; line-height:1.65; }
 .tp-workspace .tp-plan-tabs { display:flex; align-items:stretch; gap:2px; padding:0 8px; background:#fff; border-radius:0; border-bottom:1px solid #e8ecf1; overflow:auto; }
 .tp-workspace .tp-plan-tabs .tab { position:relative; flex:1 1 0; display:flex; align-items:center; justify-content:center; gap:7px; margin:0; padding:13px 14px 12px; border:0; border-radius:0; box-shadow:none; background:#fff; color:#1f2a37; font:inherit; font-size:13.5px; white-space:nowrap; cursor:pointer; }
-.tp-workspace .tp-plan-tabs .tab::after { content:''; position:absolute; inset-inline:10px; bottom:0; height:3px; border-radius:3px; background:#0078d4; transform:scaleX(0); }
+.tp-workspace .tp-plan-tabs .tab::after { content:''; position:absolute; inset-inline:10px; bottom:0; height:3px; border-radius:3px; background:var(--win-accent, #0078d4); transform:scaleX(0); }
 .tp-workspace .tp-plan-tabs .tab.active { color:#102a3a; background:#eef6fc; font-weight:700; }
 .tp-workspace .tp-plan-tabs .tab.active::after { transform:scaleX(1); }
 .tp-workspace .tp-plan-tabs .tab i { color:#8a9baa; font-size:13px; }
-.tp-workspace .tp-plan-tabs .tab.active i { color:#0078d4; }
+.tp-workspace .tp-plan-tabs .tab.active i { color:var(--win-accent, #0078d4); }
 .tp-workspace .tp-plan-tabs .tab-count { direction:ltr; padding:1px 6px; border-radius:5px; background:#e4f0fb; font-size:12px; font-variant-numeric:tabular-nums; }
 .tp-workspace .tp-table-body { padding:12px; }
 .tp-table-toolbar { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px; }
@@ -41,7 +41,7 @@
 .tp-table-toolbar h4 > span { display:inline-block; margin-inline-start:7px; font-size:11px; font-weight:400; color:#718294; }
 .tp-workspace .tp-estimate-receipt { margin:0; border-radius:8px; overflow:hidden; }
 .tp-workspace .tp-estimate-receipt .vt-head { padding:10px 12px; background:#edf4fb; border-color:#b4d1f0; }
-.tp-workspace .tp-estimate-receipt .vt-head-no { color:#0078d4; }
+.tp-workspace .tp-estimate-receipt .vt-head-no { color:var(--win-accent, #0078d4); }
 .tp-workspace .tp-estimate-receipt .vt-head-total { font-size:16px; color:#b3261e; }
 .tp-workspace .tp-items-wrap { margin:0; border:0; border-radius:0; box-shadow:none; overflow:auto; }
 .tp-workspace .table.tp-items { min-width:890px; width:100%; table-layout:auto; }
@@ -61,7 +61,7 @@
 .tp-workspace .tp-item-state.planned { background:#eaf3fd; color:#116db3; }
 .tp-workspace .tp-row-actions { justify-content:center; }
 .tp-workspace .tp-icon-btn { width:29px; height:29px; border-color:#d6e1ec; color:#647d94; }
-.tp-workspace .tp-icon-btn:hover { background:#edf6ff; color:#0078d4; border-color:#a8cbed; }
+.tp-workspace .tp-icon-btn:hover { background:#edf6ff; color:var(--win-accent, #0078d4); border-color:#a8cbed; }
 .tp-workspace .tp-empty-items { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:9px; padding:28px 14px; color:#6b8194; }
 .tp-workspace .tp-empty-items > i { color:#97b7d3; font-size:25px; }
 .tp-workspace .tp-empty-items strong { color:#28465f; font-size:13px; }
@@ -76,7 +76,7 @@
 .tp-workspace .tp-estimate-note { display:block; color:#8292a1; margin-top:12px; font-size:10.5px; }
 .tp-workspace .smart-dental-chart { box-shadow:none; border-color:#e1e8ef; }
 .tp-workspace #pvChartToolbar { gap:10px; flex-wrap:wrap; }
-.tp-workspace :is(button,a,[tabindex]):focus-visible,#tpPlanList .folder-card:focus-visible { outline:2px solid #0078d4; outline-offset:3px; }
+.tp-workspace :is(button,a,[tabindex]):focus-visible,#tpPlanList .folder-card:focus-visible { outline:2px solid var(--win-accent, #0078d4); outline-offset:3px; }
 
 /* Patient's entry point: compact cards and a small, useful empty state. */
 #tab-plans > .panel-body { padding:16px 18px; }
@@ -84,7 +84,7 @@
 #tab-plans h4 { margin:0; font-size:15px; }
 #tab-plans .btn { border-radius:7px; padding:7px 12px; font-size:12px; min-height:34px; }
 #tab-plans .empty-state-modern { min-height:0; padding:25px 16px 28px; margin:0; background:#f9fbfd; border:1px dashed #d3e0ed; border-radius:9px; }
-#tab-plans .empty-state-icon-modern { width:48px; height:48px; margin:0 auto 10px; border-radius:12px; background:#e7f2fd !important; box-shadow:none; color:#0078d4 !important; font-size:19px; }
+#tab-plans .empty-state-icon-modern { width:48px; height:48px; margin:0 auto 10px; border-radius:12px; background:#e7f2fd !important; box-shadow:none; color:var(--win-accent, #0078d4) !important; font-size:19px; }
 #tab-plans .empty-state-title-modern { margin:6px 0; font-size:14px; color:#28445b; }
 #tab-plans .empty-state-text-modern { max-width:440px; margin:0 auto 14px; font-size:12px; line-height:1.8; }
 #tab-plans .empty-state-modern .btn { padding:8px 14px !important; border-radius:7px !important; font-size:12px !important; }
@@ -96,9 +96,9 @@
 #tab-plans .folder-title { font-size:14px; margin-bottom:3px; }
 #tab-plans .folder-doctor,#tab-plans .folder-meta { font-size:11px; }
 #tab-plans .folder-header .badge { font-size:10px; padding:3px 7px; }
-#tab-plans .tp-plan-icon { width:40px; height:40px; border-radius:9px; background:#e7f2fd; color:#0078d4; box-shadow:none; font-size:17px; }
+#tab-plans .tp-plan-icon { width:40px; height:40px; border-radius:9px; background:#e7f2fd; color:var(--win-accent, #0078d4); box-shadow:none; font-size:17px; }
 #tab-plans .tp-card-money { margin-top:10px; padding:8px 10px; background:#f4f9fe; border:1px solid #dfebf6; border-radius:7px; }
-#tab-plans .tp-card-money-value { color:#0078d4; font-size:17px; }
+#tab-plans .tp-card-money-value { color:var(--win-accent, #0078d4); font-size:17px; }
 
 @media(max-width:1250px) {
     .tp-plan-grid { grid-template-columns:minmax(0,1fr); }

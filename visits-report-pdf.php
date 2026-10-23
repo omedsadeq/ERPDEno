@@ -127,7 +127,7 @@ $html = '
     table.t tr:nth-child(even) td { background: #fafafa; }
     .totals-row td { background: #eef2f7 !important; font-weight: bold; }
     .empty { text-align: center; color: #999; font-size: 9px; font-style: italic; padding: 6px; }
-    .v-blue  { color: #0078d4; font-weight: bold; }
+    .v-blue  { color: ' . Branding::primaryColor() . '; font-weight: bold; }
     .hour-table { width: 100%; border-collapse: collapse; }
     .hour-table td { padding: 2px; text-align: center; font-size: 9px; }
     .hour-table .h-count { background: #ede9fe; color: #5b21b6; font-weight: bold; font-size: 10px; }

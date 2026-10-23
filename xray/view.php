@@ -223,7 +223,7 @@ require_once __DIR__ . '/../includes/header.php';
     font-family: var(--app-font-family);
     font-size: 24px;
     font-weight: 700;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 .xray-header-actions {
@@ -383,7 +383,7 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 .info-value-link {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     text-decoration: none;
     font-weight: 600;
 }
@@ -395,7 +395,7 @@ require_once __DIR__ . '/../includes/header.php';
 .info-value-amount {
     font-weight: 700;
     font-size: 16px;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 /* X-Ray Images Grid */
@@ -504,7 +504,7 @@ require_once __DIR__ . '/../includes/header.php';
     font-size: 64px;
     margin-bottom: 16px;
     opacity: 0.3;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 .empty-images p {
@@ -893,7 +893,7 @@ if (!empty($request['date_of_birth'])) {
     <div class="info-card">
         <div class="info-card-header">
             <h3 class="info-card-title">
-                <i class="fas fa-info-circle" style="color: #0078d4;"></i>
+                <i class="fas fa-info-circle" style="color: var(--win-accent, #0078d4);"></i>
                 Request Information / زانیاری داواکاری
             </h3>
         </div>
@@ -903,7 +903,7 @@ if (!empty($request['date_of_birth'])) {
                     <th><i class="fas fa-hashtag"></i> ژمارەی داواکاری<span class="th-en">Request Number</span></th>
                     <td>
                         <strong><?= (int)$request['id'] ?></strong>
-                        <br><span style="font-family:var(--app-font-family);color:#0078d4;"><?= htmlspecialchars($request['request_number']) ?></span>
+                        <br><span style="font-family:var(--app-font-family);color:var(--win-accent, #0078d4);"><?= htmlspecialchars($request['request_number']) ?></span>
                     </td>
                 </tr>
                 <tr class="info-row-bilingual">

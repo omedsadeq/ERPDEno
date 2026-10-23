@@ -201,10 +201,10 @@ $roleLabels = [
 /* چالاک / ناچالاک switch in the list header */
 .usr-status-switch { display: inline-flex; gap: 4px; padding: 3px; background: #f1f4f8; border: 1px solid #e3e8ef; border-radius: 9px; margin-inline-start: auto; margin-inline-end: 10px; }
 .usr-status-switch a { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 7px; font-size: 13px; font-weight: 600; color: #546e7a; text-decoration: none; transition: background .15s, color .15s; }
-.usr-status-switch a:hover { color: #0063b1; }
-.usr-status-switch a.is-on { background: #fff; color: #0063b1; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.usr-status-switch a:hover { color: var(--win-accent-deep, #0063b1); }
+.usr-status-switch a.is-on { background: #fff; color: var(--win-accent-deep, #0063b1); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
 .usr-status-switch a.is-off-tab.is-on { color: #b3101e; }
-.usr-switch-n { min-width: 20px; padding: 0 6px; border-radius: 10px; background: #e3f2fd; color: #0063b1; font-size: 11.5px; line-height: 18px; text-align: center; }
+.usr-switch-n { min-width: 20px; padding: 0 6px; border-radius: 10px; background: #e3f2fd; color: var(--win-accent-deep, #0063b1); font-size: 11.5px; line-height: 18px; text-align: center; }
 .usr-status-switch a.is-off-tab .usr-switch-n { background: #fdeff1; color: #b3101e; }
 .usr-row-inactive td { color: #78909c; }
 .usr-row-inactive .user-avatar { filter: grayscale(1); opacity: .7; }
@@ -298,7 +298,7 @@ $roleLabels = [
 
 /* Enhanced Panel Header */
 .panel-header-users {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     padding: 12px 16px;
     border-radius: 10px 10px 0 0;
     display: flex;
@@ -688,7 +688,7 @@ $roleLabels = [
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
 }
 .usr-dialog-header {
-    background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);
     color: white;
     padding: 16px 20px;
     display: flex;
@@ -747,9 +747,9 @@ $roleLabels = [
     text-overflow: ellipsis;
 }
 .usr-form-control:focus {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     background: white;
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
     outline: none;
 }
 .usr-checkbox-wrapper {
@@ -767,7 +767,7 @@ $roleLabels = [
     width: 18px;
     height: 18px;
     cursor: pointer;
-    accent-color: #0078d4;
+    accent-color: var(--win-accent, #0078d4);
 }
 .usr-checkbox-label {
     font-size: 14px;

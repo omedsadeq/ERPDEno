@@ -241,7 +241,7 @@ html::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; border:
 
 .tr-stats { display:grid; grid-template-columns:repeat(6, 1fr); gap:10px; margin-bottom:14px; }
 .tr-stat { background:#fff; border:1px solid #e3e8ee; border-radius:10px; padding:12px; position:relative; overflow:hidden; }
-.tr-stat::before { content:''; position:absolute; inset-block:0; inset-inline-end:0; width:4px; background:var(--accent,#0078d4); }
+.tr-stat::before { content:''; position:absolute; inset-block:0; inset-inline-end:0; width:4px; background:var(--accent, #0078d4); }
 .tr-stat.count    { --accent:#7c3aed; }
 .tr-stat.revenue  { --accent:#16a34a; }
 .tr-stat.avg      { --accent:#0ea5e9; }
@@ -272,7 +272,7 @@ html::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; border:
 
 .status-badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:600; }
 .st-completed { background:#e8f5e9; color:#2e7d32; }
-.st-approved  { background:#e3f2fd; color:#0078d4; }
+.st-approved  { background:#e3f2fd; color:var(--win-accent, #0078d4); }
 .st-pending   { background:#fff3e0; color:#f57c00; }
 .st-cancelled { background:#ffebee; color:#c62828; }
 

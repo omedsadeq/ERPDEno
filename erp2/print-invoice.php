@@ -201,7 +201,7 @@ $cancelled = $invoice['status'] === 'cancelled';
     <div class="lh">
         <div class="ku"><b><?= erp2_esc($clinicName) ?></b><small><?= erp2_esc($clinicAddress) ?></small></div>
         <img src="<?= erp2_esc($logoUrl) ?>" alt="" onerror="this.remove()">
-        <div class="en"><b><?= erp2_esc($clinicNameEn) ?></b><small><?= erp2_esc($clinicPhone1) ?> · <?= erp2_esc($clinicPhone2) ?></small></div>
+        <div class="en"><b><?= erp2_esc($clinicNameEn) ?></b><small><?= erp2_esc(implode(' · ', $clinicPhones)) ?></small></div>
     </div>
 
     <div class="title">

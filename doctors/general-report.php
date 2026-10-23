@@ -157,7 +157,7 @@ html::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; border:
 .gr-filter { background:#fff; border:1px solid #e3e8ee; border-radius:10px; padding:10px 12px; margin-bottom:12px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 .gr-chip { padding:6px 12px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; border-radius:20px; cursor:pointer; font-size:13px; text-decoration:none; display:inline-flex; align-items:center; gap:5px; }
 .gr-chip:hover { background:#e2e8f0; color:#0f172a; }
-.gr-chip.active { background:#0078d4; border-color:#0078d4; color:#fff; }
+.gr-chip.active { background:var(--win-accent, #0078d4); border-color:var(--win-accent, #0078d4); color:#fff; }
 .gr-sep { width:1px; height:24px; background:#e2e8f0; }
 .gr-filter input[type=date], .gr-filter select { padding:6px 8px; border:1px solid #cfd8dc; border-radius:6px; font-size:13px; }
 .gr-filter label { font-size:12px; color:#607d8b; }
@@ -167,7 +167,7 @@ html::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; border:
 .gr-stats { display:grid; grid-template-columns:repeat(5, 1fr); gap:10px; margin-bottom:14px; }
 .gr-stat { background:#fff; border:1px solid #e3e8ee; border-radius:10px; padding:14px; position:relative; overflow:hidden; }
 .gr-stat::before { content:''; position:absolute; inset-block:0; inset-inline-end:0; width:4px; background:var(--accent, #0078d4); }
-.gr-stat.total     { --accent:#0078d4; }
+.gr-stat.total     { --accent:var(--win-accent, #0078d4); }
 .gr-stat.paid      { --accent:#16a34a; }
 .gr-stat.remaining { --accent:#dc2626; }
 .gr-stat.discount  { --accent:#f59e0b; }

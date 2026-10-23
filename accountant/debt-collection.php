@@ -185,7 +185,7 @@ $waNumber = function ($phone) {
     font-size: 12px; font-weight: 700; border: 1px solid #e0e0e0;
     color: #444; background: #f8f9fa;
 }
-.due-chip.active { background: #e3f2fd; border-color: #0078d4; color: #005a9e; }
+.due-chip.active { background: #e3f2fd; border-color: var(--win-accent, #0078d4); color: var(--win-accent-dark, #005a9e); }
 .due-range-note { font-size: 12px; color: #777; }
 
 /* Table */
@@ -287,7 +287,7 @@ $waNumber = function ($phone) {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 6px 13px; border-radius: 999px; text-decoration: none;
     font-size: 12.5px; font-weight: 800;
-    background: linear-gradient(135deg, #0078d4, #005a9e); color: #fff;
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-dark, #005a9e)); color: #fff;
     border: none;
 }
 .queue-chip:hover { opacity: 0.92; color: #fff; }
@@ -368,9 +368,9 @@ $waNumber = function ($phone) {
 /* Phone links */
 .phone-link {
     display: inline-flex; align-items: center; gap: 5px;
-    color: #0078d4; text-decoration: none; direction: ltr; font-size: 13px;
+    color: var(--win-accent, #0078d4); text-decoration: none; direction: ltr; font-size: 13px;
 }
-.phone-link:hover { color: #005a9e; text-decoration: underline; }
+.phone-link:hover { color: var(--win-accent-dark, #005a9e); text-decoration: underline; }
 .phone-link i { font-size: 11px; }
 
 /* Amount cells */
@@ -383,7 +383,7 @@ $waNumber = function ($phone) {
     display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px;
     border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap;
 }
-.debt-type-badge.installment { background: #e8f3ff; color: #005a9e; }
+.debt-type-badge.installment { background: #e8f3ff; color: var(--win-accent-dark, #005a9e); }
 .debt-type-badge.normal { background: #fff4e5; color: #9a4d00; }
 .debt-type-badge.mixed { background: #f3e8ff; color: #6d28d9; }
 .debt-breakdown { font-size: 11px; color: #666; line-height: 1.7; }
@@ -445,11 +445,11 @@ $waNumber = function ($phone) {
     font-size: 13px; transition: border 0.2s;
 }
 .dc-form-group select:focus, .dc-form-group textarea:focus, .dc-form-group input:focus {
-    border-color: #0078d4; outline: none; box-shadow: 0 0 0 3px rgba(0,120,212,0.08);
+    border-color: var(--win-accent, #0078d4); outline: none; box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.08);
 }
-.dc-btn-submit { background: #0078d4; color: #fff; padding: 10px 22px; border-radius: 8px;
+.dc-btn-submit { background: var(--win-accent, #0078d4); color: #fff; padding: 10px 22px; border-radius: 8px;
     border: none; cursor: pointer; font-size: 14px; font-weight: 600; }
-.dc-btn-submit:hover { background: #005a9e; }
+.dc-btn-submit:hover { background: var(--win-accent-dark, #005a9e); }
 .dc-btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
 .dc-btn-cancel { background: #f0f0f0; color: #333; padding: 10px 22px; border-radius: 8px;
     border: none; cursor: pointer; font-size: 14px; }
@@ -601,7 +601,7 @@ $waNumber = function ($phone) {
             <option value="next_due_date" <?= $sortBy === 'next_due_date' ? 'selected' : '' ?>>ڕیزکردن: بەرواری پارەدان</option>
             <option value="next_installment_due_date" <?= $sortBy === 'next_installment_due_date' ? 'selected' : '' ?>>ڕیزکردن: کاتی قیست</option>
         </select>
-        <button type="submit" class="btn" style="background:#0078d4;color:#fff;"><i class="fas fa-filter"></i> فلتەرکردن</button>
+        <button type="submit" class="btn" style="background:var(--win-accent, #0078d4);color:#fff;"><i class="fas fa-filter"></i> فلتەرکردن</button>
         <a href="<?= APP_URL ?>/accountant/debt-collection.php" class="btn btn-reset"><i class="fas fa-redo"></i> ڕیسێت</a>
         <a href="<?= APP_URL ?>/accountant/debt-collection-pdf.php?<?= http_build_query($_GET) ?>" target="_blank" class="btn btn-pdf">
             <i class="fas fa-file-pdf"></i> PDF ڕاپۆرت

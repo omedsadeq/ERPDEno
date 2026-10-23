@@ -197,12 +197,12 @@ $reasonStats = array_slice($reasonStats, 0, 4, true);
 }
 
 .btn-back {
-    background: #0078d4;
+    background: var(--win-accent, #0078d4);
     color: white;
 }
 
 .btn-back:hover {
-    background: #005a9e;
+    background: var(--win-accent-dark, #005a9e);
     color: white;
 }
 

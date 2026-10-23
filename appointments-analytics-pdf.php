@@ -218,7 +218,7 @@ $html = '
     .stats-box td { border: 1px solid #d4d4d4; text-align: center; padding: 4px 5px; vertical-align: top; }
     .stat-v { font-size: 13px; font-weight: bold; color: #1a1a2e; }
     .stat-l { font-size: 9px; color: #666; margin-top: 2px; }
-    .stat-p { font-size: 9px; color: #0078d4; font-weight: 600; margin-top: 2px; }
+    .stat-p { font-size: 9px; color: ' . Branding::primaryColor() . '; font-weight: 600; margin-top: 2px; }
     table.t { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 8px; }
     table.t th { background: #eef2f7; padding: 5px 4px; text-align: center; border: 1px solid #c9d1db; font-weight: 600; color: #0f172a; font-size: 9px; }
     table.t td { padding: 4px; border: 1px solid #e5e7eb; vertical-align: middle; text-align: center; }
@@ -340,7 +340,7 @@ if (!empty($trendRows)) {
             <td>' . $rate . '%</td>
             <td style="padding:0 4px;">
                 <div style="background:#f1f5f9;border-radius:3px;height:9px;position:relative;overflow:hidden;">
-                    <div style="background:linear-gradient(90deg,#4caf50 0%,#4caf50 ' . ($t > 0 ? round($c/$t*100) : 0) . '%,#0078d4 ' . ($t > 0 ? round($c/$t*100) : 0) . '%,#0078d4 100%);height:100%;width:' . $barWidth . '%;"></div>
+                    <div style="background:linear-gradient(90deg,#4caf50 0%,#4caf50 ' . ($t > 0 ? round($c/$t*100) : 0) . '%,' . Branding::primaryColor() . ' ' . ($t > 0 ? round($c/$t*100) : 0) . '%,' . Branding::primaryColor() . ' 100%);height:100%;width:' . $barWidth . '%;"></div>
                 </div>
             </td>
         </tr>';

@@ -98,8 +98,8 @@ try {
     } else {
         echo "✓ زیادکردنی ڕێکخستنەکان...\n";
         $settings = [
-            ['app_name', 'دێنت حیساب'],
-            ['clinic_name', 'سەنتەری ددان'],
+            ['app_name', 'سەنتەری لێزان'],
+            ['clinic_name', 'سەنتەری لێزان'],
             ['currency', 'IQD'],
             ['work_start', '09:00'],
             ['work_end', '21:00'],
@@ -133,7 +133,7 @@ try {
 
     echo "⚠️ تکایە دوای چوونەژوورەوە وشەی نهێنی بگۆڕە!\n\n";
 
-    echo "<a href='" . APP_URL . "/login.php' style='background: #0078D4; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px;'>چوونەژوورەوە</a>\n";
+    echo "<a href='" . APP_URL . "/login.php' style='background: var(--win-accent, #0078D4); color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px;'>چوونەژوورەوە</a>\n";
 
 } catch (Exception $e) {
     echo "❌ هەڵە: " . $e->getMessage() . "\n";

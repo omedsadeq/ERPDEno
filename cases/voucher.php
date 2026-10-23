@@ -123,7 +123,7 @@ html, body {
     align-items: center;
     gap: 8px;
     padding-bottom: 4px;
-    border-bottom: 2px solid #29a3dc;
+    border-bottom: 2px solid <?= $printAccent ?>;
 }
 .rc-logo { flex: 0 0 auto; }
 .rc-logo img { display: block; width: 21mm; height: auto; }
@@ -132,7 +132,7 @@ html, body {
 /* LTR so the two numbers keep their printed order — an RTL run flips them. */
 .rc-contact { font-size: 8.5pt; color: #3f4a56; direction: ltr; text-align: right; }
 .rc-contact span { display: inline-block; }
-.rc-contact .ico { color: #29a3dc; font-weight: 700; }
+.rc-contact .ico { color: <?= $printAccent ?>; font-weight: 700; }
 .rc-addr { font-size: 8pt; color: #4a5560; }
 
 /* ── Identification block ── */
@@ -287,10 +287,10 @@ body.is-embedded .sheet { margin: 0 auto; box-shadow: none; }
             <div class="rc-clinic-ku"><?= htmlspecialchars($clinicName) ?></div>
             <div class="rc-contact">
                 <span class="ico">✆</span>
-                <span><?= htmlspecialchars($clinicPhone1) ?> - <?= htmlspecialchars($clinicPhone2) ?></span>
+                <span><?= htmlspecialchars(implode(' - ', $clinicPhones)) ?></span>
             </div>
             <div class="rc-addr">
-                <span class="ico" style="color:#29a3dc;">◉</span>
+                <span class="ico" style="color:<?= $printAccent ?>;">◉</span>
                 <?= htmlspecialchars($clinicAddress) ?>
             </div>
         </div>

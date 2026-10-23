@@ -67,7 +67,7 @@ require_once __DIR__ . '/config/config.php';
             align-items: center;
             gap: 8px;
             padding: 10px 24px;
-            background: #0078D4;
+            background: var(--win-accent, #0078D4);
             color: white;
             text-decoration: none;
             border-radius: 6px;
@@ -78,7 +78,7 @@ require_once __DIR__ . '/config/config.php';
         }
         .btn:hover {
             background: #1683D8;
-            box-shadow: 0 2px 8px rgba(0, 120, 212, 0.3);
+            box-shadow: 0 2px 8px rgba(var(--win-accent-rgb, 0, 120, 212), 0.3);
         }
         .btn:active {
             background: #106EBE;
@@ -95,6 +95,7 @@ require_once __DIR__ . '/config/config.php';
             margin-bottom: 20px;
         }
     </style>
+    <?= Branding::themeStyleTag() ?>
 </head>
 <body>
     <div class="error-container">

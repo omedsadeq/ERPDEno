@@ -72,7 +72,7 @@ table.tg tr.row-new td{background:#fffbea}
 table.tg tr.row-new.sel td{background:#fff3c4}
 table.tg input,table.tg select{width:100%;border:0;background:transparent;padding:7px 8px;font-size:13px;font-family:inherit}
 table.tg select{padding:6px 4px}
-table.tg input:focus,table.tg select:focus{background:#fff8dc;outline:2px solid #0078D4;outline-offset:-2px}
+table.tg input:focus,table.tg select:focus{background:#fff8dc;outline:2px solid var(--win-accent, #0078D4);outline-offset:-2px}
 table.tg input[readonly]{color:#78909c}
 table.tg input[data-f="name"]{font-weight:600;color:#263238}
 table.tg tr.row-blank input[data-f="name"]{font-weight:400}

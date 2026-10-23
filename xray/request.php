@@ -1756,7 +1756,7 @@ $xrayReasons = [
                     <span class="currency"></span>
                     <?php if ($auth->isAdmin()): ?>
                     <a href="<?= APP_URL ?>/admin/xray-pricing.php" target="_blank" title="بەڕێوەبردنی نرخەکان"
-                       style="padding: 4px 10px; background: #0078d4; color: #fff; border-radius: 6px; text-decoration: none; font-size: 12px; display: inline-flex; align-items: center; gap: 4px;">
+                       style="padding: 4px 10px; background: var(--win-accent, #0078d4); color: #fff; border-radius: 6px; text-decoration: none; font-size: 12px; display: inline-flex; align-items: center; gap: 4px;">
                         <i class="fas fa-cog"></i> نرخەکان
                     </a>
                     <?php endif; ?>

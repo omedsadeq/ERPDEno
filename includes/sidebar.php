@@ -164,8 +164,8 @@ if (in_array($currentPage, ['appointments', 'reception-call-lists', 'doctor-sche
             <i class="fas fa-bars"></i>
         </button>
         <a href="<?= APP_URL ?>/index.php" class="nav-pane-logo">
-            <img src="<?= APP_URL ?>/assets/images/logo.png" alt="<?= APP_NAME ?>" onerror="this.style.display='none'">
-            <span class="nav-pane-logo-text"><?= APP_NAME_EN ?? 'Dental Clinic' ?></span>
+            <img src="<?= htmlspecialchars(Branding::logoUrl()) ?>" alt="<?= htmlspecialchars(APP_NAME) ?>" onerror="this.style.display='none'">
+            <span class="nav-pane-logo-text"><?= htmlspecialchars(APP_NAME_EN) ?></span>
         </a>
     </div>
 

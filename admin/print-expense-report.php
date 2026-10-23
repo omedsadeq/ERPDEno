@@ -186,8 +186,8 @@ $html = '
             font-size: 9pt;
         }
         h2 {
-            color: #0078D4;
-            border-bottom: 2px solid #0078D4;
+            color: ' . Branding::primaryColor() . ';
+            border-bottom: 2px solid ' . Branding::primaryColor() . ';
             padding-bottom: 4px;
             margin-top: 12px;
             margin-bottom: 8px;
@@ -209,7 +209,7 @@ $html = '
             border-collapse: collapse;
         }
         .info-box {
-            border: 1px solid #0078D4;
+            border: 1px solid ' . Branding::primaryColor() . ';
             background: #f0f8ff;
         }
         .info-box td {
@@ -260,7 +260,7 @@ $html = '
             margin-bottom: 10px;
         }
         .expenses-table th {
-            background: #0078D4;
+            background: ' . Branding::primaryColor() . ';
             color: white;
             padding: 5px 4px;
             text-align: center;
@@ -350,7 +350,7 @@ $html = '
             font-weight: bold;
         }
         .totals-table .grand-total {
-            background: #0078D4;
+            background: ' . Branding::primaryColor() . ';
             color: white;
             font-size: 11pt;
         }
@@ -365,7 +365,7 @@ $html = '
             <table width="100%" class="info-box">
                 <tr>
                     <td>جۆری ڕاپۆرت :</td>
-                    <td style="font-weight: bold; color: #0078D4;">' . $reportTitle . '</td>
+                    <td style="font-weight: bold; color: ' . Branding::primaryColor() . ';">' . $reportTitle . '</td>
                 </tr>
                 <tr>
                     <td>لە بەروار :</td>
@@ -389,7 +389,7 @@ $html = '
                 </tr>
                 <tr>
                     <td>ژمارەی تۆماکان :</td>
-                    <td style="font-weight: bold; color: #0078D4;">' . $totalCount . '</td>
+                    <td style="font-weight: bold; color: ' . Branding::primaryColor() . ';">' . $totalCount . '</td>
                 </tr>
             </table>
         </td>

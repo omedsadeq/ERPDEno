@@ -256,7 +256,7 @@ $todayLogs = $db->fetch("SELECT COUNT(*) as count FROM patient_access_logs WHERE
     width: 60px;
     height: 60px;
     border-radius: 12px;
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
     display: flex;
     align-items: center;

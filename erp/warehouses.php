@@ -40,7 +40,7 @@ $customCSS = <<<CSS
 .wh-card .stats .v{font-size:16px;font-weight:700;direction:ltr;text-align:left;font-variant-numeric:tabular-nums}
 .wh-card .stats .l{color:#888;font-size:11px}
 .wh-badge{position:absolute;top:10px;left:10px;background:#0f766e;color:#fff;font-size:10.5px;padding:2px 8px;border-radius:10px}
-.wh-edit{position:absolute;bottom:12px;left:12px;cursor:pointer;color:#0078D4}
+.wh-edit{position:absolute;bottom:12px;left:12px;cursor:pointer;color:var(--win-accent, #0078D4)}
 .erp-formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
 CSS;
 

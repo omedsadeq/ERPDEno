@@ -113,30 +113,30 @@ require_once __DIR__ . '/../includes/header.php';
 .ac-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:12px; }
 .ac-title { display:flex; align-items:center; gap:12px; }
 .ac-title h2 { margin:0; font-size:20px; color:#1a1a1a; display:flex; align-items:center; gap:10px; }
-.ac-title .icon { width:44px; height:44px; background:linear-gradient(135deg,#0078d4,#0063b1); border-radius:12px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:19px; box-shadow:0 4px 12px rgba(0,120,212,0.3); }
+.ac-title .icon { width:44px; height:44px; background:linear-gradient(135deg,var(--win-accent, #0078d4),var(--win-accent-deep, #0063b1)); border-radius:12px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:19px; box-shadow:0 4px 12px rgba(var(--win-accent-rgb, 0, 120, 212), 0.3); }
 .live-dot { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:#107c10; background:#dff6dd; padding:4px 10px; border-radius:12px; }
 .live-dot::before { content:''; width:8px; height:8px; border-radius:50%; background:#107c10; animation:acPulse 1.6s infinite; }
 @keyframes acPulse { 0%,100% { opacity:1; } 50% { opacity:0.25; } }
 .ac-actions { display:flex; align-items:center; gap:10px; }
-.btn-sound { width:38px; height:38px; border-radius:10px; border:1.5px solid #e0e0e0; background:#fff; cursor:pointer; font-size:15px; color:#0078d4; display:flex; align-items:center; justify-content:center; transition:all .2s; }
+.btn-sound { width:38px; height:38px; border-radius:10px; border:1.5px solid #e0e0e0; background:#fff; cursor:pointer; font-size:15px; color:var(--win-accent, #0078d4); display:flex; align-items:center; justify-content:center; transition:all .2s; }
 .btn-sound.muted { color:#999; opacity:.7; }
 .ac-new-badge { background:linear-gradient(135deg,#c50f1f,#a00d19); color:#fff; border-radius:14px; padding:5px 12px; font-size:12px; font-weight:700; display:none; }
 
 .kind-tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
 .kind-tab { padding:9px 18px; border-radius:20px; border:1.5px solid #e0e0e0; font-size:12.5px; font-weight:600; cursor:pointer; color:#666; background:#fff; transition:all .2s; display:flex; align-items:center; gap:7px; font-family:inherit; }
 .kind-tab .kt-count { background:rgba(0,0,0,0.1); border-radius:10px; padding:1px 8px; font-size:11px; }
-.kind-tab.active { background:linear-gradient(135deg,#0078d4,#0063b1); color:#fff; border-color:#0078d4; }
+.kind-tab.active { background:linear-gradient(135deg,var(--win-accent, #0078d4),var(--win-accent-deep, #0063b1)); color:#fff; border-color:var(--win-accent, #0078d4); }
 .kind-tab.active .kt-count { background:rgba(255,255,255,0.25); }
 
 .filters-card { background:#fff; border-radius:12px; padding:14px 16px; margin-bottom:16px; box-shadow:0 2px 12px rgba(0,0,0,0.08); display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
 .ac-search { flex:1; min-width:220px; position:relative; }
 .ac-search input { width:100%; padding:9px 36px 9px 12px; border:1.5px solid #e0e0e0; border-radius:8px; font-size:13px; font-family:inherit; }
-.ac-search input:focus { border-color:#0078d4; outline:none; box-shadow:0 0 0 3px rgba(0,120,212,0.1); }
+.ac-search input:focus { border-color:var(--win-accent, #0078d4); outline:none; box-shadow:0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1); }
 .ac-search i { position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#aaa; font-size:13px; }
 .filters-card select, .filters-card input[type="date"] { padding:8px 11px; border:1.5px solid #e0e0e0; border-radius:8px; font-size:12.5px; font-family:inherit; background:#fcfcfd; }
 .scope-toggle { display:flex; border:1.5px solid #e0e0e0; border-radius:8px; overflow:hidden; }
 .scope-toggle button { padding:8px 14px; border:none; background:#fff; cursor:pointer; font-size:12px; font-weight:600; color:#666; font-family:inherit; }
-.scope-toggle button.active { background:#0078d4; color:#fff; }
+.scope-toggle button.active { background:var(--win-accent, #0078d4); color:#fff; }
 
 /* ڕیزبەندی — one button that flips between نوێ←کۆن and کۆن←نوێ. Sized like the
    other filter controls next to it rather than like a primary action. */
@@ -147,8 +147,8 @@ require_once __DIR__ . '/../includes/header.php';
     font-family:inherit; font-size:12.5px; font-weight:600; white-space:nowrap;
     transition:all .2s;
 }
-.ac-sort-btn:hover { border-color:#0078d4; color:#0078d4; }
-.ac-sort-btn i { color:#0078d4; font-size:12px; }
+.ac-sort-btn:hover { border-color:var(--win-accent, #0078d4); color:var(--win-accent, #0078d4); }
+.ac-sort-btn i { color:var(--win-accent, #0078d4); font-size:12px; }
 
 /* Pager under the table. Hidden entirely while there is nothing to page. */
 .ac-pager {
@@ -159,11 +159,11 @@ require_once __DIR__ . '/../includes/header.php';
 .ac-pager-btn {
     display:inline-flex; align-items:center; gap:6px;
     padding:7px 14px; border:1.5px solid #e0e0e0; border-radius:8px;
-    background:#fff; color:#0063b1; cursor:pointer;
+    background:#fff; color:var(--win-accent-deep, #0063b1); cursor:pointer;
     font-family:inherit; font-size:12.5px; font-weight:600; white-space:nowrap;
     transition:all .2s;
 }
-.ac-pager-btn:hover:not(:disabled) { border-color:#0078d4; background:#f2f8fd; }
+.ac-pager-btn:hover:not(:disabled) { border-color:var(--win-accent, #0078d4); background:#f2f8fd; }
 .ac-pager-btn:disabled { color:#b6bfc8; cursor:default; opacity:.65; }
 .ac-pager-info { color:#647487; font-size:12px; font-weight:600; }
 
@@ -203,7 +203,7 @@ require_once __DIR__ . '/../includes/header.php';
     background:#fff; cursor:pointer; font-family:inherit; font-size:12.5px;
     text-align:right; margin-bottom:5px;
 }
-.ac-advance-hit:hover { border-color:#0078d4; background:#f5faff; }
+.ac-advance-hit:hover { border-color:var(--win-accent, #0078d4); background:#f5faff; }
 .ac-advance-hit .hit-main { display:flex; flex-direction:column; gap:2px; min-width:0; }
 .ac-advance-hit .hit-name { font-weight:700; color:#1a1a1a; }
 .ac-advance-hit .hit-meta { color:#7b8997; font-size:10.5px; direction:ltr; text-align:right; }
@@ -234,7 +234,7 @@ require_once __DIR__ . '/../includes/header.php';
     gap: 7px 14px;
 }
 .ac-patient-group-person { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; color: #123b5d; }
-.ac-patient-group-person i { color: #0078d4; }
+.ac-patient-group-person i { color: var(--win-accent, #0078d4); }
 .ac-patient-group-phone { direction: ltr; color: #647487; font-size: 11px; font-weight: 500; }
 .ac-patient-group-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: #5e7184; font-size: 10.5px; }
 .ac-patient-group-count { padding: 2px 8px; border-radius: 999px; background: #d7ebfb; color: #075f9d; font-weight: 800; }
@@ -242,13 +242,13 @@ require_once __DIR__ . '/../includes/header.php';
 .kind-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 11px; border-radius:14px; font-size:11px; font-weight:600; white-space:nowrap; }
 .status-chip { display:inline-flex; align-items:center; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600; white-space:nowrap; }
 .chip-open { background:#fff4ce; color:#8a5a00; }
-.chip-seen { background:#deecf9; color:#0063b1; }
+.chip-seen { background:#deecf9; color:var(--win-accent-deep, #0063b1); }
 .chip-done { background:#dff6dd; color:#107c10; }
 .chip-bad { background:#fde7e9; color:#c50f1f; }
 .chip-neutral { background:#f0f0f0; color:#666; }
 .ac-promise { font-size:11px; color:#888; margin-top:3px; }
-.btn-eye-sm, .btn-eye { min-width:30px; height:30px; padding:0 10px; display:inline-flex; align-items:center; justify-content:center; gap:5px; border-radius:8px; border:none; cursor:pointer; background:linear-gradient(135deg,#0078d4,#0063b1); color:#fff; font-size:12px; transition:all .2s; }
-.btn-eye-sm:hover, .btn-eye:hover { transform:translateY(-1px); box-shadow:0 4px 10px rgba(0,120,212,0.35); }
+.btn-eye-sm, .btn-eye { min-width:30px; height:30px; padding:0 10px; display:inline-flex; align-items:center; justify-content:center; gap:5px; border-radius:8px; border:none; cursor:pointer; background:linear-gradient(135deg,var(--win-accent, #0078d4),var(--win-accent-deep, #0063b1)); color:#fff; font-size:12px; transition:all .2s; }
+.btn-eye-sm:hover, .btn-eye:hover { transform:translateY(-1px); box-shadow:0 4px 10px rgba(var(--win-accent-rgb, 0, 120, 212), 0.35); }
 
 /* ── Row actions on the پەسەندکراو tab ──
    دەستکاری / سڕینەوە sit next to the eye button on an already-approved row.
@@ -364,9 +364,9 @@ require_once __DIR__ . '/../includes/header.php';
 .ac-head-item { background:#f8f9fa; border-radius:10px; padding:9px 12px; }
 .ac-head-item .lbl { font-size:10px; color:#888; margin-bottom:3px; }
 .ac-head-item .val { font-size:13px; font-weight:600; color:#222; }
-.ac-statement-link { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#0078d4; text-decoration:none; font-weight:600; white-space:nowrap; }
+.ac-statement-link { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--win-accent, #0078d4); text-decoration:none; font-weight:600; white-space:nowrap; }
 .ac-statement-link:hover { text-decoration:underline; }
-.ac-section-title { font-size:13px; font-weight:700; color:#0063b1; margin:16px 0 8px; display:flex; align-items:center; gap:7px; }
+.ac-section-title { font-size:13px; font-weight:700; color:var(--win-accent-deep, #0063b1); margin:16px 0 8px; display:flex; align-items:center; gap:7px; }
 /* Case financial summary — original grid baseline, UNSCOPED, restored
    verbatim (this is what every other drawer kind's finBlock() still
    renders in the untouched 560px side drawer; changing it unscoped was
@@ -536,7 +536,7 @@ require_once __DIR__ . '/../includes/header.php';
 .ac-payment-field input:not([readonly]),
 .ac-payment-field textarea:not([readonly]) { background: #fff; border-color: #9fc3e6; }
 .ac-payment-field input:focus,
-.ac-payment-field textarea:focus { outline: none; border-color: #0078d4; box-shadow: 0 0 0 3px rgba(0,120,212,.1); }
+.ac-payment-field textarea:focus { outline: none; border-color: var(--win-accent, #0078d4); box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), .1); }
 .ac-payment-field.is-amount input {
     color: #14713b;
     font-size: 17px;
@@ -907,7 +907,7 @@ require_once __DIR__ . '/../includes/header.php';
     .ac-xray-patient { align-items:flex-start; }
     .ac-xray-patient-side { flex-direction:column; align-items:flex-end; }
 }
-.ac-inv-acc-notes textarea:focus { border-color: #0078d4; outline: none; box-shadow: 0 0 0 3px rgba(0,120,212,.1); }
+.ac-inv-acc-notes textarea:focus { border-color: var(--win-accent, #0078d4); outline: none; box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), .1); }
 /* وەرگرتنی پارە — same column/width as the totals stack above it, not a
    detached bar; classes are unchanged (btn btn-primary, same as approve). */
 .ac-recv-actions { margin-top: 10px; }
@@ -921,7 +921,7 @@ require_once __DIR__ . '/../includes/header.php';
 .ac-fld { margin-bottom:10px; }
 .ac-fld label { display:block; font-size:11.5px; font-weight:600; color:#475467; margin-bottom:4px; }
 .ac-fld input, .ac-fld select, .ac-fld textarea { width:100%; padding:8px 10px; border:1px solid #e4e7ec; border-radius:8px; font-family:inherit; font-size:12.5px; box-sizing:border-box; background:#fff; }
-.ac-fld input:focus, .ac-fld select:focus, .ac-fld textarea:focus { border-color:#0078d4; outline:none; }
+.ac-fld input:focus, .ac-fld select:focus, .ac-fld textarea:focus { border-color:var(--win-accent, #0078d4); outline:none; }
 .ac-fld-hint { font-size:11px; color:#888; margin-top:3px; }
 .ac-form-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
 .ac-err { color:#b42318; font-size:12px; background:#fef3f2; border-radius:8px; padding:7px 10px; margin-top:8px; display:none; }
@@ -1085,7 +1085,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="ac-drawer-overlay" id="acDrawerOverlay" aria-hidden="true">
     <div class="ac-drawer" id="acDrawer" role="dialog" aria-modal="true" aria-labelledby="acDrawerTitle" tabindex="-1">
         <div class="ac-drawer-head">
-            <h3 id="acDrawerTitle"><i class="fas fa-eye" style="color:#0078d4;"></i> وردەکاری</h3>
+            <h3 id="acDrawerTitle"><i class="fas fa-eye" style="color:var(--win-accent, #0078d4);"></i> وردەکاری</h3>
             <button type="button" class="ac-drawer-close" id="acDrawerClose"><i class="fas fa-times"></i></button>
         </div>
         <!-- Invoice-only persistent subheader (patient identity + کشف حساب +

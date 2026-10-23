@@ -174,13 +174,13 @@ $activeTab = $_GET['tab'] ?? 'header';
 
 .tab-pdf:hover {
     background: rgba(255, 255, 255, 0.6);
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 .tab-pdf.active {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     color: white;
-    box-shadow: 0 2px 8px rgba(0, 120, 212, 0.3);
+    box-shadow: 0 2px 8px rgba(var(--win-accent-rgb, 0, 120, 212), 0.3);
 }
 
 .tab-pdf i {
@@ -448,16 +448,16 @@ $activeTab = $_GET['tab'] ?? 'header';
                     </div>
                     <div style="background: white; border: 1px solid #0099cc; padding: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
                         <div style="text-align: left; font-size: 10px;">
-                            <div style="font-weight: bold;" id="preview-name-en"><?= htmlspecialchars($settings['header_company_name_en'] ?? 'LEZAN DENTAL CLINICS') ?></div>
-                            <div id="preview-phone1"><?= htmlspecialchars($settings['header_phone1'] ?? '07506932626') ?></div>
-                            <div id="preview-phone2"><?= htmlspecialchars($settings['header_phone2'] ?? '07506327575') ?></div>
+                            <div style="font-weight: bold;" id="preview-name-en"><?= htmlspecialchars(($settings['header_company_name_en'] ?? '') ?: Branding::nameEn()) ?></div>
+                            <div id="preview-phone1"><?= htmlspecialchars(($settings['header_phone1'] ?? '') ?: Branding::phone(1)) ?></div>
+                            <div id="preview-phone2"><?= htmlspecialchars(($settings['header_phone2'] ?? '') ?: Branding::phone(2)) ?></div>
                         </div>
                         <div style="text-align: center;">
-                            <img src="<?= APP_URL ?>/assets/images/logo.png" style="height: 40px;" onerror="this.src='<?= APP_URL ?>/assets/images/tooth-icon.png'">
+                            <img src="<?= htmlspecialchars(Branding::logoUrl()) ?>" style="height: 40px;" onerror="this.style.display='none'">
                         </div>
                         <div style="text-align: right; font-size: 10px;">
-                            <div style="font-weight: bold;" id="preview-name-ku"><?= htmlspecialchars($settings['header_company_name_ku'] ?? 'لێزان بۆ پزیشکی ددان') ?></div>
-                            <div id="preview-address"><?= htmlspecialchars($settings['header_address'] ?? 'سلێمانی') ?></div>
+                            <div style="font-weight: bold;" id="preview-name-ku"><?= htmlspecialchars(($settings['header_company_name_ku'] ?? '') ?: Branding::printName()) ?></div>
+                            <div id="preview-address"><?= htmlspecialchars(($settings['header_address'] ?? '') ?: Branding::address()) ?></div>
                         </div>
                     </div>
                 </div>
@@ -479,13 +479,13 @@ $activeTab = $_GET['tab'] ?? 'header';
                         <label class="form-label-pdf">ناوی کلینیک (کوردی - لای ڕاست)</label>
                         <input type="text" name="pdf[header_company_name_ku]" class="form-control"
                                value="<?= htmlspecialchars($settings['header_company_name_ku'] ?? '') ?>"
-                               placeholder="لێزان بۆ پزیشکی ددان" oninput="document.getElementById('preview-name-ku').textContent=this.value">
+                               placeholder="<?= htmlspecialchars(Branding::printName()) ?>" oninput="document.getElementById('preview-name-ku').textContent=this.value">
                     </div>
                     <div class="form-group-pdf">
                         <label class="form-label-pdf">ناوی کلینیک (ئینگلیزی - لای چەپ)</label>
                         <input type="text" name="pdf[header_company_name_en]" class="form-control"
                                value="<?= htmlspecialchars($settings['header_company_name_en'] ?? '') ?>"
-                               placeholder="LEZAN DENTAL CLINICS" oninput="document.getElementById('preview-name-en').textContent=this.value">
+                               placeholder="<?= htmlspecialchars(Branding::nameEn()) ?>" oninput="document.getElementById('preview-name-en').textContent=this.value">
                     </div>
                 </div>
 

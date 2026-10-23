@@ -160,8 +160,8 @@ html { scrollbar-width: thin; scrollbar-color: #cbd5e1 #f1f5f9; }
 .today-table tr:hover td { background: #fafcff; }
 .today-table .debt-cell   { color: #c62828; font-weight: 600; }
 .today-table .no-debt     { color: #9aa7b3; font-size: 12px; }
-.phone-link { display: inline-flex; align-items: center; gap: 6px; color: #0078d4; text-decoration: none; direction: ltr; font-size: 13px; }
-.phone-link:hover { color: #005a9e; text-decoration: underline; }
+.phone-link { display: inline-flex; align-items: center; gap: 6px; color: var(--win-accent, #0078d4); text-decoration: none; direction: ltr; font-size: 13px; }
+.phone-link:hover { color: var(--win-accent-dark, #005a9e); text-decoration: underline; }
 .phone-link i { font-size: 11px; }
 .call-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; background: #22c55e; color: #fff; border: 1px solid #16a34a; border-radius: 6px; text-decoration: none; font-size: 12px; margin-right: 6px; }
 .call-btn:hover { background: #16a34a; color: #fff; }
@@ -176,7 +176,7 @@ html { scrollbar-width: thin; scrollbar-color: #cbd5e1 #f1f5f9; }
 .filter-bar .filter-group { display: flex; gap: 4px; flex-wrap: wrap; }
 .filter-chip { padding: 6px 12px; background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; border-radius: 20px; cursor: pointer; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; transition: all .15s; }
 .filter-chip:hover { background: #e2e8f0; color: #0f172a; }
-.filter-chip.active { background: #0078d4; border-color: #0078d4; color: #fff; }
+.filter-chip.active { background: var(--win-accent, #0078d4); border-color: var(--win-accent, #0078d4); color: #fff; }
 .filter-chip i { font-size: 11px; }
 .filter-sep { width: 1px; height: 22px; background: #e2e8f0; margin: 0 6px; }
 .filter-date-wrap { display: flex; gap: 4px; align-items: center; }
@@ -398,7 +398,7 @@ $chips = [
         <tr>
             <td class="card-index" data-label="#"><?= $i + 1 ?></td>
             <td class="card-title" data-label="ناوی نەخۆش">
-                <i class="fas fa-user" style="color:#0078d4;"></i> <?= htmlspecialchars($r['patient_name'] ?? '—') ?>
+                <i class="fas fa-user" style="color:var(--win-accent, #0078d4);"></i> <?= htmlspecialchars($r['patient_name'] ?? '—') ?>
             </td>
             <td data-label="بەروار"><?= htmlspecialchars($r['appointment_date']) ?></td>
             <td data-label="کات"><?= date('H:i', strtotime($r['appointment_time'])) ?></td>

@@ -509,7 +509,7 @@ require_once __DIR__ . '/../includes/header.php';
     border: 1px solid #e8e8e8;
 }
 .patient-profile-header {
-    background: linear-gradient(135deg, #0078d4, #0063b1);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-deep, #0063b1));
     padding: 18px 16px;
     text-align: center;
     position: relative;
@@ -1103,7 +1103,7 @@ require_once __DIR__ . '/../includes/header.php';
     gap: 6px;
     font-size: 13px;
     font-weight: 700;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     margin-bottom: 10px;
     padding-bottom: 8px;
     border-bottom: 2px solid #e3f2fd;
@@ -1117,7 +1117,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 .apt-section-count {
     background: #e3f2fd;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     padding: 2px 8px;
     border-radius: 10px;
     font-size: 11px;
@@ -1386,7 +1386,7 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 .apt-dialog-header {
-    background: linear-gradient(135deg, #0078d4 0%, #0063b1 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-deep, #0063b1) 100%);
     color: white;
     padding: 12px 16px;
     display: flex;
@@ -1468,7 +1468,7 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 .apt-form-field label i {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-size: 10px;
 }
 
@@ -1492,8 +1492,8 @@ require_once __DIR__ . '/../includes/header.php';
 .apt-form-field input:focus,
 .apt-form-field select:focus,
 .apt-form-field textarea:focus {
-    border-color: #0078d4;
-    box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.1);
+    border-color: var(--win-accent, #0078d4);
+    box-shadow: 0 0 0 2px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
     outline: none;
     background: #fff;
 }
@@ -1502,7 +1502,7 @@ require_once __DIR__ . '/../includes/header.php';
     display: flex;
     padding: 6px 10px;
     background: linear-gradient(135deg, #e8f4fd, #f5faff);
-    border: 1.5px solid #0078d4;
+    border: 1.5px solid var(--win-accent, #0078d4);
     border-radius: 6px;
     align-items: center;
     gap: 8px;
@@ -1521,7 +1521,7 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 .apt-time-section > label i {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-size: 10px;
 }
 
@@ -1559,16 +1559,16 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 .smart-time-slot:hover:not(.busy):not(.break) {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     background: #e3f2fd;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     transform: translateY(-1px);
 }
 
 .smart-time-slot.selected {
-    background: #0078d4;
+    background: var(--win-accent, #0078d4);
     color: white;
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
 }
 
 .smart-time-slot.busy {
@@ -1588,9 +1588,9 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 .smart-time-slot.booked.selected {
-    background: #0078d4;
+    background: var(--win-accent, #0078d4);
     color: white;
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
 }
 
 .smart-time-slot.break {
@@ -1728,7 +1728,7 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 .apt-advanced-toggle:hover {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 .apt-advanced-toggle span {
@@ -1781,12 +1781,12 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 .apt-btn-primary {
-    background: linear-gradient(135deg, #0078d4 0%, #0063b1 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-deep, #0063b1) 100%);
     color: white;
 }
 
 .apt-btn-primary:hover {
-    background: linear-gradient(135deg, #0063b1 0%, #004c8c 100%);
+    background: linear-gradient(135deg, var(--win-accent-deep, #0063b1) 0%, #004c8c 100%);
 }
 
 .apt-btn-secondary {
@@ -2066,10 +2066,10 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php if ($nextAppointmentRow): ?>
                 <div class="info-row" style="background: #f0f7ff; margin: 0 -16px; padding-left: 16px; padding-right: 16px; border-radius: 0;">
                     <div class="info-label">
-                        <i class="fas fa-calendar-check" style="color: #0078d4;"></i>
+                        <i class="fas fa-calendar-check" style="color: var(--win-accent, #0078d4);"></i>
                         مەوعیدی داهاتوو
                     </div>
-                    <div class="info-value" style="color: #0078d4;">
+                    <div class="info-value" style="color: var(--win-accent, #0078d4);">
                         <?= date('Y-m-d', strtotime($nextAppointmentRow['appointment_date'])) ?>
                         - <?= date('H:i', strtotime($nextAppointmentRow['appointment_time'])) ?>
                     </div>
@@ -2692,9 +2692,9 @@ require_once __DIR__ . '/../includes/header.php';
                     <div class="apt-form-field apt-field-2col">
                         <label><i class="fas fa-user"></i> نەخۆش <span class="required">*</span></label>
                         <div id="selectedPatientDisplay" class="apt-selected-patient">
-                            <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #0078d4, #005a9e); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;"><?= htmlspecialchars(mb_substr($patient['full_name'], 0, 1)) ?></div>
+                            <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-dark, #005a9e)); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;"><?= htmlspecialchars(mb_substr($patient['full_name'], 0, 1)) ?></div>
                             <div style="flex: 1;">
-                                <div style="font-weight: 600; color: #0078d4; font-size: 14px;"><?= htmlspecialchars($patient['full_name']) ?></div>
+                                <div style="font-weight: 600; color: var(--win-accent, #0078d4); font-size: 14px;"><?= htmlspecialchars($patient['full_name']) ?></div>
                                 <div style="font-size: 11px; color: #757575; direction: ltr; text-align: right;"><?= htmlspecialchars($patient['phone'] ?: 'بێ ژمارە') ?></div>
                             </div>
                         </div>
@@ -2770,7 +2770,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php endforeach; ?>
                             </select>
                             <button type="button" onclick="openAddWorkTypeDialog()" title="زیادکردنی ئیشی نوێ"
-                                    style="padding: 0 10px; background: #0078d4; color: #fff; border: 1px solid #0078d4; border-radius: 4px; cursor: pointer;">
+                                    style="padding: 0 10px; background: var(--win-accent, #0078d4); color: #fff; border: 1px solid var(--win-accent, #0078d4); border-radius: 4px; cursor: pointer;">
                                 <i class="fas fa-plus"></i>
                             </button>
                         </div>
@@ -2923,7 +2923,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <div style="display: flex; gap: 10px;">
                         <label style="flex: 1; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1.5px solid #e0e0e0; border-radius: 8px; cursor: pointer;">
                             <input type="radio" name="case_age" value="new" checked onchange="toggleHistoricalCaseFields()">
-                            <span><i class="fas fa-plus-circle" style="color: #0078d4;"></i> نوێ</span>
+                            <span><i class="fas fa-plus-circle" style="color: var(--win-accent, #0078d4);"></i> نوێ</span>
                         </label>
                         <label style="flex: 1; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1.5px solid #e0e0e0; border-radius: 8px; cursor: pointer;">
                             <input type="radio" name="case_age" value="old" onchange="toggleHistoricalCaseFields()">

@@ -103,7 +103,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 .ucl-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 14px; }
 .ucl-stat { background: #fff; border: 1.5px solid #e3e8ef; border-radius: 10px; padding: 12px 14px; }
-.ucl-stat-value { font-size: 20px; font-weight: 700; color: #0078d4; }
+.ucl-stat-value { font-size: 20px; font-weight: 700; color: var(--win-accent, #0078d4); }
 .ucl-stat-label { font-size: 11.5px; color: #78909c; margin-top: 3px; }
 
 .ucl-filters {
@@ -141,7 +141,7 @@ require_once __DIR__ . '/../includes/header.php';
     padding: 7px 12px; border-radius: 6px; border: 1.5px solid #e0e0e0;
     font-size: 12.5px; text-decoration: none; color: #37474f; background: #fff;
 }
-.ucl-pagination .active { background: #0078d4; color: #fff; border-color: #0078d4; font-weight: 700; }
+.ucl-pagination .active { background: var(--win-accent, #0078d4); color: #fff; border-color: var(--win-accent, #0078d4); font-weight: 700; }
 </style>
 
 <?php if ($switchOn): ?>

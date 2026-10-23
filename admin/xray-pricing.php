@@ -61,8 +61,8 @@ require_once __DIR__ . '/../includes/header.php';
 .xp-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px; }
 .xp-header h3 { margin:0; font-size:20px; color:#0f172a; }
 .xp-header .sub { color:#607d8b; font-size:13px; }
-.xp-add-btn { padding:8px 16px; background:linear-gradient(135deg, #0078d4, #005a9e); color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
-.xp-add-btn:hover { background:linear-gradient(135deg, #005a9e, #004a85); }
+.xp-add-btn { padding:8px 16px; background:linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-dark, #005a9e)); color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+.xp-add-btn:hover { background:linear-gradient(135deg, var(--win-accent-dark, #005a9e), #004a85); }
 .xp-section { background:#fff; border:1px solid #e3e8ee; border-radius:10px; margin-bottom:14px; overflow:hidden; }
 .xp-section-head { padding:10px 14px; background:linear-gradient(90deg, #f8fafc, #fff); border-bottom:1px solid #eef2f5; font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px; font-size:15px; }
 .xp-section-head .count { background:#eef2ff; color:#4338ca; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:700; }
@@ -85,7 +85,7 @@ require_once __DIR__ . '/../includes/header.php';
 .tp-name { font-weight:700; color:#1a237e; display:flex; align-items:center; gap:6px; direction:ltr; justify-content:flex-end; }
 .tp-row { display:flex; gap:6px; }
 .tp-row input { flex:1; min-width:0; padding:8px 10px; border:1.5px solid #e0e0e0; border-radius:6px; font-size:14px; font-weight:700; direction:ltr; text-align:left; font-family:inherit; }
-.tp-row input:focus { border-color:#0078d4; outline:none; }
+.tp-row input:focus { border-color:var(--win-accent, #0078d4); outline:none; }
 .tp-save { padding:8px 12px; background:#16a34a; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; white-space:nowrap; }
 .tp-save:hover { background:#15803d; }
 .tp-save:disabled { opacity:.6; cursor:default; }
@@ -100,21 +100,21 @@ require_once __DIR__ . '/../includes/header.php';
 .cb-table .scope { font-weight:700; color:#1a237e; white-space:nowrap; }
 .cb-table .scope small { display:block; color:#94a3b8; font-weight:600; direction:ltr; }
 .cb-table input { width:100%; max-width:180px; padding:8px 10px; border:1.5px solid #e0e0e0; border-radius:6px; font-size:14px; font-weight:700; direction:ltr; text-align:left; font-family:inherit; }
-.cb-table input:focus { border-color:#0078d4; outline:none; }
+.cb-table input:focus { border-color:var(--win-accent, #0078d4); outline:none; }
 .cb-table input.is-unset { border-style:dashed; border-color:#f0b37a; background:#fffaf4; }
 .cb-foot { padding:12px 14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 
 .xp-dialog-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; z-index:9999; padding:16px; }
 .xp-dialog-overlay.open { display:flex; }
 .xp-dialog { background:#fff; border-radius:12px; max-width:440px; width:100%; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.3); }
-.xp-dialog-head { background:linear-gradient(135deg, #0078d4, #005a9e); color:#fff; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; }
+.xp-dialog-head { background:linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-dark, #005a9e)); color:#fff; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; }
 .xp-dialog-head h4 { margin:0; font-size:15px; }
 .xp-dialog-head .x { background:rgba(255,255,255,.15); border:none; color:#fff; width:28px; height:28px; border-radius:6px; cursor:pointer; }
 .xp-dialog-body { padding:18px; }
 .xp-field { margin-bottom:12px; }
 .xp-field label { display:block; margin-bottom:4px; font-size:12px; font-weight:600; color:#546e7a; }
 .xp-field select, .xp-field input { width:100%; padding:8px 10px; border:1.5px solid #e0e0e0; border-radius:6px; font-size:13px; background:#fafafa; font-family:inherit; }
-.xp-field input:focus, .xp-field select:focus { border-color:#0078d4; outline:none; background:#fff; }
+.xp-field input:focus, .xp-field select:focus { border-color:var(--win-accent, #0078d4); outline:none; background:#fff; }
 .xp-dialog-foot { padding:12px 18px; background:#f5f7f9; border-top:1px solid #e0e0e0; display:flex; gap:8px; flex-direction:row-reverse; }
 .xp-err { color:#dc2626; font-size:12px; margin-top:6px; display:none; }
 </style>
@@ -200,7 +200,7 @@ require_once __DIR__ . '/../includes/header.php';
     $items = $byType[$typeKey] ?? []; ?>
 <div class="xp-section">
     <div class="xp-section-head">
-        <i class="fas <?= $typeIcons[$typeKey] ?>" style="color:#0078d4;"></i>
+        <i class="fas <?= $typeIcons[$typeKey] ?>" style="color:var(--win-accent, #0078d4);"></i>
         <?= htmlspecialchars($typeLabel) ?>
         <span class="count"><?= count($items) ?></span>
     </div>

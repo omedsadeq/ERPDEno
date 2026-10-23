@@ -260,7 +260,7 @@ $pdfUrl = APP_URL . '/waiting-room-report-pdf.php?' . http_build_query($pdfParam
 .wrr-filter { background:#fff; border:1px solid #e3e8ee; border-radius:10px; padding:10px 12px; margin-bottom:12px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 .wrr-chip { padding:6px 12px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; border-radius:20px; cursor:pointer; font-size:13px; text-decoration:none; display:inline-flex; align-items:center; gap:5px; }
 .wrr-chip:hover { background:#e2e8f0; color:#0f172a; }
-.wrr-chip.active { background:#0078d4; border-color:#0078d4; color:#fff; }
+.wrr-chip.active { background:var(--win-accent, #0078d4); border-color:var(--win-accent, #0078d4); color:#fff; }
 .wrr-sep { width:1px; height:24px; background:#e2e8f0; }
 .wrr-filter input[type=date], .wrr-filter select { padding:6px 8px; border:1px solid #cfd8dc; border-radius:6px; font-size:13px; min-width:140px; }
 .wrr-filter label { font-size:12px; color:#607d8b; }
@@ -268,7 +268,7 @@ $pdfUrl = APP_URL . '/waiting-room-report-pdf.php?' . http_build_query($pdfParam
 
 .wrr-stats { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:14px; }
 .wrr-stat { background:#fff; border:1px solid #e3e8ee; border-radius:10px; padding:12px; position:relative; overflow:hidden; }
-.wrr-stat::before { content:''; position:absolute; inset-block:0; inset-inline-end:0; width:4px; background:var(--accent,#0078d4); }
+.wrr-stat::before { content:''; position:absolute; inset-block:0; inset-inline-end:0; width:4px; background:var(--accent, #0078d4); }
 .wrr-stat.total { --accent:#7c3aed; }
 .wrr-stat.complete { --accent:#16a34a; }
 .wrr-stat.checkup { --accent:#0ea5e9; }

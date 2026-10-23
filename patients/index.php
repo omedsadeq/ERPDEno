@@ -194,7 +194,7 @@ if (isset($_GET['updated'])) {
     --pt-r:       10px;
     --pt-r-sm:    8px;
     --pt-shadow:  0 1px 2px rgba(16, 24, 40, .04), 0 1px 3px rgba(16, 24, 40, .06);
-    --pt-ring:    0 0 0 3px rgba(0, 120, 212, .16);
+    --pt-ring:    0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), .16);
 }
 
 /* ── Toolbar: search + filters + primary action in one row ── */
@@ -257,7 +257,7 @@ if (isset($_GET['updated'])) {
     overflow: hidden;
     opacity: 0;
     transition: opacity .15s ease;
-    background: rgba(0, 120, 212, .12);
+    background: rgba(var(--win-accent-rgb, 0, 120, 212), .12);
 }
 .pt-progress::after {
     content: '';
@@ -303,8 +303,8 @@ if (isset($_GET['updated'])) {
 .pt-btn--icon { padding: 0 10px; }
 
 #toggleFilters.has-active-filters {
-    background: rgba(0, 120, 212, .1);
-    border-color: rgba(0, 120, 212, .45);
+    background: rgba(var(--win-accent-rgb, 0, 120, 212), .1);
+    border-color: rgba(var(--win-accent-rgb, 0, 120, 212), .45);
     color: var(--pt-accent);
 }
 
@@ -348,7 +348,7 @@ if (isset($_GET['updated'])) {
     background: rgba(0, 0, 0, .06);
     color: inherit;
 }
-.view-mode-btn.active .pt-count { background: rgba(0, 120, 212, .12); }
+.view-mode-btn.active .pt-count { background: rgba(var(--win-accent-rgb, 0, 120, 212), .12); }
 
 /* Context strip: doctor-profile scope / restricted-view notice */
 .pt-note {
@@ -393,7 +393,7 @@ if (isset($_GET['updated'])) {
 }
 .stat-card-patient.active-filter {
     border-color: var(--pt-accent);
-    background: rgba(0, 120, 212, .05);
+    background: rgba(var(--win-accent-rgb, 0, 120, 212), .05);
 }
 /* Accent rail marks the active facet without shifting anything. */
 .stat-card-patient.active-filter::before {
@@ -613,7 +613,7 @@ if (isset($_GET['updated'])) {
     box-shadow: var(--pt-ring);
     outline: none;
 }
-.filter-control.active { border-color: var(--pt-accent); background: rgba(0, 120, 212, .04); }
+.filter-control.active { border-color: var(--pt-accent); background: rgba(var(--win-accent-rgb, 0, 120, 212), .04); }
 .filter-group.has-value .filter-label { color: var(--pt-accent); }
 .filter-group.has-value .filter-label i { color: var(--pt-accent); }
 

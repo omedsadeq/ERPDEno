@@ -212,9 +212,9 @@ $upcomingWeekCount = count($installmentManager->getUpcoming(7, $doctorFilter));
 }
 
 .filter-chip.active {
-    background: #0078d4;
+    background: var(--win-accent, #0078d4);
     color: white;
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
 }
 
 .chip-badge {
@@ -252,7 +252,7 @@ $upcomingWeekCount = count($installmentManager->getUpcoming(7, $doctorFilter));
 }
 
 .filter-label-installments i {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     font-size: 12px;
 }
 
@@ -272,8 +272,8 @@ $upcomingWeekCount = count($installmentManager->getUpcoming(7, $doctorFilter));
 }
 
 .filter-control-installments:focus {
-    border-color: #0078d4;
-    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+    border-color: var(--win-accent, #0078d4);
+    box-shadow: 0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
     outline: none;
 }
 
@@ -316,7 +316,7 @@ $upcomingWeekCount = count($installmentManager->getUpcoming(7, $doctorFilter));
 
 .patient-name-cell {
     font-weight: 700;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
     text-decoration: none;
     font-size: 13px;
 }
@@ -333,7 +333,7 @@ $upcomingWeekCount = count($installmentManager->getUpcoming(7, $doctorFilter));
 }
 
 .case-link-cell:hover {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 .amount-cell-installment {
@@ -342,7 +342,7 @@ $upcomingWeekCount = count($installmentManager->getUpcoming(7, $doctorFilter));
 }
 
 .amount-cell-installment.total {
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 .amount-cell-installment.paid {
@@ -806,7 +806,7 @@ function displayPlanDetails(data) {
 
     let html = `
         <!-- Patient Info Header -->
-        <div style="background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%); color: white; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px;">
+        <div style="background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%); color: white; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px;">
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div style="width: 36px; height: 36px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px;">
                     ${data.patient_name.charAt(0)}
@@ -1049,7 +1049,7 @@ function formatNumber(num) {
             tableBody.style.opacity = '0.5';
             tableBody.style.pointerEvents = 'none';
         }
-        searchInput.style.borderColor = '#0078d4';
+        searchInput.style.borderColor = 'var(--win-accent, #0078d4)';
     }
 
     // Remove loading state

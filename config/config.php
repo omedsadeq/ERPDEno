@@ -41,11 +41,11 @@ define('DB_PASS', $_ENV['DB_PASS'] ?? getenv('DB_PASS') ?: $dbDefaults['pass']);
 define('DB_CHARSET', $_ENV['DB_CHARSET'] ?? getenv('DB_CHARSET') ?: 'utf8mb4');
 
 // Application Configuration
-define('APP_NAME', 'سەنتەری لێزان');
-define('APP_NAME_EN', 'Lezan Dental Clinics');
-define('CLINIC_NAME', 'سەنتەری لێزان');
+// APP_NAME / APP_NAME_EN / CLINIC_NAME are defined at the end of this file,
+// from the settings table (classes/Branding.php), once migrations have run.
 define('APP_VERSION', '1.0.0');
 define('APP_ROOT', dirname(__DIR__));
+require_once __DIR__ . '/../classes/Branding.php';
 
 if (!function_exists('detect_app_url')) {
     function detect_app_url(): string
@@ -262,7 +262,7 @@ if (PHP_SAPI !== 'cli' && !defined('BACKUP_CRON') && file_exists($maintenanceFla
         header('Content-Type: text/html; charset=utf-8');
         echo '<!DOCTYPE html><html lang="ku" dir="rtl"><head><meta charset="UTF-8">'
             . '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
-            . '<title>چاکسازی - ' . APP_NAME . '</title></head>'
+            . '<title>چاکسازی - ' . htmlspecialchars(Branding::name()) . '</title></head>'
             . '<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;'
             . 'margin:0;background:#f3f3f3;font-family:Tahoma,Arial,sans-serif;text-align:center">'
             . '<div><div style="font-size:52px">🛠️</div>'
@@ -411,4 +411,13 @@ if (!defined('MIGRATIONS_RUNNING') && !defined('RECOVERY_MODE')) {
     );
     $migrationRunner->run();
     unset($migrationRunner);
+}
+
+// ── Clinic identity ───────────────────────────────────────────────
+// Edited on admin/settings.php (tab «ناسنامە و ڕەنگ»); Lezan's details when
+// unset. Read after the migrations so a fresh deploy already has the keys.
+if (!defined('APP_NAME')) {
+    define('APP_NAME', Branding::name());
+    define('APP_NAME_EN', Branding::nameEn());
+    define('CLINIC_NAME', Branding::name());
 }

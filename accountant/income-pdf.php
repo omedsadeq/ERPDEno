@@ -12,7 +12,6 @@ require_once __DIR__ . '/../services/InvoicePdfService.php';
 
 require __DIR__ . '/../includes/clinic_branding.php';
 
-$logoPath = __DIR__ . '/../assets/images/logo.png';
 $money = function (float $v): string {
     if (abs($v) < 0.5) {
         return '';
@@ -74,7 +73,7 @@ body { font-family: nrt; direction: rtl; font-size: 10pt; color: #0f172a; }
     <td style="width:24%;text-align:center;">' . (is_file($logoPath) ? '<img src="' . dsEsc($logoPath) . '" style="width:20mm;">' : '') . '</td>
     <td style="width:38%;">
         <div class="en">' . dsEsc($clinicNameEn) . '</div>
-        <div class="ph">' . dsEsc($clinicPhone1) . ' · ' . dsEsc($clinicPhone2) . '</div>
+        <div class="ph">' . dsEsc(implode(' · ', $clinicPhones)) . '</div>
     </td>
 </tr></table>
 <div class="line"></div>

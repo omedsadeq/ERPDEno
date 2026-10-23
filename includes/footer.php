@@ -209,7 +209,7 @@
                 text: message,
                 icon: icons[type] || 'info',
                 confirmButtonText: 'باشە',
-                confirmButtonColor: '#0078D4'
+                confirmButtonColor: 'var(--win-accent, #0078D4)'
             });
         }
 

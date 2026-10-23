@@ -434,7 +434,7 @@ function rh($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
     .btn {
         display: inline-block; border: none; border-radius: 6px; cursor: pointer;
         padding: 9px 18px; font-family: inherit; font-size: 14px;
-        background: #0067c0; color: #fff;
+        background: var(--text-accent, #0067c0); color: #fff;
     }
     .btn:hover { background: #005ba1; }
     .btn.small { padding: 6px 12px; font-size: 13px; }
@@ -444,7 +444,7 @@ function rh($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
     .btn[disabled] { opacity: .5; cursor: not-allowed; }
     #progressWrap { display: none; margin-top: 14px; }
     .bar { background: #e5e5e5; border-radius: 6px; height: 14px; overflow: hidden; }
-    .bar > div { height: 100%; width: 0; background: #0067c0; transition: width .4s; }
+    .bar > div { height: 100%; width: 0; background: var(--text-accent, #0067c0); transition: width .4s; }
     #progressMsg { font-size: 13px; color: #444; margin-top: 6px; }
     #result { margin-top: 12px; font-size: 14px; display: none; padding: 12px; border-radius: 6px; }
     #result.good { background: #e6f4e6; border: 1px solid #b7dfb7; color: #0f5c0f; display: block; }

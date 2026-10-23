@@ -148,7 +148,7 @@ html, body { margin: 0; background: #e9edf2; color: var(--ink); font-family: var
         <img src="<?= $e($logoUrl) ?>" alt="" onerror="this.style.display='none'">
         <div class="clinic">
             <b><?= $e($clinicName) ?></b>
-            <div><bdi><?= $e($clinicPhone1) ?> - <?= $e($clinicPhone2) ?></bdi></div>
+            <div><bdi><?= $e(implode(' - ', $clinicPhones)) ?></bdi></div>
             <div><?= $e($clinicAddress) ?></div>
         </div>
         <div class="doc-no"><small>ژمارەی حیساب</small><b><?= $e($settlement['settlement_no']) ?></b></div>
@@ -172,7 +172,7 @@ html, body { margin: 0; background: #e9edf2; color: var(--ink); font-family: var
     <div class="kpis">
         <div class="kpi"><small>سافی داهات</small><b><?= $e($signed($settlement['net_amount'])) ?></b></div>
         <div class="kpi doc"><small>پشکی دکتۆر (<?= $e($rate) ?>)</small><b><?= $e($stored($settlement['doctor_share'])) ?></b></div>
-        <div class="kpi ctr"><small>پشکی سەنتەر — قاسەی لێزان</small><b><?= $e($stored($settlement['center_share'])) ?></b></div>
+        <div class="kpi ctr"><small>پشکی سەنتەر — قاسەی <?= htmlspecialchars(Branding::shortName()) ?></small><b><?= $e($stored($settlement['center_share'])) ?></b></div>
     </div>
 
     <div class="cols">
@@ -201,7 +201,7 @@ html, body { margin: 0; background: #e9edf2; color: var(--ink); font-family: var
                 <tr class="t"><td>کۆی مافی سەنتەر</td><td class="v ctr"><?= $e($stored($centerDue)) ?></td></tr>
                 <tr class="sub"><td colspan="2">سندوقی دکتۆر لە کاتی حیساب</td></tr>
                 <tr><td>نەقدی ناو سندوق پێش حیساب</td><td class="v"><?= $e($stored($settlement['box_before'])) ?></td></tr>
-                <tr><td>گواستراوە بۆ قاسەی لێزان</td><td class="v ctr">(<?= $e($stored($settlement['transferred_to_center'])) ?>)</td></tr>
+                <tr><td>گواستراوە بۆ قاسەی <?= htmlspecialchars(Branding::shortName()) ?></td><td class="v ctr">(<?= $e($stored($settlement['transferred_to_center'])) ?>)</td></tr>
                 <tr><td>بڕی ڕاکێشان — درا بە دکتۆر</td><td class="v doc">(<?= $e($stored($settlement['paid_to_doctor'])) ?>)</td></tr>
                 <tr class="t"><td>بڕی ماوەی ناو سندوق</td><td class="v"><?= $e($stored($settlement['box_after'])) ?></td></tr>
             </table>
@@ -263,7 +263,7 @@ html, body { margin: 0; background: #e9edf2; color: var(--ink); font-family: var
 
     <div class="signs">
         <div class="sign"><div class="line"></div><b>واژووی دکتۆر</b><small>وەرگرتنی حیساب — <?= $e($settlement['doctor_name'] ?? '') ?></small></div>
-        <div class="sign"><div class="line"></div><b>واژووی وەرگر</b><small>ژمێریار / قاسەی لێزان — <?= $e($settlement['created_by_name'] ?? '') ?></small></div>
+        <div class="sign"><div class="line"></div><b>واژووی وەرگر</b><small>ژمێریار / قاسەی <?= htmlspecialchars(Branding::shortName()) ?> — <?= $e($settlement['created_by_name'] ?? '') ?></small></div>
         <div class="sign"><div class="line"></div><b>مۆری سەنتەر</b><small><?= $e($clinicName) ?></small></div>
     </div>
 

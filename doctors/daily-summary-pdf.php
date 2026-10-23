@@ -15,7 +15,6 @@ require_once __DIR__ . '/../services/InvoicePdfService.php';
 require __DIR__ . '/../includes/clinic_branding.php';
 
 
-$logoPath = __DIR__ . '/../assets/images/logo.png';
 
 /** A key/value block. Values are LTR so "(1,000)" never comes out mirrored. */
 function dsPdfRows(array $rows)

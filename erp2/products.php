@@ -45,7 +45,7 @@ $customCSS = <<<CSS
 .erp-pager{display:flex;gap:6px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap}
 .erp-pager button{min-width:34px;height:30px;border:1px solid #d0d0d0;background:#fff;border-radius:6px;cursor:pointer;font-size:13px}
 .erp-pager button[disabled]{opacity:.45;cursor:default}
-.erp-pager button.current{background:#0078D4;color:#fff;border-color:#0078D4}
+.erp-pager button.current{background:var(--win-accent, #0078D4);color:#fff;border-color:var(--win-accent, #0078D4)}
 .erp-inactive td{opacity:.55}
 .erp-formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
 .erp-empty{text-align:center;padding:34px;color:#8a8a8a}
@@ -55,14 +55,14 @@ table.units-t{width:100%;border-collapse:collapse;font-size:12.5px;background:#f
 table.units-t th{background:#eef2f5;padding:5px 7px;text-align:right;font-size:11.5px;border-bottom:1px solid #cfd8dc}
 table.units-t td{border-bottom:1px solid #f0f0f0;padding:2px}
 table.units-t input,table.units-t select{width:100%;border:1px solid transparent;background:transparent;padding:5px 6px;font-size:12.5px;font-family:inherit;border-radius:4px}
-table.units-t input:focus,table.units-t select:focus{background:#fff8dc;border-color:#0078D4;outline:none}
+table.units-t input:focus,table.units-t select:focus{background:#fff8dc;border-color:var(--win-accent, #0078D4);outline:none}
 .u-n{text-align:left;direction:ltr;font-variant-numeric:tabular-nums}
 .u-del{text-align:center;color:#c62828;cursor:pointer}
 .u-base td{background:#eef7ee}
 .u-base input{color:#2e7d32;font-weight:600}
 .erp-tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;background:#e0f2fe;color:#0369a1;white-space:nowrap}
 .erp-type-sel{width:100%;min-width:90px;height:28px;padding:2px 6px;font-size:12px;font-family:inherit;border:1px solid #cfd8dc;border-radius:5px;background:#fff;color:#0369a1;font-weight:600;cursor:pointer;transition:border-color .2s,background .2s}
-.erp-type-sel:focus{outline:none;border-color:#0078D4}
+.erp-type-sel:focus{outline:none;border-color:var(--win-accent, #0078D4)}
 .erp-type-sel.saving{opacity:.6;cursor:wait}
 .erp-type-sel.saved{border-color:#2e7d32;background:#e8f5e9}
 .erp-type-sel.failed{border-color:#d32f2f;background:#fdecea}

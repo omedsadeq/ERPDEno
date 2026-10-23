@@ -105,15 +105,15 @@ if (isset($_GET['added'])): ?>
 .filter-group { display:flex; flex-direction:column; gap:5px; }
 .filter-group label { font-size:11px; color:#666; font-weight:600; }
 .filter-group input, .filter-group select { padding:9px 12px; border:1.5px solid #e0e0e0; border-radius:8px; font-size:13px; font-family:inherit; min-width:140px; }
-.filter-group input:focus, .filter-group select:focus { border-color:#0078d4; outline:none; box-shadow:0 0 0 3px rgba(0,120,212,0.1); }
-.btn-filter { padding:9px 18px; background:linear-gradient(135deg,#0078d4,#0063b1); color:white; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-family:inherit; display:flex; align-items:center; gap:6px; }
+.filter-group input:focus, .filter-group select:focus { border-color:var(--win-accent, #0078d4); outline:none; box-shadow:0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1); }
+.btn-filter { padding:9px 18px; background:linear-gradient(135deg,var(--win-accent, #0078d4),var(--win-accent-deep, #0063b1)); color:white; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-family:inherit; display:flex; align-items:center; gap:6px; }
 .btn-reset { padding:9px 18px; background:#f5f5f5; color:#666; border:1.5px solid #e0e0e0; border-radius:8px; cursor:pointer; font-size:13px; font-family:inherit; text-decoration:none; display:flex; align-items:center; gap:6px; }
 .btn-success-action { padding:9px 18px; background:linear-gradient(135deg,#107c10,#0e6b0e); color:white; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-family:inherit; display:flex; align-items:center; gap:6px; text-decoration:none; }
 .stats-row { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:20px; }
 .stat-card { background:white; border-radius:10px; padding:12px 18px; box-shadow:0 1px 6px rgba(0,0,0,0.07); display:flex; flex-direction:column; gap:3px; border-right:3px solid transparent; min-width:150px; flex:1; }
 .stat-card.red { border-right-color:#c50f1f; }
 .stat-card.orange { border-right-color:#ff8c00; }
-.stat-card.blue { border-right-color:#0078d4; }
+.stat-card.blue { border-right-color:var(--win-accent, #0078d4); }
 .stat-card.purple { border-right-color:#8764b8; }
 .stat-value { font-size:20px; font-weight:700; color:#1a1a1a; }
 .stat-label { font-size:11px; color:#888; }
@@ -122,12 +122,12 @@ if (isset($_GET['added'])): ?>
 .table-card { background:white; border-radius:12px; box-shadow:0 2px 12px rgba(0,0,0,0.06); overflow:hidden; margin-bottom:16px; }
 .table-header { padding:16px 18px; border-bottom:1px solid #f0f0f0; display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg,#fafafa,#f5f5f5); }
 .table-header h3 { margin:0; font-size:15px; color:#333; display:flex; align-items:center; gap:8px; }
-.table-count { background:linear-gradient(135deg,#0078d4,#0063b1); color:white; padding:5px 12px; border-radius:14px; font-size:12px; font-weight:600; }
+.table-count { background:linear-gradient(135deg,var(--win-accent, #0078d4),var(--win-accent-deep, #0063b1)); color:white; padding:5px 12px; border-radius:14px; font-size:12px; font-weight:600; }
 .report-table { width:100%; border-collapse:collapse; font-size:13px; }
 .report-table th { background:#f8f9fa; padding:13px 14px; text-align:right; font-weight:600; color:#333; border-bottom:2px solid #e0e0e0; }
 .report-table td { padding:13px 14px; border-bottom:1px solid #f0f0f0; vertical-align:middle; }
 .report-table tr:hover { background:#f9f9f9; }
-.cat-badge { background:#f0f4ff; color:#0078d4; padding:3px 10px; border-radius:10px; font-size:11px; font-weight:600; display:inline-block; }
+.cat-badge { background:#f0f4ff; color:var(--win-accent, #0078d4); padding:3px 10px; border-radius:10px; font-size:11px; font-weight:600; display:inline-block; }
 .btn-icon { width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:8px; border:none; cursor:pointer; transition:all 0.2s; text-decoration:none; font-size:13px; }
 .btn-danger-icon { background:linear-gradient(135deg,#c50f1f,#e53935); color:white; }
 .btn-icon:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,0.2); }
@@ -138,9 +138,9 @@ if (isset($_GET['added'])): ?>
 .pagination-info { font-size:13px; color:#666; }
 .pagination { display:flex; gap:6px; }
 .pagination a, .pagination span { padding:8px 14px; border-radius:8px; font-size:13px; text-decoration:none; }
-.pagination a { background:white; color:#0078d4; border:1.5px solid #e0e0e0; }
-.pagination a:hover { background:#0078d4; color:white; }
-.pagination .active { background:linear-gradient(135deg,#0078d4,#0063b1); color:white; border:none; padding:8px 14px; }
+.pagination a { background:white; color:var(--win-accent, #0078d4); border:1.5px solid #e0e0e0; }
+.pagination a:hover { background:var(--win-accent, #0078d4); color:white; }
+.pagination .active { background:linear-gradient(135deg,var(--win-accent, #0078d4),var(--win-accent-deep, #0063b1)); color:white; border:none; padding:8px 14px; }
 .pagination .disabled { background:#f5f5f5; color:#bdbdbd; border:1.5px solid #e0e0e0; cursor:not-allowed; }
 /* Dialog styles */
 .dialog-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center; }
@@ -152,7 +152,7 @@ if (isset($_GET['added'])): ?>
 .form-field { display:flex; flex-direction:column; gap:5px; }
 .form-field label { font-size:12px; font-weight:600; color:#555; }
 .form-field input, .form-field select, .form-field textarea { width:100%; padding:9px 12px; border:1.5px solid #e0e0e0; border-radius:8px; font-size:13px; font-family:inherit; box-sizing:border-box; }
-.form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color:#0078d4; outline:none; box-shadow:0 0 0 3px rgba(0,120,212,0.1); }
+.form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color:var(--win-accent, #0078d4); outline:none; box-shadow:0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1); }
 .dialog-footer { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; padding-top:16px; border-top:1px solid #f0f0f0; }
 .btn-dialog-cancel { padding:9px 18px; background:#f5f5f5; color:#666; border:1.5px solid #e0e0e0; border-radius:8px; cursor:pointer; font-size:13px; font-family:inherit; }
 .btn-dialog-submit { padding:9px 18px; background:linear-gradient(135deg,#107c10,#0e6b0e); color:white; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-family:inherit; display:flex; align-items:center; gap:6px; }

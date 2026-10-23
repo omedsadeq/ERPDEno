@@ -197,13 +197,16 @@ class InvoicePdfService
             }
         }
 
-        // Option 2: Manual header design (logo center, text left/right)
-        if ($headerType === 'manual') {
-            $nameKu = $this->settings['header_company_name_ku'] ?? '';
-            $nameEn = $this->settings['header_company_name_en'] ?? '';
-            $phone1 = $this->settings['header_phone1'] ?? '';
-            $phone2 = $this->settings['header_phone2'] ?? '';
-            $address = $this->settings['header_address'] ?? '';
+        // Option 2: Manual header design (logo center, text left/right).
+        // It is also the fallback when nothing else is configured, and every
+        // field left empty takes the centre's own details (classes/Branding.php)
+        // — so an unconfigured PDF prints the letterhead, not an empty frame.
+        if ($headerType === 'manual' || empty($this->settings['company_name'])) {
+            $nameKu = ($this->settings['header_company_name_ku'] ?? '') ?: Branding::printName();
+            $nameEn = ($this->settings['header_company_name_en'] ?? '') ?: Branding::nameEn();
+            $phone1 = ($this->settings['header_phone1'] ?? '') ?: Branding::phone(1);
+            $phone2 = ($this->settings['header_phone2'] ?? '') ?: Branding::phone(2);
+            $address = ($this->settings['header_address'] ?? '') ?: Branding::address();
 
             // Styling options
             $showBoxBorder = $this->settings['header_show_box_border'] ?? 1;
@@ -230,6 +233,9 @@ class InvoicePdfService
                 if (file_exists($logoPath)) {
                     $logoHtml = '<img src="' . $logoPath . '" style="max-height: ' . ($headerHeight - 10) . 'mm;">';
                 }
+            }
+            if ($logoHtml === '' && is_file(Branding::logoPath())) {
+                $logoHtml = '<img src="' . htmlspecialchars(Branding::logoPath()) . '" style="max-height: ' . ($headerHeight - 10) . 'mm;">';
             }
 
             // Box border style
@@ -380,11 +386,11 @@ class InvoicePdfService
     private function processTemplate($html)
     {
         $replacements = [
-            '{COMPANY_NAME}' => $this->settings['company_name'] ?? '',
-            '{COMPANY_NAME_SECONDARY}' => $this->settings['company_name_secondary'] ?? '',
-            '{COMPANY_ADDRESS}' => $this->settings['company_address'] ?? '',
-            '{COMPANY_PHONE}' => $this->settings['company_phone'] ?? '',
-            '{COMPANY_EMAIL}' => $this->settings['company_email'] ?? '',
+            '{COMPANY_NAME}' => ($this->settings['company_name'] ?? '') ?: Branding::printName(),
+            '{COMPANY_NAME_SECONDARY}' => ($this->settings['company_name_secondary'] ?? '') ?: Branding::nameEn(),
+            '{COMPANY_ADDRESS}' => ($this->settings['company_address'] ?? '') ?: Branding::address(),
+            '{COMPANY_PHONE}' => ($this->settings['company_phone'] ?? '') ?: implode(' - ', array_filter([Branding::phone(1), Branding::phone(2)], 'strlen')),
+            '{COMPANY_EMAIL}' => ($this->settings['company_email'] ?? '') ?: Branding::email(),
             '{DATE}' => date('Y-m-d'),
             '{TIME}' => date('H:i'),
             '{DATETIME}' => date('Y-m-d H:i'),

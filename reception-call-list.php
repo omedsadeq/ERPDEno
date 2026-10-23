@@ -189,16 +189,16 @@ require_once __DIR__ . '/includes/header.php';
 .rcl-table th { background: #f0fdfa; color: #0f766e; font-weight: 600; }
 .rcl-table tr:last-child td { border-bottom: none; }
 .rcl-table tr:hover td { background: #fafcff; }
-.rcl-time { font-weight: 700; color: #0078d4; font-size: 14px; }
-.rcl-phone { direction: ltr; color: #0078d4; text-decoration: none; }
+.rcl-time { font-weight: 700; color: var(--win-accent, #0078d4); font-size: 14px; }
+.rcl-phone { direction: ltr; color: var(--win-accent, #0078d4); text-decoration: none; }
 .rcl-phone:hover { text-decoration: underline; }
 .rcl-promise { color: #15803d; font-weight: 700; }
 .rcl-call-btn, .rcl-wa-btn {
     display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
     border-radius: 6px; text-decoration: none; font-size: 12px; color: #fff;
 }
-.rcl-call-btn { background: #0078d4; border: 1px solid #005a9e; }
-.rcl-call-btn:hover { background: #005a9e; color: #fff; }
+.rcl-call-btn { background: var(--win-accent, #0078d4); border: 1px solid var(--win-accent-dark, #005a9e); }
+.rcl-call-btn:hover { background: var(--win-accent-dark, #005a9e); color: #fff; }
 .rcl-wa-btn { background: #22c55e; border: 1px solid #16a34a; margin-right: 4px; }
 .rcl-wa-btn:hover { background: #16a34a; color: #fff; }
 .rcl-mark-btn {
@@ -301,7 +301,7 @@ require_once __DIR__ . '/includes/header.php';
             <tr>
                 <td><span class="rcl-time"><?= $aptTime ?></span></td>
                 <td>
-                    <a href="<?= APP_URL ?>/patients/view.php?id=<?= (int)$apt['patient_id'] ?>" style="color: #0078d4; text-decoration: none; font-weight: 600;">
+                    <a href="<?= APP_URL ?>/patients/view.php?id=<?= (int)$apt['patient_id'] ?>" style="color: var(--win-accent, #0078d4); text-decoration: none; font-weight: 600;">
                         <?= htmlspecialchars($apt['patient_name'] ?? '-') ?>
                     </a>
                 </td>

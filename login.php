@@ -45,18 +45,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>چوونەژوورەوە - <?= APP_NAME ?></title>
+    <title>چوونەژوورەوە - <?= htmlspecialchars(APP_NAME) ?></title>
 
-    <!-- PWA -->
-    <link rel="manifest" href="<?= APP_URL ?>/manifest.json">
-    <meta name="theme-color" content="#0078D4">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Lezan Dental">
-    <link rel="apple-touch-icon" href="<?= APP_URL ?>/assets/images/icons/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="<?= APP_URL ?>/assets/images/icons/favicon-32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="<?= APP_URL ?>/assets/images/icons/favicon-16.png">
+    <!-- PWA + icons (centre branding) -->
+<?php require __DIR__ . '/includes/brand_head.php'; ?>
     <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function () {
@@ -72,12 +64,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <!-- Icons -->
     <link rel="stylesheet" href="<?= APP_URL ?>/assets/vendor/fontawesome/css/all.min.css">
 
+    <?= Branding::themeStyleTag() /* accent shades; the :root below overrides hover/light for this page */ ?>
+    <?php
+    // Centre accent colour (admin/settings.php); the login page keeps its own
+    // hover shade while the colour is Lezan's default.
+    $loginTheme = Branding::themeVars();
+    $loginHover = $loginTheme === Branding::DEFAULT_THEME ? '#106EBE' : $loginTheme['--win-accent-pressed'];
+    ?>
     <style>
         :root {
             /* Windows 11 Colors */
-            --win-accent: #0078D4;
-            --win-accent-hover: #106EBE;
-            --win-accent-light: rgba(0, 120, 212, 0.1);
+            --win-accent: <?= $loginTheme['--win-accent'] ?>;
+            --win-accent-hover: <?= $loginHover ?>;
+            --win-accent-rgb: <?= $loginTheme['--win-accent-rgb'] ?>;
+            --win-accent-light: rgba(<?= $loginTheme['--win-accent-rgb'] ?>, 0.1);
             --surface-primary: rgba(255, 255, 255, 0.9);
             --surface-card: rgba(255, 255, 255, 0.85);
             --text-primary: #1A1A1A;
@@ -145,12 +145,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             align-items: center;
             justify-content: center;
             margin: 0 auto 20px;
-            box-shadow: 0 4px 12px rgba(0, 120, 212, 0.3);
+            box-shadow: 0 4px 12px rgba(var(--win-accent-rgb, 0, 120, 212), 0.3);
         }
 
         .login-logo i {
             font-size: 32px;
             color: white;
+        }
+
+        /* An uploaded centre logo replaces the tooth icon. */
+        .login-logo.has-image {
+            background: #fff;
+            overflow: hidden;
+        }
+
+        .login-logo.has-image img {
+            width: 82%;
+            height: 82%;
+            object-fit: contain;
         }
 
         .login-title {
@@ -407,10 +419,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="login-card">
             <div class="login-header">
+                <?php if (Branding::hasCustomLogo()): ?>
+                <div class="login-logo has-image">
+                    <img src="<?= htmlspecialchars(Branding::logoUrl()) ?>" alt="<?= htmlspecialchars(APP_NAME) ?>">
+                </div>
+                <?php else: ?>
                 <div class="login-logo">
                     <i class="fas fa-tooth"></i>
                 </div>
-                <h1 class="login-title"><?= APP_NAME ?></h1>
+                <?php endif; ?>
+                <h1 class="login-title"><?= htmlspecialchars(APP_NAME) ?></h1>
                 <p class="login-subtitle">سیستەمی بەڕێوەبردنی کلینیکی ددان</p>
             </div>
 
@@ -461,7 +479,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <div class="login-footer">
-                <p>&copy; <?= date('Y') ?> <?= APP_NAME ?> - v<?= APP_VERSION ?></p>
+                <p>&copy; <?= date('Y') ?> <?= htmlspecialchars(APP_NAME) ?> - v<?= APP_VERSION ?></p>
             </div>
         </div>
     </div>

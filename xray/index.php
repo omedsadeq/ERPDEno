@@ -178,9 +178,9 @@ require_once __DIR__ . '/../includes/header.php';
 .filter-chip { display:inline-flex; align-items:center; gap:7px; padding:6px 13px; border-radius:8px; color:var(--text-secondary,#5c6b7a); text-decoration:none; font-size:12.5px; font-weight:600; transition:all .12s ease; }
 .filter-chip i { font-size:11.5px; opacity:.75; }
 .filter-chip:hover { color:var(--text-primary,#1a1a1a); background:rgba(255,255,255,.7); }
-.filter-chip.active { background:#fff; color:var(--win-accent,#0078d4); box-shadow:0 1px 3px rgba(0,0,0,.12), 0 0 0 1px rgba(0,0,0,.03); }
+.filter-chip.active { background:#fff; color:var(--win-accent, #0078d4); box-shadow:0 1px 3px rgba(0,0,0,.12), 0 0 0 1px rgba(0,0,0,.03); }
 .filter-chip .chip-count { min-width:20px; text-align:center; background:rgba(0,0,0,.06); color:inherit; padding:1px 7px; border-radius:9px; font-size:10.5px; font-weight:700; }
-.filter-chip.active .chip-count { background:rgba(0,120,212,.12); }
+.filter-chip.active .chip-count { background:rgba(var(--win-accent-rgb, 0, 120, 212), .12); }
 .btn-new-request { white-space:nowrap; }
 
 /* Toolbar strip - .form-control is width:100% globally, restore auto */
@@ -208,7 +208,7 @@ require_once __DIR__ . '/../includes/header.php';
 .request-number-link { font-family:var(--app-font-family); font-weight:600; font-size:11.5px; color:#0269c8; background:rgba(2,105,200,.07); padding:2px 8px; border-radius:6px; text-decoration:none; white-space:nowrap; }
 .request-number-link:hover { background:rgba(2,105,200,.15); }
 .patient-name-cell { font-weight:600; color:#1f2c38; text-decoration:none; display:block; line-height:1.35; }
-.patient-name-cell:hover { color:var(--win-accent,#0078d4); }
+.patient-name-cell:hover { color:var(--win-accent, #0078d4); }
 .patient-code { display:block; font-family:var(--app-font-family); font-size:10.5px; color:#98a2ad; direction:ltr; text-align:inherit; }
 .doctor-name-cell { color:#546e7a; font-size:12px; }
 .date-value { color:#8895a3; font-size:11.5px; white-space:nowrap; font-variant-numeric:tabular-nums; }
@@ -219,8 +219,8 @@ require_once __DIR__ . '/../includes/header.php';
 
 /* Row action buttons - quiet icon buttons */
 .xray-table .btn-sm { width:26px; height:26px; min-width:26px; padding:0; display:inline-flex; align-items:center; justify-content:center; font-size:11.5px; border-radius:6px; border:0; }
-.xray-table .btn-sm.btn-primary { background:rgba(0,120,212,.1); color:#0269c8; }
-.xray-table .btn-sm.btn-primary:hover { background:var(--win-accent,#0078d4); color:#fff; }
+.xray-table .btn-sm.btn-primary { background:rgba(var(--win-accent-rgb, 0, 120, 212), .1); color:#0269c8; }
+.xray-table .btn-sm.btn-primary:hover { background:var(--win-accent, #0078d4); color:#fff; }
 .xray-table .btn-sm.btn-secondary { background:rgba(0,0,0,.05); color:#5c6b7a; }
 .xray-table .btn-sm.btn-secondary:hover { background:rgba(0,0,0,.14); color:#2c3e50; }
 .xray-table .btn-sm.btn-danger { background:rgba(197,15,31,.08); color:#c50f1f; }
@@ -230,11 +230,11 @@ require_once __DIR__ . '/../includes/header.php';
 .xray-card-foot { padding:9px 14px; border-top:1px solid var(--stroke-divider,#e8ebee); background:#fafbfc; }
 .pagination-modern { display:flex; justify-content:center; align-items:center; gap:6px; margin:0 0 8px; }
 .pagination-modern .page-btn { min-width:30px; height:30px; display:flex; align-items:center; justify-content:center; border-radius:8px; background:#fff; color:var(--text-primary,#1a1a1a); text-decoration:none; font-size:12.5px; font-weight:500; border:1px solid #e4e7ea; }
-.pagination-modern .page-btn.active { background:var(--win-accent,#0078d4); color:#fff; border-color:transparent; }
+.pagination-modern .page-btn.active { background:var(--win-accent, #0078d4); color:#fff; border-color:transparent; }
 .xray-summary { display:flex; flex-wrap:wrap; gap:4px 20px; align-items:baseline; margin:0; padding:0; background:none; border:0; }
 .summary-item { display:inline-flex; align-items:baseline; gap:6px; background:none; border:0; padding:0; }
 .summary-value { font-size:14px; font-weight:800; margin:0; }
-.summary-value.total { color:var(--win-accent,#0078d4); }
+.summary-value.total { color:var(--win-accent, #0078d4); }
 .summary-value.pending { color:#c77700; }
 .summary-value.progress { color:#1976d2; }
 .summary-value.completed { color:#107c10; }
@@ -250,8 +250,8 @@ require_once __DIR__ . '/../includes/header.php';
 .xray-alert.warn .alert-count { color:#8a6300; }
 .xray-alert.danger { background:#fde7e9; color:#c50f1f; border-color:#f5c4c9; }
 .xray-alert.danger .alert-count { color:#c50f1f; }
-.xray-alert.info { background:#e5f1fb; color:#005a9e; border-color:#c3ddf3; }
-.xray-alert.info .alert-count { color:#005a9e; }
+.xray-alert.info { background:#e5f1fb; color:var(--win-accent-dark, #005a9e); border-color:#c3ddf3; }
+.xray-alert.info .alert-count { color:var(--win-accent-dark, #005a9e); }
 .xray-alert:hover { filter:brightness(.97); }
 
 /* Return-to-accountant modal (unchanged look, kept compact) */

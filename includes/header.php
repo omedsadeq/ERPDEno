@@ -119,18 +119,10 @@ $realtimeNotifCount = $notificationObj->getUnreadCount(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="<?= htmlspecialchars(Csrf::token(), ENT_QUOTES, 'UTF-8') ?>">
-    <title><?= $pageTitle ?> - <?= APP_NAME ?></title>
+    <title><?= $pageTitle ?> - <?= htmlspecialchars(APP_NAME) ?></title>
 
-    <!-- PWA -->
-    <link rel="manifest" href="<?= APP_URL ?>/manifest.json">
-    <meta name="theme-color" content="#0078D4">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Lezan Dental">
-    <link rel="apple-touch-icon" href="<?= APP_URL ?>/assets/images/icons/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="<?= APP_URL ?>/assets/images/icons/favicon-32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="<?= APP_URL ?>/assets/images/icons/favicon-16.png">
+    <!-- PWA + icons (centre branding) -->
+<?php require __DIR__ . '/brand_head.php'; ?>
     <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function () {
@@ -219,6 +211,9 @@ $realtimeNotifCount = $notificationObj->getUnreadCount(
     <!-- Responsive Layer (loaded after style.css to override where needed) -->
     <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/responsive.css">
 
+    <!-- Centre accent colour (admin/settings.php) — after the stylesheets so it wins -->
+    <?= Branding::themeStyleTag() ?>
+
     <!-- Custom Page CSS -->
     <?php if (isset($customCSS)): ?>
     <style><?= $customCSS ?></style>
@@ -237,8 +232,8 @@ $realtimeNotifCount = $notificationObj->getUnreadCount(
         <!-- Title Bar -->
         <div class="titlebar">
             <div class="titlebar-drag-region">
-                <img src="<?= APP_URL ?>/assets/images/logo.png" alt="" class="titlebar-icon" onerror="this.style.display='none'">
-                <span class="titlebar-title"><?= APP_NAME ?> - <?= $pageTitle ?></span>
+                <img src="<?= htmlspecialchars(Branding::logoUrl()) ?>" alt="" class="titlebar-icon" onerror="this.style.display='none'">
+                <span class="titlebar-title"><?= htmlspecialchars(APP_NAME) ?> - <?= $pageTitle ?></span>
 
                 <!-- Notification Icons -->
                 <div class="titlebar-notifications">

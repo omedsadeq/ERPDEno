@@ -242,10 +242,10 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 .ph-filter-control:focus {
-    border-color: #0078d4;
+    border-color: var(--win-accent, #0078d4);
     background: white;
     outline: none;
-    box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.1);
+    box-shadow: 0 0 0 2px rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
 }
 
 /* Table Styles */
@@ -257,7 +257,7 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 .ph-table-header {
-    background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);
     color: white;
     padding: 8px 14px;
     display: flex;
@@ -349,7 +349,7 @@ require_once __DIR__ . '/../includes/header.php';
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #0078d4, #005a9e);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-dark, #005a9e));
     color: white;
     display: flex;
     align-items: center;
@@ -361,7 +361,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 .ph-patient-name {
     font-weight: 600;
-    color: #0078d4;
+    color: var(--win-accent, #0078d4);
 }
 
 .ph-patient-phone {
@@ -399,8 +399,8 @@ require_once __DIR__ . '/../includes/header.php';
 /* Print Button */
 .ph-print-btn {
     background: white;
-    color: #0078d4;
-    border: 1px solid #0078d4;
+    color: var(--win-accent, #0078d4);
+    border: 1px solid var(--win-accent, #0078d4);
     padding: 4px 10px;
     border-radius: 4px;
     font-size: 11px;
@@ -413,7 +413,7 @@ require_once __DIR__ . '/../includes/header.php';
 }
 
 .ph-print-btn:hover {
-    background: #0078d4;
+    background: var(--win-accent, #0078d4);
     color: white;
 }
 

@@ -59,13 +59,13 @@ $pageTitle = $cashboxAdmin ? 'سندوقەکان' : ($cashboxAudience === 'docto
 $breadcrumb = [['title'=>$pageTitle]];
 require __DIR__ . '/header.php';
 function cbEsc($value) { return htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8'); }
-function cbName(array $account): string { return $account['owner_type'] === 'amanat' ? 'قاسەی ئامانەت' : ($account['owner_type'] === 'xray' ? 'سندوقی ئێکسڕەی' : ($account['owner_type'] === 'center' ? 'قاسەی لێزان' : ($account['owner_type'] === 'all' ? 'هەموو سندوقەکان' : 'د. ' . ($account['full_name'] ?? '—')))); }
+function cbName(array $account): string { return $account['owner_type'] === 'amanat' ? 'قاسەی ئامانەت' : ($account['owner_type'] === 'xray' ? 'سندوقی ئێکسڕەی' : ($account['owner_type'] === 'center' ? 'قاسەی ' . Branding::shortName() : ($account['owner_type'] === 'all' ? 'هەموو سندوقەکان' : 'د. ' . ($account['full_name'] ?? '—')))); }
 $cashboxFlash = $_SESSION['cashbox_flash'] ?? '';
 unset($_SESSION['cashbox_flash']);
 $cashboxKinds = ['receipt'=>'نەقدی وەسڵ','refund'=>'گەڕاندنەوە / ڕاستکردنەوە','deposit'=>'دانانی نەقد','withdrawal'=>'ڕاکێشانی نەقد','reversal'=>'پێچەوانەکردنەوەی جوڵە',
     // دابەشکردنی داهات (accountant/income-distribution.php)
-    'transfer_out'=>'گواستنەوە بۆ قاسەی لێزان','transfer_in'=>'پشکی سەنتەر لە سندوقی دکتۆر','payout'=>'پێدانی پشکی دکتۆر',
-    'center_share'=>'پشکی لێزان','expense_share'=>'بەشی دکتۆر لە خەرجی',
+    'transfer_out'=>'گواستنەوە بۆ قاسەی ' . Branding::shortName(),'transfer_in'=>'پشکی سەنتەر لە سندوقی دکتۆر','payout'=>'پێدانی پشکی دکتۆر',
+    'center_share'=>'پشکی ' . Branding::shortName(),'expense_share'=>'بەشی دکتۆر لە خەرجی',
     'amanat_move'=>'ڕاستکردنەوەی ئامانەتی کۆن','amanat_in'=>'گەڕاندنەوە بۆ ئامانەت','amanat_out'=>'گواستنەوە لە ئامانەت بۆ پارەدان'];
 ?>
 <style>
@@ -124,7 +124,7 @@ $cashboxKinds = ['receipt'=>'نەقدی وەسڵ','refund'=>'گەڕاندنەو�
         <?php foreach ($cashboxStatement['entries'] as $entry): $cbCents=CashboxLedger::cents($entry['amount']); ?>
         <tr>
             <td><b>#<?= (int)$entry['id'] ?></b><small class="cb-date"><?= cbEsc($entry['occurred_at']) ?></small></td>
-            <?php if ($cashboxKey==='*'): ?><td><?= cbEsc($entry['account_key']==='amanat' ? 'قاسەی ئامانەت' : ($entry['account_key']==='xray' ? 'ئێکسڕەی' : ($entry['account_key']===CashboxLedger::CENTER ? 'قاسەی لێزان' : 'د. ' . ($entry['owner_name'] ?? '—')))) ?></td><?php endif; ?>
+            <?php if ($cashboxKey==='*'): ?><td><?= cbEsc($entry['account_key']==='amanat' ? 'قاسەی ئامانەت' : ($entry['account_key']==='xray' ? 'ئێکسڕەی' : ($entry['account_key']===CashboxLedger::CENTER ? 'قاسەی ' . Branding::shortName() : 'د. ' . ($entry['owner_name'] ?? '—')))) ?></td><?php endif; ?>
             <td><span class="cb-chip <?= $cbCents<0 ? 'out' : '' ?>"><?= cbEsc($cashboxKinds[$entry['entry_kind']] ?? $entry['entry_kind']) ?></span>
                 <?php if ($entry['reference_no']): ?><small><?php if ($entry['case_id'] && $entry['source_type']==='invoice'): ?><a href="<?= APP_URL ?>/cases/view.php?id=<?= (int)$entry['case_id'] ?>"><?= cbEsc($entry['reference_no']) ?></a><?php else: ?><?= cbEsc($entry['reference_no']) ?><?php endif; ?></small><?php endif; ?>
                 <?php if ($entry['reversed_by_entry']): ?><small>ڕاستکراوەتەوە بە #<?= (int)$entry['reversed_by_entry'] ?></small><?php endif; ?>

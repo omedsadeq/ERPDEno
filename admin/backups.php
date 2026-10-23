@@ -31,8 +31,8 @@ require_once __DIR__ . '/../includes/header.php';
 .bk-panel { background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,.08); border:1px solid #e8e8e8; }
 .bk-tabs { display:flex; gap:4px; background:linear-gradient(to bottom,#f8f9fa,#f1f3f5); padding:8px; border-bottom:2px solid #e0e0e0; }
 .bk-tab { flex:1; padding:10px 16px; background:transparent; border:none; border-radius:6px; font-size:13px; font-weight:600; color:#546e7a; cursor:pointer; transition:all .2s; display:flex; align-items:center; justify-content:center; gap:7px; font-family:inherit; }
-.bk-tab:hover { background:rgba(0,120,212,.08); color:#0078D4; }
-.bk-tab.active { background:#0078D4; color:#fff; box-shadow:0 2px 6px rgba(0,120,212,.35); }
+.bk-tab:hover { background:rgba(var(--win-accent-rgb, 0, 120, 212), .08); color:var(--win-accent, #0078D4); }
+.bk-tab.active { background:var(--win-accent, #0078D4); color:#fff; box-shadow:0 2px 6px rgba(var(--win-accent-rgb, 0, 120, 212), .35); }
 .bk-tab-content { display:none; padding:18px; }
 .bk-tab-content.active { display:block; }
 
@@ -51,7 +51,7 @@ require_once __DIR__ . '/../includes/header.php';
 .bk-field label { display:block; font-size:12.5px; font-weight:600; color:#444; margin-bottom:5px; }
 .bk-field select, .bk-field input[type=text], .bk-field input[type=time], .bk-field input[type=number], .bk-field input[type=file] {
   width:100%; padding:8px 10px; border:1px solid #d5d5d5; border-radius:6px; font-size:13px; font-family:inherit; background:#fff; }
-.bk-field select:focus, .bk-field input:focus { outline:none; border-color:#0078D4; box-shadow:0 0 0 2px rgba(0,120,212,.15); }
+.bk-field select:focus, .bk-field input:focus { outline:none; border-color:var(--win-accent, #0078D4); box-shadow:0 0 0 2px rgba(var(--win-accent-rgb, 0, 120, 212), .15); }
 
 .bk-tables-box { max-height:230px; overflow:auto; border:1px solid #e0e0e0; border-radius:8px; padding:10px; display:none; margin-bottom:14px; background:#fafafa; }
 .bk-tables-box.visible { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:4px; }
@@ -61,7 +61,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 .bk-btn { border:none; border-radius:6px; padding:9px 18px; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:7px; font-family:inherit; transition:all .15s; }
 .bk-btn:disabled { opacity:.55; cursor:not-allowed; }
-.bk-btn-primary { background:#0078D4; color:#fff; } .bk-btn-primary:hover:not(:disabled) { background:#106ebe; }
+.bk-btn-primary { background:var(--win-accent, #0078D4); color:#fff; } .bk-btn-primary:hover:not(:disabled) { background:#106ebe; }
 .bk-btn-danger { background:#d83b01; color:#fff; } .bk-btn-danger:hover:not(:disabled) { background:#b83301; }
 .bk-btn-light { background:#f1f3f5; color:#333; border:1px solid #ddd; } .bk-btn-light:hover:not(:disabled) { background:#e7eaee; }
 .bk-btn-sm { padding:5px 9px; font-size:12px; border-radius:5px; }
@@ -70,7 +70,7 @@ require_once __DIR__ . '/../includes/header.php';
 .bk-progress.visible { display:block; }
 .bk-progress-msg { font-size:12.5px; color:#0b5394; margin-bottom:8px; display:flex; justify-content:space-between; }
 .bk-progress-bar { height:9px; background:#dbe9f5; border-radius:6px; overflow:hidden; }
-.bk-progress-fill { height:100%; width:0%; background:linear-gradient(90deg,#0078D4,#4aa3e8); border-radius:6px; transition:width .5s ease; }
+.bk-progress-fill { height:100%; width:0%; background:linear-gradient(90deg,var(--win-accent, #0078D4),#4aa3e8); border-radius:6px; transition:width .5s ease; }
 
 .bk-table { width:100%; border-collapse:collapse; font-size:12.5px; }
 .bk-table th { background:#f7f8fa; color:#555; font-weight:700; text-align:right; padding:9px 10px; border-bottom:2px solid #e5e5e5; white-space:nowrap; }
@@ -101,7 +101,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- Stats -->
 <div class="bk-stats">
-  <div class="bk-stat"><div class="bk-stat-icon" style="background:#0078D4"><i class="fas fa-database"></i></div>
+  <div class="bk-stat"><div class="bk-stat-icon" style="background:var(--win-accent, #0078D4)"><i class="fas fa-database"></i></div>
     <div><div class="bk-stat-value" id="statCount">—</div><div class="bk-stat-label">کۆی باکئەپەکان</div></div></div>
   <div class="bk-stat"><div class="bk-stat-icon" style="background:#107c41"><i class="fas fa-hdd"></i></div>
     <div><div class="bk-stat-value" id="statSize">—</div><div class="bk-stat-label">قەبارەی گشتی</div></div></div>

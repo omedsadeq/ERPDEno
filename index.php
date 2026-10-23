@@ -189,14 +189,14 @@ $waitingPatients = $db->fetchAll(
 .page-title .icon {
     width: 46px;
     height: 46px;
-    background: linear-gradient(135deg, #0078d4, #005a9e);
+    background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-dark, #005a9e));
     border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
     font-size: 20px;
-    box-shadow: 0 4px 12px rgba(0, 120, 212, 0.3);
+    box-shadow: 0 4px 12px rgba(var(--win-accent-rgb, 0, 120, 212), 0.3);
 }
 
 .page-title .icon.purple {
@@ -260,7 +260,7 @@ $waitingPatients = $db->fetchAll(
 }
 
 /* Icon Colors */
-.icon-blue { background: linear-gradient(135deg, #0078d4, #005a9e); }
+.icon-blue { background: linear-gradient(135deg, var(--win-accent, #0078d4), var(--win-accent-dark, #005a9e)); }
 .icon-green { background: linear-gradient(135deg, #4caf50, #388e3c); }
 .icon-purple { background: linear-gradient(135deg, #9c27b0, #7b1fa2); }
 .icon-orange { background: linear-gradient(135deg, #ff9800, #f57c00); }
@@ -611,7 +611,7 @@ $waitingPatients = $db->fetchAll(
 }
 
 .waiting-queue-box .queue-count {
-    background: #0078d4;
+    background: var(--win-accent, #0078d4);
     color: white;
     padding: 2px 8px;
     border-radius: 10px;
@@ -770,7 +770,7 @@ $waitingPatients = $db->fetchAll(
                     <i class="fas fa-clinic-medical"></i>
                 </div>
                 <div>
-                    <div class="notif-value" style="color: #0078d4;"><?= $stats['today_visits'] ?></div>
+                    <div class="notif-value" style="color: var(--win-accent, #0078d4);"><?= $stats['today_visits'] ?></div>
                     <div class="notif-label">سەردانی ئەمڕۆ</div>
                 </div>
             </a>
