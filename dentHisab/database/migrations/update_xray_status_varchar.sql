@@ -1,0 +1,1 @@
+ALTER TABLE xray_requests MODIFY COLUMN status VARCHAR(50) DEFAULT 'pending';

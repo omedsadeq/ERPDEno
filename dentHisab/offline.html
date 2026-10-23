@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ku" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>دەرهێڵ - سیستەمی زیرەکی کلینیکی ددان</title>
+<!-- Fully self-contained: no external CSS/JS/images.
+     This page is served by sw.js for ANY navigation while offline,
+     so relative URLs cannot be relied on. The NRT app font is injected
+     by the script below from the service-worker cache when available. -->
+<script>
+    // App font (NRT): resolve the font URL from the SW scope so it hits the
+    // precached copy while offline. Falls back to system fonts silently.
+    (function () {
+        try {
+            var sw = navigator.serviceWorker && navigator.serviceWorker.controller;
+            if (!sw || !sw.scriptURL) return;
+            var fontUrl = new URL('fonts/NRT%20Font/NRT-Reg.woff', sw.scriptURL).href;
+            document.write('<style>@font-face{font-family:"NRT";src:url("' + fontUrl +
+                '") format("woff");font-weight:normal;font-style:normal;font-display:swap;}<\/style>');
+        } catch (e) { /* keep fallback fonts */ }
+    })();
+</script>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+        font-family: 'NRT', 'Segoe UI', Tahoma, sans-serif;
+        min-height: 100vh;
+        min-height: 100svh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        color: #1A1A1A;
+    }
+    .card {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        padding: 40px 28px;
+        max-width: 400px;
+        width: 100%;
+        text-align: center;
+    }
+    .icon {
+        width: 84px;
+        height: 84px;
+        margin: 0 auto 20px;
+        border-radius: 50%;
+        background: rgba(0, 120, 212, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .icon svg { width: 44px; height: 44px; fill: #0078D4; }
+    h1 { font-size: 20px; margin-bottom: 10px; color: #1A1A1A; }
+    p { font-size: 14px; color: #5C5C5C; line-height: 1.7; margin-bottom: 24px; }
+    button {
+        font-family: inherit;
+        font-size: 15px;
+        font-weight: 600;
+        color: #fff;
+        background: #0078D4;
+        border: none;
+        border-radius: 8px;
+        padding: 12px 32px;
+        min-height: 46px;
+        width: 100%;
+        cursor: pointer;
+    }
+    button:active { background: #106EBE; }
+    .status {
+        margin-top: 14px;
+        font-size: 12px;
+        color: #8a8a8a;
+    }
+</style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon">
+            <!-- wifi-off icon -->
+            <svg viewBox="0 0 24 24">
+                <path d="M2.28 3L1 4.27l2.47 2.47C2.23 7.4 1.1 8.2.11 9.13L12 21l3.53-3.53 4.2 4.2L21 20.4 2.28 3zM12 3C9.3 3 6.81 3.75 4.68 5.05l1.46 1.46C7.86 5.55 9.86 5 12 5c3.83 0 7.31 1.44 9.96 3.8l1.93-2.36C20.68 4.32 16.53 3 12 3zm0 4c-.94 0-1.85.11-2.73.32l1.72 1.72c.33-.03.67-.04 1.01-.04 2.87 0 5.48 1.08 7.46 2.85l1.93-2.36C19.05 7.68 15.68 7 12 7z"/>
+            </svg>
+        </div>
+        <h1>پەیوەندی ئینتەرنێت نییە</h1>
+        <p>ناتوانرێت پەیوەندی بە سیستەمەکەوە بکرێت. تکایە دڵنیابە لە پەیوەندی ئینتەرنێتەکەت و دووبارە هەوڵبدەوە.</p>
+        <button onclick="retry()">دووبارە هەوڵبدەوە</button>
+        <div class="status" id="status"></div>
+    </div>
+    <script>
+        function retry() {
+            document.getElementById('status').textContent = 'هەوڵدەدرێتەوە...';
+            location.reload();
+        }
+        // Auto-reload the moment the connection comes back
+        window.addEventListener('online', function () {
+            document.getElementById('status').textContent = 'پەیوەندی گەڕایەوە — بارکردنەوە...';
+            setTimeout(function () { location.reload(); }, 600);
+        });
+    </script>
+</body>
+</html>

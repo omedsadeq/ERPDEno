@@ -1,0 +1,11 @@
+storage/
+uploads/
+tests/storage/
+.superpowers/
+*.log
+*.cache
+nul
+.env
+*.rar
+*.zip
+temp_output.txt

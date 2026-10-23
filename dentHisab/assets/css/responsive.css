@@ -1,0 +1,560 @@
+/* =====================================================================
+   responsive.css — Global Responsive Layer
+   Loaded AFTER style.css. Builds on existing responsive system
+   (mobile nav, .responsive-table card pattern, mobile-header).
+   Adds: tablet refinement, small-mobile tightening, explicit
+   .mobile-card-list utilities, universal table fallback,
+   filter/pagination/modal mobile improvements, touch targets.
+
+   Breakpoints used here:
+     small mobile : max-width: 480px
+     mobile       : max-width: 767px
+     tablet       : 768px - 1024px
+     desktop      : 1025px+
+   ===================================================================== */
+
+/* ---------------------------------------------------------------------
+   1. Global safety net — prevent horizontal scroll on any screen
+   --------------------------------------------------------------------- */
+html, body { max-width: 100%; }
+img, svg, video, canvas, iframe { max-width: 100%; height: auto; }
+
+/* Tables in print/PDF report pages should never blow out the viewport */
+.page-content table { max-width: 100%; }
+
+/* Pre/code blocks shouldn't blow out either */
+pre, code { white-space: pre-wrap; word-break: break-word; }
+
+/* ---------------------------------------------------------------------
+   2. Tablet refinement (768px – 1024px)
+   --------------------------------------------------------------------- */
+@media (min-width: 768px) and (max-width: 1024px) {
+    /* Dashboard / stats: 2 columns on tablet */
+    .stats-row,
+    .dashboard-grid,
+    .cards-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    /* Forms: 2 columns on tablet (was 3+ on desktop) */
+    .form-row.form-row-3,
+    .form-row.form-row-4 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* Filters can wrap nicely */
+    .filters-grid,
+    .filter-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* Quick actions slightly larger touch targets */
+    .quick-actions {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    }
+
+    /* Make data tables horizontally scrollable rather than overflowing */
+    .table-container,
+    .responsive-table-wrapper,
+    .report-table-container,
+    .invoices-table-container,
+    .ph-table-container,
+    .expense-table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+/* ---------------------------------------------------------------------
+   3. Mobile (≤ 767px) — extra polish on top of style.css rules
+   --------------------------------------------------------------------- */
+@media (max-width: 767px) {
+    /* Container padding — keep some breathing room without overflow */
+    .container,
+    .container-fluid {
+        width: 100%;
+        padding-inline: 12px;
+    }
+
+    /* Page header actions stack full-width on mobile */
+    .page-header-top .page-actions,
+    .page-header-top > .d-flex {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .page-header-top .page-actions .btn,
+    .page-header-top .page-actions > a,
+    .page-header-top .page-actions > button {
+        flex: 1 1 calc(50% - 4px);
+    }
+
+    /* Filter rows: stack search + selects vertically full-width */
+    .filter-row,
+    .filters-row,
+    .search-filter-row,
+    .toolbar,
+    .filters-grid {
+        display: flex !important;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .filter-row > *,
+    .filters-row > *,
+    .search-filter-row > *,
+    .toolbar > *,
+    .filters-grid > *,
+    .filter-row input,
+    .filter-row select,
+    .filter-row .btn {
+        width: 100% !important;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    /* Pagination wraps and stays tappable */
+    .pagination,
+    .page-numbers,
+    nav.pagination,
+    ul.pagination {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        justify-content: center;
+        padding: 8px 0;
+    }
+
+    .pagination .page-link,
+    .pagination a,
+    .pagination span,
+    .page-numbers a,
+    .page-numbers span {
+        min-width: 40px;
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 10px;
+    }
+
+    /* Touch targets — at least 44px on small mobile for the most critical actions */
+    .btn-sm,
+    a.btn-sm,
+    button.btn-sm {
+        min-height: 36px;
+    }
+
+    /* Dialog/modal body scrolls; footer buttons stack */
+    .dialog,
+    .modal {
+        width: calc(100vw - 16px) !important;
+        max-width: calc(100vw - 16px) !important;
+        margin: 8px;
+    }
+
+    .dialog-footer,
+    .modal-footer {
+        flex-direction: column-reverse;
+        gap: 8px;
+        align-items: stretch;
+    }
+
+    .dialog-footer > .btn,
+    .modal-footer > .btn,
+    .dialog-footer > button,
+    .modal-footer > button {
+        width: 100%;
+    }
+
+    /* Tab bars scroll horizontally instead of wrapping */
+    .tabs,
+    .tabs-container .tab-list,
+    .nav-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+    }
+
+    .tabs::-webkit-scrollbar,
+    .nav-tabs::-webkit-scrollbar { height: 4px; }
+
+    /* Badges remain readable inside cards */
+    .badge {
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    /* Universal table fallback — if a table somehow wasn't tagged
+       .responsive-table (JS auto-wire), still keep it scrollable
+       rather than overflowing the screen */
+    .table-container > table:not(.responsive-table):not(.no-responsive),
+    .panel-body > table:not(.responsive-table):not(.no-responsive) {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Inline forms (search bars in toolbar) become full-width */
+    form.inline-form,
+    form.search-form,
+    .panel-actions form {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    /* Image uploads / file pickers full width */
+    input[type="file"] { width: 100%; }
+
+    /* Statusbar already hidden via style.css — make sure it stays hidden */
+    .statusbar { display: none !important; }
+
+    /* Visit / patient detail "info grids" stack */
+    .info-grid,
+    .detail-grid,
+    .summary-grid,
+    .visit-info-grid,
+    .patient-info-grid {
+        grid-template-columns: 1fr !important;
+        gap: 10px;
+    }
+
+    /* Trees of nested cards: tighten spacing */
+    .card,
+    .panel {
+        margin-bottom: 12px;
+    }
+
+    /* SweetAlert2 width fix on mobile */
+    .swal2-popup {
+        width: calc(100vw - 24px) !important;
+        max-width: calc(100vw - 24px) !important;
+    }
+
+    /* Real-time notification toasts fit narrow viewports
+       (base rule in style.css pins them at left:24px / max-width:380px) */
+    .notification-toast-container {
+        left: 10px !important;
+        right: 10px !important;
+        max-width: none !important;
+        top: 60px;
+    }
+
+    /* ---- Inline-style overrides --------------------------------------
+       Several pages set inline style="min-width:Npx" or style="width:Npx"
+       on filter inputs/selects. Inline styles beat normal CSS, so we use
+       attribute selectors with !important to neutralize them on mobile.
+       Tables/thead/tr/td excluded — wide tables stay wide inside their
+       overflow-x scroll containers (e.g. accountant report tables).
+       ------------------------------------------------------------------ */
+    .page-content [style*="min-width"]:not(table):not(thead):not(tbody):not(tr):not(td):not(th):not(.responsive-table-wrapper) {
+        min-width: 0 !important;
+    }
+
+    .page-content input[style*="width"]:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    .page-content select[style*="width"],
+    .page-content textarea[style*="width"] {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+    }
+
+    /* Flex filter groups stack vertically full-width on mobile */
+    .filter-group,
+    .filters .filter-group {
+        flex: 1 1 100% !important;
+        min-width: 0 !important;
+        width: 100%;
+    }
+
+    /* Inline dialog widths (style="max-width: 600px") still cap correctly */
+    .dialog[style*="max-width"],
+    .modal[style*="max-width"] {
+        max-width: calc(100vw - 16px) !important;
+    }
+}
+
+/* ---------------------------------------------------------------------
+   4. Small mobile (≤ 480px) — tighten everything one more notch
+   --------------------------------------------------------------------- */
+@media (max-width: 480px) {
+    .page-header { padding: 10px; }
+    .page-title { font-size: 16px; }
+    .page-content { padding: 8px; }
+
+    .panel-body,
+    .form-container { padding: 10px; }
+
+    .stat-value { font-size: 20px; }
+    .stat-label { font-size: 12px; }
+
+    /* Page header buttons full-width on smallest screens */
+    .page-header-top .page-actions .btn,
+    .page-header-top .page-actions > a,
+    .page-header-top .page-actions > button {
+        flex: 1 1 100%;
+    }
+
+    /* Mobile header title can wrap, never overflow */
+    .mobile-header .text-body-strong {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex: 1;
+        min-width: 0;
+    }
+
+    /* Force responsive-table card label/value to stack instead of 2-col
+       when value is long (dates, currency, names) */
+    table.responsive-table td {
+        grid-template-columns: 1fr !important;
+        gap: 2px !important;
+    }
+    table.responsive-table td::before {
+        margin-bottom: 2px;
+    }
+
+    /* SweetAlert2 fits */
+    .swal2-popup {
+        font-size: 14px !important;
+    }
+    .swal2-title {
+        font-size: 17px !important;
+    }
+}
+
+/* ---------------------------------------------------------------------
+   4b. Sidebar layouts — pages with an inline "content + fixed sidebar"
+       grid (e.g. style="grid-template-columns: 1fr 300px") carry this
+       class so the fixed column collapses under it on small screens.
+       !important is required to beat the inline style.
+   --------------------------------------------------------------------- */
+@media (max-width: 900px) {
+    .collapsible-sidebar-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* ---------------------------------------------------------------------
+   5. Explicit mobile-card utilities (opt-in classes from spec)
+      Use these if you want to hand-author mobile cards without relying
+      on the auto-wire pattern. Pair .desktop-table with .mobile-card-list.
+   --------------------------------------------------------------------- */
+
+/* Desktop default: table visible, mobile card list hidden */
+.desktop-table-wrapper { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.desktop-table { width: 100%; }
+.mobile-card-list { display: none; }
+
+.mobile-data-card {
+    background: var(--surface-card, #fff);
+    border: 1px solid var(--stroke-card, rgba(0,0,0,0.08));
+    border-radius: var(--radius-lg, 12px);
+    box-shadow: var(--shadow-card, 0 1px 2px rgba(0,0,0,0.06));
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+.mobile-data-row {
+    display: grid;
+    grid-template-columns: minmax(108px, 38%) minmax(0, 1fr);
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--stroke-divider, rgba(0,0,0,0.06));
+    align-items: start;
+}
+
+.mobile-data-row:last-of-type { border-bottom: 0; }
+
+.mobile-label {
+    color: var(--text-secondary, #5C5C5C);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.mobile-value {
+    color: var(--text-primary, #1A1A1A);
+    font-size: 14px;
+    word-break: break-word;
+}
+
+.mobile-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--stroke-divider, rgba(0,0,0,0.06));
+}
+
+.mobile-card-actions .btn { flex: 1 1 calc(50% - 3px); min-height: 38px; }
+
+@media (max-width: 767px) {
+    .desktop-table-wrapper,
+    .desktop-table { display: none; }
+    .mobile-card-list { display: block; }
+}
+
+/* ---------------------------------------------------------------------
+   6. Bootstrap-like helpers for projects that use them directly
+   --------------------------------------------------------------------- */
+@media (max-width: 767px) {
+    .d-md-table  { display: none !important; }
+    .d-md-none   { display: block !important; }
+}
+@media (min-width: 768px) {
+    .d-md-table  { display: table !important; }
+    .d-md-none   { display: none !important; }
+    .mobile-card-list { display: none !important; }
+}
+
+/* ---------------------------------------------------------------------
+   7. Image Lightbox (used by assets/js/lightbox.js)
+      Auto-binds to: img[data-lightbox], img.zoomable, .xray-image-preview img,
+      .lightbox-target img, .case-image-preview img, .attachment-image img.
+   --------------------------------------------------------------------- */
+.rio-lightbox-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.94);
+    z-index: 99999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: none;
+    opacity: 0;
+    transition: opacity 0.2s ease-out;
+}
+
+.rio-lightbox-overlay.open {
+    display: flex;
+    opacity: 1;
+}
+
+.rio-lb-stage {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    touch-action: none;
+}
+
+.rio-lb-image {
+    max-width: 92vw;
+    max-height: 88vh;
+    object-fit: contain;
+    cursor: zoom-in;
+    transform-origin: center center;
+    will-change: transform;
+    -webkit-user-drag: none;
+    -webkit-touch-callout: none;
+    pointer-events: auto;
+}
+
+.rio-lb-btn {
+    position: fixed;
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    transition: background 0.15s ease, transform 0.15s ease;
+    z-index: 100000;
+    padding: 0;
+    font-family: inherit;
+}
+
+.rio-lb-btn:hover,
+.rio-lb-btn:focus {
+    background: rgba(255, 255, 255, 0.28);
+    transform: scale(1.05);
+    outline: none;
+}
+
+.rio-lb-btn:active { transform: scale(0.95); }
+
+/* In RTL layout the close button stays on the upper-left of the viewport
+   (logical "start" of the close gesture). */
+.rio-lb-close     { top: 16px; left: 16px;  font-size: 28px; }
+.rio-lb-zoom-in   { top: 16px;  right: 16px; }
+.rio-lb-zoom-out  { top: 70px;  right: 16px; }
+.rio-lb-reset     { top: 124px; right: 16px; }
+.rio-lb-download  { top: 178px; right: 16px; }
+
+.rio-lb-hint {
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 255, 255, 0.75);
+    background: rgba(0, 0, 0, 0.45);
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    pointer-events: none;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+}
+
+/* Visual cursor cue for any auto-zoomable image */
+img[data-lightbox],
+img.zoomable,
+.zoomable img,
+.lightbox-target img,
+.xray-image-preview img,
+.case-image-preview img,
+.attachment-image img {
+    cursor: zoom-in;
+}
+
+@media (max-width: 767px) {
+    .rio-lb-image { max-width: 100vw; max-height: 80vh; }
+    .rio-lb-close,
+    .rio-lb-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 20px;
+    }
+    .rio-lb-close     { top: 10px; left: 10px;  font-size: 24px; }
+    .rio-lb-zoom-in   { top: 10px;  right: 10px; }
+    .rio-lb-zoom-out  { top: 56px;  right: 10px; }
+    .rio-lb-reset     { top: 102px; right: 10px; }
+    .rio-lb-download  { top: 148px; right: 10px; }
+    .rio-lb-hint { font-size: 11px; bottom: 10px; padding: 5px 12px; }
+}
+
+@media (max-width: 480px) {
+    .rio-lb-image { max-width: 100vw; max-height: 75vh; }
+}
+
+/* ---------------------------------------------------------------------
+   8. Reduced motion — accessibility
+   --------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

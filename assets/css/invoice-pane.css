@@ -1,0 +1,700 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Visit receipt pane — the tab strip, the receipt table and the totals
+   block under it.
+
+   Shared by every page that includes cases/partials/invoice_pane.php:
+     * cases/view.php               (the doctor's screen)
+     * accountant/report-detail.php (the accountant's screen)
+
+   The two must read identically — a receipt is one document whichever
+   side of the desk it is on — so these rules live here rather than
+   inline in either page.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Visit tabs: one tab per receipt (draft / sent / paid) ────────── */
+.vt-bar {
+    display: flex;
+    direction: rtl;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0 0;
+    margin-bottom: -1px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+.vt-tab {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    position: relative;
+    padding: 7px 14px 8px;
+    border: 1px solid #dbe3ec;
+    border-bottom-color: transparent;
+    border-radius: 10px 10px 0 0;
+    background: #f4f7fa;
+    color: #5a6672;
+    font-family: inherit;
+    font-size: 11px;
+    line-height: 1.3;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: none;
+}
+.vt-tab:hover { background: #eaf1f8; }
+.vt-tab.is-active {
+    background: #fff;
+    border-color: #b8cde2;
+    border-bottom-color: #fff;
+    border-top: 2px solid #0f6cbd;
+    padding-top: 6px;
+    color: #1b2b3a;
+    box-shadow: none;
+}
+.vt-tab-date { display: inline-flex; align-items: center; gap: 5px; font-weight: 800; font-size: 12px; }
+.vt-tab-no { font-size: 10px; opacity: .75; }
+.vt-tab i { font-size: 10px; }
+.vt-tab--draft i { color: #b07505; }
+.vt-tab--sent i { color: #0f6cbd; }
+.vt-tab--processed i { color: #137a37; }
+.vt-add {
+    flex: 0 0 auto;
+    padding: 7px 13px;
+    border: 1px dashed #9fc3e6;
+    border-radius: 10px;
+    background: #f2f8fd;
+    color: #0f6cbd;
+    font-family: inherit;
+    font-size: 11.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.vt-add:hover { background: #e5f1fb; }
+
+.vt-pane[hidden] { display: none; }
+.vt-empty {
+    padding: 34px 16px;
+    border: 1px dashed #d7e0ea;
+    border-radius: 12px;
+    text-align: center;
+    color: #7a8794;
+}
+.vt-empty i { font-size: 28px; color: #b8c8d8; }
+.vt-empty p { margin: 10px 0 14px; font-size: 13px; }
+
+/* Receipt header strip above each tab's table */
+.vt-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 9px 12px;
+    border: 1px solid #b8cde2;
+    border-bottom: 0;
+    border-radius: 0 10px 0 0;
+    background: #eef4fa;
+}
+.vt-head--draft { background: #fff8ec; border-color: #ecd9ae; }
+.vt-head--processed { background: #ecf8f0; border-color: #b7dfc4; }
+.vt-head-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1 1 auto; }
+.vt-head-no { font-size: 14px; font-weight: 800; color: #0f6cbd; }
+.vt-head--draft .vt-head-no { color: #8a5a00; }
+.vt-head--processed .vt-head-no { color: #137a37; }
+.vt-head-date { font-size: 12px; color: #5a6672; }
+.vt-head-date i { color: #8fa5ba; }
+.vt-head-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 9px; border-radius: 999px;
+    font-size: 10.5px; font-weight: 700;
+}
+.vt-head-badge.is-draft { background: rgba(176,117,5,.14); color: #8a5a00; }
+.vt-head-badge.is-sent  { background: rgba(15,108,189,.12); color: #0f6cbd; }
+.vt-head-badge.is-done  { background: rgba(19,122,55,.14); color: #137a37; }
+.vt-head-badge.is-part  { background: rgba(179,38,30,.12); color: #b3261e; }
+.vt-head-badge.is-locked { background: rgba(90,102,114,.14); color: #4a5560; }
+/* Whose work the receipt is, and who made it when that was not the doctor. */
+.vt-head-badge.is-doctor { background: #eef6ff; color: #0f4c81; border: 1px solid #cfe3f7; }
+.vt-head-badge.is-pick { padding: 1px 4px 1px 9px; cursor: pointer; }
+.vt-head-badge.is-pick select { border: 0; background: transparent; color: inherit; font: inherit; font-weight: 700; padding: 1px 2px; cursor: pointer; outline: none; }
+.vt-head-badge.is-pick:focus-within { box-shadow: 0 0 0 2px rgba(15,108,189,.25); }
+.vt-head-badge.is-madeby { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+.vt-head-actions { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.vt-head-total { font-size: 16px; font-weight: 800; color: #b3261e; margin-left: 4px; }
+.vt-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 13px;
+    border: 1px solid #cbd8e5; border-radius: 8px;
+    background: #fff; color: #23405c;
+    font-family: inherit; font-size: 12px; font-weight: 700;
+    cursor: pointer; white-space: nowrap;
+}
+.vt-btn:hover { background: #f4f8fc; }
+.vt-btn--send { background: #0f6cbd; border-color: #0f6cbd; color: #fff; }
+.vt-btn--send:hover { background: #0c5ba0; }
+.vt-btn--del { color: #b3261e; border-color: #eccac7; padding: 6px 9px; }
+.vt-btn--del:hover { background: #fdf1f0; }
+.vt-btn--recall { color: #b25e09; border-color: #f0d4a8; }
+.vt-btn--recall:hover { background: #fff4e5; }
+.vt-loose {
+    margin-top: 10px; padding: 9px 12px;
+    background: #fff4e5; border: 1px solid #f0d4a8; border-radius: 8px;
+    color: #8a5a00; font-size: 12px;
+}
+
+/* ── Receipt-style treatments table (matches the printed sheet) ───── */
+.rcpt-table { border-collapse: collapse; width: 100%; }
+.rcpt-table th, .rcpt-table td {
+    border: 1px solid #c9d6e3;
+    padding: 6px 8px;
+    text-align: center;
+    vertical-align: middle;
+    font-size: 12.5px;
+}
+/* Higher specificity intentionally beats the page-wide gradient table header.
+   Borders are omitted here so the table's existing/default border stays intact. */
+.table.rcpt-table thead th {
+    background: #edf3f7;
+    background-image: none;
+    color: #102a3a;
+    padding: 10px 8px;
+    font-family: inherit;
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.15;
+    box-shadow: none;
+    text-shadow: none;
+}
+.table.rcpt-table thead .en {
+    display: block;
+    margin-top: 1px;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.1;
+    color: #526779;
+}
+.rcpt-table tfoot td { background: #f7fafc; font-size: 13px; }
+.rt-c-no    { width: 44px; font-weight: 700; }
+.rt-c-desc  { text-align: right !important; font-weight: 700; }
+.rt-c-teeth { width: 108px; padding: 4px !important; }
+.rt-c-qty   { width: 76px; font-weight: 700; }
+.rt-c-unit  { width: 120px; }
+.rt-c-total { width: 130px; font-weight: 800; color: #b3261e; }
+.rt-c-act   { width: 104px; white-space: nowrap; }
+
+/* Row actions: compact flat controls, isolated from the page's gradient
+   button theme so receipt rows stay clean and easy to scan. */
+.rt-row-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+.rt-row-action {
+    width: 29px;
+    height: 29px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    box-shadow: none;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.rt-row-action.is-edit {
+    background: #eff6ff;
+    border-color: #dbeafe;
+    color: #2563eb;
+}
+.rt-row-action.is-edit:hover {
+    background: #dbeafe;
+    border-color: #bfdbfe;
+    color: #1d4ed8;
+}
+.rt-row-action.is-delete {
+    background: #fef2f2;
+    border-color: #fee2e2;
+    color: #dc2626;
+}
+.rt-row-action.is-delete:hover {
+    background: #fee2e2;
+    border-color: #fecaca;
+    color: #b91c1c;
+}
+.rt-row-action:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
+/* Palmer cross — same geometry as the printed receipt */
+.tooth-cross {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    max-width: 92px;
+    margin: 0 auto;
+    direction: ltr;
+    border: 1px solid #8a97a5;
+    background: #fff;
+    font-size: 11px;
+    line-height: 1.25;
+    color: #1b2b3a;
+}
+.tooth-cross span {
+    min-height: 17px;
+    padding: 1px 2px;
+    text-align: center;
+    word-break: break-word;
+}
+.tooth-cross .tc-ur, .tooth-cross .tc-ul { border-bottom: 1px solid #1b2b3a; }
+.tooth-cross .tc-ur, .tooth-cross .tc-lr { border-right: 1px solid #1b2b3a; }
+.rt-add-row td { background: #fbfdff; padding: 5px 6px !important; }
+
+/* ── Quick-entry row: flat, roomy, keyboard-first ────────────────── */
+.rt-field {
+    width: 100%;
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid #c9d6e3;
+    border-radius: 6px;
+    background: #fff;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: #23405c;
+    outline: none;
+}
+.rt-field:focus { border-color: #0f6cbd; box-shadow: inset 0 0 0 1px #0f6cbd; }
+/* Treatment combo: a search field with a dropdown list. The list is
+   position:fixed and placed by JS — the table scrolls horizontally, so an
+   absolutely positioned menu would be clipped by .table-container. */
+.rt-combo { position: relative; display: flex; align-items: center; }
+.rt-combo-input { padding-left: 30px; }
+.rt-combo-input.is-chosen { color: #14713b; }
+.rt-combo-caret {
+    position: absolute;
+    left: 4px;
+    width: 24px; height: 24px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 0; border-radius: 5px;
+    background: transparent; color: #7a8794;
+    cursor: pointer; font-size: 10px;
+}
+.rt-combo-caret:hover { background: #eef3f8; color: #23405c; }
+.rt-combo-list {
+    position: fixed;
+    z-index: 3000;
+    margin: 0; padding: 4px;
+    list-style: none;
+    max-height: 360px;
+    overflow-y: auto;
+    /* Do not chain the wheel to the page once the list bottoms out: the page
+       scrolling underneath is what used to close the menu mid-choice. */
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    background: #fff;
+    border: 1px solid #c9d6e3;
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(20, 40, 70, .14);
+}
+.rt-combo-list::-webkit-scrollbar { width: 10px; }
+.rt-combo-list::-webkit-scrollbar-thumb { background: #c9d6e3; border: 3px solid #fff; border-radius: 8px; }
+.rt-combo-list::-webkit-scrollbar-thumb:hover { background: #a9bccd; }
+.rt-combo-list[hidden] { display: none; }
+/* Caption above the recently-used block and the full catalogue */
+.rt-combo-group {
+    position: sticky; top: -4px;
+    display: flex; align-items: center; gap: 6px;
+    margin: 2px -4px 2px;
+    padding: 5px 12px;
+    background: #f4f8fc;
+    color: #5c7a99;
+    font-size: 10.5px; font-weight: 700;
+    letter-spacing: .2px;
+}
+.rt-combo-group i { font-size: 9.5px; color: #0f6cbd; }
+.rt-combo-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #23405c;
+    cursor: pointer;
+    white-space: nowrap;
+}
+/* One highlight, driven by rtComboIndex — the pointer moves it too, so the
+   row under the mouse is always the row Enter takes. */
+.rt-combo-item.is-active { background: #dcecfb; }
+.rt-combo-item .rt-combo-price { font-size: 11.5px; font-weight: 700; color: #0f6cbd; }
+.rt-combo-item mark { background: #fff2ab; color: inherit; padding: 0; border-radius: 2px; }
+.rt-combo-empty { padding: 10px; font-size: 12px; color: #8a97a5; text-align: center; }
+input.rt-in-qty, input.rt-in-price { text-align: center; -moz-appearance: textfield; }
+input.rt-in-qty::-webkit-outer-spin-button, input.rt-in-qty::-webkit-inner-spin-button,
+input.rt-in-price::-webkit-outer-spin-button, input.rt-in-price::-webkit-inner-spin-button {
+    -webkit-appearance: none; margin: 0;
+}
+/* Quantity follows the tooth count until the user types their own */
+.rt-in-qty.is-auto { background: #f2f7fc; color: #0f6cbd; }
+
+.rt-teeth-wrap { display: flex; align-items: center; gap: 5px; justify-content: center; }
+.rt-no-tooth { display: none; align-items: center; justify-content: center; gap: 5px; min-height: 32px; color: #0f766e; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.rt-teeth-wrap.is-not-required .tooth-cross,
+.rt-teeth-wrap.is-not-required .rt-teeth-btn { display: none; }
+.rt-teeth-wrap.is-not-required .rt-no-tooth { display: inline-flex; }
+.rt-location-badge { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 4px 8px; border: 1px solid #bfdbfe; border-radius: 999px; background: #eff6ff; color: #1d4ed8; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.rt-location-badge.is-lower { border-color: #ddd6fe; background: #f5f3ff; color: #6d28d9; }
+.rt-location-badge.is-service { border-color: #99f6e4; background: #f0fdfa; color: #0f766e; }
+.rt-combo-rule { display: block; margin-top: 1px; color: #0f766e; font-size: 9.5px; font-weight: 600; }
+.tooth-cross.is-input {
+    border-color: #9fc3e6;
+    border-style: dashed;
+    background: #fff;
+    max-width: 84px;
+}
+.tooth-cross.is-input .rt-tooth-in {
+    width: 100%;
+    min-height: 19px;
+    padding: 1px 2px;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #1b2b3a;
+    text-align: center;
+    outline: none;
+    direction: ltr;
+}
+.tooth-cross.is-input .rt-tooth-in::placeholder { color: #c3cedb; font-weight: 400; }
+.tooth-cross.is-input .rt-tooth-in:focus { background: #eaf4fd; }
+.tooth-cross.is-input .rt-tooth-in.is-bad { background: #fdecea; color: #c62026; }
+/* The cross lines must stay visible now that the cells are inputs */
+.tooth-cross.is-input .tc-ur, .tooth-cross.is-input .tc-ul { border-bottom: 1px solid #1b2b3a; }
+.tooth-cross.is-input .tc-ur, .tooth-cross.is-input .tc-lr { border-right: 1px solid #1b2b3a; }
+.rt-teeth-btn {
+    flex: 0 0 auto;
+    width: 28px; height: 28px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid #c9d6e3; border-radius: 6px;
+    background: #fff; color: #0f6cbd; cursor: pointer; font-size: 12px;
+}
+.rt-teeth-btn:hover { background: #eef6fd; }
+
+.rt-act-btn {
+    width: 30px; height: 30px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid transparent; border-radius: 6px;
+    cursor: pointer; font-size: 12px;
+}
+.rt-act-btn.is-save { background: #14713b; color: #fff; }
+.rt-act-btn.is-save:hover { background: #0f5c30; }
+.rt-act-btn.is-save:disabled { opacity: .6; cursor: default; }
+.rt-act-btn.is-clear { background: #eef1f5; color: #5a6672; margin-right: 4px; }
+.rt-act-btn.is-clear:hover { background: #e2e7ee; }
+.rt-blank-row td { height: 30px; background: #fff; }
+
+/* Footer under the table — a copy of the printed receipt's foot:
+   signature/notes rules on the RIGHT, boxed totals on the LEFT.
+   Every figure belongs to THIS receipt, never the case. */
+.vt-foot {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+.vt-foot-side   { flex: 1 1 300px; min-width: 240px; }
+.vt-foot-totals { flex: 1 1 320px; min-width: 260px; }
+.vt-foot-row {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    padding: 4px 0;
+    font-size: 13px;
+}
+.vt-foot-label { flex: 0 0 auto; font-weight: 700; color: #1b2b3a; white-space: nowrap; }
+.vt-foot-fill {
+    flex: 1 1 auto;
+    min-height: 22px;
+    padding: 0 4px 2px;
+    border-bottom: 1px dotted #7d8b99;
+    color: #3f4a56;
+}
+.vt-total-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 3px 0; }
+.vt-total-label { flex: 0 0 108px; text-align: left; font-size: 13px; font-weight: 700; color: #23405c; }
+.vt-total-box {
+    flex: 1 1 auto;
+    min-height: 30px;
+    padding: 3px 10px;
+    border: 1px solid #1b2b3a;
+    background: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    text-align: center;
+    line-height: 24px;
+}
+.vt-total-box.is-paid { color: #14713b; }
+.vt-received-source { color: #14713b; font-size: 11px; line-height: 1.6; text-align: left; padding: 0 0 4px; }
+.vt-total-box.is-due  { color: #c62026; }
+.vt-total-box.is-cut  { color: #b07505; }
+/* Discount is typed straight into its box — no dialog. The button on the
+   left of the field flips between a flat amount (IQD) and a percentage. */
+.vt-total-box.vt-disc-box {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+}
+.vt-disc-input {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    padding: 3px 10px;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 800;
+    color: #b07505;
+    text-align: center;
+    outline: none;
+    -moz-appearance: textfield;
+}
+.vt-disc-input::-webkit-outer-spin-button,
+.vt-disc-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.vt-disc-input:focus { background: #fffbf3; }
+.vt-disc-mode {
+    flex: 0 0 auto;
+    min-width: 42px;
+    padding: 0 8px;
+    border: 0;
+    border-inline-end: 1px solid #1b2b3a;
+    background: #f1f3f6;
+    color: #5a6672;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+}
+.vt-disc-mode:hover { background: #e6eaef; color: #23405c; }
+.vt-disc-box.is-percent .vt-disc-mode { background: #fff4e2; color: #b07505; }
+.vt-disc-box.is-saving { opacity: .6; }
+/* Money a percentage discount comes to — only shown in percent mode */
+.vt-disc-eq {
+    flex: 0 0 auto;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #b07505;
+    white-space: nowrap;
+}
+.vt-disc-eq[hidden] { display: none; }
+
+/* وەرگیراو typed straight into its box, same shell as داشکاندن above it.
+   Green rather than amber: this figure is money, not a reduction. */
+.vt-total-box.vt-paid-box {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+}
+.vt-paid-input {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    padding: 3px 10px;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 800;
+    color: #14713b;
+    text-align: center;
+    outline: none;
+    -moz-appearance: textfield;
+}
+.vt-paid-input::-webkit-outer-spin-button,
+.vt-paid-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.vt-paid-input:focus { background: #f3fbf6; }
+.vt-paid-box.is-saving { opacity: .6; }
+/* دراوی پێشوو — money paid before the system (historical cases). Brown, not
+   green: it settles the debt but is not cash taken in this clinic's books. */
+.vt-total-box.is-prior,
+.vt-total-box.vt-paid-box .vt-prior-input { color: #7a4a12; }
+.vt-total-box.vt-paid-box .vt-prior-input:focus { background: #fff8ee; }
+.vt-total-label.is-prior { color: #7a4a12; }
+.vt-prior-note {
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 700;
+    color: #7a4a12;
+    white-space: nowrap;
+}
+.vt-head-badge.is-historical { background: #fff1dc; color: #7a4a12; }
+/* A doctor's request the accountant has not acted on yet — never folded into
+   the figure beside it, because it is not money until it is approved. */
+.vt-paid-pending {
+    flex: 0 0 auto;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #8a5a00;
+    white-space: nowrap;
+}
+.vt-head-badge.is-pending { background: rgba(176,117,5,.14); color: #8a5a00; }
+
+/* Confirm sheet shown before any وەرگیراو figure is committed. The server
+   computes every number in it; this only lays them out. */
+.vt-confirm-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 4000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(16, 26, 36, .45);
+}
+.vt-confirm {
+    width: 100%;
+    max-width: 430px;
+    max-height: 90vh;
+    overflow: auto;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .32);
+}
+.vt-confirm-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 18px;
+    border-radius: 14px 14px 0 0;
+    background: linear-gradient(135deg, #14713b 0%, #0f5c30 100%);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+}
+.vt-confirm-body { padding: 16px 18px; font-size: 13px; color: #23405c; }
+.vt-confirm-warn {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 9px 11px;
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    background: #fff4ce;
+    color: #856404;
+    font-size: 12px;
+    line-height: 1.6;
+}
+.vt-confirm-warn i { margin-top: 2px; }
+.vt-confirm-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 5px 0;
+}
+.vt-confirm-line .v { font-weight: 800; }
+.vt-confirm-prior {
+    margin: 10px 0;
+    padding: 9px 11px;
+    border: 1px solid #e3eaf1;
+    border-radius: 8px;
+    background: #f7fafc;
+}
+.vt-confirm-prior-title { margin-bottom: 5px; font-size: 12px; font-weight: 700; color: #5a6672; }
+.vt-confirm-prior .vt-confirm-line { padding: 3px 0; font-size: 12.5px; }
+.vt-confirm-prior .vt-confirm-line .no { color: #0f6cbd; font-weight: 700; direction: ltr; }
+.vt-confirm-total {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 2px solid #1b2b3a;
+    font-size: 15px;
+}
+.vt-confirm-total .v { color: #14713b; }
+.vt-confirm-foot {
+    display: flex;
+    gap: 8px;
+    padding: 0 18px 16px;
+}
+.vt-confirm-foot button {
+    flex: 1 1 auto;
+    padding: 9px 12px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.vt-confirm-ok { background: #14713b; color: #fff; }
+.vt-confirm-ok:hover { background: #0f5c30; }
+.vt-confirm-ok:disabled { opacity: .6; cursor: default; }
+.vt-confirm-no { background: #eef1f5; color: #5a6672; }
+.vt-confirm-no:hover { background: #e2e7ee; }
+
+/* Accountant-side header actions on a sent receipt */
+.vt-btn--approve { background: #14713b; border-color: #14713b; color: #fff; }
+.vt-btn--approve:hover { background: #0f5c30; }
+.vt-btn--plan { background: #f3effa; border-color: #d6c9ee; color: #6b4fa8; }
+.vt-btn--plan:hover { background: #e9e1f6; }
+.vt-btn:disabled { opacity: .5; cursor: not-allowed; }
+.vt-btn:disabled:hover { background: #fff; }
+.vt-head-badge.is-plan { background: rgba(135,100,184,.16); color: #6b4fa8; }
+/* Explicit admin correction mode keeps the familiar receipt header in place. */
+.vt-btn--edit { color:#075bbb; border-color:#a5c9f7; background:#eff6ff; }
+.vt-pane.is-admin-editing > .table-container,
+.vt-pane.is-admin-editing > .vt-foot { display:none; }
+.vt-pane.is-admin-editing > .vt-head .vt-head-actions > :not(.vt-head-total):not(.vt-btn--edit) { display:none; }
+.vt-pane.is-admin-editing .vt-btn--edit { background:#075bbb; color:#fff; pointer-events:none; }
+.vt-pane.is-admin-editing .vt-head-badge.is-locked { display:none; }
+.ic-editor[hidden] { display:none !important; }
+.ic-editor { padding:22px; border:1px solid #b8d4f5; border-top:3px solid #0876da; border-radius:0 0 12px 12px; background:linear-gradient(160deg,#f5faff,#fff 45%); color:#18334f; scroll-margin-top:90px; }
+.ic-heading,.ic-section-title,.ic-bottom,.ic-buttons { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.ic-heading strong { font-size:1.15rem; }
+.ic-heading p,.ic-help,.ic-last { color:#60748b; font-size:.85rem; margin:6px 0 16px; }
+.ic-admin { color:#075bbb; background:#e2efff; border-radius:20px; padding:7px 12px; white-space:nowrap; }
+.ic-notice { padding:12px; background:#fff5dc; border:1px solid #efcf84; border-radius:8px; font-size:.85rem; }
+.ic-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin:16px 0; }
+.ic-editor label { display:flex; flex-direction:column; gap:6px; font-weight:600; min-width:0; font-size:.9rem; }
+.ic-editor input,.ic-editor select,.ic-editor textarea { box-sizing:border-box; width:100%; min-width:0; padding:9px 10px; border:1px solid #b9cbdf; border-radius:7px; background:#fff; color:#18334f; font:inherit; }
+.ic-editor input[type=number],.ic-editor input[type=date] { direction:ltr; text-align:center; }
+.ic-editor input:focus,.ic-editor select:focus,.ic-editor textarea:focus { outline:2px solid #65acff; outline-offset:1px; }
+.ic-editor small { display:block; font-size:.76rem; font-weight:400; color:#6a7b8c; }
+.ic-table-wrap { overflow:auto; margin:12px 0 20px; border:1px solid #d5e1ed; border-radius:9px; }
+.ic-table { width:100%; min-width:1050px; border-collapse:collapse; }
+.ic-table th { background:#eaf2fa; color:#35516e; font-size:.8rem; padding:11px 8px; text-align:start; white-space:nowrap; }
+.ic-table td { padding:9px 6px; border-top:1px solid #e4ebf2; vertical-align:middle; }
+.ic-table td:first-child { min-width:200px; }
+.ic-table input[data-field=tooth_number] { width:70px; text-align:center; }
+.ic-table input[data-field=quantity] { width:76px; }
+.ic-table input[data-field=unit_price],.ic-table input[data-field=discount] { min-width:110px; }
+.ic-table [data-ic-line-total] { display:block; min-width:90px; color:#075bbb; }
+.ic-table input[data-field=notes] { min-width:140px; }
+.ic-table tr.is-removed { opacity:.55; background:#fff0f0; }
+.ic-table tr.is-removed td:first-child { text-decoration:line-through; }
+.ic-summary { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:20px; }
+.ic-summary .ic-fields { grid-template-columns:1fr; margin-top:0; }
+.ic-discount { display:flex; gap:7px; }
+.ic-discount select { width:85px; flex-shrink:0; }
+.ic-preview { align-self:start; background:#f0f6fc; border:1px solid #d1e1f1; border-radius:10px; padding:12px 18px; }
+.ic-preview > span { display:flex; justify-content:space-between; gap:16px; padding:10px 0; border-bottom:1px solid #dae6f1; }
+.ic-preview b { direction:ltr; font-variant-numeric:tabular-nums; }
+.ic-preview .ic-balance { color:#076454; font-size:1.12rem; border-bottom:0; }
+.ic-preview.is-overpaid .ic-balance { color:#b42318; }
+.ic-payments { min-width:760px; }
+.ic-payments td:first-child { max-width:280px; }
+.ic-error { background:#fff0ee; color:#a72016; border:1px solid #f4b8b0; border-radius:8px; margin:16px 0; padding:12px; }
+.ic-error[hidden] { display:none; }
+.ic-bottom { border-top:1px solid #d7e4f0; padding-top:18px; align-items:end; }
+.ic-bottom > label { flex:1; max-width:600px; }
+.ic-buttons { flex-shrink:0; }
+@media(max-width:750px) { .ic-editor { padding:14px 10px; } .ic-fields,.ic-summary { grid-template-columns:1fr; } .ic-summary { gap:4px; } .ic-bottom { align-items:stretch; flex-direction:column; } .ic-buttons .vt-btn { flex:1; justify-content:center; } }
+@media print { .ic-editor,.vt-btn--edit { display:none !important; } }

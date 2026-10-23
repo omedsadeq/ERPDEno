@@ -1,0 +1,93 @@
+/**
+ * Global Font Configuration — SINGLE SOURCE OF TRUTH for app typography
+ * سیستەمی زیرەکی کلینیکی ددان
+ *
+ * To change the application font in the future, edit ONLY this file:
+ *   1. Add/replace the @font-face declaration(s) below.
+ *   2. Update the --app-font-family variable.
+ * Every page, component and print template picks the change up automatically.
+ *
+ * Font files live in /fonts/NRT Font/ (loaded locally — no external CDN).
+ * Only the Regular weight ships with NRT; bolder weights (500/600/700) are
+ * synthesized by the browser from the Regular face, which keeps the visual
+ * bold/regular hierarchy intact.
+ *
+ * NOTE for PDF generation (mpdf): PDFs cannot use browser fonts or CSS
+ * variables. The same NRT-Reg.ttf is registered with mpdf inside
+ * services/InvoicePdfService.php — keep the two in sync when changing fonts.
+ */
+
+/* ===================================
+   NRT — Regular (400). Kurdish, Arabic and Latin coverage.
+   =================================== */
+@font-face {
+    font-family: 'NRT';
+    src: url('../../fonts/NRT%20Font/NRT-Reg.eot'); /* IE9 compat */
+    src: url('../../fonts/NRT%20Font/NRT-Reg.eot?#iefix') format('embedded-opentype'),
+         url('../../fonts/NRT%20Font/NRT-Reg.woff') format('woff'),
+         url('../../fonts/NRT%20Font/NRT-Reg.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* ===================================
+   Global font variable — change the app font HERE only
+   =================================== */
+:root {
+    --app-font-family: 'NRT', 'Segoe UI Variable', 'Segoe UI', Tahoma, system-ui, sans-serif;
+
+    /* Bootstrap (present or future) — make every Bootstrap component follow */
+    --bs-body-font-family: var(--app-font-family);
+    --bs-font-sans-serif: var(--app-font-family);
+}
+
+/* ===================================
+   Base application — body & everything that does not inherit by default
+   =================================== */
+html,
+body {
+    font-family: var(--app-font-family);
+}
+
+/* Form controls do not inherit font by default */
+button,
+input,
+optgroup,
+select,
+textarea {
+    font-family: inherit;
+}
+
+/* ===================================
+   Third-party / component overrides
+   (containers only — icon fonts keep their own class-level rules:
+   Font Awesome (.fa*), Bootstrap Icons (.bi*), Material Icons and the
+   Segoe Fluent Icons helper are all class-scoped and unaffected)
+   =================================== */
+
+/* SweetAlert2 dialogs */
+.swal2-popup,
+.swal2-title,
+.swal2-html-container,
+.swal2-content,
+.swal2-actions button,
+.swal2-input,
+.swal2-select,
+.swal2-textarea {
+    font-family: var(--app-font-family) !important;
+}
+
+/* Bootstrap components rendered outside body inheritance + DataTables */
+.tooltip,
+.popover,
+.modal,
+.dropdown-menu,
+.toast,
+.offcanvas,
+table.dataTable,
+.dataTables_wrapper,
+.dataTables_wrapper .dataTables_filter input,
+.dataTables_wrapper .dataTables_length select {
+    font-family: var(--app-font-family);
+}

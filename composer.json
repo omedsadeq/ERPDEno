@@ -1,0 +1,14 @@
+{
+    "name": "denthisab/dental-clinic",
+    "description": "Dental Clinic Management System",
+    "type": "project",
+    "require": {
+        "php": ">=7.4",
+        "mpdf/mpdf": "^8.2",
+        "aws/aws-sdk-php": "^3.0",
+        "vlucas/phpdotenv": "^5.5"
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
+}
