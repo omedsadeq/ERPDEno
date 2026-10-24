@@ -5040,12 +5040,6 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                     </div>
 
                     <?php if ($case['status'] === 'open' && ($case['scope_type'] ?? 'tooth') !== 'arch'): ?>
-                    <!-- Always-on tip: how to multi-select + right-click -->
-                    <div style="margin: 0 0 10px; padding: 7px 12px; background: #f8fafc; border: 1px solid #e6ebf1; border-radius: 8px; color: #64748b; font-size: 11.5px;">
-                        <i class="fas fa-lightbulb" style="color:#0d9488;"></i>
-                        <strong>Ctrl+کلیک</strong> یان <strong>Shift+کلیک</strong> بۆ هەڵبژاردنی چەند ددان،
-                        پاشان <strong>کلیکی ڕاست</strong> بکە بۆ لیستی کردارەکان. کلیکی ئاسایی وردەکاری دەکاتەوە.
-                    </div>
                     <!-- Bulk-select hint banner (shown while touch multi-select mode is ON) -->
                     <div id="bulkModeHint" style="display: none; margin: 0 0 10px; padding: 8px 12px; background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; color: #0f766e; font-size: 12px;">
                         <i class="fas fa-hand-pointer"></i> کلیک لەسەر ددانەکان بکە بۆ هەڵبژاردن، پاشان کلیکی ڕاست بکە یان دوگمەی سەوز لە خوارەوە دابگرە.
@@ -6736,7 +6730,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 <div class="tp-overlay" id="treatmentPicker">
     <div class="tp-sheet">
         <div class="tp-head">
-            <h4><i class="fas fa-briefcase-medical"></i> هەڵبژاردنی چارەسەر</h4>
+            <h4 id="tpTitle"><i class="fas fa-briefcase-medical"></i> هەڵبژاردنی چارەسەر</h4>
             <button type="button" class="tp-close" onclick="closeTreatmentPicker()"><i class="fas fa-times"></i></button>
         </div>
         <div class="tp-search-row">
@@ -6745,6 +6739,11 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
         </div>
         <div class="tp-cats" id="tpCats"></div>
         <div class="tp-list" id="tpList"></div>
+        <!-- Quick add from the chart (openQuickToothAdd): cancel, or see the tooth's history -->
+        <div class="tp-foot" id="tpFoot" hidden>
+            <button type="button" class="tp-cancel" onclick="closeTreatmentPicker()"><i class="fas fa-times"></i> هەڵوەشاندنەوە</button>
+            <button type="button" class="tp-history" id="tpHistory" onclick="openQuickToothHistory()" hidden></button>
+        </div>
     </div>
 </div>
 
@@ -6862,6 +6861,16 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 .tp-no-tooth { display: block; margin-top: 2px; color: #0f766e; font-size: 10px; font-weight: 600; }
 .tp-item-price { font-size: 12.5px; font-weight: 700; color: #107c10; }
 .tp-empty { text-align: center; padding: 30px 0; color: var(--text-secondary); font-size: 13px; }
+/* Quick add from the chart: tooth in the title, cancel + history underneath */
+.tp-head h4 small { font-size: 12px; font-weight: 400; color: var(--text-secondary); }
+.tp-list.is-busy { opacity: .55; pointer-events: none; }
+.tp-foot[hidden] { display: none; }
+.tp-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--border-color, #e5e7eb); }
+.tp-cancel { padding: 7px 16px; border: 1px solid #d0d7de; border-radius: 8px; background: #fff; color: #444; font: inherit; font-size: 13px; cursor: pointer; }
+.tp-cancel:hover { background: #f3f4f6; }
+.tp-history { padding: 6px 10px; border: 0; background: transparent; color: var(--text-accent, #0067C0); font: inherit; font-size: 12.5px; cursor: pointer; }
+.tp-history[hidden] { display: none; }
+.tp-history:hover { text-decoration: underline; }
 
 /* Picker trigger button inside the add dialog */
 .tp-trigger {
@@ -11381,6 +11390,76 @@ function openTreatmentPicker() {
 }
 function closeTreatmentPicker() {
     document.getElementById('treatmentPicker')?.classList.remove('open');
+    setQuickToothMode(null);
+}
+
+// ── Quick add from the chart: tooth → treatment → added ──
+// The picker doubles as the whole form: the catalog's default price, quantity
+// 1, no discount, filed on the receipt open in the treatments tab (or the
+// newest draft). Price/quantity are corrected afterwards in the receipt table.
+let tpQuickTooth = null;
+let quickAddBusy = false;
+function setQuickToothMode(num) {
+    tpQuickTooth = num;
+    const title = document.getElementById('tpTitle');
+    const foot = document.getElementById('tpFoot');
+    if (!title || !foot) return;
+    if (num === null) {
+        title.innerHTML = '<i class="fas fa-briefcase-medical"></i> هەڵبژاردنی چارەسەر';
+        foot.hidden = true;
+        return;
+    }
+    const palmer = palmerNumbers[num] || (num % 10);
+    title.innerHTML = '<i class="fas fa-tooth"></i> ددان ' + escapeHtml(String(palmer))
+        + ' <small>' + escapeHtml(toothNames[num] || '') + '</small>';
+    const count = (toothTreatmentMap[num] && toothTreatmentMap[num].treatments || []).length;
+    const history = document.getElementById('tpHistory');
+    if (history) {
+        history.hidden = count === 0;
+        history.innerHTML = '<i class="fas fa-history"></i> ' + count + ' چارەسەری پێشوو';
+    }
+    foot.hidden = false;
+}
+function openQuickToothAdd(num) {
+    openTreatmentPicker();
+    setQuickToothMode(num);
+}
+function quickAddTreatment(id) {
+    const t = treatmentCatalog.find(x => x.id === id);
+    if (!t || quickAddBusy || tpQuickTooth === null) return;
+    quickAddBusy = true;
+    const tooth = tpQuickTooth;
+    const fd = new FormData();
+    fd.set('csrf_token', window.CSRF_TOKEN || CSRF_TOKEN);
+    fd.set('ajax', '1');
+    fd.set('action', 'add_treatment');
+    fd.set('tooth_number', tooth);
+    fd.set('treatment_id', t.id);
+    fd.set('treatment_name', t.name);
+    fd.set('unit_price', t.price);
+    fd.set('quantity', '1');
+    fd.set('discount', '0');
+    const activeTab = document.querySelector('.vt-tab.is-active[data-invoice-tab]');
+    if (activeTab) fd.set('invoice_id', activeTab.dataset.invoiceTab);
+    document.getElementById('tpList')?.classList.add('is-busy');
+    fetch(window.location.href, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(d => {
+            if (!d.success) { toast('error', d.message || 'هەڵەیەک ڕوویدا'); return; }
+            closeTreatmentPicker();
+            applyCaseSnapshot(d);
+            toast('success', t.name + ' بۆ ددان ' + (palmerNumbers[tooth] || tooth % 10) + ' زیادکرا');
+        })
+        .catch(() => toast('error', 'هەڵەیەک ڕوویدا لە پەیوەندیکردن'))
+        .finally(() => {
+            quickAddBusy = false;
+            document.getElementById('tpList')?.classList.remove('is-busy');
+        });
+}
+function openQuickToothHistory() {
+    const num = tpQuickTooth;
+    closeTreatmentPicker();
+    if (num !== null) showToothHistory(num);
 }
 
 function renderTreatmentPicker() {
@@ -11418,7 +11497,11 @@ document.addEventListener('click', function (e) {
     const cat = e.target.closest('#tpCats .tp-cat');
     if (cat) { tpActiveCat = cat.dataset.cat; renderTreatmentPicker(); return; }
     const item = e.target.closest('#tpList .tp-item');
-    if (item) { chooseTreatment(parseInt(item.dataset.id, 10)); return; }
+    if (item) {
+        const id = parseInt(item.dataset.id, 10);
+        if (tpQuickTooth !== null) quickAddTreatment(id); else chooseTreatment(id);
+        return;
+    }
     const ov = document.getElementById('treatmentPicker');
     if (ov && e.target === ov) closeTreatmentPicker();
 });
@@ -12313,7 +12396,24 @@ window.selectTooth = function(num) {
     currentSelectedTooth = num;
 };
 
+// A tooth click on an open case: pick the work in the treatment list and it is
+// added — nothing else to fill in (openQuickToothAdd). The tooth's history
+// panel is one link away from that list, and is what a closed case shows.
 window.showToothDetail = function(num) {
+    if (window.bulkMode) {
+        toggleBulkTooth(num);
+        return;
+    }
+    if (CASE_IS_OPEN) {
+        selectTooth(num);
+        currentSelectedTooth = num;
+        openQuickToothAdd(num);
+        return;
+    }
+    showToothHistory(num);
+};
+
+window.showToothHistory = function(num) {
     // In bulk (multi-select) mode a click toggles selection instead of
     // opening the single-tooth detail panel.
     if (window.bulkMode) {
