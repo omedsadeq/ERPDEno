@@ -12,13 +12,8 @@
  *
  * The grid is entered row by row like a spreadsheet: each row's product cell
  * searches the catalogue, and a product that is not found becomes a NEW row
- * whose barcode, پۆل, جۆر, unit and prices are typed in place. New products
- * (and any پۆل/جۆر names that do not exist yet) are created when the invoice
- * is saved, immediately before the invoice itself.
- *
- * پۆل is a top-level erp_categories row; جۆر is a child category under it
- * (parent_id). A product is filed under the جۆر when one is given, otherwise
- * under the پۆل.
+ * whose barcode, unit and prices are typed in place. New products are created
+ * when the invoice is saved, immediately before the invoice itself.
  *
  *   F2 scan · F4 supplier · F7 new row · Enter next cell · ↑↓ rows
  *   Ctrl+Delete delete row · Ctrl+S save
@@ -39,16 +34,50 @@ $canCreate  = erp_can('erp.purchase.create');
 $canCost    = erp_can('erp.price.purchase');
 $nextNumber = ErpSequence::preview('PURCHASE', 0);
 
+/*
+ * Edit mode (?edit=<id>) — opened from erp/purchase-invoices.php. The same
+ * grid, preloaded with the stored lines; saving posts to action=update, where
+ * ErpPurchase::update() restates stock and the supplier account in one
+ * transaction. The warehouse and the invoice number stay as they were.
+ */
+$editId  = (int)($_GET['edit'] ?? 0);
+$editInv = null;
+if ($editId > 0) {
+    require_once __DIR__ . '/../classes/ErpPurchase.php';
+    erp_require('erp.purchase.edit');
+    $editInv = ErpPurchase::load($editId);
+    $refuse  = !$editInv ? 'وەسڵ نەدۆزرایەوە'
+        : ($editInv['status'] !== 'confirmed' ? 'تەنها وەسڵی پەسەندکراو دەکرێت دەستکاری بکرێت' : null);
+    if ($refuse) {
+        $_SESSION['erp_flash'] = $refuse;
+        header('Location: ' . APP_URL . '/erp/purchase-invoices.php');
+        exit;
+    }
+    $canCreate = true;   // the save button, here meaning «update»
+    $pageTitle = 'دەستکاری وەسڵی کڕین';
+    $breadcrumb[1] = ['title' => 'وەسڵەکانی کڕین', 'url' => APP_URL . '/erp/purchase-invoices.php'];
+    $breadcrumb[] = ['title' => $editInv['invoice_number']];
+}
+
 // A delivery often contains items the catalogue has never seen. Letting the
 // operator define them in the grid keeps the invoice open instead of forcing a
 // trip to the product screen and back with a half-typed grid.
 $canNewProd = $canCreate && erp_can('erp.products.create');
-$units = $categories = $brands = [];
+$categories = $types = [];
 if ($canNewProd) {
-    $db         = Database::getInstance();
-    $brands = $db->fetchAll("SELECT id, name FROM erp_brands WHERE is_active = 1 ORDER BY name");
-    $units      = $db->fetchAll("SELECT id, code, name FROM erp_units WHERE is_active = 1 ORDER BY id");
-    $categories = $db->fetchAll("SELECT id, name, parent_id FROM erp_categories WHERE is_active = 1 ORDER BY name");
+    $db = Database::getInstance();
+    // Groups in their set order, and each group's types.
+    $categories = $db->fetchAll("SELECT id, name FROM erp_categories WHERE is_active = 1 ORDER BY sort_order, name");
+    $types = $db->fetchAll("SELECT id, category_id, name FROM erp_product_types WHERE is_active = 1 ORDER BY sort_order, name");
+}
+$units = $brands = [];
+if ($canNewProd) {
+    $units = Database::getInstance()->fetchAll(
+        "SELECT id, code, name FROM erp_units WHERE is_active = 1 ORDER BY id"
+    );
+    $brands = Database::getInstance()->fetchAll(
+        "SELECT id, name FROM erp_brands WHERE is_active = 1 ORDER BY name"
+    );
 }
 
 $customCSS = <<<CSS
@@ -64,7 +93,9 @@ $customCSS = <<<CSS
 .till-scan input{flex:1;height:42px;font-size:17px;padding:6px 12px;border:0;border-radius:6px;direction:ltr;font-weight:600}
 .till-scan .hint{color:#cfe3f7;font-size:12px;white-space:nowrap}
 .till-grid{background:#fff;border:1px solid #e0e0e0;border-radius:8px;overflow:auto;min-height:260px;max-height:52vh}
-table.tg{width:100%;min-width:1540px;border-collapse:collapse;font-size:13px}
+table.tg{width:100%;min-width:1520px;border-collapse:collapse;font-size:13px}
+table.tg input[data-f="barcode"]{font-variant-numeric:tabular-nums;letter-spacing:.3px}
+table.tg tr.row-blank input[data-f="barcode"]{background:#f3f8fd}
 table.tg thead th{position:sticky;top:0;background:#eef2f5;border-bottom:2px solid #c8d3da;padding:7px 8px;font-size:12px;font-weight:600;text-align:right;z-index:1;white-space:nowrap}
 table.tg td{border-bottom:1px solid #f0f0f0;border-left:1px solid #f5f5f5;padding:0;position:relative}
 table.tg tr.sel td{background:#e8f4fd}
@@ -76,7 +107,8 @@ table.tg input:focus,table.tg select:focus{background:#fff8dc;outline:2px solid 
 table.tg input[readonly]{color:#78909c}
 table.tg input[data-f="name"]{font-weight:600;color:#263238}
 table.tg tr.row-blank input[data-f="name"]{font-weight:400}
-table.tg input.tg-newval{color:#e65100;font-weight:600}
+.tg-gt{display:inline-block;margin:0 8px;padding:1px 8px;border-radius:999px;background:#e0f2fe;color:#0369a1;font-size:11.5px;font-weight:700;white-space:nowrap}
+.tg-gt.grp{background:#eef2f5;color:#37474f}
 .tg-new{position:absolute;top:50%;left:6px;transform:translateY(-50%);background:#f9a825;color:#fff;font-size:10px;font-weight:700;border-radius:8px;padding:1px 7px;pointer-events:none}
 .tg-n{text-align:left;direction:ltr;font-variant-numeric:tabular-nums}
 .tg-del{width:34px;text-align:center;color:#c62828;cursor:pointer}
@@ -100,21 +132,36 @@ table.tg input.tg-newval{color:#e65100;font-weight:600}
 CSS;
 
 require_once __DIR__ . '/../includes/header.php';
+$selWh = (int)($editInv['warehouse_id'] ?? $defaultWh);
 ?>
+
+<?php if ($editInv): ?>
+<div class="alert alert-warning" style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
+    <i class="fas fa-pen-to-square"></i>
+    <div class="alert-content" style="flex:1">
+        دەستکاری وەسڵی کڕینی <b dir="ltr"><?= erp_esc($editInv['invoice_number']) ?></b> —
+        کاڵا کۆنەکان لە کۆگا دەردەهێنرێنەوە و نوێیەکان دادەبەزرێن، حسابی دابینکەریش ڕاست دەکرێتەوە. ژمارەی وەسڵ و کۆگا ناگۆڕێن.
+    </div>
+    <a class="btn btn-secondary btn-sm" href="<?= APP_URL ?>/erp/purchase-invoices.php">پاشگەزبوونەوە</a>
+</div>
+<?php endif; ?>
 
 <div class="till">
     <div class="till-head">
         <div style="position:relative">
             <label>دابینکەر <span style="opacity:.6">(F4)</span></label>
-            <div class="quick-field"><input class="form-control" id="supBox" autocomplete="off" placeholder="ناوی دابینکەر...">
-<?php if ($canCreate): ?><button type="button" class="quick-add" onclick="quickSupplier(this)" title="دابینکەری نوێ" aria-label="دابینکەری نوێ">+</button><?php endif; ?></div>
-            <input type="hidden" id="supId" value="0">
+            <div class="ds-head-pick">
+                <input class="form-control" id="supBox" readonly placeholder="دابینکەر هەڵنەبژێردراوە" title="بۆ گۆڕین کلیک بکە"
+                       value="<?= erp_esc($editInv['supplier_name'] ?? '') ?>">
+                <button type="button" class="ds-head-btn" onclick="DocStart.open()"><i class="fas fa-pen"></i> گۆڕین</button>
+            </div>
+            <input type="hidden" id="supId" value="<?= (int)($editInv['supplier_id'] ?? 0) ?>">
         </div>
         <div>
             <label>کۆگا</label>
-            <select class="form-control" id="whBox">
+            <select class="form-control" id="whBox" disabled title="کۆگا لە هەنگاوی دەستپێکردن دیاری دەکرێت">
                 <?php foreach ($warehouses as $w): ?>
-                <option value="<?= (int)$w['id'] ?>" <?= (int)$w['id'] === $defaultWh ? 'selected' : '' ?>>
+                <option value="<?= (int)$w['id'] ?>" <?= (int)$w['id'] === $selWh ? 'selected' : '' ?>>
                     <?= erp_esc($w['name']) ?>
                 </option>
                 <?php endforeach; ?>
@@ -122,21 +169,22 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <div>
             <label>ژمارەی وەسڵ</label>
-            <input class="form-control" id="invNo" value="<?= erp_esc($nextNumber) ?>" readonly dir="ltr">
+            <input class="form-control" id="invNo" value="<?= erp_esc($editInv['invoice_number'] ?? $nextNumber) ?>" readonly dir="ltr">
         </div>
         <div>
             <label>وەسڵی دابینکەر</label>
-            <input class="form-control" id="supInvNo" dir="ltr" placeholder="ئارەزوومەندانە">
+            <input class="form-control" id="supInvNo" dir="ltr" placeholder="ئارەزوومەندانە"
+                   value="<?= erp_esc($editInv['supplier_invoice_no'] ?? '') ?>">
         </div>
         <div>
             <label>بەروار</label>
-            <input class="form-control" type="date" id="invDate" value="<?= date('Y-m-d') ?>">
+            <input class="form-control" type="date" id="invDate" value="<?= erp_esc($editInv['invoice_date'] ?? date('Y-m-d')) ?>">
         </div>
     </div>
 
     <div class="till-scan">
         <i class="fas fa-barcode" style="color:#fff;font-size:19px"></i>
-        <input id="scanBox" placeholder="سکانی بارکۆد..." autocomplete="off">
+        <input id="scanBox" placeholder="بارکۆد سکان بکە یان ناوی کاڵا بنووسە..." autocomplete="off">
         <span class="hint"><kbd>F2</kbd> سکان &nbsp; <kbd>F7</kbd> ڕیزی نوێ &nbsp; <kbd>Ctrl+S</kbd> پاشەکەوت</span>
     </div>
 
@@ -145,18 +193,16 @@ require_once __DIR__ . '/../includes/header.php';
             <thead>
                 <tr>
                     <th class="tg-idx">#</th>
-                    <th style="min-width:220px">کاڵا</th>
-                    <th style="width:125px">بارکۆد</th>
-                    <th style="width:120px">پۆل</th>
-                    <th style="width:120px">جۆر</th>
-                    <th style="min-width:140px">براند</th><th style="width:90px">یەکە</th>
-                    <th style="width:72px">بڕ</th>
-                    <th style="width:98px">نرخی کڕین</th>
-                    <th style="width:98px">نرخی فرۆشتن</th>
-                    <th style="width:82px">داشکاندن</th>
-                    <th style="width:100px">کۆ</th>
-                    <th style="width:90px">بەچ</th>
-                    <th style="width:122px">بەسەرچوون</th>
+                    <th style="width:140px">بارکۆد</th>
+                    <th style="min-width:230px">کاڵا</th>
+                    <th style="min-width:130px">گرووپ</th><th style="min-width:120px">جۆر</th><th style="min-width:120px">براند</th><th style="width:95px">یەکە</th>
+                    <th style="width:75px">بڕ</th>
+                    <th style="width:100px">نرخی کڕین</th>
+                    <th style="width:100px">نرخی فرۆشتن</th>
+                    <th style="width:85px">داشکاندن</th>
+                    <th style="width:105px">کۆ</th>
+                    <th style="width:95px">بەچ</th>
+                    <th style="width:125px">بەسەرچوون</th>
                     <th class="tg-del"></th>
                 </tr>
             </thead>
@@ -166,11 +212,9 @@ require_once __DIR__ . '/../includes/header.php';
 
     <div class="till-foot">
         <div class="till-keys">
-            لە خانەی <b>کاڵا</b> ناو یان بارکۆد بنووسە و <kbd>Enter</kbd> لێبدە.
+            لە خانەی <b>بارکۆد</b> سکان بکە و <kbd>Enter</kbd> لێبدە — یان بە بەتاڵی <kbd>Enter</kbd> لێبدە و لە خانەی <b>کاڵا</b> ناوەکەی بنووسە.
             <?php if ($canNewProd): ?>
-            ئەگەر کاڵاکە نەبوو، ڕیزەکە دەبێتە <b style="color:#f9a825">نوێ</b> و خانەکانی (بارکۆد، پۆل، جۆر، یەکە، نرخ) پڕدەکەیتەوە —
-            لە کاتی پاشەکەوتدا کاڵاکە دروست دەکرێت و دەچێتە کۆگا.
-            پۆل/جۆرێک کە <b style="color:#e65100">پرتەقاڵی</b> بێت نوێیە و دروست دەکرێت.
+            ئەگەر کاڵاکە نەبوو، ڕیزەکە دەبێتە <b style="color:#f9a825">نوێ</b>: ناو، گرووپ، جۆر، براند و <b>یەکە</b> پڕبکەرەوە — لە کاتی پاشەکەوتدا کاڵاکە دروست دەکرێت و دەچێتە کۆگا.
             <?php endif; ?>
             <br>
             <kbd>Enter</kbd> خانەی داهاتوو &nbsp;·&nbsp;
@@ -189,22 +233,43 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="till-tot">
             <div class="row"><span>کۆی گشتی</span><span class="v" id="tSub">0</span></div>
             <div class="row"><span>داشکاندن</span>
-                <input id="tDisc" type="number" min="0" step="1" value="0"></div>
+                <input id="tDisc" type="number" min="0" step="1" value="<?= (float)($editInv['discount_amount'] ?? 0) ?>"></div>
             <div class="row grand"><span>کۆی کۆتایی</span><span class="v" id="tGrand">0</span></div>
             <div class="row"><span>پارەی دراو</span>
-                <input id="tPaid" type="number" min="0" step="1" value="0"></div>
+                <input id="tPaid" type="number" min="0" step="1" value="<?= (float)($editInv['paid_amount'] ?? 0) ?>"></div>
             <div class="row"><span>ماوە بۆ دابینکەر</span><span class="v remain-zero" id="tRemain">0</span></div>
             <div class="till-actions">
                 <?php if ($canCreate): ?>
                 <button class="btn btn-primary" id="btnSave" onclick="purSave()">
-                    <i class="fas fa-save"></i> پاشەکەوت
+                    <i class="fas fa-save"></i> <?= $editInv ? 'نوێکردنەوەی وەسڵ' : 'پاشەکەوت' ?>
                 </button>
                 <?php endif; ?>
+                <?php if (!$editInv): ?>
                 <button class="btn btn-subtle" onclick="purReset()"><i class="fas fa-eraser"></i></button>
+                <?php endif; ?>
             </div>
         </div>
     </div>
 </div>
+
+<?php
+$docStart = [
+    'kind'        => 'supplier',
+    'api'         => APP_URL . '/erp/api/parties.php',
+    'title'       => $editInv ? 'دەستکاری وەسڵی کڕین' : 'کڕینی نوێ',
+    'icon'        => 'fa-truck',
+    'accent'      => '#1565c0',
+    'warehouses'  => $warehouses,
+    'defaultWh'   => $defaultWh,
+    'walkIn'      => null,
+    'canQuickAdd' => $canCreate,
+    'autoOpen'    => !$editInv,
+    'party'       => $editInv ? ['id' => (int)$editInv['supplier_id'], 'name' => $editInv['supplier_name']] : null,
+    'warehouseId' => $selWh,
+    'lockRoot'    => '.till',
+];
+require __DIR__ . '/_doc_start.php';
+?>
 
 <script src="<?= asset_url('assets/js/erp-common.js') ?>"></script>
 
@@ -212,58 +277,93 @@ require_once __DIR__ . '/../includes/header.php';
 $apiP = APP_URL . '/erp/api/products.php';
 $apiC = APP_URL . '/erp/api/parties.php';
 $apiU = APP_URL . '/erp/api/purchases.php';
-$jsFlags      = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 $jsCanCost    = $canCost ? 'true' : 'false';
 $jsCanNewProd = $canNewProd ? 'true' : 'false';
 $jsUnits      = json_encode(
     array_map(fn($u) => ['id' => (int)$u['id'], 'code' => $u['code'], 'name' => $u['name']], $units),
-    $jsFlags
-);
-$jsCats       = json_encode(
-    array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name'], 'parent_id' => (int)$c['parent_id']], $categories),
-    $jsFlags
+    JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
 );
 
-$jsBrands = json_encode($brands, $jsFlags);
+$jsCategories = json_encode($categories, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+$jsTypes = json_encode(array_map(fn($x) => ['id' => (int)$x['id'], 'cat' => (int)$x['category_id'], 'name' => $x['name']], $types), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+$jsBrands = json_encode(array_map(fn($b) => ['id' => (int)$b['id'], 'name' => $b['name']], $brands), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 $jsCanCreate = $canCreate ? 'true' : 'false';
+$jsEditId    = (int)($editInv['id'] ?? 0);
+$appUrl      = APP_URL;
+
+// Edit mode: the stored lines in the grid's own row shape, with each product's
+// group, type, brand and unit for the read-only cells.
+$jsEditRows = '[]';
+if ($editInv) {
+    $meta = [];
+    $ids  = array_unique(array_map(fn($it) => (int)$it['product_id'], $editInv['items']));
+    if ($ids) {
+        foreach (Database::getInstance()->fetchAll(
+            "SELECT p.id, p.unit_id, p.category_id, p.type_id, p.brand_id, p.sale_price,
+                    u.code AS unit_code, c.name AS category_name, t.name AS type_name, b.name AS brand_name
+             FROM erp_products p
+             LEFT JOIN erp_units u ON u.id = p.unit_id
+             LEFT JOIN erp_categories c ON c.id = p.category_id
+             LEFT JOIN erp_product_types t ON t.id = p.type_id
+             LEFT JOIN erp_brands b ON b.id = p.brand_id
+             WHERE p.id IN (" . implode(',', $ids) . ")"
+        ) as $m) {
+            $meta[(int)$m['id']] = $m;
+        }
+    }
+    $pre = [];
+    foreach ($editInv['items'] as $it) {
+        $m = $meta[(int)$it['product_id']] ?? [];
+        $pre[] = [
+            'product_id'      => (int)$it['product_id'],
+            'is_new'          => false,
+            'name'            => $it['product_name'],
+            'barcode'         => (string)($it['barcode'] ?? ''),
+            'category_id'     => (int)($m['category_id'] ?? 0),
+            'type_id'         => (int)($m['type_id'] ?? 0),
+            'brand_id'        => (int)($m['brand_id'] ?? 0),
+            'unit_id'         => (int)($it['unit_id'] ?? $m['unit_id'] ?? 0),
+            'unit_code'       => (string)($m['unit_code'] ?? ''),
+            'unit_factor'     => (float)($it['unit_factor'] ?: 1),
+            'category_name'   => (string)($m['category_name'] ?? ''),
+            'type_name'       => (string)($m['type_name'] ?? ''),
+            'brand_name'      => (string)($m['brand_name'] ?? ''),
+            'quantity'        => (float)$it['quantity'],
+            'unit_price'      => (float)$it['unit_price'],
+            'sale_price'      => (float)($m['sale_price'] ?? 0),
+            'discount_amount' => (float)$it['discount_amount'],
+            'batch_number'    => (string)($it['batch_number'] ?? ''),
+            'expiry_date'     => (string)($it['expiry_date'] ?? ''),
+        ];
+    }
+    $jsEditRows = json_encode($pre, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+}
+
 $customJS = <<<JS
-const API_P = '{$apiP}', API_C = '{$apiC}', API_U = '{$apiU}';
+const API_P = '{$apiP}', API_C = '{$apiC}', API_U = '{$apiU}', APP = '{$appUrl}';
+const EDIT_ID = {$jsEditId};
+const EDIT_ROWS = {$jsEditRows};
 const CAN_COST = {$jsCanCost};
 const CAN_NEW_PROD = {$jsCanNewProd};
 const UNITS = {$jsUnits};
-const CATS = {$jsCats};
-const BRANDS = {$jsBrands}, CATEGORIES = CATS;
+const CATEGORIES = {$jsCategories};
+const TYPES = {$jsTypes};
+const BRANDS = {$jsBrands};
+// A new item's unit starts empty: the operator picks it, it is never guessed.
 const CAN_CREATE = {$jsCanCreate};
 const U = window.ErpUI;
 let rows = [], selRow = -1, supTimer = null, acTimer = null, acReq = 0, saving = false;
 
 const msg = t => { document.getElementById('tillMsg').textContent = t || ''; };
 
-/* ---------- پۆل / جۆر lookups (client side: the category table is small) ---------- */
-const norm = s => String(s || '').trim().toLowerCase();
-const classList = () => CATS.filter(c => !c.parent_id);
-const findClass = name => classList().find(c => norm(c.name) === norm(name));
-const childrenOf = pid => CATS.filter(c => c.parent_id === Number(pid));
-
-function catOptions(i, f) {
-    if (f === 'class_name') return classList();
-    const cls = findClass(rows[i].class_name);
-    return cls ? childrenOf(cls.id) : [];
-}
-/** True when the typed پۆل/جۆر does not exist yet and will be created on save. */
-function catIsNewVal(i, f) {
-    const q = norm(rows[i][f]);
-    return q !== '' && !catOptions(i, f).some(c => norm(c.name) === q);
-}
-
 /* ---------- row model ---------- */
 // Three kinds of row: 'old' is linked to a catalogue product, 'new' is a
 // product that will be created on save, 'blank' is not resolved yet (the
 // trailing entry row, or one whose name is still being typed).
 const blankRow = () => ({
-    product_id: 0, is_new: false, name: '', barcode: '', class_name: '', category_name: '',
-    brand_id: 0, unit_id: 0, unit_code: '', quantity: 1, unit_price: 0, sale_price: 0, discount_amount: 0,
-    batch_number: '', expiry_date: ''
+    product_id: 0, is_new: false, name: '', barcode: '', category_id: 0, type_id: 0, brand_id: 0, unit_id: 0, unit_code: '',
+    category_name: '', type_name: '', brand_name: '',
+    quantity: 1, unit_price: 0, sale_price: 0, discount_amount: 0, batch_number: '', expiry_date: '', unit_factor: 1
 });
 const kind   = r => r.product_id > 0 ? 'old' : (r.is_new ? 'new' : 'blank');
 const filled = () => rows.filter(r => kind(r) !== 'blank');
@@ -287,12 +387,14 @@ function fillFromProduct(r, p) {
     r.barcode    = p.barcode || '';
     r.unit_id    = Number(p.unit_id || 0);
     r.unit_code  = p.unit_code || '';
+    r.category_id   = Number(p.category_id || 0);
+    r.type_id       = Number(p.type_id || 0);
+    r.category_name = p.category_name || '';
+    r.type_name     = p.type_name || '';
+    r.brand_id      = Number(p.brand_id || 0);
+    r.brand_name    = p.brand_name || '';
     r.unit_price = Number(p.purchase_price || 0);
     r.sale_price = Number(p.sale_price || 0);
-    // A product filed under a sub-category shows parent as پۆل and itself as
-    // جۆر; one filed directly under a top-level category has only a پۆل.
-    if (p.category_parent_id) { r.class_name = p.category_parent_name || ''; r.category_name = p.category_name || ''; }
-    else { r.class_name = p.category_name || ''; r.category_name = ''; }
     if (!(Number(r.quantity) > 0)) r.quantity = 1;
 }
 
@@ -312,17 +414,41 @@ function pick(i, p) {
     render(); selectRow(i); focusCell(i, 'quantity'); msg('');
 }
 
-function markNew(i, seed) {
+/**
+ * Turn row i into a product to create. asBarcode: the seed came from the
+ * barcode cell; otherwise a digit run is still read as a scanned barcode and
+ * anything else as the name. The unit is left empty for the operator to pick.
+ */
+function markNew(i, seed, asBarcode) {
     seed = String(seed || '').trim();
     if (!CAN_NEW_PROD) { msg('کاڵا نەدۆزرایەوە: ' + seed); return; }
     const r = rows[i];
     r.product_id = 0; r.is_new = true;
-    // A scanner produces a digit run; anything else was typed as a name.
-    if (/^\d{4,}\$/.test(seed)) { r.barcode = seed; r.name = ''; }
+    if (asBarcode || /^\d{4,}\$/.test(seed)) { r.barcode = seed; r.name = ''; }
     else { r.name = seed; }
-    if (!r.unit_id && UNITS.length) r.unit_id = UNITS[0].id;
     render(); selectRow(i); msg('');
     focusCell(i, r.name ? 'barcode' : 'name');
+}
+
+/** Enter in the entry row's barcode cell: an existing product, or a new one with this barcode. */
+async function barcodeIn(i, code) {
+    if (needStart()) return;
+    const d = await U.getJson(API_P + '?action=barcode&code=' + encodeURIComponent(code) + '&warehouse_id=' + document.getElementById('whBox').value);
+    const r = rows[i];
+    if (!r || kind(r) !== 'blank' || String(r.barcode || '').trim() !== code) return;
+    if (d && d.ok && d.product) {
+        // Already on the invoice: count that line up instead of adding a second one.
+        const at = rows.findIndex((x, k) => k !== i && x.product_id === Number(d.product.id));
+        if (at >= 0) {
+            rows[at].quantity = Number(rows[at].quantity) + 1;
+            r.barcode = '';
+            render(); selectRow(at); focusCell(at, 'quantity');
+            return;
+        }
+        pick(i, d.product);
+        return;
+    }
+    markNew(i, code, true);
 }
 
 /* ---------- grid view ---------- */
@@ -336,15 +462,6 @@ function txtCell(i, f, v, ro) {
     return '<td><input dir="ltr" value="' + U.esc(v) + '" data-i="' + i + '" data-f="' + f + '"'
          + (ro ? RO : ' oninput="cellTxt(this)"') + ' autocomplete="off"></td>';
 }
-function catCell(i, f, v, editable) {
-    if (!editable) return '<td><input value="' + U.esc(v) + '"' + RO + '></td>';
-    const label = f === 'class_name' ? 'پۆلی نوێ' : 'جۆری نوێ';
-    return '<td><div class="quick-field"><input value="' + U.esc(v) + '" data-i="' + i + '" data-f="' + f + '" autocomplete="off"'
-         + (catIsNewVal(i, f) ? ' class="tg-newval"' : '')
-         + ' placeholder="' + (f === 'class_name' ? 'پۆل...' : 'جۆر...') + '"'
-         + ' oninput="catSuggest(this, false)" onclick="catClick(this)">'
-         + '<button type="button" class="quick-add" title="' + label + '" aria-label="' + label + '" onclick="event.stopPropagation();quickCategory(' + i + ',\'' + f + '\',this)">+</button></div></td>';
-}
 function unitCell(i, r, editable) {
     if (!editable) return '<td><input value="' + U.esc(r.unit_code) + '"' + RO + '></td>';
     return '<td><select data-i="' + i + '" data-f="unit_id" onchange="cellSel(this)">'
@@ -355,12 +472,91 @@ function unitCell(i, r, editable) {
 }
 
 function classificationCell(i, r, field, list, editable) {
-    if (!editable) return '<td></td>';
-    const label = field === 'brand_id' ? 'براندی نوێ' : 'جۆری نوێ';
+    if (!editable) {
+        // an existing item: show its group, read-only
+        return field === 'category_id' && r.category_name
+            ? '<td><span class="tg-gt grp">' + U.esc(r.category_name) + '</span></td>' : '<td></td>';
+    }
+    const label = 'گرووپی نوێ';
     return '<td><div class="quick-field"><select data-i="' + i + '" data-f="' + field + '" onchange="cellSel(this)">'
         + '<option value="0">—</option>'
         + list.map(x => '<option value="' + Number(x.id) + '"' + (Number(r[field]) === Number(x.id) ? ' selected' : '') + '>' + U.esc(x.name) + '</option>').join('')
         + '</select><button type="button" class="quick-add" title="' + label + '" aria-label="' + label + '" onclick="event.stopPropagation();quickClassification(' + i + ',\'' + field + '\',this)">+</button></div></td>';
+}
+/** The type of a row: read-only for an existing item, the group's types for a new one. */
+function typeCell(i, r, editable) {
+    if (!editable) return '<td>' + (r.type_name ? '<span class="tg-gt">' + U.esc(r.type_name) + '</span>' : '') + '</td>';
+    const list = TYPES.filter(x => x.cat === Number(r.category_id));
+    const label = 'جۆری نوێ';
+    const add = '<button type="button" class="quick-add" title="' + label + '" aria-label="' + label + '" onclick="event.stopPropagation();quickType(' + i + ',this)">+</button>';
+    if (!list.length) return '<td><div class="quick-field"><input value="" placeholder="—"' + RO + '>' + add + '</div></td>';
+    return '<td><div class="quick-field"><select data-i="' + i + '" data-f="type_id" onchange="cellSel(this)">'
+        + '<option value="0">—</option>'
+        + list.map(x => '<option value="' + x.id + '"' + (Number(r.type_id) === x.id ? ' selected' : '') + '>' + U.esc(x.name) + '</option>').join('')
+        + '</select>' + add + '</div></td>';
+}
+/** A new type inside the row's group — a type always belongs to one group. */
+async function quickType(i, btn) {
+    const r = rows[i];
+    if (saving || !CAN_NEW_PROD || !r || kind(r) !== 'new') return;
+    const catId = Number(r.category_id) || 0;
+    if (!catId) {
+        // the message line sits under the grid and is easy to miss — say it here
+        const t = 'سەرەتا گرووپ هەڵبژێرە، پاشان جۆری نوێ زیاد بکە';
+        if (typeof showToast === 'function') showToast('warning', t); else alert(t);
+        msg(t);
+        const g = cellEl(i, 'category_id');
+        if (g) { g.focus(); try { g.showPicker(); } catch (e) {} }
+        return;
+    }
+    const name = prompt('ناوی جۆری نوێ (نموونە: Composite):');
+    if (!name || !name.trim()) return;
+    btn.disabled = true;
+    try {
+        const fd = new FormData();
+        fd.set('action', 'quick_type'); fd.set('category_id', catId); fd.set('name', name.trim());
+        const d = await postForm(API_P, fd);
+        if (!d || !d.ok) {
+            const t = (d && d.error) || 'هەڵە';
+            if (typeof showToast === 'function') showToast('error', t); else alert(t);
+            msg(t);
+            return;
+        }
+        if (!TYPES.some(x => x.id === Number(d.id))) TYPES.push({ id: Number(d.id), cat: catId, name: d.name });
+        if (rows.includes(r) && kind(r) === 'new' && Number(r.category_id) === catId) r.type_id = Number(d.id);
+        render();
+        const index = rows.indexOf(r);
+        if (index >= 0) focusCell(index, 'type_id');
+        msg('');
+    } finally { btn.disabled = false; }
+}
+/** The brand: read-only for an existing item, a pick (or a new one) for a new item. */
+function brandCell(i, r, editable) {
+    if (!editable) return '<td>' + (r.brand_name ? '<span class="tg-gt grp">' + U.esc(r.brand_name) + '</span>' : '') + '</td>';
+    const label = 'براندی نوێ';
+    return '<td><div class="quick-field"><select data-i="' + i + '" data-f="brand_id" onchange="cellSel(this)">'
+        + '<option value="0">—</option>'
+        + BRANDS.map(b => '<option value="' + b.id + '"' + (Number(r.brand_id) === b.id ? ' selected' : '') + '>' + U.esc(b.name) + '</option>').join('')
+        + '</select><button type="button" class="quick-add" title="' + label + '" aria-label="' + label + '" onclick="event.stopPropagation();quickBrand(' + i + ',this)">+</button></div></td>';
+}
+async function quickBrand(i, btn) {
+    const r = rows[i];
+    if (saving || !CAN_NEW_PROD || !r || kind(r) !== 'new') return;
+    const name = prompt('ناوی براندی نوێ:');
+    if (!name || !name.trim()) return;
+    btn.disabled = true;
+    try {
+        const fd = new FormData();
+        fd.set('action', 'quick_brand'); fd.set('name', name.trim());
+        const d = await postForm(API_P, fd);
+        if (!d || !d.ok) { msg((d && d.error) || 'هەڵە'); return; }
+        if (!BRANDS.some(b => b.id === Number(d.id))) BRANDS.push({ id: Number(d.id), name: d.name });
+        if (rows.includes(r) && kind(r) === 'new') r.brand_id = Number(d.id);
+        render();
+        const index = rows.indexOf(r);
+        if (index >= 0) focusCell(index, 'brand_id');
+        msg('');
+    } finally { btn.disabled = false; }
 }
 async function postForm(url, fd) {
     try {
@@ -371,17 +567,15 @@ async function postForm(url, fd) {
 async function quickClassification(i, field, btn) {
     const r = rows[i];
     if (saving || !CAN_NEW_PROD || !r || kind(r) !== 'new') return;
-    const isBrand = field === 'brand_id';
-    const name = prompt(isBrand ? 'ناوی براندی نوێ:' : 'ناوی جۆری نوێ:');
+    const name = prompt('ناوی گرووپی نوێ:');
     if (!name || !name.trim()) return;
     btn.disabled = true;
     try {
         const fd = new FormData();
-        fd.set('action', isBrand ? 'quick_brand' : 'quick_category'); fd.set('name', name.trim());
+        fd.set('action', 'quick_category'); fd.set('name', name.trim());
         const d = await postForm(API_P, fd);
         if (!d || !d.ok) { msg((d && d.error) || 'هەڵە'); return; }
-        const list = isBrand ? BRANDS : CATEGORIES;
-        if (!list.some(x => Number(x.id) === Number(d.id))) list.push({ id: Number(d.id), name: d.name });
+        if (!CATEGORIES.some(x => Number(x.id) === Number(d.id))) CATEGORIES.push({ id: Number(d.id), name: d.name });
         if (rows.includes(r) && kind(r) === 'new') r[field] = Number(d.id);
         render();
         const index = rows.indexOf(r);
@@ -389,59 +583,51 @@ async function quickClassification(i, field, btn) {
         msg('');
     } finally { btn.disabled = false; }
 }
-async function quickSupplier(btn) {
-    if (saving || !CAN_CREATE) return;
-    clearTimeout(supTimer); U.hideAC();
-    const name = prompt('ناوی دابینکەری نوێ:', document.getElementById('supBox').value.trim());
-    if (!name || !name.trim()) return;
-    btn.disabled = true;
-    try {
-        const fd = new FormData();
-        fd.set('action', 'save'); fd.set('kind', 'supplier'); fd.set('name', name.trim()); fd.set('is_active', '1');
-        const d = await postForm(API_C, fd);
-        if (!d || !d.ok) { msg((d && d.error) || 'هەڵە'); return; }
-        document.getElementById('supId').value = d.id;
-        document.getElementById('supBox').value = d.name;
-        msg(''); focusCell(rows.length - 1, 'name');
-    } finally { btn.disabled = false; }
+/* ---------- start step (erp/_doc_start.php) ---------- */
+// Supplier and warehouse are chosen before the first line (a new supplier is
+// created right there too). The grid carries no stock figures, so the
+// warehouse may still be changed later from the same dialog.
+const DS = window.DocStart;
+// Editing keeps the invoice in the warehouse its goods went into.
+if (EDIT_ID > 0) DS.canChangeWarehouse = () => false;
+DS.onApply(({ party, warehouseId }) => {
+    document.getElementById('supId').value = party.id;
+    document.getElementById('supBox').value = party.name;
+    document.getElementById('whBox').value = warehouseId;
+    msg('');
+    selectRow(rows.length - 1);
+    // Deferred, so the start button's click has finished before the grid takes
+    // focus. The entry row starts at its barcode cell.
+    setTimeout(() => focusCell(rows.length - 1, 'barcode'), 0);
+});
+function needStart() {
+    if (DS.ready && Number(document.getElementById('supId').value) > 0) return false;
+    DS.open();
+    return true;
 }
-async function quickCategory(i, field, btn) {
-    const r = rows[i];
-    if (saving || !CAN_NEW_PROD || !r || kind(r) !== 'new') return;
-    if (field === 'category_name' && !r.class_name.trim()) {
-        stopAt(i, 'class_name', 'بۆ دانانی جۆر، پۆل پێویستە'); return;
-    }
-    U.hideAC();
-    const name = prompt(field === 'class_name' ? 'ناوی پۆلی نوێ:' : 'ناوی جۆری نوێ:');
-    if (!name || !name.trim()) return;
-    btn.disabled = true;
-    try {
-        const parentId = field === 'category_name' ? await ensureCategory(r.class_name, 0) : 0;
-        await ensureCategory(name.trim(), parentId);
-        if (rows.includes(r) && kind(r) === 'new') r[field] = name.trim();
-        render();
-        const index = rows.indexOf(r);
-        if (index >= 0) focusCell(index, field);
-        msg('');
-    } catch (e) { msg(e.message); }
-    finally { btn.disabled = false; }
-}
+document.getElementById('supBox').addEventListener('click', () => DS.open());
+
 function render() {
     ensureBlank();
     let h = '';
     rows.forEach((r, i) => {
         const k = kind(r), isNew = k === 'new';
+        // The barcode comes first: the entry row is scanned into, and a new
+        // product's barcode is its first field.
+        const barcode = k === 'old' ? txtCell(i, 'barcode', r.barcode, true)
+            : '<td><input dir="ltr" value="' + U.esc(r.barcode) + '" data-i="' + i + '" data-f="barcode" autocomplete="off"'
+              + (k === 'blank' ? ' placeholder="بارکۆد سکان بکە..."' : '') + ' oninput="cellTxt(this)"></td>';
         h += '<tr class="row-' + k + (i === selRow ? ' sel' : '') + '" onclick="selectRow(' + i + ')">'
            + '<td class="tg-idx">' + (k === 'blank' ? '<i class="fas fa-plus" style="opacity:.35"></i>' : (i + 1)) + '</td>'
+           + barcode
            + '<td><input value="' + U.esc(r.name) + '" data-i="' + i + '" data-f="name" autocomplete="off"'
-           +   ' placeholder="' + (k === 'blank' ? 'ناو یان بارکۆدی کاڵا بنووسە...' : (isNew ? 'ناوی کاڵای نوێ...' : '')) + '"'
+           +   ' placeholder="' + (k === 'blank' ? 'یان ناوی کاڵا بنووسە...' : (isNew ? 'ناوی کاڵای نوێ...' : '')) + '"'
            +   ' oninput="nameIn(this)">'
            +   (isNew ? '<span class="tg-new">نوێ</span>' : '') + '</td>';
-        if (k === 'blank') { h += '<td colspan="13"></td></tr>'; return; }
-        h += txtCell(i, 'barcode', r.barcode, !isNew)
-           + catCell(i, 'class_name', r.class_name, isNew)
-           + catCell(i, 'category_name', r.category_name, isNew)
-           + classificationCell(i, r, 'brand_id', BRANDS, isNew)
+        if (k === 'blank') { h += '<td colspan="12"></td></tr>'; return; }
+        h += classificationCell(i, r, 'category_id', CATEGORIES, isNew)
+           + typeCell(i, r, isNew)
+           + brandCell(i, r, isNew)
            + unitCell(i, r, isNew)
            + numCell(i, 'quantity', r.quantity, false)
            + numCell(i, 'unit_price', r.unit_price, !(CAN_COST || isNew))
@@ -467,43 +653,19 @@ function cellIn(el) {
     totals();
 }
 function cellTxt(el) { rows[Number(el.dataset.i)][el.dataset.f] = el.value; }
-function cellSel(el) { rows[Number(el.dataset.i)][el.dataset.f] = Number(el.value); }
-
-/**
- * پۆل / جۆر cell: typing filters the list, a click shows all of it. Picking
- * fills the cell and moves on. A name not in the list is kept as typed and
- * created on save.
- */
-function catSuggest(el, all) {
-    const i = Number(el.dataset.i), f = el.dataset.f;
-    rows[i][f] = el.value;
-    el.classList.toggle('tg-newval', catIsNewVal(i, f));
-    if (f === 'class_name') {
-        const c = cellEl(i, 'category_name');
-        if (c) c.classList.toggle('tg-newval', catIsNewVal(i, 'category_name'));
+function cellSel(el) {
+    const i = Number(el.dataset.i), f = el.dataset.f, r = rows[i];
+    r[f] = Number(el.value);
+    if (f === 'category_id') {
+        // a new group: its own list of types, so redraw the row's type cell
+        if (!TYPES.some(x => x.id === Number(r.type_id) && x.cat === r.category_id)) r.type_id = 0;
+        render(); selectRow(i); focusCell(i, 'category_id');
     }
-    const q = norm(el.value);
-    const opts = catOptions(i, f);
-    const hits = (all ? opts : opts.filter(c => norm(c.name).includes(q))).slice(0, 50);
-    if ((!all && !q) || !hits.length) { U.hideAC(); return; }
-    U.showAC(el, hits.map(c => ({ label: c.name, data: c })), c => {
-        rows[i][f] = c.name;
-        const cur = cellEl(i, f);
-        if (cur) { cur.value = c.name; cur.classList.remove('tg-newval'); }
-        if (f === 'class_name') {
-            const sub = cellEl(i, 'category_name');
-            if (sub) sub.classList.toggle('tg-newval', catIsNewVal(i, 'category_name'));
-        }
-        nextCell(i, f);
-    });
 }
-
-// Deferred: erp-common.js closes any open list on document click, and this
-// same click is still bubbling towards that handler.
-function catClick(el) { setTimeout(() => catSuggest(el, true), 0); }
 
 function nameIn(el) {
     const i = Number(el.dataset.i), r = rows[i];
+    if (needStart()) { el.value = r.name; return; }
     r.name = el.value;
     if (r.product_id > 0) {
         // Retyping a picked product's name detaches it: the row must be
@@ -513,7 +675,7 @@ function nameIn(el) {
     }
     if (r.is_new) return;   // just naming the new product, nothing to look up
     clearTimeout(acTimer);
-    if (!el.value.trim()) { U.hideAC(); return; }
+    if (!el.value.trim()) { browse(i); return; }
     acTimer = setTimeout(() => lookup(i, false), 180);
 }
 
@@ -543,18 +705,50 @@ async function lookup(i, commit) {
     const cur = cellEl(i, 'name');
     if (!commit && document.activeElement !== cur) return;
 
-    const items = res.map(p => ({
-        label: p.name,
-        meta: 'کۆد ' + p.product_code + (p.barcode ? ' · ' + p.barcode : '')
-            + (p.category_name ? ' · ' + (p.category_parent_name ? p.category_parent_name + ' / ' : '') + p.category_name : '')
-            + ' · بەردەست ' + U.qf(p.stock) + ' · کڕین ' + U.nf(p.purchase_price),
-        data: p
-    }));
+    const items = res.map(acItem);
     if (CAN_NEW_PROD) {
-        items.push({ label: '+ کاڵای نوێ: ' + q, meta: 'دروستکردنی کاڵایەکی نوێ لەم ڕیزەدا', data: { isNewSeed: q } });
+        items.push({ label: '+ کاڵای نوێ: ' + q, meta: 'دروستکردنی کاڵایەکی نوێ لەم ڕیزەدا', data: { isNewSeed: q }, add: true });
     }
     if (!items.length) { msg('کاڵا نەدۆزرایەوە: ' + q); return; }
     U.showAC(cur, items, p => (p.isNewSeed !== undefined ? markNew(i, p.isNewSeed) : pick(i, p)));
+}
+
+/** One product as a row of the lookup lists: name, its group · type, code, stock, cost. */
+function acItem(p) {
+    return {
+        label: p.name,
+        tag: U.groupType(p),
+        meta: 'کۆد ' + p.product_code + (p.barcode ? ' · ' + p.barcode : '') + ' · بەردەست ' + U.qf(p.stock)
+            + ' · کڕین ' + U.nf(p.purchase_price),
+        data: p
+    };
+}
+
+/**
+ * Nothing typed yet in a row's product cell: the whole list, grouped as on the
+ * products page, to pick from without knowing the name. Nothing is
+ * highlighted, so Enter on an empty row still moves on to the payment.
+ */
+let browseCache = null;
+async function browse(i) {
+    const r = rows[i];
+    if (!r || kind(r) !== 'blank' || !cellEl(i, 'name') || cellEl(i, 'name').value.trim()) return;
+    const my = ++acReq;
+    if (!browseCache) {
+        const d = await U.getJson(API_P + '?action=search&browse=1&warehouse_id=' + document.getElementById('whBox').value);
+        browseCache = (d && d.ok) ? d.results : [];
+    }
+    const cur = cellEl(i, 'name');
+    if (my !== acReq || !cur || document.activeElement !== cur || cur.value.trim()) return;
+    const items = [];
+    let grp = null;
+    browseCache.forEach(p => {
+        const g = p.category_name || 'بێ گرووپ';
+        if (g !== grp) { items.push({ header: g }); grp = g; }
+        items.push(acItem(p));
+    });
+    if (!items.length) items.push({ empty: 'هێشتا هیچ کاڵایەک نییە — ناوی کاڵای نوێ بنووسە' });
+    U.showAC(cur, items, p => pick(i, p), { select: false });
 }
 
 function cellEl(i, f) { return document.querySelector('#tgBody [data-i="' + i + '"][data-f="' + f + '"]'); }
@@ -579,8 +773,10 @@ function delRow(i) {
 
 /** Enter walks only the cells that matter for the row, then drops to the next row. */
 function fieldOrder(r) {
-    const k = kind(r), o = ['name'];
-    if (k === 'new') o.push('barcode', 'class_name', 'category_name', 'brand_id', 'unit_id');
+    const k = kind(r), o = [];
+    // a new product: barcode first, then name, group, type, brand and unit
+    if (k === 'new') o.push('barcode', 'name', 'category_id', 'type_id', 'brand_id', 'unit_id');
+    else o.push('name');
     o.push('quantity');
     if (CAN_COST || k === 'new') o.push('unit_price');
     if (k === 'new') o.push('sale_price');
@@ -589,9 +785,13 @@ function fieldOrder(r) {
 }
 function nextCell(i, f) {
     const o = fieldOrder(rows[i]), at = o.indexOf(f);
-    if (at >= 0 && at < o.length - 1) { focusCell(i, o[at + 1]); return; }
+    // the next cell that can take input (a group with no types has none)
+    for (let n = at + 1; at >= 0 && n < o.length; n++) {
+        const el = cellEl(i, o[n]);
+        if (el && !el.readOnly) { focusCell(i, o[n]); return; }
+    }
     const j = Math.min(i + 1, rows.length - 1);
-    selectRow(j); focusCell(j, 'name');
+    selectRow(j); focusCell(j, kind(rows[j]) === 'blank' ? 'barcode' : 'name');
 }
 
 function totals() {
@@ -612,6 +812,7 @@ async function onScan() {
     const box = document.getElementById('scanBox');
     const code = box.value.trim();
     if (!code) return;
+    if (needStart()) return;
     const wh = document.getElementById('whBox').value;
     const d = await U.getJson(API_P + '?action=barcode&code=' + encodeURIComponent(code) + '&warehouse_id=' + wh);
     if (d && d.ok && d.product) { addRow(d.product); box.value = ''; msg(''); return; }
@@ -625,57 +826,31 @@ async function onScan() {
         return;
     }
     msg('');
-    U.showAC(box, s.results.map(p => ({
-        label: p.name,
-        meta: 'کۆد ' + p.product_code + ' · بەردەست ' + U.qf(p.stock) + ' · کڕین ' + U.nf(p.purchase_price),
-        data: p
-    })), p => { addRow(p); box.value = ''; });
+    U.showAC(box, s.results.map(acItem), p => { addRow(p); box.value = ''; });
 }
 
-async function openSupplierSearch() {
-    const box = document.getElementById('supBox');
-    const d = await U.getJson(API_C + '?action=search&kind=supplier&q=' + encodeURIComponent(box.value.trim()));
-    if (!d || !d.ok || !d.results.length) { msg('دابینکەر نەدۆزرایەوە'); return; }
-    msg('');
-    U.showAC(box, d.results.map(x => ({
-        label: x.name, meta: (x.phone || '') + ' · ' + x.code, data: x
-    })), x => {
-        document.getElementById('supId').value = x.id;
-        document.getElementById('supBox').value = x.name;
-        focusCell(rows.length - 1, 'name');
-    });
+/** The scan bar searches as you type a name; a scanner's digit run waits for its Enter. */
+let scanTimer = null, scanReq = 0;
+async function scanSuggest(q) {
+    const box = document.getElementById('scanBox');
+    if (needStart()) return;
+    const my = ++scanReq;
+    const d = await U.getJson(API_P + '?action=search&q=' + encodeURIComponent(q) + '&warehouse_id=' + document.getElementById('whBox').value);
+    if (my !== scanReq || box.value.trim() !== q || document.activeElement !== box) return;
+    const items = ((d && d.ok) ? d.results : []).map(acItem);
+    if (!items.length) {
+        items.push({ empty: CAN_NEW_PROD ? 'نەدۆزرایەوە — Enter لێبدە بۆ زیادکردنی وەک کاڵای نوێ' : 'هیچ کاڵایەک نەدۆزرایەوە' });
+    }
+    U.showAC(box, items, p => { addRow(p); box.value = ''; });
 }
 
 /* ---------- save ---------- */
 function stopAt(i, f, t) { msg(t); selectRow(i); focusCell(i, f); }
 
-/**
- * Id of the category with this name under parentId (0 = a پۆل), creating it
- * when it does not exist. Created rows are added to CATS so a second line
- * using the same new name reuses it instead of asking again.
- */
-async function ensureCategory(name, parentId) {
-    name = String(name || '').trim();
-    if (!name) return 0;
-    const hit = CATS.find(c => norm(c.name) === norm(name) && c.parent_id === Number(parentId || 0));
-    if (hit) return hit.id;
-    const fd = new FormData();
-    fd.set('action', 'quick_category');
-    fd.set('name', name);
-    if (parentId) fd.set('parent_id', parentId);
-    let d = null;
-    try {
-        const res = await fetch(API_P, { method: 'POST', body: fd });
-        d = await res.json();
-    } catch (e) { d = null; }
-    if (!d || !d.ok) throw new Error((d && d.error) || 'هەڵە لە دروستکردنی پۆل/جۆر');
-    CATS.push({ id: Number(d.id), name: name, parent_id: Number(parentId || 0) });
-    return Number(d.id);
-}
-
 async function purSave() {
     if (saving) return;
     msg('');
+    if (needStart()) { msg('سەرەتا دابینکەر و کۆگا دیاری بکە'); return; }
 
     // Validate every line before anything is written.
     const seenBarcode = {};
@@ -687,9 +862,7 @@ async function purSave() {
         }
         if (k === 'new') {
             if (!r.name.trim()) return stopAt(i, 'name', n + 'ناوی کاڵای نوێ پێویستە');
-            if (String(r.category_name).trim() && !String(r.class_name).trim()) {
-                return stopAt(i, 'class_name', n + 'بۆ دانانی جۆر، پۆل پێویستە');
-            }
+            if (!Number(r.unit_id)) return stopAt(i, 'unit_id', n + 'یەکەی کاڵای نوێ هەڵبژێرە');
             const bc = String(r.barcode || '').trim();
             if (bc) {
                 if (seenBarcode[bc]) return stopAt(i, 'barcode', n + 'ئەم بارکۆدە لە ڕیزێکی تردا دووبارەیە');
@@ -714,22 +887,12 @@ async function purSave() {
             const r = rows[i];
             if (kind(r) !== 'new') continue;
             msg('دروستکردنی کاڵای نوێ: ' + r.name + ' ...');
-
-            let categoryId = 0;
-            try {
-                const classId = await ensureCategory(r.class_name, 0);
-                const subId   = await ensureCategory(r.category_name, classId);
-                categoryId = subId || classId;
-            } catch (e) {
-                render();
-                return stopAt(i, 'class_name', 'ڕیزی ' + (i + 1) + ': ' + e.message);
-            }
-
             const fd = new FormData();
             fd.set('action', 'save');
             fd.set('name', r.name.trim());
             fd.set('barcode', String(r.barcode || '').trim());
-            fd.set('category_id', categoryId);
+            fd.set('category_id', r.category_id || 0);
+            fd.set('type_id', r.type_id || 0);
             fd.set('brand_id', r.brand_id || 0);
             fd.set('unit_id', r.unit_id || 0);
             fd.set('purchase_price', r.unit_price || 0);
@@ -749,6 +912,10 @@ async function purSave() {
             r.product_id = Number(d.id);
             r.is_new     = false;
             r.unit_code  = (UNITS.find(u => u.id === Number(r.unit_id)) || {}).code || '';
+            // now an existing item: its read-only cells show the chosen names
+            r.category_name = (CATEGORIES.find(c => Number(c.id) === Number(r.category_id)) || {}).name || '';
+            r.type_name     = (TYPES.find(t => t.id === Number(r.type_id)) || {}).name || '';
+            r.brand_name    = (BRANDS.find(b => b.id === Number(r.brand_id)) || {}).name || '';
         }
         render();
         msg('');
@@ -759,7 +926,9 @@ async function purSave() {
         const grand = Math.max(0, sub - disc);
         const paid  = Number(document.getElementById('tPaid').value || 0);
 
-        const d = await U.postJson(API_U + '?action=save', {
+        // Editing posts the same payload to 'update' with the invoice id.
+        const d = await U.postJson(API_U + '?action=' + (EDIT_ID > 0 ? 'update' : 'save'), {
+            id: EDIT_ID || undefined,
             supplier_id: supId,
             warehouse_id: Number(document.getElementById('whBox').value),
             invoice_date: document.getElementById('invDate').value,
@@ -769,15 +938,24 @@ async function purSave() {
             payment_type: paid <= 0 ? 'credit' : (paid >= grand ? 'cash' : 'partial'),
             items: lines.map(r => ({
                 product_id: r.product_id, quantity: r.quantity, unit_price: r.unit_price,
-                unit_id: r.unit_id || null,
+                unit_id: r.unit_id || null, unit_factor: r.unit_factor || 1,
                 discount_amount: r.discount_amount, batch_number: r.batch_number,
                 expiry_date: r.expiry_date || null
             }))
         });
 
         if (!d || !d.ok) { msg((d && d.error) || 'هەڵە لە پاشەکەوتکردن'); return; }
+        if (EDIT_ID > 0) {
+            showToast('success', 'وەسڵی کڕین ' + d.invoice_number + ' نوێکرایەوە');
+            setTimeout(() => { location.href = APP + '/erp/purchase-invoices.php'; }, 600);
+            return;
+        }
         showToast('success', 'وەسڵی کڕین ' + d.invoice_number + ' پاشەکەوتکرا');
         purReset();
+        // The next invoice may be another supplier: ask again, never carry over.
+        document.getElementById('supId').value = 0;
+        document.getElementById('supBox').value = '';
+        DS.open({ fresh: true });
     } finally {
         saving = false;
         if (btn) btn.disabled = false;
@@ -786,23 +964,22 @@ async function purSave() {
 
 function purReset() {
     rows = []; selRow = -1;
+    browseCache = null;   // stock and the catalogue moved with the saved invoice
     document.getElementById('tDisc').value = 0;
     document.getElementById('tPaid').value = 0;
     document.getElementById('supInvNo').value = '';
     msg('');
     render();
-    focusCell(rows.length - 1, 'name');
+    focusCell(rows.length - 1, 'barcode');
 }
 
 /* ---------- keyboard ---------- */
-const AC_FIELDS = ['name', 'class_name', 'category_name'];
-
 document.getElementById('tgBody').addEventListener('keydown', e => {
     const el = e.target;
     if (!el.dataset || el.dataset.i === undefined) return;
     const i = Number(el.dataset.i), f = el.dataset.f;
 
-    if (AC_FIELDS.includes(f) && U.acHandleKey(e)) return;
+    if (f === 'name' && U.acHandleKey(e)) return;
 
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         if (el.tagName === 'SELECT') return;
@@ -820,6 +997,13 @@ document.getElementById('tgBody').addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
 
+    // Entry row, barcode cell: a scan resolves at once; empty moves on to the name search.
+    if (f === 'barcode' && kind(rows[i]) === 'blank') {
+        const code = el.value.trim();
+        if (code) barcodeIn(i, code);
+        else focusCell(i, 'name');
+        return;
+    }
     if (f === 'name' && kind(rows[i]) === 'blank') {
         clearTimeout(acTimer);
         if (el.value.trim()) lookup(i, true);
@@ -829,25 +1013,30 @@ document.getElementById('tgBody').addEventListener('keydown', e => {
     nextCell(i, f);
 });
 document.getElementById('tgBody').addEventListener('focusout', e => {
-    if (e.target.dataset && AC_FIELDS.includes(e.target.dataset.f)) setTimeout(U.hideAC, 150);
+    if (e.target.dataset && e.target.dataset.f === 'name') setTimeout(U.hideAC, 150);
 });
 document.getElementById('tgBody').addEventListener('focusin', e => {
     if (e.target.dataset && e.target.dataset.i !== undefined) selectRow(Number(e.target.dataset.i));
+    if (e.target.dataset && e.target.dataset.f === 'name') browse(Number(e.target.dataset.i));
+});
+// clicking back into an empty product cell (after Esc) opens the list again
+document.getElementById('tgBody').addEventListener('click', e => {
+    if (e.target.dataset && e.target.dataset.f === 'name' && !U.acOpen()) browse(Number(e.target.dataset.i));
 });
 
+document.getElementById('scanBox').addEventListener('input', e => {
+    const q = e.target.value.trim();
+    clearTimeout(scanTimer);
+    if (!q || /^\d{6,}\$/.test(q)) { U.hideAC(); return; }
+    scanTimer = setTimeout(() => scanSuggest(q), 180);
+});
 document.getElementById('scanBox').addEventListener('keydown', e => {
     if (U.acHandleKey(e)) return;
     if (e.key === 'Enter') { e.preventDefault(); onScan(); }
     if (e.key === 'Escape') { e.target.value = ''; msg(''); }
 });
 document.getElementById('supBox').addEventListener('keydown', e => {
-    if (U.acHandleKey(e)) return;
-    if (e.key === 'Enter') { e.preventDefault(); openSupplierSearch(); }
-});
-document.getElementById('supBox').addEventListener('input', () => {
-    clearTimeout(supTimer);
-    document.getElementById('supId').value = 0;
-    supTimer = setTimeout(openSupplierSearch, 250);
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); DS.open(); }
 });
 document.getElementById('tPaid').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); purSave(); }
@@ -855,8 +1044,8 @@ document.getElementById('tPaid').addEventListener('keydown', e => {
 
 document.addEventListener('keydown', e => {
     if (e.key === 'F2') { e.preventDefault(); document.getElementById('scanBox').focus(); return; }
-    if (e.key === 'F4') { e.preventDefault(); document.getElementById('supBox').focus(); openSupplierSearch(); return; }
-    if (e.key === 'F7') { e.preventDefault(); selectRow(rows.length - 1); focusCell(rows.length - 1, 'name'); return; }
+    if (e.key === 'F4') { e.preventDefault(); DS.open(); return; }
+    if (e.key === 'F7') { e.preventDefault(); selectRow(rows.length - 1); focusCell(rows.length - 1, 'barcode'); return; }
     if (e.ctrlKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); purSave(); return; }
     if (e.key === 'Delete' && selRow >= 0 && !/INPUT|SELECT/.test(document.activeElement.tagName)) {
         e.preventDefault(); delRow(selRow);
@@ -866,8 +1055,9 @@ document.addEventListener('keydown', e => {
 document.getElementById('tDisc').addEventListener('input', totals);
 document.getElementById('tPaid').addEventListener('input', totals);
 
+if (EDIT_ID > 0) rows = EDIT_ROWS.map(r => Object.assign(blankRow(), r));
 render();
-focusCell(rows.length - 1, 'name');
+focusCell(rows.length - 1, 'barcode');
 JS;
 
 require_once __DIR__ . '/../includes/footer.php';

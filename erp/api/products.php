@@ -38,7 +38,7 @@ function erp_json($payload, int $code = 200): void
 $action = $_GET['action'] ?? $_POST['action'] ?? 'search';
 
 // Reads need view rights; writes need their own and must be POST + CSRF.
-$writeActions = ['save', 'toggle_active', 'quick_category', 'quick_brand'];
+$writeActions = ['save', 'toggle_active', 'set_type', 'quick_category', 'quick_brand', 'quick_type'];
 if (in_array($action, $writeActions, true)) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         erp_json(['ok' => false, 'error' => 'POST required'], 405);
@@ -62,7 +62,12 @@ try {
             $limit       = max(1, min(20, (int)($_GET['limit'] ?? 20)));
 
             if ($q === '') {
-                erp_json(['ok' => true, 'results' => []]);
+                // browse=1: nothing typed yet — the whole list, group by group,
+                // so the cell can be picked from at once.
+                if (empty($_GET['browse'])) {
+                    erp_json(['ok' => true, 'results' => []]);
+                }
+                erp_json(['ok' => true, 'results' => erp_product_browse($db, $warehouseId, 200)]);
             }
 
             $rows = erp_product_search($db, $q, $warehouseId, $limit);
@@ -84,14 +89,15 @@ try {
             $row = $db->fetch(
                 "SELECT p.id, p.product_code, p.barcode, p.name, p.sale_price, p.min_sale_price,
                         p.wholesale_price, p.purchase_price, p.unit_id, u.code AS unit_code,
-                        p.category_id, c.name AS category_name,
-                        c.parent_id AS category_parent_id, pc.name AS category_parent_name,
+                        p.category_id, c.name AS category_name, p.type_id, t.name AS type_name,
+                        p.brand_id, br.name AS brand_name,
                         COALESCE(s.quantity, 0) AS stock, COALESCE(s.average_cost, 0) AS avg_cost,
                         1.0 AS unit_factor
                  FROM erp_products p
                  LEFT JOIN erp_units u ON u.id = p.unit_id
                  LEFT JOIN erp_categories c ON c.id = p.category_id
-                 LEFT JOIN erp_categories pc ON pc.id = c.parent_id
+                 LEFT JOIN erp_product_types t ON t.id = p.type_id
+                 LEFT JOIN erp_brands br ON br.id = p.brand_id
                  LEFT JOIN erp_warehouse_product_stock s
                         ON s.product_id = p.id AND s.warehouse_id = :w
                  WHERE p.barcode = :c AND p.is_active = 1
@@ -105,15 +111,16 @@ try {
                             COALESCE(pu.sale_price, p.sale_price * pu.factor) AS sale_price,
                             p.min_sale_price, p.wholesale_price, p.purchase_price,
                             pu.unit_id, u.code AS unit_code,
-                            p.category_id, c.name AS category_name,
-                            c.parent_id AS category_parent_id, pc.name AS category_parent_name,
+                            p.category_id, c.name AS category_name, p.type_id, t.name AS type_name,
+                            p.brand_id, br.name AS brand_name,
                             COALESCE(s.quantity, 0) AS stock, COALESCE(s.average_cost, 0) AS avg_cost,
                             pu.factor AS unit_factor
                      FROM erp_product_units pu
                      JOIN erp_products p ON p.id = pu.product_id
                      LEFT JOIN erp_units u ON u.id = pu.unit_id
                      LEFT JOIN erp_categories c ON c.id = p.category_id
-                     LEFT JOIN erp_categories pc ON pc.id = c.parent_id
+                     LEFT JOIN erp_product_types t ON t.id = p.type_id
+                     LEFT JOIN erp_brands br ON br.id = p.brand_id
                      LEFT JOIN erp_warehouse_product_stock s
                             ON s.product_id = p.id AND s.warehouse_id = :w
                      WHERE pu.barcode = :c AND pu.is_active = 1 AND p.is_active = 1
@@ -131,6 +138,7 @@ try {
         case 'list': {
             $q          = trim((string)($_GET['q'] ?? ''));
             $categoryId = (int)($_GET['category_id'] ?? 0);
+            $typeId     = (int)($_GET['type_id'] ?? 0);
             $status     = $_GET['status'] ?? 'active';
             $lowOnly    = !empty($_GET['low_stock']);
             $page       = max(1, (int)($_GET['page'] ?? 1));
@@ -146,6 +154,10 @@ try {
             if ($categoryId > 0) {
                 $where[] = 'p.category_id = :cat';
                 $params['cat'] = $categoryId;
+            }
+            if ($typeId > 0) {
+                $where[] = 'p.type_id = :typ';
+                $params['typ'] = $typeId;
             }
             if ($q !== '') {
                 // Anchored LIKE so idx_erp_prod_name is usable. Exact code and
@@ -170,19 +182,24 @@ try {
 
             $having = $lowOnly ? 'HAVING COALESCE(st.qty,0) <= p.min_stock AND p.min_stock > 0' : '';
 
+            // Group by group (erp_categories.sort_order), then by name.
             $rows = $db->fetchAll(
                 "SELECT p.id, p.product_code, p.barcode, p.name, p.name_ar,
                         p.sale_price, p.purchase_price, p.min_stock, p.is_active,
-                        c.name AS category_name, u.code AS unit_code,
+                        p.category_id, p.type_id,
+                        c.name AS category_name, t.name AS type_name, br.name AS brand_name,
+                        u.code AS unit_code, u.name AS unit_name,
                         COALESCE(st.qty, 0) AS stock,
                         COALESCE(st.value, 0) AS stock_value
                  FROM erp_products p
                  LEFT JOIN erp_categories c ON c.id = p.category_id
+                 LEFT JOIN erp_product_types t ON t.id = p.type_id
+                 LEFT JOIN erp_brands br ON br.id = p.brand_id
                  LEFT JOIN erp_units u ON u.id = p.unit_id
                  {$stockJoin}
                  WHERE {$whereSql}
                  {$having}
-                 ORDER BY p.name
+                 ORDER BY COALESCE(c.sort_order, 999), p.name
                  LIMIT {$perPage} OFFSET {$offset}",
                 $params
             );
@@ -229,12 +246,24 @@ try {
             $barcode = trim((string)($_POST['barcode'] ?? ''));
             $barcode = $barcode === '' ? null : $barcode;
 
+            // A type only counts inside its own group: a type of «Endo» is
+            // not a type of «Filling», whatever the form posted.
+            $categoryId = ((int)($_POST['category_id'] ?? 0)) ?: null;
+            $typeId     = ((int)($_POST['type_id'] ?? 0)) ?: null;
+            if ($typeId !== null && ($categoryId === null || !$db->fetch(
+                "SELECT id FROM erp_product_types WHERE id = :t AND category_id = :c",
+                ['t' => $typeId, 'c' => $categoryId]
+            ))) {
+                $typeId = null;
+            }
+
             $fields = [
                 'name'            => $name,
                 'name_ar'         => trim((string)($_POST['name_ar'] ?? '')) ?: null,
                 'name_ku'         => trim((string)($_POST['name_ku'] ?? '')) ?: null,
                 'barcode'         => $barcode,
-                'category_id'     => ((int)($_POST['category_id'] ?? 0)) ?: null,
+                'category_id'     => $categoryId,
+                'type_id'         => $typeId,
                 'brand_id'        => ((int)($_POST['brand_id'] ?? 0)) ?: null,
                 'unit_id'         => ((int)($_POST['unit_id'] ?? 0)) ?: null,
                 'supplier_id'     => ((int)($_POST['supplier_id'] ?? 0)) ?: null,
@@ -324,6 +353,34 @@ try {
             erp_json(['ok' => true, 'is_active' => $new]);
         }
 
+        /** Change only a product's type, straight from the list. 0 clears it. */
+        case 'set_type': {
+            if (!erp_can('erp.products.edit')) {
+                erp_json(['ok' => false, 'error' => 'Forbidden'], 403);
+            }
+            $id     = (int)($_POST['id'] ?? 0);
+            $typeId = ((int)($_POST['type_id'] ?? 0)) ?: null;
+            $row = $db->fetch("SELECT id, product_code, category_id, type_id FROM erp_products WHERE id = :id", ['id' => $id]);
+            if (!$row) {
+                erp_json(['ok' => false, 'error' => 'کاڵا نەدۆزرایەوە'], 404);
+            }
+            // Same rule as save: a type only counts inside the product's own group.
+            $type = null;
+            if ($typeId !== null) {
+                $type = $db->fetch(
+                    "SELECT id, name FROM erp_product_types WHERE id = :t AND category_id = :c",
+                    ['t' => $typeId, 'c' => (int)$row['category_id']]
+                );
+                if (!$type) {
+                    erp_json(['ok' => false, 'error' => 'ئەم جۆرە سەر بە گرووپی ئەم کاڵایە نییە'], 422);
+                }
+            }
+            $db->update('erp_products', ['type_id' => $typeId], 'id = ?', [$id]);
+            ErpAudit::log('set_product_type', 'PRODUCT', $id, $row['product_code'],
+                ['type_id' => $row['type_id']], ['type_id' => $typeId]);
+            erp_json(['ok' => true, 'type_id' => $typeId, 'type_name' => $type['name'] ?? null]);
+        }
+
         /**
          * One product's full record for the edit dialog, including its unit
          * table. Fetched on demand rather than shipped with every list row —
@@ -332,9 +389,10 @@ try {
         case 'detail': {
             $id = (int)($_GET['id'] ?? 0);
             $row = $db->fetch(
-                "SELECT p.*, c.name AS category_name, b.name AS brand_name, u.code AS unit_code
+                "SELECT p.*, c.name AS category_name, t.name AS type_name, b.name AS brand_name, u.code AS unit_code
                  FROM erp_products p
                  LEFT JOIN erp_categories c ON c.id = p.category_id
+                 LEFT JOIN erp_product_types t ON t.id = p.type_id
                  LEFT JOIN erp_brands b ON b.id = p.brand_id
                  LEFT JOIN erp_units u ON u.id = p.unit_id
                  WHERE p.id = :id",
@@ -406,28 +464,52 @@ try {
             if ($name === '') {
                 erp_json(['ok' => false, 'error' => 'ناو پێویستە'], 422);
             }
-            // Optional parent: the purchase grid files a جۆر (sub-category)
-            // under its پۆل (top-level category). The same name may exist under
-            // different parents, so the duplicate check is per parent.
-            $parentId = (int)($_POST['parent_id'] ?? 0) ?: null;
-            if ($parentId && !$db->fetch("SELECT id FROM erp_categories WHERE id = :p", ['p' => $parentId])) {
-                erp_json(['ok' => false, 'error' => 'پۆل نەدۆزرایەوە'], 422);
-            }
-            $existing = $db->fetch(
-                "SELECT id FROM erp_categories WHERE name = :n AND parent_id <=> :p LIMIT 1",
-                ['n' => $name, 'p' => $parentId]
-            );
+            // Groups are the top-level rows only: the store's old sub-categories
+            // (now types, switched off) must never be picked up as a group.
+            $existing = $db->fetch("SELECT id FROM erp_categories WHERE name = :n AND parent_id IS NULL LIMIT 1", ['n' => $name]);
             if ($existing) {
-                erp_json(['ok' => true, 'id' => (int)$existing['id'], 'name' => $name,
-                          'parent_id' => $parentId, 'existed' => true]);
+                $db->update('erp_categories', ['is_active' => 1], 'id = ?', [(int)$existing['id']]);
+                erp_json(['ok' => true, 'id' => (int)$existing['id'], 'name' => $name, 'existed' => true]);
             }
             $newId = (int)$db->insert('erp_categories', [
-                'name'      => $name,
-                'name_ar'   => trim((string)($_POST['name_ar'] ?? '')) ?: null,
-                'parent_id' => $parentId,
-                'is_active' => 1,
+                'name'       => $name,
+                'name_ar'    => trim((string)($_POST['name_ar'] ?? '')) ?: null,
+                'sort_order' => (int)$db->fetch("SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM erp_categories")['n'],
+                'is_active'  => 1,
             ]);
-            erp_json(['ok' => true, 'id' => $newId, 'name' => $name, 'parent_id' => $parentId]);
+            erp_json(['ok' => true, 'id' => $newId, 'name' => $name]);
+        }
+
+        /** A new type inside one group (e.g. «Composite» in «Filling»). */
+        case 'quick_type': {
+            if (!erp_can('erp.products.create')) {
+                erp_json(['ok' => false, 'error' => 'Forbidden'], 403);
+            }
+            $categoryId = (int)($_POST['category_id'] ?? 0);
+            $name = trim((string)($_POST['name'] ?? ''));
+            if ($name === '' || $categoryId <= 0) {
+                erp_json(['ok' => false, 'error' => 'گرووپ و ناو پێویستن'], 422);
+            }
+            if (!$db->fetch("SELECT id FROM erp_categories WHERE id = :id", ['id' => $categoryId])) {
+                erp_json(['ok' => false, 'error' => 'گرووپ نەدۆزرایەوە'], 404);
+            }
+            $existing = $db->fetch(
+                "SELECT id, name FROM erp_product_types WHERE category_id = :c AND name = :n LIMIT 1",
+                ['c' => $categoryId, 'n' => $name]
+            );
+            if ($existing) {
+                $db->update('erp_product_types', ['is_active' => 1], 'id = ?', [(int)$existing['id']]);
+                erp_json(['ok' => true, 'id' => (int)$existing['id'], 'name' => $existing['name'], 'existed' => true]);
+            }
+            $newId = (int)$db->insert('erp_product_types', [
+                'category_id' => $categoryId,
+                'name'        => $name,
+                'sort_order'  => (int)$db->fetch(
+                    "SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM erp_product_types WHERE category_id = :c",
+                    ['c' => $categoryId])['n'],
+                'is_active'   => 1,
+            ]);
+            erp_json(['ok' => true, 'id' => $newId, 'name' => $name]);
         }
 
         default:
@@ -456,14 +538,15 @@ function erp_product_search(Database $db, string $q, int $warehouseId, int $limi
     $select = "SELECT p.id, p.product_code, p.barcode, p.name, p.name_ar,
                       p.sale_price, p.min_sale_price, p.wholesale_price, p.purchase_price,
                       p.unit_id, u.code AS unit_code,
-                      p.category_id, c.name AS category_name,
-                      c.parent_id AS category_parent_id, pc.name AS category_parent_name,
+                      p.category_id, c.name AS category_name, p.type_id, t.name AS type_name,
+                      p.brand_id, br.name AS brand_name,
                       COALESCE(s.quantity, 0) AS stock,
                       COALESCE(s.average_cost, 0) AS avg_cost
                FROM erp_products p
                LEFT JOIN erp_units u ON u.id = p.unit_id
                LEFT JOIN erp_categories c ON c.id = p.category_id
-               LEFT JOIN erp_categories pc ON pc.id = c.parent_id
+               LEFT JOIN erp_product_types t ON t.id = p.type_id
+               LEFT JOIN erp_brands br ON br.id = p.brand_id
                LEFT JOIN erp_warehouse_product_stock s
                       ON s.product_id = p.id AND s.warehouse_id = :w";
 
@@ -494,5 +577,29 @@ function erp_product_search(Database $db, string $q, int $warehouseId, int $limi
          ORDER BY p.name
          LIMIT {$limit}",
         ['w' => $warehouseId, 'a' => '%' . $q . '%', 'b' => '%' . $q . '%', 'c' => '%' . $q . '%']
+    );
+}
+
+/** Every active product, group by group, then by name. */
+function erp_product_browse(Database $db, int $warehouseId, int $limit): array
+{
+    return $db->fetchAll(
+        "SELECT p.id, p.product_code, p.barcode, p.name, p.name_ar,
+                p.sale_price, p.min_sale_price, p.wholesale_price, p.purchase_price,
+                p.unit_id, u.code AS unit_code,
+                p.category_id, c.name AS category_name, p.type_id, t.name AS type_name,
+                p.brand_id, br.name AS brand_name,
+                COALESCE(s.quantity, 0) AS stock,
+                COALESCE(s.average_cost, 0) AS avg_cost
+         FROM erp_products p
+         LEFT JOIN erp_units u ON u.id = p.unit_id
+         LEFT JOIN erp_categories c ON c.id = p.category_id
+         LEFT JOIN erp_product_types t ON t.id = p.type_id
+         LEFT JOIN erp_brands br ON br.id = p.brand_id
+         LEFT JOIN erp_warehouse_product_stock s ON s.product_id = p.id AND s.warehouse_id = :w
+         WHERE p.is_active = 1
+         ORDER BY COALESCE(c.sort_order, 999), p.name
+         LIMIT {$limit}",
+        ['w' => $warehouseId]
     );
 }

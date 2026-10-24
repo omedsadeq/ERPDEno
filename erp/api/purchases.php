@@ -1,6 +1,6 @@
 <?php
 /**
- * ERP purchase API — save, load, return, recent.
+ * ERP purchase API — save, update, merge, load, return, recent.
  *
  * Thin dispatch onto ErpPurchase, which owns the transaction covering the
  * invoice, its items, the stock receipt and the supplier ledger. No stock or
@@ -23,7 +23,7 @@ function erp_json($p, int $code = 200): void
 
 $action = $_GET['action'] ?? $_POST['action'] ?? 'recent';
 
-$writeActions = ['save', 'return'];
+$writeActions = ['save', 'update', 'return'];
 if (in_array($action, $writeActions, true)) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         erp_json(['ok' => false, 'error' => 'POST required'], 405);
@@ -79,6 +79,61 @@ try {
             }
         }
 
+        /** Edit a posted invoice: same payload as 'save', plus its id. */
+        case 'update': {
+            if (!erp_can('erp.purchase.edit')) {
+                erp_json(['ok' => false, 'error' => 'Forbidden'], 403);
+            }
+            $data = erp_payload();
+            $id   = (int)($data['id'] ?? 0);
+            $inv  = $db->fetch("SELECT warehouse_id FROM erp_purchase_invoices WHERE id = :id", ['id' => $id]);
+            if (!$inv) {
+                erp_json(['ok' => false, 'error' => 'وەسڵ نەدۆزرایەوە'], 404);
+            }
+            try {
+                erp_assert_warehouse((int)$inv['warehouse_id']);
+            } catch (RuntimeException $e) {
+                erp_json(['ok' => false, 'error' => $e->getMessage()], 403);
+            }
+            if (!erp_can('erp.price.purchase')) {
+                $data['items'] = erp_lock_costs($db, $data['items'] ?? []);
+            }
+            try {
+                $res = ErpPurchase::update($id, $data);
+                erp_json(['ok' => true] + $res);
+            } catch (RuntimeException $e) {
+                erp_json(['ok' => false, 'error' => $e->getMessage()], 422);
+            }
+        }
+
+        /** Fold several posted invoices of one supplier into the earliest: { ids: [...] }. */
+        case 'merge': {
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                erp_json(['ok' => false, 'error' => 'POST required'], 405);
+            }
+            Csrf::require();
+            if (!erp_can('erp.purchase.edit')) {
+                erp_json(['ok' => false, 'error' => 'Forbidden'], 403);
+            }
+            $ids = array_values(array_filter(array_map('intval', (array)(erp_payload()['ids'] ?? []))));
+            try {
+                if ($ids) {
+                    $in = implode(',', $ids);
+                    foreach ($db->fetchAll("SELECT DISTINCT warehouse_id FROM erp_purchase_invoices WHERE id IN ({$in})") as $w) {
+                        erp_assert_warehouse((int)$w['warehouse_id']);
+                    }
+                }
+            } catch (RuntimeException $e) {
+                erp_json(['ok' => false, 'error' => $e->getMessage()], 403);
+            }
+            try {
+                $res = ErpPurchase::merge($ids);
+                erp_json(['ok' => true] + $res);
+            } catch (RuntimeException $e) {
+                erp_json(['ok' => false, 'error' => $e->getMessage()], 422);
+            }
+        }
+
         case 'return': {
             if (!erp_can('erp.purchase.return')) {
                 erp_json(['ok' => false, 'error' => 'Forbidden'], 403);
@@ -121,6 +176,47 @@ try {
                  ORDER BY r.id DESC LIMIT 20"
             );
             erp_json(['ok' => true, 'results' => $rows]);
+        }
+
+        /** Paged, filtered purchase-invoice list (erp/purchase-invoices.php). */
+        case 'browse': {
+            $page    = max(1, (int)($_GET['page'] ?? 1));
+            $perPage = 25;
+            $offset  = ($page - 1) * $perPage;
+            $where   = ['1=1'];
+            $params  = [];
+            $q = trim((string)($_GET['q'] ?? ''));
+            if ($q !== '') {
+                $where[] = '(pi.invoice_number LIKE :a OR pi.supplier_invoice_no LIKE :b OR s.name LIKE :c)';
+                $params += ['a' => $q . '%', 'b' => $q . '%', 'c' => $q . '%'];
+            }
+            $from = erp_date($_GET['from'] ?? null);
+            $to   = erp_date($_GET['to'] ?? null);
+            if ($from) { $where[] = 'pi.invoice_date >= :f'; $params['f'] = $from; }
+            if ($to)   { $where[] = 'pi.invoice_date <= :t'; $params['t'] = $to; }
+            $status = $_GET['status'] ?? '';
+            if (in_array($status, ['confirmed', 'cancelled', 'draft'], true)) {
+                $where[] = 'pi.status = :st';
+                $params['st'] = $status;
+            }
+            $whereSql = implode(' AND ', $where);
+            $rows = $db->fetchAll(
+                "SELECT pi.id, pi.invoice_number, pi.supplier_invoice_no, pi.invoice_date, pi.grand_total,
+                        pi.paid_amount, pi.status, s.name AS supplier_name,
+                        (SELECT COUNT(*) FROM erp_purchase_items it WHERE it.invoice_id = pi.id) AS line_count
+                 FROM erp_purchase_invoices pi
+                 JOIN erp_suppliers s ON s.id = pi.supplier_id
+                 WHERE {$whereSql}
+                 ORDER BY pi.id DESC
+                 LIMIT {$perPage} OFFSET {$offset}",
+                $params
+            );
+            $total = (int)($db->fetch(
+                "SELECT COUNT(*) c FROM erp_purchase_invoices pi JOIN erp_suppliers s ON s.id = pi.supplier_id WHERE {$whereSql}",
+                $params
+            )['c'] ?? 0);
+            erp_json(['ok' => true, 'results' => $rows, 'page' => $page, 'total' => $total,
+                       'totalPages' => (int)ceil($total / $perPage)]);
         }
 
         case 'recent': {

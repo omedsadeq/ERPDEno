@@ -18,7 +18,9 @@ $breadcrumb = [
 ];
 
 $db         = Database::getInstance();
-$categories = $db->fetchAll("SELECT id, name FROM erp_categories WHERE is_active = 1 ORDER BY name");
+// Groups in their set order, and each group's types.
+$categories = $db->fetchAll("SELECT id, name FROM erp_categories WHERE is_active = 1 ORDER BY sort_order, name");
+$types      = $db->fetchAll("SELECT id, category_id, name FROM erp_product_types WHERE is_active = 1 ORDER BY sort_order, name");
 $units      = $db->fetchAll("SELECT id, code, name FROM erp_units WHERE is_active = 1 ORDER BY id");
 $brands     = $db->fetchAll("SELECT id, name FROM erp_brands WHERE is_active = 1 ORDER BY name");
 $canCreate  = erp_can('erp.products.create');
@@ -58,6 +60,33 @@ table.units-t input:focus,table.units-t select:focus{background:#fff8dc;border-c
 .u-del{text-align:center;color:#c62828;cursor:pointer}
 .u-base td{background:#eef7ee}
 .u-base input{color:#2e7d32;font-weight:600}
+.erp-tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;background:#e0f2fe;color:#0369a1;white-space:nowrap}
+.erp-type-sel{width:100%;min-width:90px;height:28px;padding:2px 6px;font-size:12px;font-family:inherit;border:1px solid #cfd8dc;border-radius:5px;background:#fff;color:#0369a1;font-weight:600;cursor:pointer;transition:border-color .2s,background .2s}
+.erp-type-sel:focus{outline:none;border-color:var(--win-accent, #0078D4)}
+.erp-type-sel.saving{opacity:.6;cursor:wait}
+.erp-type-sel.saved{border-color:#2e7d32;background:#e8f5e9}
+.erp-type-sel.failed{border-color:#d32f2f;background:#fdecea}
+.erp-type-cell{display:flex;align-items:center;gap:4px}
+.erp-type-cell .erp-type-sel{flex:1;min-width:0}
+.erp-type-add{flex:0 0 26px;height:28px;border:1px solid #c8d3da;border-radius:5px;background:#eef6ff;color:#1565c0;font-size:18px;line-height:1;cursor:pointer;padding:0}
+.erp-type-add:disabled{opacity:.5;cursor:wait}
+.erp-tag.grp{background:#eef2f5;color:#37474f}
+/* group / type picker — a row of groups, the chosen group's types under it */
+.gt{border:1px solid #b9d9ec;border-radius:10px;overflow:hidden;margin-bottom:14px}
+.gt-groups{display:flex;flex-wrap:wrap;background:#bfe0f2}
+.gt-g{flex:1 1 0;min-width:84px;border:0;border-inline-end:1px solid #a5cde4;background:transparent;padding:10px 6px;font-family:inherit;font-size:15px;font-weight:800;color:#0f2a3a;cursor:pointer;transition:background .15s;white-space:nowrap}
+.gt-g:last-child{border-inline-end:0}
+.gt-g:hover{background:#d6ecf8}
+.gt-g.on{background:#0369a1;color:#fff}
+.gt-g.add{flex:0 0 auto;min-width:0;padding:10px 14px;font-size:13px;color:#0369a1}
+.gt-types{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:10px 12px;background:#e6f3fa;min-height:44px}
+.gt-types .lbl{font-size:12px;font-weight:700;color:#37474f;margin-inline-end:4px}
+.gt-t{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;font-family:inherit;font-size:14px;font-weight:600;color:#0f2a3a;cursor:pointer;padding:3px 2px}
+.gt-t::before{content:"";width:15px;height:15px;border-radius:50%;border:2px solid #2e7d32;background:#fff;box-sizing:border-box}
+.gt-t.on::before{background:#2e7d32;box-shadow:inset 0 0 0 2.5px #fff}
+.gt-t.add{color:#0369a1;font-size:12.5px}
+.gt-t.add::before{display:none}
+.gt-none{font-size:12px;color:#78909c}
 CSS;
 
 require_once __DIR__ . '/../includes/header.php';
@@ -70,10 +99,14 @@ require_once __DIR__ . '/../includes/header.php';
                    placeholder="گەڕان بە ناو، کۆد یان بارکۆد..." autocomplete="off">
 
             <select id="erpCategory" class="form-control" style="max-width:170px">
-                <option value="0">هەموو جۆرەکان</option>
+                <option value="0">هەموو گرووپەکان</option>
                 <?php foreach ($categories as $c): ?>
                 <option value="<?= (int)$c['id'] ?>"><?= erp_esc($c['name']) ?></option>
                 <?php endforeach; ?>
+            </select>
+
+            <select id="erpType" class="form-control" style="max-width:150px" hidden>
+                <option value="0">هەموو جۆرەکان</option>
             </select>
 
             <select id="erpStatus" class="form-control" style="max-width:150px">
@@ -95,7 +128,9 @@ require_once __DIR__ . '/../includes/header.php';
                     <tr>
                         <th style="width:110px">کۆد</th>
                         <th>ناو</th>
-                        <th style="width:120px">جۆر</th>
+                        <th style="width:110px">گرووپ</th>
+                        <th style="width:150px">جۆر</th>
+                        <th style="width:100px">براند</th>
                         <th style="width:90px" class="erp-num">بڕ</th>
                         <?php if ($canCost): ?><th style="width:100px" class="erp-num">نرخی کڕین</th><?php endif; ?>
                         <th style="width:100px" class="erp-num">نرخی فرۆشتن</th>
@@ -103,7 +138,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </tr>
                 </thead>
                 <tbody id="erpRows">
-                    <tr><td colspan="<?= $canCost ? 7 : 6 ?>" class="erp-empty">
+                    <tr><td colspan="<?= $canCost ? 9 : 8 ?>" class="erp-empty">
                         <i class="fas fa-spinner fa-spin"></i> بارکردن...
                     </td></tr>
                 </tbody>
@@ -123,6 +158,13 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="dialog-body">
             <form id="erpProductForm" onsubmit="return false">
                 <input type="hidden" name="id" id="pf_id">
+                <input type="hidden" name="category_id" id="pf_category" value="0">
+                <input type="hidden" name="type_id" id="pf_type" value="0">
+                <!-- Group, then the group's type (the same picker as the pharmacy). -->
+                <div class="gt" role="group" aria-label="گرووپ و جۆر">
+                    <div class="gt-groups" id="gtGroups"></div>
+                    <div class="gt-types" id="gtTypes"></div>
+                </div>
                 <div class="erp-formgrid">
                     <div class="form-group">
                         <label class="form-label required">ناوی کاڵا</label>
@@ -140,21 +182,6 @@ require_once __DIR__ . '/../includes/header.php';
                         <label class="form-label">کۆدی کاڵا</label>
                         <input class="form-control" name="product_code" id="pf_code" dir="ltr"
                                placeholder="خۆکار">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">جۆر</label>
-                        <div style="display:flex;gap:6px">
-                            <select class="form-control" name="category_id" id="pf_category">
-                                <option value="0">—</option>
-                                <?php foreach ($categories as $c): ?>
-                                <option value="<?= (int)$c['id'] ?>"><?= erp_esc($c['name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <?php if ($canCreate): ?>
-                            <button type="button" class="btn btn-secondary btn-icon"
-                                    title="جۆری نوێ" onclick="erpQuickCategory()"><i class="fas fa-plus"></i></button>
-                            <?php endif; ?>
-                        </div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">یەکەی بنەڕەت</label>
@@ -261,7 +288,11 @@ require_once __DIR__ . '/../includes/header.php';
 
 <?php
 $apiUrl    = APP_URL . '/erp/api/products.php';
-$colspan   = $canCost ? 7 : 6;
+$colspan   = $canCost ? 9 : 8;
+$jsCanCreate = $canCreate ? 'true' : 'false';
+$jsJson = JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
+$jsGroups = json_encode(array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name']], $categories), $jsJson);
+$jsTypes  = json_encode(array_map(fn($t) => ['id' => (int)$t['id'], 'cat' => (int)$t['category_id'], 'name' => $t['name']], $types), $jsJson);
 $jsCanEdit = $canEdit ? 'true' : 'false';
 $jsCanDel  = $canDelete ? 'true' : 'false';
 $jsCanCost = $canCost ? 'true' : 'false';
@@ -282,11 +313,14 @@ $jsUnitOptions = json_encode(
 );
 
 $customJS = <<<JS
-const ERP_API   = '{$apiUrl}';
-const ERP_COLS  = {$colspan};
+const erp_API   = '{$apiUrl}';
+const erp_COLS  = {$colspan};
 const CAN_EDIT  = {$jsCanEdit};
 const CAN_DEL   = {$jsCanDel};
 const CAN_COST  = {$jsCanCost};
+const CAN_CREATE = {$jsCanCreate};
+const GROUPS = {$jsGroups};
+const TYPES  = {$jsTypes};
 let erpPage = 1, erpTimer = null, erpReqId = 0;
 
 const nf = n => Number(n || 0).toLocaleString('en-US');
@@ -304,6 +338,8 @@ function erpParams() {
     if (q) p.set('q', q);
     const c = document.getElementById('erpCategory').value;
     if (c && c !== '0') p.set('category_id', c);
+    const t = document.getElementById('erpType').value;
+    if (c && c !== '0' && t && t !== '0') p.set('type_id', t);
     p.set('status', document.getElementById('erpStatus').value);
     if (document.getElementById('erpLowStock').checked) p.set('low_stock', '1');
     return p;
@@ -314,7 +350,7 @@ async function erpLoad() {
     // otherwise fast typing can leave stale rows on screen.
     const myReq = ++erpReqId;
     try {
-        const res = await fetch(ERP_API + '?' + erpParams().toString());
+        const res = await fetch(erp_API + '?' + erpParams().toString());
         const data = await res.json();
         if (myReq !== erpReqId) return;
         if (!data.ok) { erpRowsMessage(data.error || 'هەڵە'); return; }
@@ -326,7 +362,7 @@ async function erpLoad() {
 
 function erpRowsMessage(msg) {
     document.getElementById('erpRows').innerHTML =
-        '<tr><td colspan="' + ERP_COLS + '" class="erp-empty">' + esc(msg) + '</td></tr>';
+        '<tr><td colspan="' + erp_COLS + '" class="erp-empty">' + esc(msg) + '</td></tr>';
     document.getElementById('erpPager').innerHTML = '';
 }
 
@@ -341,9 +377,11 @@ function erpRender(data) {
         html += '<tr class="' + (Number(r.is_active) ? '' : 'erp-inactive') + '">'
             + '<td dir="ltr" class="erp-num">' + esc(r.product_code) + '</td>'
             + '<td>' + esc(r.name) + (r.name_ar ? ' <span class="erp-muted">/ ' + esc(r.name_ar) + '</span>' : '') + '</td>'
-            + '<td>' + esc(r.category_name || '—') + '</td>'
+            + '<td>' + (r.category_name ? '<span class="erp-tag grp">' + esc(r.category_name) + '</span>' : '<span class="erp-muted">—</span>') + '</td>'
+            + '<td>' + erpTypeCell(r) + '</td>'
+            + '<td>' + (r.brand_name ? esc(r.brand_name) : '<span class="erp-muted">—</span>') + '</td>'
             + '<td class="erp-num ' + (low ? 'erp-low' : '') + '">' + qf(r.stock)
-            + (r.unit_code ? ' <span class="erp-muted">' + esc(r.unit_code) + '</span>' : '') + '</td>'
+            + (r.unit_name ? ' <span class="erp-muted">' + esc(r.unit_name) + '</span>' : '') + '</td>'
             + (CAN_COST ? '<td class="erp-num">' + nf(r.purchase_price) + '</td>' : '')
             + '<td class="erp-num">' + nf(r.sale_price) + '</td>'
             + '<td style="white-space:nowrap">'
@@ -462,8 +500,74 @@ function unitClearDefault() {
     unitsRender();
 }
 
+/* ---------- group / type picker ---------- */
+
+function gtGroup() { return Number(document.getElementById('pf_category').value || 0); }
+function gtType()  { return Number(document.getElementById('pf_type').value || 0); }
+
+function gtRender() {
+    const g = gtGroup(), t = gtType();
+    document.getElementById('gtGroups').innerHTML = GROUPS.map(x =>
+        '<button type="button" class="gt-g' + (x.id === g ? ' on' : '') + '" onclick="gtSetGroup(' + x.id + ')">'
+        + esc(x.name) + '</button>'
+    ).join('') + (CAN_CREATE ? '<button type="button" class="gt-g add" title="گرووپی نوێ" aria-label="گرووپی نوێ" onclick="erpQuickCategory()"><i class="fas fa-plus"></i></button>' : '');
+    const box = document.getElementById('gtTypes');
+    if (!g) { box.innerHTML = '<span class="gt-none">سەرەتا گرووپێک هەڵبژێرە</span>'; return; }
+    const list = TYPES.filter(x => x.cat === g);
+    box.innerHTML = '<span class="lbl">جۆر:</span>'
+        + (list.length
+            ? list.map(x => '<button type="button" class="gt-t' + (x.id === t ? ' on' : '') + '" onclick="gtSetType(' + x.id + ')">'
+                + esc(x.name) + '</button>').join('')
+            : '<span class="gt-none">ئەم گرووپە جۆری نییە</span>')
+        + (CAN_CREATE ? '<button type="button" class="gt-t add" onclick="erpQuickType()"><i class="fas fa-plus"></i> جۆری نوێ</button>' : '');
+}
+function gtSetGroup(id) {
+    if (gtGroup() !== id) document.getElementById('pf_type').value = 0;
+    document.getElementById('pf_category').value = id;
+    gtRender();
+}
+function gtSetType(id) {
+    // Clicking the chosen type again clears it.
+    document.getElementById('pf_type').value = gtType() === id ? 0 : id;
+    gtRender();
+}
+
+/** The toolbar's type filter lists only the chosen group's types. */
+function erpFillTypeFilter() {
+    const c = Number(document.getElementById('erpCategory').value || 0);
+    const sel = document.getElementById('erpType');
+    const keep = sel.value;
+    const list = TYPES.filter(x => x.cat === c);
+    sel.innerHTML = '<option value="0">هەموو جۆرەکان</option>'
+        + list.map(x => '<option value="' + x.id + '">' + esc(x.name) + '</option>').join('');
+    if (list.some(x => String(x.id) === keep)) sel.value = keep;
+    sel.hidden = !list.length;
+}
+
+async function erpQuickType() {
+    const g = gtGroup();
+    if (!g) return;
+    const name = prompt('ناوی جۆری نوێ (نموونە: Composite):');
+    if (!name || !name.trim()) return;
+    const fd = new FormData();
+    fd.set('action', 'quick_type');
+    fd.set('category_id', g);
+    fd.set('name', name.trim());
+    const res  = await fetch(erp_API, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.ok) { showToast('error', data.error || 'هەڵە'); return; }
+    if (!TYPES.some(x => x.id === Number(data.id))) TYPES.push({ id: Number(data.id), cat: g, name: data.name });
+    document.getElementById('pf_type').value = data.id;
+    gtRender();
+    erpFillTypeFilter();
+}
+
 function erpNewProduct() {
     document.getElementById('erpProductForm').reset();
+    // A new item starts in the group (and type) the list is filtered to.
+    document.getElementById('pf_category').value = document.getElementById('erpCategory').value || 0;
+    document.getElementById('pf_type').value = document.getElementById('erpType').hidden ? 0 : (document.getElementById('erpType').value || 0);
+    gtRender();
     document.getElementById('pf_id').value = '';
     document.getElementById('pf_active').checked = true;
     document.getElementById('pf_error').style.display = 'none';
@@ -476,7 +580,7 @@ function erpNewProduct() {
 
 /** Load the full record, including its unit table, rather than the list row. */
 async function erpEdit(id) {
-    const res  = await fetch(ERP_API + '?action=detail&id=' + Number(id));
+    const res  = await fetch(erp_API + '?action=detail&id=' + Number(id));
     const data = await res.json();
     if (!data.ok) { showToast('error', data.error || 'کاڵا نەدۆزرایەوە'); return; }
     const row = data.product;
@@ -488,6 +592,8 @@ async function erpEdit(id) {
     document.getElementById('pf_barcode').value   = row.barcode || '';
     document.getElementById('pf_code').value      = row.product_code || '';
     document.getElementById('pf_category').value  = row.category_id || '0';
+    document.getElementById('pf_type').value      = row.type_id || '0';
+    gtRender();
     document.getElementById('pf_brand').value     = row.brand_id || '0';
     document.getElementById('pf_unit').value      = row.unit_id || '0';
     document.getElementById('pf_purchase').value  = row.purchase_price || 0;
@@ -535,7 +641,7 @@ async function erpSaveProduct() {
             return;
         }
         fd.set('units_json', JSON.stringify(usable));
-        const res  = await fetch(ERP_API, { method: 'POST', body: fd });
+        const res  = await fetch(erp_API, { method: 'POST', body: fd });
         const data = await res.json();
         if (!data.ok) {
             err.textContent = data.error || 'هەڵە';
@@ -553,11 +659,95 @@ async function erpSaveProduct() {
     }
 }
 
+/** The type cell: a picker of the product's group types when editable, else a tag. */
+function erpTypeCell(r) {
+    const tag = r.type_name ? '<span class="erp-tag">' + esc(r.type_name) + '</span>' : '<span class="erp-muted">—</span>';
+    const cat = Number(r.category_id) || 0;
+    const list = TYPES.filter(x => x.cat === cat);
+    if (!CAN_EDIT || !cat || (!list.length && !CAN_CREATE)) return tag;
+    const cur = Number(r.type_id) || 0;
+    let opts = '<option value="0">—</option>';
+    // an inactive type is not in TYPES; keep it visible so the cell tells the truth
+    if (cur && !list.some(x => x.id === cur)) opts += '<option value="' + cur + '" selected>' + esc(r.type_name) + '</option>';
+    opts += list.map(x => '<option value="' + x.id + '"' + (x.id === cur ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('');
+    const add = CAN_CREATE
+        ? '<button type="button" class="erp-type-add" title="جۆری نوێ" aria-label="جۆری نوێ" onclick="erpRowNewType(' + Number(r.id) + ', ' + cat + ', this)">+</button>'
+        : '';
+    return '<div class="erp-type-cell"><select class="erp-type-sel" data-cat="' + cat + '" data-prev="' + cur + '" onchange="erpSetType(' + Number(r.id) + ', this)">' + opts + '</select>' + add + '</div>';
+}
+
+/** «+» on a row: create a type in the product's group and give it to the product. */
+async function erpRowNewType(id, cat, btn) {
+    const name = prompt('ناوی جۆری نوێ (نموونە: Composite):');
+    if (!name || !name.trim()) return;
+    btn.disabled = true;
+    try {
+        const fd = new FormData();
+        fd.set('action', 'quick_type');
+        fd.set('category_id', cat);
+        fd.set('name', name.trim());
+        const data = await (await fetch(erp_API, { method: 'POST', body: fd })).json();
+        if (!data.ok) { showToast('error', data.error || 'هەڵە'); return; }
+        if (!TYPES.some(x => x.id === Number(data.id))) TYPES.push({ id: Number(data.id), cat: cat, name: data.name });
+        erpFillTypeFilter();
+        const sel = btn.parentElement.querySelector('select');
+        if (!sel.querySelector('option[value="' + Number(data.id) + '"]')) {
+            const o = document.createElement('option');
+            o.value = data.id; o.textContent = data.name;
+            sel.appendChild(o);
+        }
+        sel.value = data.id;
+        await erpSetType(id, sel);
+        // other rows of the same group get the new type in their pickers too
+        document.querySelectorAll('.erp-type-sel[data-cat="' + cat + '"]').forEach(s => {
+            if (s !== sel && !s.querySelector('option[value="' + Number(data.id) + '"]')) {
+                const o = document.createElement('option');
+                o.value = data.id; o.textContent = data.name;
+                s.appendChild(o);
+            }
+        });
+    } catch (e) {
+        showToast('error', 'کێشەی پەیوەندی ڕوویدا');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function erpSetType(id, sel) {
+    const prev = sel.dataset.prev;
+    sel.classList.remove('saved', 'failed');
+    sel.classList.add('saving');
+    sel.disabled = true;
+    let data;
+    try {
+        const fd = new FormData();
+        fd.set('action', 'set_type');
+        fd.set('id', id);
+        fd.set('type_id', sel.value);
+        const res = await fetch(erp_API, { method: 'POST', body: fd });
+        data = await res.json();
+    } catch (e) {
+        data = { ok: false, error: 'کێشەی پەیوەندی ڕوویدا' };
+    }
+    sel.disabled = false;
+    sel.classList.remove('saving');
+    if (data && data.ok) {
+        sel.dataset.prev = sel.value;
+        sel.classList.add('saved');
+        setTimeout(() => sel.classList.remove('saved'), 1200);
+    } else {
+        sel.value = prev;
+        sel.classList.add('failed');
+        setTimeout(() => sel.classList.remove('failed'), 1500);
+        showToast('error', (data && data.error) || 'هەڵە');
+    }
+}
+
 async function erpToggle(id) {
     const fd = new FormData();
     fd.set('action', 'toggle_active');
     fd.set('id', id);
-    const res  = await fetch(ERP_API, { method: 'POST', body: fd });
+    const res  = await fetch(erp_API, { method: 'POST', body: fd });
     const data = await res.json();
     if (data.ok) { erpLoad(); } else { showToast('error', data.error || 'هەڵە'); }
 }
@@ -568,7 +758,7 @@ async function erpQuickBrand() {
     const fd = new FormData();
     fd.set('action', 'quick_brand');
     fd.set('name', name.trim());
-    const res  = await fetch(ERP_API, { method: 'POST', body: fd });
+    const res  = await fetch(erp_API, { method: 'POST', body: fd });
     const data = await res.json();
     if (!data.ok) { showToast('error', data.error || 'هەڵە'); return; }
     const sel = document.getElementById('pf_brand');
@@ -581,26 +771,27 @@ async function erpQuickBrand() {
 }
 
 async function erpQuickCategory() {
-    const name = prompt('ناوی جۆری نوێ:');
+    const name = prompt('ناوی گرووپی نوێ:');
     if (!name || !name.trim()) return;
     const fd = new FormData();
     fd.set('action', 'quick_category');
     fd.set('name', name.trim());
-    const res  = await fetch(ERP_API, { method: 'POST', body: fd });
+    const res  = await fetch(erp_API, { method: 'POST', body: fd });
     const data = await res.json();
     if (!data.ok) { showToast('error', data.error || 'هەڵە'); return; }
-    for (const sel of [document.getElementById('pf_category'), document.getElementById('erpCategory')]) {
-        if (!sel.querySelector('option[value="' + data.id + '"]')) {
-            const o = document.createElement('option');
-            o.value = data.id; o.textContent = data.name;
-            sel.appendChild(o);
-        }
+    if (!GROUPS.some(x => x.id === Number(data.id))) GROUPS.push({ id: Number(data.id), name: data.name });
+    const sel = document.getElementById('erpCategory');
+    if (!sel.querySelector('option[value="' + data.id + '"]')) {
+        const o = document.createElement('option');
+        o.value = data.id; o.textContent = data.name;
+        sel.appendChild(o);
     }
-    document.getElementById('pf_category').value = data.id;
+    gtSetGroup(Number(data.id));
 }
 
 document.getElementById('erpSearch').addEventListener('input', erpDebounced);
-document.getElementById('erpCategory').addEventListener('change', () => { erpPage = 1; erpLoad(); });
+document.getElementById('erpCategory').addEventListener('change', () => { erpFillTypeFilter(); erpPage = 1; erpLoad(); });
+document.getElementById('erpType').addEventListener('change', () => { erpPage = 1; erpLoad(); });
 document.getElementById('erpStatus').addEventListener('change', () => { erpPage = 1; erpLoad(); });
 document.getElementById('erpLowStock').addEventListener('change', () => { erpPage = 1; erpLoad(); });
 erpLoad();

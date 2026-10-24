@@ -58,6 +58,7 @@ if (!function_exists('erp_nav_groups')) {
                 'label' => 'کڕین', 'icon' => 'fa-truck', 'color' => '#1565c0',
                 'items' => [
                     ['page' => 'purchases', 'url' => 'purchases.php', 'label' => 'کڕین', 'icon' => 'fa-truck', 'can' => ['erp.purchase.view']],
+                    ['page' => 'purchase-invoices', 'url' => 'purchase-invoices.php', 'label' => 'وەسڵەکانی کڕین', 'icon' => 'fa-file-invoice', 'can' => ['erp.purchase.view']],
                     ['page' => 'purchase-returns', 'url' => 'purchase-returns.php', 'label' => 'گەڕاندنەوەی کڕین', 'icon' => 'fa-truck-arrow-right', 'can' => ['erp.purchase.return']],
                 ],
             ],
