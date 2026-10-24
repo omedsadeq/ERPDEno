@@ -43,6 +43,15 @@ if not defined PYEXE (
 )
 echo Using Python: %PYEXE%
 
+REM A .venv copied from another computer points at that computer's Python
+REM and cannot run here - start a new one.
+if exist ".venv\Scripts\python.exe" (
+    ".venv\Scripts\python.exe" -c "import sys" >nul 2>&1
+    if errorlevel 1 (
+        echo The .venv here was made on another computer - making a new one ...
+        rmdir /s /q ".venv"
+    )
+)
 if not exist ".venv\Scripts\python.exe" (
     echo Creating .venv ...
     "%PYEXE%" -m venv .venv
