@@ -94,7 +94,14 @@ $paneHidden = !empty($paneAlwaysVisible) ? false : ($tid !== $activeInvoiceId);
     <div class="vt-head vt-head--<?= $tab['status'] ?>">
         <div class="vt-head-main">
             <span class="vt-head-no" dir="ltr"><?= htmlspecialchars($tab['invoice_no']) ?></span>
-            <span class="vt-head-date"><i class="fas fa-calendar-day"></i> <?= htmlspecialchars($tab['work_date']) ?></span>
+            <span class="vt-head-date"><i class="fas fa-calendar-day"></i> <?= htmlspecialchars($tab['work_date']) ?>
+                <?php // Until it is sent the doctor may move the receipt to another
+                      // day — same picker as the tab's pencil (cases/view.php). ?>
+                <?php if (empty($showInvoiceActions) && $isDraft && $case['status'] === 'open'): ?>
+                <span class="vt-tab-edit" role="button" title="گۆڕینی بەروار"
+                      onclick="window.editVisitTabDate && editVisitTabDate(<?= $tid ?>, '<?= htmlspecialchars($tab['work_date'], ENT_QUOTES) ?>', this)"><i class="fas fa-pen"></i></span>
+                <?php endif; ?>
+            </span>
             <?php
             // Whose work this receipt is (the doctor's cashbox and income go by
             // it), and who really made it when that was not the doctor — an
