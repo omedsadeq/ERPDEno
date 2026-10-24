@@ -27,7 +27,7 @@
  */
 
 require_once __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/../includes/search_helpers.php';
+require_once __DIR__ . '/../includes/VisitReportStats.php';
 
 /** X-ray types as the clinic names them (the income sheet uses the same). */
 const DS_XRAY_TYPES = ['panoramic' => 'OPG', 'cbct' => 'CBCT', 'cephalometric' => 'Ceph', 'periapical' => 'P.A'];
@@ -178,15 +178,6 @@ function ds_compute(Database $db, int $docUserId, string $day): array
  */
 function ds_compute_range(Database $db, int $docUserId, string $from, string $to, bool $withPatients = true): array
 {
-    static $hasVisitDoctorCols = null;
-    if ($hasVisitDoctorCols === null) {
-        try {
-            $hasVisitDoctorCols = (bool)$db->fetch("SHOW COLUMNS FROM visits LIKE 'checkup_doctor_id'");
-        } catch (Exception $e) {
-            $hasVisitDoctorCols = false;
-        }
-    }
-
     $docRow = $db->fetch("SELECT id, full_name, commission_rate FROM users WHERE id = :id", ['id' => $docUserId]);
 
     // visits.* point at doctors.id, everything else at users.id — bridge here.
@@ -197,44 +188,42 @@ function ds_compute_range(Database $db, int $docUserId, string $from, string $to
     $visitsLinkBroken = ($docRowId <= 0);
 
     // ── Visits ───────────────────────────────────────────────────────
-    // visit_type is NULL on most rows; visits.php renders those as پشکنین, so
-    // they count as پشکنین here too and ئیش + پشکنین always add up.
+    // The visits report's own rules (visits-report.php), so the two sheets
+    // always agree: each visit counts ONCE, for the doctor who saw it —
+    // assigned, else the checkup/treatment doctor, else the requested one
+    // (dh_visit_report_doctor_sql). Matching any doctor column instead
+    // counted one visit for every doctor named on it.
+    // پشکنین is split the way the report's matrix splits it: داواکراو (the
+    // patient asked for this doctor, key `pending`) / پێدراو (reception gave
+    // the patient to them, key `given`) / دیاریکردنی تر, and نوێ / کۆن.
     $work = ['total' => 0, 'treatment_visits' => 0, 'checkup_visits' => 0];
-    $checkupBreakdown = ['given' => 0, 'pending' => 0, 'new_exam' => 0, 'old_exam' => 0];
+    $checkupBreakdown = ['given' => 0, 'pending' => 0, 'other' => 0, 'new_exam' => 0, 'old_exam' => 0];
     if (!$visitsLinkBroken) {
-        $vp = ['f' => $from, 't' => $to];
-        $vCond = visits_doctor_condition($docRowId, '', $vp, 'own', $hasVisitDoctorCols);
-        $row = $db->fetch(
-            "SELECT COUNT(*) AS total,
-                    SUM(CASE WHEN v.visit_type = 'treatment' THEN 1 ELSE 0 END) AS treatment_visits,
-                    SUM(CASE WHEN v.visit_type = 'treatment' THEN 0 ELSE 1 END) AS checkup_visits
-             FROM visits v
-             WHERE v.visit_date BETWEEN :f AND :t AND $vCond",
-            $vp
-        );
-        foreach ($work as $k => $_) {
-            $work[$k] = (int)($row[$k] ?? 0);
+        $byType = [];
+        foreach (['checkup', 'treatment'] as $type) {
+            $doctorSql = dh_visit_report_doctor_sql($type);
+            $groups = $db->fetchAll(
+                "SELECT {$doctorSql} AS doctor_id,
+                        requested_doctor_id, assigned_doctor_id, doctor_assignment_source, patient_status, receptionist_id, COUNT(*) AS count
+                 FROM visits v
+                 WHERE v.visit_date BETWEEN :f AND :t AND v.visit_type = :vt AND {$doctorSql} = :doc
+                 GROUP BY doctor_id, requested_doctor_id, assigned_doctor_id, doctor_assignment_source, patient_status, receptionist_id",
+                ['f' => $from, 't' => $to, 'vt' => $type, 'doc' => $docRowId]
+            );
+            $byType[$type] = dh_visit_report_build_matrix($groups, [$docRowId => ''], [])['doctor_stats'][$docRowId];
         }
-
-        // پشکنین split two ways — پێدراو/داواکراو by the `treated` flag,
-        // نوێ/کۆن by patient_status. Each pair sums to the checkup total.
-        $ckp = ['f' => $from, 't' => $to];
-        $ckCond = visits_doctor_condition($docRowId, '', $ckp, 'chk', $hasVisitDoctorCols);
-        $row = $db->fetch(
-            "SELECT
-                SUM(CASE WHEN v.treated = 'yes' THEN 1 ELSE 0 END) AS given,
-                SUM(CASE WHEN v.treated = 'yes' THEN 0 ELSE 1 END) AS pending,
-                SUM(CASE WHEN v.patient_status = 'new' THEN 1 ELSE 0 END) AS new_exam,
-                SUM(CASE WHEN v.patient_status = 'old' THEN 1 ELSE 0 END) AS old_exam
-             FROM visits v
-             WHERE v.visit_date BETWEEN :f AND :t
-               AND (v.visit_type <> 'treatment' OR v.visit_type IS NULL)
-               AND $ckCond",
-            $ckp
-        );
-        foreach ($checkupBreakdown as $k => $_) {
-            $checkupBreakdown[$k] = (int)($row[$k] ?? 0);
-        }
+        $work = [
+            'total'            => $byType['checkup']['assigned'] + $byType['treatment']['assigned'],
+            'treatment_visits' => $byType['treatment']['assigned'],
+            'checkup_visits'   => $byType['checkup']['assigned'],
+        ];
+        $checkupBreakdown = [
+            'given'    => $byType['checkup']['reception'],
+            'pending'  => $byType['checkup']['requested'],
+            'other'    => $byType['checkup']['other'],
+            'new_exam' => $byType['checkup']['new'],
+            'old_exam' => $byType['checkup']['old'],
+        ];
     }
 
     // ── Invoices for this work day ───────────────────────────────────
@@ -595,15 +584,23 @@ function ds_row_lists(array $ds): array
                 array_filter($ds['xrayByType'])
             )
         ),
-        'visit' => [
-            ['کۆی گشتی سەردانیکەران', dsMoney($ds['work']['total']), 'total'],
-            ['کۆی گشتی ئیش',          dsMoney($ds['work']['treatment_visits']), ''],
-            ['کۆی گشتی پشکنین',       dsMoney($ds['work']['checkup_visits']), ''],
-            ['پشکنینی داواکراو',      dsMoney($ds['checkupBreakdown']['pending']), 'neg'],
-            ['پشکنینی پێدراو',        dsMoney($ds['checkupBreakdown']['given']), 'pos'],
-            ['پشکنینی نوێ',           dsMoney($ds['checkupBreakdown']['new_exam']), ''],
-            ['پشکنینی کۆن',           dsMoney($ds['checkupBreakdown']['old_exam']), ''],
-        ],
+        // Same rows as the visits report's matrix for this one doctor.
+        'visit' => array_merge(
+            [
+                ['کۆی گشتی سەردانیکەران', dsMoney($ds['work']['total']), 'total'],
+                ['کۆی گشتی ئیش',          dsMoney($ds['work']['treatment_visits']), ''],
+                ['کۆی گشتی پشکنین',       dsMoney($ds['work']['checkup_visits']), ''],
+                ['پشکنینی داواکراو',      dsMoney($ds['checkupBreakdown']['pending']), ''],
+                ['پشکنینی پێدراو (گواستنەوەی پێشوازی)', dsMoney($ds['checkupBreakdown']['given']), ''],
+            ],
+            ($ds['checkupBreakdown']['other'] ?? 0) > 0
+                ? [['پشکنینی دیاریکردنی تر', dsMoney($ds['checkupBreakdown']['other']), '']]
+                : [],
+            [
+                ['پشکنینی نوێ',           dsMoney($ds['checkupBreakdown']['new_exam']), ''],
+                ['پشکنینی کۆن',           dsMoney($ds['checkupBreakdown']['old_exam']), ''],
+            ]
+        ),
         'time' => [
             ['کاتژمێری هاتن',    dsHours($ds['attendanceMinutes']), 'total'],
             ['ڕۆژی هاتن',        dsMoney($ds['attendedDay']), ''],
