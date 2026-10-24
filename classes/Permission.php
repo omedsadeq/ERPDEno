@@ -182,7 +182,8 @@ class Permission {
             'expenses' => 'خەرجیەکان',
             'admin' => 'بەڕێوەبردن',
             'actions' => 'کردارەکان',
-            'letters' => 'نوسراوی فەرمی'
+            'letters' => 'نوسراوی فەرمی',
+            'hr' => 'سەرچاوە مرۆییەکان'
         ];
         return $labels[$category] ?? $category;
     }

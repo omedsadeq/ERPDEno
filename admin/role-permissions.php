@@ -201,6 +201,7 @@ foreach ($rolePermissions as $perm) {
 .category-icon.admin { background: linear-gradient(135deg, #f44336, #d32f2f); }
 .category-icon.actions { background: linear-gradient(135deg, #607d8b, #455a64); }
 .category-icon.letters { background: linear-gradient(135deg, #3b6ea8, #1f3b63); }
+.category-icon.hr { background: linear-gradient(135deg, #14b8a6, #0f766e); }
 
 .category-toggle-all {
     display: flex;
@@ -457,7 +458,8 @@ foreach ($rolePermissions as $perm) {
             'financial' => 'fa-money-bill-wave',
             'admin' => 'fa-cog',
             'actions' => 'fa-bolt',
-            'letters' => 'fa-envelope-open-text'
+            'letters' => 'fa-envelope-open-text',
+            'hr' => 'fa-people-group'
         ];
 
         foreach ($permissionDefinitions as $category => $permissions):
