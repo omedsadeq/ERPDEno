@@ -4833,6 +4833,27 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
 .rx-dialog .rxs-it .bx { width: 16px; height: 16px; font-size: 10px !important; }
 .rx-dialog .rxs-it .tp, .rx-dialog .rxs-it .ds { font-size: 11px !important; }
 .rx-dialog .rxs-q, .rx-dialog .rxs-it .rxs-q { height: 17px; min-width: 21px; padding: 0 5px; font-size: 11px !important; }
+/* Two steps: هەڵبژاردن (the sheet) / ناردن (doses, notes, send, history) */
+.rx-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e2e8f0; margin: -4px 0 12px; }
+.rx-tab { display: flex; align-items: center; gap: 7px; margin-bottom: -2px; padding: 9px 18px; border: 0; border-bottom: 3px solid transparent;
+    background: none; color: #64748b; font-size: 14px !important; font-weight: 700; cursor: pointer; }
+.rx-tab:hover { color: #334155; }
+.rx-tab.on { color: var(--win-accent, #0078D4); border-bottom-color: var(--win-accent, #0078D4); }
+.rx-tab-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
+    background: #e2e8f0; color: #334155; font-size: 11px !important; font-weight: 800; }
+.rx-tab.on .rx-tab-count { background: var(--win-accent, #0078D4); color: #fff; }
+.rx-pane[hidden] { display: none; }
+/* A circled type filters its group (renderSheet) */
+.rxs-it.typed-out { display: none; }
+.rx-dialog .rxs-col.is-filtered .rxs-head { box-shadow: inset 0 -3px 0 #2e7d32; }
+.rx-dialog .rxs-t.on { color: #1b5e20; }
+.rxs-none { padding: 8px 6px; color: #64748b; font-size: 11.5px !important; text-align: center; direction: rtl; }
+/* The way on to step two, kept in view while scrolling the sheet */
+.rx-next { position: sticky; bottom: -18px; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin-top: 10px; padding: 10px 14px; border: 1px solid #a7f3d0; border-radius: 10px; background: #ecfdf5; color: #065f46;
+    box-shadow: 0 -6px 16px rgba(15, 23, 42, .08); }
+.rx-next[hidden] { display: none; }
+.rx-next span { font-size: 14px !important; font-weight: 700; }
 .rx-search-wrap { position: relative; margin-bottom: 14px; }
 .rx-label { display:block; font-size:12px; color:#666; margin-bottom:5px; font-weight:600; }
 .rx-input { width:100%; border:1.5px solid #e0e0e0; border-radius:8px; padding:9px 11px; font:13px inherit; background:#fff; color:#222; }
@@ -5897,8 +5918,20 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                     <div class="dialog-body rx-dialog-body">
 
                     <?php if ($canPrescribe): ?>
-                    <!-- The clinic's paper prescription sheet: tick the items, circle the
-                         form (Tab, Syrup, …) or brand in a group's header. -->
+                    <!-- Two steps: pick the medicines, then check doses and send -->
+                    <div class="rx-tabs" role="tablist">
+                        <button type="button" class="rx-tab on" data-rx-tab="pick" role="tab" aria-selected="true">
+                            <i class="fas fa-list-check"></i> هەڵبژاردن
+                        </button>
+                        <button type="button" class="rx-tab" data-rx-tab="send" role="tab" aria-selected="false">
+                            <i class="fas fa-paper-plane"></i> ناردن <span class="rx-tab-count" id="rxSendCount">0</span>
+                        </button>
+                    </div>
+
+                    <div class="rx-pane" data-rx-pane="pick">
+                    <!-- The clinic's paper prescription sheet: tick the items. A header
+                         circle filters its group to that form/brand (and is the form of
+                         ticked items that have none of their own). -->
                     <div class="rxs" id="rxSheet">
                         <div class="rxs-top">
                             <div class="rxs-pt">Patient Name : <bdi><?= htmlspecialchars($case['patient_name'] ?? '') ?></bdi></div>
@@ -5910,7 +5943,16 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                         </div>
                         <div class="rxs-grid" id="rxGrid"><div class="rx-empty">بارکردن…</div></div>
                     </div>
+                    <!-- Shown once something is ticked: the way on to the second step -->
+                    <div class="rx-next" id="rxNext" hidden>
+                        <span><i class="fas fa-check-circle"></i> <b id="rxNextCount">0</b> دەرمان هەڵبژێردرا</span>
+                        <button type="button" class="btn btn-primary" data-rx-tab="send">
+                            ناردن <i class="fas fa-arrow-left"></i>
+                        </button>
+                    </div>
+                    </div>
 
+                    <div class="rx-pane" data-rx-pane="send" hidden>
                     <div class="rx-table-wrap">
                         <table class="rx-table" id="rxTable">
                             <thead>
@@ -5925,7 +5967,7 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                             </thead>
                             <tbody id="rxRows"></tbody>
                         </table>
-                        <div id="rxEmpty" class="rx-empty">هێشتا هیچ دەرمانێک دیاری نەکراوە — لە پەڕەکەی سەرەوە کاڵاکان دیاری بکە.</div>
+                        <div id="rxEmpty" class="rx-empty">هێشتا هیچ دەرمانێک دیاری نەکراوە — لە تابی «هەڵبژاردن» کاڵاکان دیاری بکە.</div>
                     </div>
 
                     <div class="rx-foot">
@@ -5943,6 +5985,9 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                     <div id="rxHistory" class="rx-history">
                         <div class="rx-empty">بارکردن…</div>
                     </div>
+                    <?php if ($canPrescribe): ?>
+                    </div><!-- /send pane -->
+                    <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -12000,7 +12045,9 @@ window.showTab = function(tabName, button, openPaymentDialog = false) {
 // دەرمان is a dialog, not a tab. It lives under <body> so no panel styling
 // (overflow, stacking) can clip a fixed overlay.
 window.openMedicineDialog = function () {
-    if (document.getElementById('medicineDialog')) openDialog('medicineDialog');
+    if (!document.getElementById('medicineDialog')) return;
+    if (window.showRxTab) showRxTab('pick');   // always start on step one
+    openDialog('medicineDialog');
 };
 document.addEventListener('DOMContentLoaded', function () {
     const dlg = document.getElementById('medicineDialog');
@@ -12100,15 +12147,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     '<button type="button" class="rxs-t' + (t.id === chosen ? ' on' : '') + '" data-g="' + g.id + '" data-t="' + t.id + '"'
                     + ' role="radio" aria-checked="' + (t.id === chosen) + '">' + esc(t.name) + '</button>').join('') + '</div>'
                 : '';
+            // A circled form FILTERS its group to that form: the doctor picks the
+            // type first, then ticks from the few that are left. Ticked items and
+            // untyped ones always stay visible.
+            const outOfForm = p => !lineOf[p.id] && chosen && p.type_id && p.type_id !== chosen;
+            const shown = g.items.filter(p => !outOfForm(p)).length;
             const items = g.items.map(p => {
                 const l = lineOf[p.id], on = !!l;
-                // a circled form fades the items that are known to be another form
-                const dim = !on && chosen && p.type_id && p.type_id !== chosen;
+                const dim = outOfForm(p);
                 // How many are on the pharmacy shelf, right beside the name.
                 const qty = '<span class="rxs-q' + (p.stock <= 0 ? ' zero' : '') + '" title="'
                     + esc(p.stock <= 0 ? 'لە کۆگا نییە' : 'بەردەست لە کۆگا: ' + nf(p.stock) + (p.unit_name ? ' ' + p.unit_name : '')) + '">'
                     + nf(p.stock) + '</span>';
-                return '<label class="rxs-it' + (on ? ' on' : '') + (p.stock <= 0 ? ' out' : '') + (dim ? ' dim' : '') + '"'
+                return '<label class="rxs-it' + (on ? ' on' : '') + (p.stock <= 0 ? ' out' : '') + (dim ? ' typed-out' : '') + '"'
                     + ' data-name="' + esc(((p.name || '') + ' ' + (p.name_ku || '')).toLowerCase()) + '"'
                     + ' title="' + esc(p.name + (p.type_name ? ' — ' + p.type_name : '') + (p.stock <= 0 ? ' — لە کۆگا نییە' : ' — لە کۆگا: ' + nf(p.stock))) + '">'
                     + '<input type="checkbox" data-p="' + p.id + '" data-g="' + g.id + '"' + (on ? ' checked' : '') + (CAN_WRITE ? '' : ' disabled') + '>'
@@ -12132,9 +12183,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const doctor = gi === groups.length - 1
                 ? '<div class="rxs-doc"><h5>Doctor</h5><div>' + (RX_DOCTOR ? 'د. ' + esc(RX_DOCTOR) : '&nbsp;') + '</div></div>'
                 : '';
-            return '<section class="rxs-col" aria-label="' + esc(g.name) + '">'
+            const none = chosen && !shown
+                ? '<div class="rxs-none">هیچ کاڵایەک بەم جۆرە نییە — جۆرەکە دووبارە کلیک بکە بۆ پیشاندانی هەموو</div>'
+                : '';
+            return '<section class="rxs-col' + (chosen ? ' is-filtered' : '') + '" aria-label="' + esc(g.name) + '">'
                 + '<div class="rxs-head"><h5>' + esc(g.name) + '</h5>' + types + '</div>'
-                + '<div class="rxs-body">' + items + doctor + '</div></section>';
+                + '<div class="rxs-body">' + items + none + doctor + '</div></section>';
         }).join('');
         applyFind();
     }
@@ -12321,8 +12375,32 @@ document.addEventListener('DOMContentLoaded', function() {
         if (empty) empty.style.display = lines.length ? 'none' : 'block';
         const btn = $('rxSendBtn');
         if (btn) btn.disabled = !lines.length;
+        // the step-two counters: the ناردن tab and the bar under the sheet
+        if ($('rxSendCount')) $('rxSendCount').textContent = lines.length;
+        if ($('rxNextCount')) $('rxNextCount').textContent = lines.length;
+        if ($('rxNext')) $('rxNext').hidden = !lines.length;
         stockWarning();
     }
+
+    /* ---------- the two steps: هەڵبژاردن / ناردن ---------- */
+    function showRxTab(name) {
+        document.querySelectorAll('#medicineDialog .rx-tab').forEach(t => {
+            const on = t.dataset.rxTab === name;
+            t.classList.toggle('on', on);
+            t.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        document.querySelectorAll('#medicineDialog [data-rx-pane]').forEach(p => {
+            p.hidden = p.dataset.rxPane !== name;
+        });
+        if (name === 'send') closeDose();
+        const body = document.querySelector('#medicineDialog .rx-dialog-body');
+        if (body) body.scrollTop = 0;
+    }
+    window.showRxTab = showRxTab;
+    document.addEventListener('click', e => {
+        const t = e.target.closest('#medicineDialog [data-rx-tab]');
+        if (t) showRxTab(t.dataset.rxTab);
+    });
 
     /** Not a block — on paper the doctor may ask for anything — but say so. */
     function stockWarning() {
