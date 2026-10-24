@@ -4683,11 +4683,7 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                     <i class="fas fa-hourglass-half"></i> پارەدان چاوەڕوانە (<?= number_format($pendingPaymentsTotal) ?>)
                 </span>
                 <?php endif; ?>
-                <?php if (($isDoctor || $isAdmin) && $case['status'] === 'open'): ?>
-                <button class="btn btn-outline" style="padding: 8px 16px;" onclick="openAppointmentDialog()" title="دانانی مەوعید بۆ نەخۆش (Alt+A)">
-                    <i class="fas fa-calendar-plus"></i> مەوعید
-                </button>
-                <?php endif; ?>
+                <?php // The appointment button lives in the کردارەکان panel (and Alt+A). ?>
                 <?php // No «چاپکردنی وەسڵ» here: each receipt prints from its own
                       // «چاپ» button and from the print icon in the وەسڵەکان list. ?>
                 <?php // Accounting control — ONE per role. Doctors use the green
