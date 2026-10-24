@@ -804,6 +804,10 @@ function render_visit_tab_bar(array $invoiceTabs, $activeInvoiceId, $caseStatus)
                 <?php elseif ($tab['status'] === 'processed'): ?><i class="fas fa-check-double" title="پارە وەرگیراوە"></i>
                 <?php else: ?><i class="fas fa-paper-plane" title="لای ژمێریار"></i><?php endif; ?>
                 <?= htmlspecialchars(date('Y/n/j', strtotime($tab['work_date']))) ?>
+                <?php if ($caseStatus === 'open' && in_array($tab['accounting_status'] ?? $tab['status'], ['draft', 'returned'], true)): ?>
+                <span class="vt-tab-edit" role="button" title="گۆڕینی بەروار"
+                      onclick="event.stopPropagation(); editVisitTabDate(<?= $tid ?>, '<?= htmlspecialchars($tab['work_date'], ENT_QUOTES) ?>', this)"><i class="fas fa-pen"></i></span>
+                <?php endif; ?>
             </span>
             <span class="vt-tab-no" dir="ltr"><?= htmlspecialchars($tab['invoice_no']) ?></span>
         </button>
@@ -1443,6 +1447,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $res = $caseInvoice->setDoctor($caseId, $invoiceId, intval($_POST['doctor_id'] ?? 0), (int)$currentUser['id']);
         if (empty($res['success'])) {
             case_view_fail($caseId, $res['message'] ?? 'گۆڕینی دکتۆر سەرنەکەوت');
+        }
+        if (($_POST['ajax'] ?? '') === '1') {
+            case_view_ajax_success($caseManager, $caseId, ['invoice_id' => $invoiceId]);
+        }
+        header('Location: ' . APP_URL . '/cases/view.php?id=' . $caseId . '&tab=treatments&inv=' . $invoiceId);
+        exit;
+
+    } elseif ($action === 'set_invoice_date') {
+        // The pencil beside a draft tab's date (CaseInvoice::setWorkDate).
+        $invoiceId = intval($_POST['invoice_id'] ?? 0);
+        $res = $caseInvoice->setWorkDate($caseId, $invoiceId, trim($_POST['work_date'] ?? ''), (int)$currentUser['id']);
+        if (empty($res['success'])) {
+            case_view_fail($caseId, $res['message'] ?? 'گۆڕینی بەروار سەرنەکەوت');
         }
         if (($_POST['ajax'] ?? '') === '1') {
             case_view_ajax_success($caseManager, $caseId, ['invoice_id' => $invoiceId]);
@@ -14098,11 +14115,74 @@ function rtFocusNext(row, current) {
 }
 
 // ── New visit tab ──
-function openNewVisitTab() {
-    const input = document.getElementById('newVisitDate');
-    if (input) input.value = new Date().toISOString().slice(0, 10);
-    openDialog('newVisitTabDialog');
+// The clinic's calendar day on this PC (toISOString would give the UTC day,
+// which is still "yesterday" until 03:00 in Baghdad).
+function localToday() {
+    const d = new Date(), pad = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
 }
+
+// «تابی نوێ» creates today's receipt at once — no dialog. The dialog only
+// opens when the receipt's doctor is unknown (someone other than a doctor, on
+// a case with no doctor), because the server refuses a receipt without one.
+// The day is changed afterwards with the pencil beside the tab's date.
+let newVisitTabBusy = false;
+function openNewVisitTab() {
+    const form = document.querySelector('#newVisitTabDialog form');
+    if (!form || newVisitTabBusy) return;
+    const input = document.getElementById('newVisitDate');
+    if (input) input.value = localToday();
+    const doctor = form.querySelector('select[name="doctor_id"]');
+    if (doctor && !doctor.value) {
+        openDialog('newVisitTabDialog');
+        return;
+    }
+    newVisitTabBusy = true;
+    document.querySelectorAll('.vt-add').forEach(btn => { btn.disabled = true; });
+    form.submit();
+}
+
+// Pencil beside a draft tab's date: pick another day in the native calendar
+// (CaseInvoice::setWorkDate moves the receipt and its treatments).
+function editVisitTabDate(invoiceId, current, anchor) {
+    let picker = document.getElementById('vtDatePicker');
+    if (!picker) {
+        picker = document.createElement('input');
+        picker.type = 'date';
+        picker.id = 'vtDatePicker';
+        picker.className = 'vt-date-picker';
+        picker.setAttribute('aria-label', 'بەرواری وەسڵ');
+        document.body.appendChild(picker);
+    }
+    const today = localToday();
+    const r = anchor.getBoundingClientRect();
+    picker.style.left = (r.left + window.scrollX) + 'px';
+    picker.style.top = (r.bottom + window.scrollY) + 'px';
+    picker.max = today;
+    picker.value = current;
+    picker.onchange = function () {
+        const value = picker.value;
+        if (!value || value === current) return;
+        if (value > today) { toast('error', 'ناتوانرێت وەسڵ بۆ ڕۆژێکی داهاتوو دابنرێت'); return; }
+        const fd = new FormData();
+        fd.set('csrf_token', CSRF_TOKEN);
+        fd.set('action', 'set_invoice_date');
+        fd.set('ajax', '1');
+        fd.set('invoice_id', invoiceId);
+        fd.set('work_date', value);
+        fetch(window.location.href, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(res => res.json())
+            .then(d => {
+                if (!d.success) { toast('error', d.message || 'هەڵەیەک ڕوویدا'); return; }
+                toast('success', 'بەرواری وەسڵ گۆڕدرا');
+                applyInvoiceSnapshot(d, invoiceId);
+            })
+            .catch(() => toast('error', 'هەڵەیەک ڕوویدا لە پەیوەندیکردن'));
+    };
+    // showPicker needs a rendered input; the field itself is invisible (CSS).
+    try { picker.showPicker(); } catch (e) { picker.focus(); picker.click(); }
+}
+window.editVisitTabDate = editVisitTabDate;
 
 // Whose work a receipt is — the header's دکتۆر box (admin/accountant only).
 function setInvoiceDoctor(invoiceId, doctorId, select) {

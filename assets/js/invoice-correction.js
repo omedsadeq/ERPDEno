@@ -33,6 +33,12 @@
         }).join('') + '</div>';
     }
     function paintCross(tr) {
+        var arch = tr.querySelector('[data-field="arch_type"]').value;
+        var badge = tr.querySelector('.ic-arch-badge'), isJaw = arch === 'upper' || arch === 'lower';
+        tr.querySelector('.ic-cross').hidden = isJaw;
+        badge.hidden = !isJaw;
+        badge.classList.toggle('is-lower', arch === 'lower');
+        badge.innerHTML = isJaw ? '<i class="fas fa-teeth-open"></i> ' + (arch === 'upper' ? 'ماکزیلا / سەرەوە' : 'ماندیبل / خوارەوە') : '';
         var fdi = String(tr.querySelector('[data-field="tooth_number"]').value || '').trim();
         var valid = /^(?:[1-4][1-8]|[5-8][1-5])$/.test(fdi);
         var q = valid ? FDI_QUAD[fdi.charAt(0)] : null, n = valid ? Number(fdi.charAt(1)) : 0;
@@ -61,8 +67,10 @@
         var tr = document.createElement('tr');
         tr.dataset.icRow = String(data.id || 0);
         tr.innerHTML = '<td><input data-field="treatment_name" maxlength="100" required aria-label="ناوەڕۆک"></td>'
-            + '<td class="ic-teeth"><input type="hidden" data-field="tooth_number">' + crossHtml() + '</td>'
-            + '<td><select data-field="arch_type" aria-label="شوێن"><option value="none">ددان / خزمەتگوزاری</option><option value="upper">چەناگەی سەرەوە</option><option value="lower">چەناگەی خوارەوە</option></select></td>'
+            // شوێن is not edited here any more; it travels unchanged in a hidden
+            // field, and a whole-jaw row shows its badge instead of the cross.
+            + '<td class="ic-teeth"><input type="hidden" data-field="tooth_number"><input type="hidden" data-field="arch_type">'
+            + crossHtml() + '<span class="rt-location-badge ic-arch-badge" hidden></span></td>'
             + '<td><input type="number" data-field="quantity" min="1" max="9999" step="1" required aria-label="ژمارە"></td>'
             + '<td><input type="number" data-field="unit_price" min="0" max="9999999999.99" step="0.01" required aria-label="نرخی تاک"></td>'
             + '<td><input type="number" data-field="discount" min="0" step="0.01" required aria-label="داشکاندنی ڕیز"></td>'

@@ -142,6 +142,53 @@ class CaseInvoice {
     }
 
     /**
+     * Move a receipt to another day — the pencil beside its date on the visit
+     * tab. Only while it is still a draft (or returned): once sent, its day is
+     * part of the accountant's figures. Its treatments move with it, because
+     * production reports read case_treatments.performed_date.
+     */
+    public function setWorkDate($caseId, $invoiceId, $workDate, $actorId) {
+        $workDate = (string)$workDate;
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $workDate) || !strtotime($workDate)) {
+            return ['success' => false, 'message' => 'بەروار هەڵەیە'];
+        }
+        if ($workDate > date('Y-m-d')) {
+            return ['success' => false, 'message' => 'ناتوانرێت وەسڵ بۆ ڕۆژێکی داهاتوو دابنرێت'];
+        }
+        $invoice = $this->db->fetch(
+            "SELECT id, work_date, accounting_status FROM case_invoices WHERE id = :id AND case_id = :cid",
+            ['id' => (int)$invoiceId, 'cid' => (int)$caseId]
+        );
+        if (!$invoice) {
+            return ['success' => false, 'message' => 'وەسڵ نەدۆزرایەوە'];
+        }
+        if (!in_array($invoice['accounting_status'], ['draft', 'returned'], true)) {
+            return ['success' => false, 'message' => 'بەرواری وەسڵی نێردراو ناگۆڕدرێت'];
+        }
+        if ($invoice['work_date'] === $workDate) {
+            return ['success' => true];
+        }
+        $this->db->beginTransaction();
+        try {
+            $this->db->update('case_invoices', ['work_date' => $workDate, 'updated_at' => date('Y-m-d H:i:s')],
+                'id = :id', ['id' => (int)$invoiceId]);
+            $this->db->query(
+                "UPDATE case_treatments
+                    SET performed_date = CONCAT(:d, ' ', TIME(COALESCE(performed_date, created_at)))
+                  WHERE invoice_id = :id",
+                ['d' => $workDate, 'id' => (int)$invoiceId]
+            );
+            AuditLog::log('invoice_date_changed', 'case_invoices', (int)$invoiceId,
+                ['work_date' => $invoice['work_date']], ['work_date' => $workDate], $actorId);
+            $this->db->commit();
+        } catch (Exception $e) {
+            $this->db->rollback();
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+        return ['success' => true];
+    }
+
+    /**
      * The draft a new treatment should be filed under: the newest open draft,
      * or a fresh one for today. Called whenever work is entered without an
      * explicit tab, so the doctor never has to think about invoices.
