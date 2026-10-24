@@ -390,6 +390,18 @@ $paneHidden = !empty($paneAlwaysVisible) ? false : ($tid !== $activeInvoiceId);
     $invDiscount  = (float)($tab['discount_amount'] ?? 0);
     $invNet       = max(0, (float)$tab['total_amount'] - $invDiscount);
     $invPaid      = (float)($tab['fifo_covered'] ?? 0);
+    // پسوولە وەک خۆی: an approved receipt reads as it was issued, exactly like
+    // the printed one (AccountingLedger receipt_*). Later قەبزەکان are listed
+    // under the totals instead. The doctor's correction view keeps the live
+    // figures, because that is where the real discount is edited.
+    $invSnapshot  = $accountingStatus === 'approved' && !$doctorEditable;
+    $invLaterPaid = $invSnapshot ? (float)($tab['later_paid_amount'] ?? 0) : 0.0;
+    $invLaterDisc = $invSnapshot ? (float)($tab['later_discount_amount'] ?? 0) : 0.0;
+    if ($invSnapshot) {
+        $invDiscount = (float)($tab['receipt_discount_amount'] ?? $invDiscount);
+        $invNet      = (float)($tab['receipt_net_amount'] ?? $invNet);
+        $invPaid     = (float)($tab['receipt_paid_amount'] ?? $invPaid);
+    }
     // A doctor's request that the accountant has not acted on yet. Deliberately
     // NOT added to $invPaid — it is not money until it is approved.
     $invPending   = (float)($tab['pending_amount'] ?? 0);
@@ -492,8 +504,8 @@ $paneHidden = !empty($paneAlwaysVisible) ? false : ($tid !== $activeInvoiceId);
             <?php
             // How the discount was given is remembered, so a percentage keeps
             // reading as a percentage; a flat amount shows no percentage at all.
-            $discMode  = ($tab['discount_mode'] ?? 'amount') === 'percent' ? 'percent' : 'amount';
-            $discValue = (float)($tab['discount_value'] ?? 0);
+            $discMode  = ($tab[$invSnapshot ? 'receipt_discount_mode' : 'discount_mode'] ?? 'amount') === 'percent' ? 'percent' : 'amount';
+            $discValue = (float)($tab[$invSnapshot ? 'receipt_discount_value' : 'discount_value'] ?? 0);
             $discShown = $discMode === 'percent' ? $discValue : $invDiscount;
             $trimNum = function ($n) { return rtrim(rtrim(number_format($n, 2, '.', ''), '0'), '.'); };
             ?>
@@ -611,6 +623,23 @@ $paneHidden = !empty($paneAlwaysVisible) ? false : ($tid !== $activeInvoiceId);
                 <span class="vt-total-box<?= $invRemaining > 0.009 ? ' is-due' : '' ?>"
                       data-disc-rem="<?= $tid ?>" data-paid="<?= $invEntered ?>"><?= $ipMoney($invRemaining) ?></span>
             </div>
+            <?php if ($invLaterPaid > 0.009 || $invLaterDisc > 0.009):
+                $invNowRemaining = (float)($tab['remaining_amount'] ?? 0); ?>
+            <!-- Screen only: what happened after the receipt was issued. The
+                 receipt above stays as printed; the debt itself is settled. -->
+            <div class="vt-later<?= $invNowRemaining <= 0.009 ? ' is-settled' : '' ?>">
+                <div class="vt-later-row">
+                    <i class="fas fa-<?= $invNowRemaining <= 0.009 ? 'check-circle' : 'receipt' ?>"></i>
+                    <span>قەبزی دواتر: <b><?= $ipMoney($invLaterPaid) ?></b>
+                        <?php if (!empty($tab['later_payment_numbers'])): ?><small dir="ltr">(<?= htmlspecialchars($tab['later_payment_numbers']) ?>)</small><?php endif; ?>
+                        <?php if ($invLaterDisc > 0.009): ?> + داشکاندن <b><?= $ipMoney($invLaterDisc) ?></b><?php endif; ?>
+                    </span>
+                </div>
+                <div class="vt-later-row">
+                    <span>ماوەی ئێستا: <b class="vt-later-now"><?= $ipMoney($invNowRemaining) ?></b></span>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
     <?php if ($isAdmin && !empty($canDeleteInvoices) && $case['status'] === 'open' && $accountingStatus !== 'cancelled'):

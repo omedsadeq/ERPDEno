@@ -4921,15 +4921,16 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
         <!-- Tabs -->
         <div class="panel">
             <div class="tabs-container">
-                <button type="button" class="tab active" onclick="showTab('chart', this)">
-                    <i class="fas fa-tooth" aria-hidden="true"></i>
-                    <span class="tab-label">چارتی ددان</span>
-                </button>
-                <?php // Treatments are the record of work done, not an injection. ?>
-                <button type="button" class="tab" data-case-tab="treatments" onclick="showTab('treatments', this)">
+                <?php // Treatments are the record of work done, not an injection.
+                      // First tab and open by default; the chart comes second. ?>
+                <button type="button" class="tab active" data-case-tab="treatments" onclick="showTab('treatments', this)">
                     <i class="fas fa-tasks" aria-hidden="true"></i>
                     <span class="tab-label">چارەسەرەکان</span>
                     <span class="tab-count" data-invoice-count><?= count($invoiceTabs) ?></span>
+                </button>
+                <button type="button" class="tab" onclick="showTab('chart', this)">
+                    <i class="fas fa-tooth" aria-hidden="true"></i>
+                    <span class="tab-label">چارتی ددان</span>
                 </button>
                 <button type="button" class="tab" data-case-tab="payments" onclick="showTab('payments', this, true)">
                     <i class="fas fa-money-bill" aria-hidden="true"></i>
@@ -4958,7 +4959,7 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
             </div>
 
             <!-- Dental Chart Tab -->
-            <div class="tab-content active" id="tab-chart" style="display: block;">
+            <div class="tab-content" id="tab-chart" style="display: none;">
                 <div class="panel-body" style="padding: 12px;">
                     <div class="d-flex justify-between align-center mb-2">
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
@@ -5175,26 +5176,12 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
             </div>
 
             <!-- Treatments Tab -->
-            <div class="tab-content" id="tab-treatments" style="display: none;">
+            <div class="tab-content active" id="tab-treatments" style="display: block;">
                 <div class="panel-body">
-                    <div class="d-flex justify-between align-center" style="margin-bottom: 16px;">
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <h4 style="margin:0;">چارەسەرەکان</h4>
-                            <!-- View toggle -->
-                            <div style="display:flex; border:1px solid var(--border-color); border-radius:8px; overflow:hidden;">
-                                <button id="btnTreatTable" onclick="switchTreatView('table')" style="padding:5px 12px; font-size:12px; border:none; cursor:pointer; background:var(--win-accent, #0078d4); color:#fff; font-family:inherit;">
-                                    <i class="fas fa-table"></i> جدول
-                                </button>
-                                <button id="btnTreatChart" onclick="switchTreatView('chart')" style="padding:5px 12px; font-size:12px; border:none; cursor:pointer; background:var(--bg-color); color:var(--text-secondary); font-family:inherit;">
-                                    <i class="fas fa-chart-bar"></i> چارت
-                                </button>
-                            </div>
-                        </div>
-                        <?php // No "add treatment" button here: each visit tab
-                              // carries its own quick-entry row, so work always
-                              // lands on the receipt the doctor is looking at. ?>
-                    </div>
-
+                    <?php // No heading and no "add treatment" button: the tab
+                          // itself names the section, and each visit tab carries
+                          // its own quick-entry row, so work always lands on the
+                          // receipt the doctor is looking at. ?>
                     <?php if (empty($caseTreatments) && empty($invoiceTabs) && $case['status'] !== 'open'): ?>
                     <div class="empty-state">
                         <i class="fas fa-syringe empty-state-icon"></i>
@@ -5243,53 +5230,6 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                     <?php endif; ?>
                     </div><!-- /treatmentTableView -->
 
-                    <!-- Chart View -->
-                    <div id="treatmentChartView" style="display:none;">
-                        <div style="background:var(--bg-color);border:1px solid var(--border-color);border-radius:12px;padding:20px;">
-                            <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-                                <i class="fas fa-chart-bar" style="color:var(--win-accent, #0078d4);font-size:18px;"></i>
-                                <strong style="font-size:15px;">تەوەری چارەسەرەکان بە بڕی پارە</strong>
-                                <span style="margin-right:auto;font-size:12px;color:var(--text-secondary);">کۆی گشتی: <?= number_format($case['total_amount'], 2) ?></span>
-                            </div>
-                            <?php
-                            $totalForChart = max((float)$case['total_amount'], 0.01);
-                            $chartColors   = ['#0078d4','#107c10','#8764b8','#ff8c00','#c50f1f','#038387','#d13438','#00b7c3','#69797e','#e3008c'];
-                            $colorIdx      = 0;
-                            // re-build grouped (already built above but we need it here)
-                            $chartGroups   = [];
-                            foreach ($caseTreatments as $ct) {
-                                $k = $ct['treatment_name'] . '_' . $ct['unit_price'];
-                                if (!isset($chartGroups[$k])) {
-                                    $chartGroups[$k] = ['name' => $ct['treatment_name'], 'total' => 0, 'qty' => 0];
-                                }
-                                $chartGroups[$k]['total'] += $ct['final_price'];
-                                $chartGroups[$k]['qty']   += $ct['quantity'];
-                            }
-                            usort($chartGroups, fn($a,$b) => $b['total'] <=> $a['total']);
-                            foreach ($chartGroups as $cg):
-                                $pct   = min(100, round(($cg['total'] / $totalForChart) * 100, 1));
-                                $color = $chartColors[$colorIdx % count($chartColors)];
-                                $colorIdx++;
-                            ?>
-                            <div style="margin-bottom:14px;">
-                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
-                                    <div style="display:flex;align-items:center;gap:8px;">
-                                        <span style="width:12px;height:12px;border-radius:3px;background:<?= $color ?>;display:inline-block;flex-shrink:0;"></span>
-                                        <span style="font-size:13px;font-weight:600;"><?= htmlspecialchars($cg['name']) ?></span>
-                                        <span style="font-size:11px;color:var(--text-secondary);">× <?= number_format($cg['qty'], 2) ?></span>
-                                    </div>
-                                    <div style="display:flex;align-items:center;gap:10px;">
-                                        <span style="font-size:12px;font-weight:700;color:<?= $color ?>;"><?= number_format($cg['total'], 2) ?></span>
-                                        <span style="font-size:11px;color:var(--text-secondary);width:38px;text-align:left;"><?= $pct ?>%</span>
-                                    </div>
-                                </div>
-                                <div style="height:10px;background:var(--bg-secondary);border-radius:6px;overflow:hidden;">
-                                    <div style="height:100%;width:<?= $pct ?>%;background:<?= $color ?>;border-radius:6px;transition:width 0.6s ease;"></div>
-                                </div>
-                            </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -12337,29 +12277,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 })();
 <?php endif; ?>
-
-window.switchTreatView = function(view) {
-    const tableDiv = document.getElementById('treatmentTableView');
-    const chartDiv = document.getElementById('treatmentChartView');
-    const btnTable = document.getElementById('btnTreatTable');
-    const btnChart = document.getElementById('btnTreatChart');
-    if (!tableDiv || !chartDiv) return;
-    if (view === 'chart') {
-        tableDiv.style.display = 'none';
-        chartDiv.style.display = 'block';
-        btnChart.style.background = 'var(--win-accent, #0078d4)';
-        btnChart.style.color = '#fff';
-        btnTable.style.background = 'var(--bg-color)';
-        btnTable.style.color = 'var(--text-secondary)';
-    } else {
-        chartDiv.style.display = 'none';
-        tableDiv.style.display = 'block';
-        btnTable.style.background = 'var(--win-accent, #0078d4)';
-        btnTable.style.color = '#fff';
-        btnChart.style.background = 'var(--bg-color)';
-        btnChart.style.color = 'var(--text-secondary)';
-    }
-};
 
 // Auto-switch to treatments tab when sent_to_accounting=1
 (function() {

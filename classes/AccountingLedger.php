@@ -112,6 +112,11 @@ class AccountingLedger
                               + GREATEST(0,COALESCE(ci.advance_paid_amount,0))
                         ) ELSE 0 END AS paid_amount,
                     COALESCE(SUM(CASE WHEN p.status='approved' AND p.payment_method='advance' THEN pa.allocated_amount ELSE 0 END),0) AS advance_payment_amount,
+                    COALESCE(SUM(CASE WHEN p.status='approved' AND pa.created_at > ci.approved_at THEN pa.allocated_amount ELSE 0 END),0) AS later_paid_amount,
+                    GROUP_CONCAT(DISTINCT CASE WHEN p.status='approved' AND pa.created_at > ci.approved_at THEN p.payment_number END SEPARATOR '، ') AS later_payment_numbers,
+                    " . self::laterDiscountSql() . " AS later_discount_amount,
+                    " . self::laterDiscountSql('invoice_mode_before') . " AS receipt_discount_mode,
+                    " . self::laterDiscountSql('invoice_value_before') . " AS receipt_discount_value,
                     COALESCE(SUM(CASE WHEN p.status='pending' THEN pa.allocated_amount ELSE 0 END),0) AS pending_amount,
                     " . self::pendingDiscountSql() . " AS pending_discount_amount
              FROM case_invoices ci
@@ -186,6 +191,28 @@ class AccountingLedger
             : 0.0;
         $row['remaining_amount'] = $remaining;
         $row['payment_status'] = $paymentStatus;
+
+        // پسوولە وەک خۆی — the receipt as it was issued. Money put on it up to
+        // approval (chair cash, دراوی پێشوو, ئامانەت) belongs to it; a قەبز
+        // allocated afterwards, and the collection discount such a قەبز adds to
+        // discount_amount (PaymentDiscount), settle the patient's debt above but
+        // never rewrite the printed receipt (cases/receipt.php, invoice pane).
+        $laterPaid = max(0, (float)($row['later_paid_amount'] ?? 0));
+        $laterDiscount = min($discount, max(0, (float)($row['later_discount_amount'] ?? 0)));
+        $receiptDiscount = $discount - $laterDiscount;
+        $receiptNet = max(0, $gross - $receiptDiscount);
+        $receiptPaid = min($receiptNet, max(0, $paid - $laterPaid));
+        $row['later_paid_amount'] = $laterPaid;
+        $row['later_discount_amount'] = $laterDiscount;
+        $row['receipt_discount_amount'] = $receiptDiscount;
+        $row['receipt_net_amount'] = $receiptNet;
+        $row['receipt_paid_amount'] = $receiptPaid;
+        $row['receipt_remaining_amount'] = max(0, $receiptNet - $receiptPaid);
+        if ($laterDiscount <= 0.009) {
+            // No collection discount: the receipt's own discount terms stand.
+            $row['receipt_discount_mode'] = $row['discount_mode'] ?? 'amount';
+            $row['receipt_discount_value'] = $row['discount_value'] ?? $discount;
+        }
         // Compatibility aliases used by the shared invoice pane while older
         // UI fragments are being retired. They now represent real allocations.
         $row['fifo_covered'] = $paid;
@@ -415,6 +442,20 @@ class AccountingLedger
     }
 
     /** Discounts awaiting a decision reserve capacity but never count as paid. */
+    /**
+     * Collection discounts of approved قەبزەکان on invoice ci: their total
+     * (default), or — given a column — the invoice's discount terms from
+     * before the first of them (invoice_mode_before / invoice_value_before).
+     */
+    public static function laterDiscountSql($beforeColumn = null)
+    {
+        $from = "FROM payment_discount_allocations da JOIN payments dp ON dp.id=da.payment_id
+            WHERE da.invoice_id=ci.id AND dp.status='approved'";
+        return $beforeColumn === null
+            ? "COALESCE((SELECT SUM(da.amount) {$from}),0)"
+            : "(SELECT da.{$beforeColumn} {$from} ORDER BY da.id LIMIT 1)";
+    }
+
     public static function pendingDiscountSql($excludePaymentId = null)
     {
         $exclude = $excludePaymentId ? ' AND dp.id<>' . (int)$excludePaymentId : '';

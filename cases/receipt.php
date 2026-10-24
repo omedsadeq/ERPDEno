@@ -143,15 +143,18 @@ foreach ($groupedTreatments as $gt) {
     $sheetTotal += (float)$gt['total_price'];
 }
 
-// A visit receipt settles on its own: what has been collected against THIS
-// receipt (FIFO share of the case's money) and what it still owes. The case
-// balance is never printed on a visit receipt — the clinic works per receipt.
-$invoiceDiscount  = $invoice ? (float)($invoice['discount_amount'] ?? 0) : 0.0;
+// A visit receipt settles on its own and prints AS IT WAS ISSUED (snapshot):
+// what was collected on it up to approval and what it still owed then. A قەبز
+// taken later lowers the case/patient balance and prints on its own voucher,
+// but never changes this receipt (AccountingLedger::decorateInvoice receipt_*).
+// The case balance is never printed on a visit receipt.
+$invoiceApproved  = $invoice && ($invoice['accounting_status'] ?? '') === 'approved';
+$invoiceDiscount  = $invoice ? (float)($invoice[$invoiceApproved ? 'receipt_discount_amount' : 'discount_amount'] ?? 0) : 0.0;
 // A percentage discount prints as a percentage — "داشکاندن (١٠٪)" — so the
 // patient sees the rate that was agreed, not only the resulting money.
-$invoiceDiscMode  = $invoice && ($invoice['discount_mode'] ?? '') === 'percent' ? 'percent' : 'amount';
+$invoiceDiscMode  = $invoice && ($invoice[$invoiceApproved ? 'receipt_discount_mode' : 'discount_mode'] ?? '') === 'percent' ? 'percent' : 'amount';
 $invoiceDiscPct   = $invoiceDiscMode === 'percent'
-    ? rtrim(rtrim(number_format((float)($invoice['discount_value'] ?? 0), 2, '.', ''), '0'), '.')
+    ? rtrim(rtrim(number_format((float)($invoice[$invoiceApproved ? 'receipt_discount_value' : 'discount_value'] ?? 0), 2, '.', ''), '0'), '.')
     : '';
 $invoiceNet       = max(0, $sheetTotal - $invoiceDiscount);
 $invoicePaid      = 0.0;
@@ -159,12 +162,12 @@ $invoicePrior     = 0.0;
 $invoiceRemaining = $invoiceNet;
 if ($invoice) {
     // دراوی پێشوو (historical cases) prints on its own line, never inside
-    // وەرگیراو; an approved invoice's fifo_covered already includes it.
+    // وەرگیراو; an approved invoice's receipt_paid_amount already includes it.
     $invoicePrior = min($invoiceNet, max(0, (float)($invoice['prior_paid_amount'] ?? 0)));
     // Before accounting approval the ledger's paid figure is intentionally 0,
     // but the doctor-entered amount is still part of the printed invoice.
-    $invoicePaid = ($invoice['accounting_status'] ?? '') === 'approved'
-        ? max(0, min($invoiceNet, (float)($invoice['fifo_covered'] ?? 0)) - $invoicePrior)
+    $invoicePaid = $invoiceApproved
+        ? max(0, min($invoiceNet, (float)($invoice['receipt_paid_amount'] ?? 0)) - $invoicePrior)
         : min(max(0, $invoiceNet - $invoicePrior), max(
             (float)($invoice['fifo_covered'] ?? 0),
             (float)($invoice['draft_received_amount'] ?? 0)

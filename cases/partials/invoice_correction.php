@@ -16,8 +16,8 @@ $lastCorrection = Database::getInstance()->fetch("SELECT a.created_at,u.full_nam
     <div class="ic-fields">
         <label>ژمارەی وەسڵ<input name="invoice_no" maxlength="60" value="<?= $ce($tab['invoice_no']) ?>" dir="ltr" required></label>
         <label>بەرواری وەسڵ<input type="date" name="work_date" value="<?= $ce($tab['work_date']) ?>" max="<?= date('Y-m-d') ?>" required></label>
-        <label>تێبینی وەسڵ<textarea name="notes" maxlength="10000" rows="2"><?= $ce($tab['notes'] ?? '') ?></textarea></label>
-        <label>تێبینی ژمێریاری<textarea name="accounting_notes" maxlength="10000" rows="2"><?= $ce($tab['accounting_notes'] ?? '') ?></textarea></label>
+        <label>تێبینی وەسڵ<textarea name="notes" maxlength="10000" rows="1"><?= $ce($tab['notes'] ?? '') ?></textarea></label>
+        <label>تێبینی ژمێریاری<textarea name="accounting_notes" maxlength="10000" rows="1"><?= $ce($tab['accounting_notes'] ?? '') ?></textarea></label>
     </div>
     <div class="ic-section-title"><strong>چارەسەرەکان</strong><button type="button" class="vt-btn" data-ic-add><i class="fas fa-plus"></i> زیادکردنی ڕیز</button></div>
     <div class="ic-table-wrap"><table class="ic-table">
