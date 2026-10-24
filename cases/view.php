@@ -5028,14 +5028,14 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                                     title="زیادکردن، دەستکاری و سڕینەوەی جۆرەکانی چارەسەر">
                                 <i class="fas fa-list-check"></i> جۆری چارەسەر
                             </button>
-                            <button class="btn btn-primary btn-sm" onclick="<?= ($case['scope_type'] ?? 'tooth') === 'arch' ? 'openArchTreatmentDialog()' : 'openDialog(\'addTreatmentDialog\')' ?>">
+                            <?php // Tooth cases add work by clicking the tooth (openQuickToothAdd);
+                                  // an arch case has no teeth to click, so it keeps its button. ?>
+                            <?php if (($case['scope_type'] ?? 'tooth') === 'arch'): ?>
+                            <button class="btn btn-primary btn-sm" onclick="openArchTreatmentDialog()">
                                 <i class="fas fa-plus"></i> زیادکردن
                             </button>
+                            <?php endif; ?>
                         </div>
-                        <?php else: ?>
-                        <button class="btn btn-secondary btn-sm" disabled title="کەیسەکە داخراوە">
-                            <i class="fas fa-plus"></i> زیادکردن
-                        </button>
                         <?php endif; ?>
                     </div>
 
