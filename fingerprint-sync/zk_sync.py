@@ -267,6 +267,13 @@ class Lezan:
                     pending = VALUES(pending), unknown_pins = VALUES(unknown_pins),
                     time_offset_seconds = COALESCE(VALUES(time_offset_seconds), time_offset_seconds),
                     last_error = VALUES(last_error), service_version = VALUES(service_version)""", st)
+            # The device under another address: an old IP of this same device, or
+            # an address that never reached any device (a wrong ip in config.ini,
+            # left for 10 minutes). It would stay on the dashboard as "not running".
+            c.execute("""DELETE FROM hr_devices WHERE NOT (ip = %(ip)s AND port = %(port)s)
+                         AND (serial = %(serial)s OR (serial IS NULL AND last_seen_at < NOW() - INTERVAL 10 MINUTE))""", st)
+            if st.get("serial"):
+                c.execute("DELETE FROM hr_device_users WHERE device_serial = %s AND device_ip <> %s", (st["serial"], st["ip"]))
 
 
 # ── The service ────────────────────────────────────────────────────────────
