@@ -22,12 +22,13 @@ $textKeys = [
     'letter_header_right', 'letter_header_center', 'letter_header_left', 'letter_footer_text',
     'letter_number_format', 'letter_default_greeting', 'letter_default_closing',
     'letter_default_signer_name', 'letter_default_signer_title',
+    'letter_modern_header_right', 'letter_modern_header_left', 'letter_modern_contacts', 'letter_modern_address',
 ];
 $choiceKeys = [
     'letter_header_mode', 'letter_footer_mode', 'letter_digits', 'letter_signature_side',
-    'letter_accent_color', 'letter_font_size',
+    'letter_accent_color', 'letter_font_size', 'letter_default_design', 'letter_modern_color',
 ];
-$flagKeys = ['letter_show_logo', 'letter_header_line', 'letter_number_yearly', 'letter_kurdish_year'];
+$flagKeys = ['letter_show_logo', 'letter_header_line', 'letter_number_yearly', 'letter_kurdish_year', 'letter_modern_watermark'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::require();
@@ -131,6 +132,72 @@ require_once __DIR__ . '/../includes/header.php';
         <?= Csrf::field() ?>
 
         <div class="panel">
+            <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-swatchbook"></i> تێمپلیت</h3></div>
+            <div class="panel-body">
+                <div class="lts-designs">
+                    <label class="lts-design">
+                        <input type="radio" name="cfg[letter_default_design]" value="classic" <?= $radio('letter_default_design', 'classic') ?>>
+                        <span class="lts-thumb lts-thumb-classic" aria-hidden="true"><i></i><b></b><b></b><b></b><s></s></span>
+                        <span class="lts-design-name">کلاسیک</span>
+                        <span class="lts-design-note">ژمارە، ڕێکەوت، «بۆ / بابەت» بە کوردی</span>
+                    </label>
+                    <label class="lts-design">
+                        <input type="radio" name="cfg[letter_default_design]" value="modern" <?= $radio('letter_default_design', 'modern') ?>>
+                        <span class="lts-thumb lts-thumb-modern" aria-hidden="true"><i></i><b></b><b></b><b></b><s></s></span>
+                        <span class="lts-design-name">مۆدێرن</span>
+                        <span class="lts-design-note">Number / Date / Subject، لۆگۆی کاڵ و ژێرپەڕەی ڕەنگاوڕەنگ</span>
+                    </label>
+                </div>
+                <div class="form-hint">ئەوەی هەڵیدەبژێریت بۆ نوسراوی نوێ بەکاردێت؛ لە هەر نوسراوێکدا دەتوانرێت بگۆڕدرێت. ڕێکخستنەکانی خوارەوە و پێشبینینەکە بۆ ئەم تێمپلیتەن.</div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-image"></i> لۆگۆ</h3></div>
+            <div class="panel-body">
+                <?php $imageSlot('logo', 'لۆگۆ', $has['logo'] ? 'لۆگۆی تایبەتی نوسراو. لابردنی دەیگەڕێنێتەوە بۆ لۆگۆی سیستەم.' : 'ئێستا لۆگۆی سیستەم بەکاردێت. بۆ تێمپلیتی مۆدێرن لۆگۆیەکی PNG بە باکگراوندی ڕوون باشترە، چونکە لە پشتی نووسینەکەش کاڵ دەکرێتەوە.'); ?>
+            </div>
+        </div>
+
+        <div class="panel lts-when" data-when="letter_default_design=modern">
+            <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-palette"></i> تێمپلیتی مۆدێرن</h3></div>
+            <div class="panel-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>سەردێڕ — لای ڕاست (کوردی)</label>
+                        <textarea name="cfg[letter_modern_header_right]" class="form-control" rows="2"><?= $h($cfg['letter_modern_header_right']) ?></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>سەردێڕ — لای چەپ (ئینگلیزی)</label>
+                        <textarea name="cfg[letter_modern_header_left]" class="form-control" rows="2" dir="ltr" style="text-align:left;"><?= $h($cfg['letter_modern_header_left']) ?></textarea>
+                    </div>
+                </div>
+                <div class="form-hint" style="margin-top:-6px;">دێڕی یەکەم گەورە، دێڕی دووەم بچووکتر.</div>
+                <div class="form-row" style="margin-top:12px;">
+                    <div class="form-group">
+                        <label>ڕەنگ</label>
+                        <input type="color" name="cfg[letter_modern_color]" class="form-control lts-color" value="<?= $h($cfg['letter_modern_color']) ?>">
+                        <div class="form-hint">هێڵی ژێر سەردێڕ و ژێرپەڕەکە.</div>
+                    </div>
+                    <div class="form-group lts-checks" style="justify-content:center;">
+                        <label><input type="hidden" name="cfg[letter_modern_watermark]" value="0"><input type="checkbox" name="cfg[letter_modern_watermark]" value="1" <?= $checked('letter_modern_watermark') ?>> لۆگۆ بە کاڵی لە پشتی نووسینەکە</label>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>ژێرپەڕە — ناونیشان (لای ڕاست)</label>
+                        <textarea name="cfg[letter_modern_address]" class="form-control" rows="2"><?= $h($cfg['letter_modern_address']) ?></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>ژێرپەڕە — ژمارەی تەلەفۆن (لای چەپ)</label>
+                        <textarea name="cfg[letter_modern_contacts]" class="form-control" rows="2" dir="ltr" style="text-align:left;"><?= $h($cfg['letter_modern_contacts']) ?></textarea>
+                    </div>
+                </div>
+                <?php $imageSlot('qr', 'QR کۆد (ناوەڕاستی ژێرپەڕە)', 'وێنەی QR کۆدەکەت (PNG یان JPG). بێ ئەوە، ژێرپەڕەکە بێ QR دەردەکەوێت.'); ?>
+            </div>
+        </div>
+
+        <div class="panel lts-when" data-when="letter_default_design=classic">
             <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-heading"></i> سەردێڕ (سەرەوەی پەڕە)</h3></div>
             <div class="panel-body">
                 <div class="lts-modes">
@@ -157,7 +224,6 @@ require_once __DIR__ . '/../includes/header.php';
                         <label><input type="hidden" name="cfg[letter_show_logo]" value="0"><input type="checkbox" name="cfg[letter_show_logo]" value="1" <?= $checked('letter_show_logo') ?>> لۆگۆ پیشان بدە</label>
                         <label><input type="hidden" name="cfg[letter_header_line]" value="0"><input type="checkbox" name="cfg[letter_header_line]" value="1" <?= $checked('letter_header_line') ?>> هێڵ لەژێر سەردێڕ</label>
                     </div>
-                    <?php $imageSlot('logo', 'لۆگۆ', $has['logo'] ? 'لۆگۆی تایبەتی نوسراو. لابردنی دەیگەڕێنێتەوە بۆ لۆگۆی سیستەم.' : 'ئێستا لۆگۆی سیستەم بەکاردێت. دەتوانیت لۆگۆیەکی تر بۆ نوسراوەکان دابنێیت.'); ?>
                 </div>
                 <div class="lts-when" data-when="letter_header_mode=image">
                     <?php $imageSlot('header', 'وێنەی سەردێڕ', 'وێنەیەکی پان (نموونە ٢٠٠٠×٣٠٠ پیکسڵ) بە هەموو پانی پەڕەکە دادەنرێت.'); ?>
@@ -165,7 +231,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
         </div>
 
-        <div class="panel">
+        <div class="panel lts-when" data-when="letter_default_design=classic">
             <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-shoe-prints"></i> ژێرپەڕە (خوارەوەی پەڕە)</h3></div>
             <div class="panel-body">
                 <div class="lts-modes">
@@ -192,7 +258,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="lts-note"><i class="fas fa-lock"></i> ئەم وێنانە تەنها لە ناو سیستەمەکەدا پیشان دەدرێن و لینکی گشتییان نییە. لە هەر نوسراوێکدا بە جیا هەڵدەبژێردرێن.</div>
                 <?php $imageSlot('signature', 'واژۆ', 'PNG بە باکگراوندی ڕوون باشترە.'); ?>
                 <?php $imageSlot('seal', 'مۆر', 'PNG بە باکگراوندی ڕوون باشترە؛ کەمێک دەکەوێتە سەر واژۆکە.'); ?>
-                <div class="form-group" style="margin-top:12px;">
+                <div class="form-group lts-when" data-when="letter_default_design=classic" style="margin-top:12px;">
                     <label>شوێنی واژۆ لە پەڕەکەدا</label>
                     <select name="cfg[letter_signature_side]" class="form-control">
                         <option value="left" <?= $selected('letter_signature_side', 'left') ?>>لای چەپ</option>
@@ -212,7 +278,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <input type="text" name="cfg[letter_number_format]" id="ltsFormat" class="form-control" maxlength="40" value="<?= $h($cfg['letter_number_format']) ?>">
                         <div class="form-hint">{n} = ژمارەی زنجیرە، {y} = ساڵ، {m} = مانگ. نموونە: <code>{n}</code> یان <code>ل/{n}/{y}</code><br>نوسراوی داهاتوو: <b id="ltsFormatOut"></b></div>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group lts-when" data-when="letter_default_design=classic">
                         <label>ژمارەکان</label>
                         <select name="cfg[letter_digits]" class="form-control">
                             <option value="ku" <?= $selected('letter_digits', 'ku') ?>>کوردی (١٢٣)</option>
@@ -222,7 +288,7 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
                 <div class="lts-checks">
                     <label><input type="hidden" name="cfg[letter_number_yearly]" value="0"><input type="checkbox" name="cfg[letter_number_yearly]" value="1" <?= $checked('letter_number_yearly') ?>> ژمارەکان هەموو ساڵێک لە ١ەوە دەست پێبکەنەوە</label>
-                    <label><input type="hidden" name="cfg[letter_kurdish_year]" value="0"><input type="checkbox" name="cfg[letter_kurdish_year]" value="1" <?= $checked('letter_kurdish_year') ?>> ساڵی کوردیش بنووسە (نموونە ٢٧٢٦ی کوردی)</label>
+                    <label class="lts-when" data-when="letter_default_design=classic"><input type="hidden" name="cfg[letter_kurdish_year]" value="0"><input type="checkbox" name="cfg[letter_kurdish_year]" value="1" <?= $checked('letter_kurdish_year') ?>> ساڵی کوردیش بنووسە (نموونە ٢٧٢٦ی کوردی)</label>
                 </div>
                 <div class="form-hint">بۆ دەستپێکردن لە ژمارەیەکی دیاریکراو (نموونە ١٥٠)، لە نوسراوی داهاتوودا ژمارەکە بە دەست بنووسە؛ دواتر خۆکار لەوێوە بەردەوام دەبێت.</div>
             </div>
@@ -258,7 +324,7 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-palette"></i> ڕووکار</h3></div>
             <div class="panel-body">
                 <div class="form-row">
-                    <div class="form-group">
+                    <div class="form-group lts-when" data-when="letter_default_design=classic">
                         <label>ڕەنگی سەرەکی</label>
                         <input type="color" name="cfg[letter_accent_color]" class="form-control lts-color" value="<?= $h($cfg['letter_accent_color']) ?>">
                     </div>
@@ -308,7 +374,25 @@ require_once __DIR__ . '/../includes/header.php';
 .lts-note { font-size: 12.5px; color: #475569; background: #f1f5f9; border-radius: 8px; padding: 8px 10px; }
 .lts-color { height: 40px; padding: 4px; max-width: 120px; }
 .lts-save { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; position: sticky; bottom: 0; padding: 12px 0; background: linear-gradient(to top, var(--bg-primary, #f3f4f6) 70%, transparent); z-index: 2; }
-.lts-when[hidden] { display: none; }
+.lts-when[hidden] { display: none !important; }
+.lts-designs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px; }
+.lts-design { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 10px; border: 2px solid #e5e7eb; border-radius: 10px; cursor: pointer; text-align: center; }
+.lts-design:has(input:checked) { border-color: #1f3b63; background: #eef3fa; }
+.lts-design input { position: absolute; opacity: 0; pointer-events: none; }
+.lts-design-name { font-weight: 700; font-size: 14px; color: #1f2937; }
+.lts-design-note { font-size: 11.5px; color: #6b7280; line-height: 1.5; }
+/* Little paper sketches of each design. */
+.lts-thumb { position: relative; width: 78px; height: 104px; background: #fff; border: 1px solid #d1d5db; border-radius: 3px; box-shadow: 0 1px 3px rgba(15, 23, 42, .12); overflow: hidden; }
+.lts-thumb i { position: absolute; top: 8px; left: 31px; width: 16px; height: 13px; border-radius: 3px; background: #cbd5e1; }
+.lts-thumb b { position: absolute; right: 9px; left: 9px; height: 3px; border-radius: 2px; background: #e2e8f0; }
+.lts-thumb b:nth-of-type(1) { top: 40px; }
+.lts-thumb b:nth-of-type(2) { top: 48px; }
+.lts-thumb b:nth-of-type(3) { top: 56px; left: 24px; }
+.lts-thumb s { position: absolute; left: 9px; right: 9px; }
+.lts-thumb-classic s { top: 25px; border-top: 1.5px solid #1f3b63; }
+.lts-thumb-classic::after { content: ''; position: absolute; bottom: 6px; left: 14px; right: 14px; border-top: 1px solid #1f3b63; }
+.lts-thumb-modern s { top: 25px; border-top: 2.5px solid #2f5f7f; }
+.lts-thumb-modern::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 16px; background: #2f5f7f; border-radius: 60% 40% 0 0 / 7px 4px 0 0; }
 @media (max-width: 1100px) { .lts-layout { grid-template-columns: 1fr; } }
 </style>
 

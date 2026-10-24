@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $templates = $letters->templates();
 $cfg = $letters->settings();
 $editing = $editId > 0 ? $letters->findTemplate($editId) : null;
-$form = ['name' => ''];
+$form = ['name' => '', 'design' => ''];
 foreach (array_keys(OfficialLetter::TEXT_FIELDS) as $f) {
     $form[$f] = '';
 }
@@ -132,6 +132,15 @@ require_once __DIR__ . '/../includes/header.php';
                     <label>ناوی قاڵب <span style="color:#dc2626;">*</span></label>
                     <input type="text" name="name" class="form-control" required maxlength="150" value="<?= $h($form['name']) ?>"
                            placeholder="نموونە: پشتگیری کارکردن">
+                </div>
+                <div class="form-group">
+                    <label>تێمپلیت</label>
+                    <select name="design" class="form-control">
+                        <option value="">بنەڕەت (<?= $h(OfficialLetter::DESIGNS[$cfg['letter_default_design']]) ?>)</option>
+                        <?php foreach (OfficialLetter::DESIGNS as $key => $label): ?>
+                        <option value="<?= $h($key) ?>" <?= $form['design'] === $key ? 'selected' : '' ?>><?= $h($label) ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label>بۆ (لایەنی پەیوەندیدار)</label>

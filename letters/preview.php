@@ -33,9 +33,26 @@ $field = function (string $key, string $placeholder = '') {
     return $v !== '' ? $v : $placeholder;
 };
 
-if (!empty($_POST['sample'])) {
+if (!empty($_POST['sample']) && $cfg['letter_default_design'] === 'modern') {
+    // The kind of letter the modern sheet was designed for.
     $date = date('Y-m-d');
     $L = [
+        'design'         => 'modern',
+        'letter_number'  => OfficialLetter::formatNumber($cfg['letter_number_format'], 12, $date),
+        'letter_date'    => $date,
+        'recipient'      => 'إلى بنك [اسم البنك] فرع اربيل',
+        'subject'        => 'Support letter',
+        'body'           => 'نؤيد لكم بأن الدكتور [الاسم الكامل] يعمل في عيادتنا كطبيب اختصاصي تشخيص امراض الفم و الأسنان بمرتب شهري قدره [المبلغ] دينار عراقي، و لاجله زودناه بهذا التأييد.',
+        'closing'        => 'و لكم الشكر',
+        'signer_name'    => $cfg['letter_default_signer_name'] !== '' ? $cfg['letter_default_signer_name'] : 'Signer Name',
+        'signer_title'   => $cfg['letter_default_signer_title'] !== '' ? $cfg['letter_default_signer_title'] : "Owner and Authorized Representative\n" . Branding::nameEn(),
+        'show_signature' => 1,
+        'show_seal'      => 1,
+    ];
+} elseif (!empty($_POST['sample'])) {
+    $date = date('Y-m-d');
+    $L = [
+        'design'         => 'classic',
         'letter_number'  => OfficialLetter::formatNumber($cfg['letter_number_format'], 12, $date),
         'letter_date'    => $date,
         'recipient'      => 'بەڕێوەبەرایەتی باجی دەرامەت',
@@ -55,6 +72,7 @@ if (!empty($_POST['sample'])) {
         $date = date('Y-m-d');
     }
     $L = [
+        'design'         => OfficialLetter::design($_POST['design'] ?? null) ?? $cfg['letter_default_design'],
         'letter_number'  => $field('letter_number'),
         'letter_date'    => $date,
         'recipient'      => $field('recipient', '..........'),

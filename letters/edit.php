@@ -57,6 +57,7 @@ $blank = [
     'closing' => $cfg['letter_default_closing'], 'signer_name' => $cfg['letter_default_signer_name'],
     'signer_title' => $cfg['letter_default_signer_title'], 'cc_list' => '', 'attachments' => '',
     'show_signature' => 0, 'show_seal' => 0, 'template_id' => null,
+    'design' => $cfg['letter_default_design'],
 ];
 $source = '';
 if ($existing) {
@@ -72,6 +73,7 @@ if ($existing) {
             }
         }
         $form['template_id'] = $tplId;
+        $form['design'] = OfficialLetter::design($tpl['design'] ?? null) ?? $form['design'];
         $source = 'لە قاڵبی «' . $tpl['name'] . '»';
     } elseif ($copyId > 0 && ($copy = $letters->find($copyId))) {
         foreach (array_keys(OfficialLetter::TEXT_FIELDS) as $f) {
@@ -80,6 +82,7 @@ if ($existing) {
         $form['show_signature'] = (int)$copy['show_signature'];
         $form['show_seal'] = (int)$copy['show_seal'];
         $form['template_id'] = $copy['template_id'];
+        $form['design'] = OfficialLetter::design($copy['design'] ?? null) ?? $form['design'];
         $source = 'کۆپی لە نوسراوی ژمارە ' . $copy['letter_number'];
     }
 }
@@ -96,6 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 foreach (array_keys(OfficialLetter::TEXT_FIELDS) as $f) {
     $form[$f] = (string)($form[$f] ?? '');
 }
+$form['design'] = OfficialLetter::design($form['design'] ?? null) ?? $cfg['letter_default_design'];
 // After a failed save keep the original suggestion: if the number field still
 // shows it, the save after this one must still treat it as automatic.
 $suggestion = $existing ? '' : (string)($_POST['auto_number'] ?? $letters->suggestNumber(date('Y-m-d'), $cfg));
@@ -152,6 +156,13 @@ require_once __DIR__ . '/../includes/header.php';
                 <input type="hidden" name="template_id" value="<?= (int)$form['template_id'] ?: '' ?>">
                 <input type="hidden" name="after" id="ltfAfterField" value="view">
 
+                <div class="ltf-design">
+                    <span><i class="fas fa-swatchbook"></i> تێمپلیت</span>
+                    <?php foreach (OfficialLetter::DESIGNS as $key => $label): ?>
+                    <label><input type="radio" name="design" value="<?= $h($key) ?>" <?= $form['design'] === $key ? 'checked' : '' ?>> <?= $h($label) ?></label>
+                    <?php endforeach; ?>
+                </div>
+
                 <div class="ltf-step"><span>١</span> ژمارە و ڕێکەوت</div>
                 <div class="form-row">
                     <div class="form-group">
@@ -175,7 +186,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <datalist id="ltfRecipients">
                         <?php foreach ($recipientOptions as $r): ?><option value="<?= $h($r) ?>"><?php endforeach; ?>
                     </datalist>
-                    <div class="form-hint">لەسەر پەڕەکە دەنووسرێت: «بۆ / ...»</div>
+                    <div class="form-hint">کلاسیک: «بۆ / ...» دەنووسرێت. مۆدێرن: وەک خۆی دەنووسرێت، نموونە «إلى بنك ... فرع اربيل».</div>
                 </div>
 
                 <div class="ltf-step"><span>٣</span> بابەت</div>
@@ -282,6 +293,10 @@ require_once __DIR__ . '/../includes/header.php';
 .ltf-tpl label { display: block; font-size: 13px; font-weight: 600; color: #5b21b6; margin-bottom: 6px; }
 .ltf-tpl-row { display: flex; gap: 8px; }
 .ltf-tpl-row select { flex: 1; min-width: 0; }
+.ltf-design { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; }
+.ltf-design > span { font-weight: 700; color: #1f3b63; margin-inline-end: 4px; }
+.ltf-design label { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; }
+.ltf-design label:has(input:checked) { border-color: #1f3b63; background: #eef3fa; color: #1f3b63; font-weight: 600; }
 .ltf-step { display: flex; align-items: center; gap: 8px; margin: 16px 0 8px; font-weight: 700; font-size: 14px; color: #1f3b63; }
 .ltf-step:first-of-type { margin-top: 4px; }
 .ltf-step span { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #1f3b63; color: #fff; font-size: 12px; flex-shrink: 0; }

@@ -28,6 +28,13 @@ class OfficialLetter
         'footer'    => 'letter_footer_image',
         'signature' => 'letter_signature_image',
         'seal'      => 'letter_seal_image',
+        'qr'        => 'letter_qr_image',
+    ];
+
+    /** The two sheet designs (letters/_render.php), stored per letter. */
+    const DESIGNS = [
+        'classic' => 'کلاسیک',
+        'modern'  => 'مۆدێرن',
     ];
 
     /** Columns a letter (and, minus the first ones, a template) is made of. */
@@ -65,6 +72,16 @@ class OfficialLetter
         $db = $this->db;
         require __DIR__ . '/../includes/clinic_branding.php';
 
+        // The modern header in two lines, as the designed letterhead has it:
+        // «لێزان» over «بۆ پزیشکی ددان», «LEZAN» over «DENTAL CLINICS».
+        $short = Branding::shortName();
+        $modernRight = $clinicName;
+        if ($short !== '' && mb_strpos($clinicName, $short) === 0 && mb_strlen($clinicName) > mb_strlen($short)) {
+            $modernRight = $short . "\n" . trim(mb_substr($clinicName, mb_strlen($short)));
+        }
+        $enWords = preg_split('/\s+/', trim($clinicNameEn), 2);
+        $modernLeft = mb_strtoupper(implode("\n", array_filter($enWords, 'strlen')));
+
         return [
             'letter_header_mode'          => 'text',   // text | image
             'letter_header_right'         => $clinicName,
@@ -85,11 +102,21 @@ class OfficialLetter
             'letter_signature_side'       => 'left',   // left | center | right
             'letter_accent_color'         => '#1f3b63',
             'letter_font_size'            => '16',
+            'letter_default_design'       => 'classic', // classic | modern — for new letters
+            // The modern design: its own colour, the faded logo behind the
+            // text, and the wave footer (phones on the left, address on the right).
+            'letter_modern_header_right'  => $modernRight,
+            'letter_modern_header_left'   => $modernLeft,
+            'letter_modern_color'         => '#2f5f7f',
+            'letter_modern_watermark'     => '1',
+            'letter_modern_contacts'      => implode("\n", $clinicPhones),
+            'letter_modern_address'       => $clinicAddress,
             'letter_logo'                 => '',
             'letter_header_image'         => '',
             'letter_footer_image'         => '',
             'letter_signature_image'      => '',
             'letter_seal_image'           => '',
+            'letter_qr_image'             => '',
         ];
     }
 
@@ -119,11 +146,14 @@ class OfficialLetter
         $cfg['letter_footer_mode']    = $pick($cfg['letter_footer_mode'] ?? '', ['text', 'image', 'none'], 'text');
         $cfg['letter_digits']         = $pick($cfg['letter_digits'] ?? '', ['ku', 'latin'], 'ku');
         $cfg['letter_signature_side'] = $pick($cfg['letter_signature_side'] ?? '', ['left', 'center', 'right'], 'left');
-        foreach (['letter_show_logo', 'letter_header_line', 'letter_number_yearly', 'letter_kurdish_year'] as $flag) {
+        $cfg['letter_default_design'] = self::design($cfg['letter_default_design'] ?? '') ?? 'classic';
+        foreach (['letter_show_logo', 'letter_header_line', 'letter_number_yearly', 'letter_kurdish_year', 'letter_modern_watermark'] as $flag) {
             $cfg[$flag] = !empty($cfg[$flag]) && $cfg[$flag] !== '0' ? '1' : '0';
         }
-        if (!preg_match('/^#[0-9a-fA-F]{6}$/', (string)($cfg['letter_accent_color'] ?? ''))) {
-            $cfg['letter_accent_color'] = '#1f3b63';
+        foreach (['letter_accent_color' => '#1f3b63', 'letter_modern_color' => '#2f5f7f'] as $key => $fallback) {
+            if (!preg_match('/^#[0-9a-fA-F]{6}$/', (string)($cfg[$key] ?? ''))) {
+                $cfg[$key] = $fallback;
+            }
         }
         $size = (int)($cfg['letter_font_size'] ?? 16);
         $cfg['letter_font_size'] = (string)max(12, min(22, $size ?: 16));
@@ -134,6 +164,12 @@ class OfficialLetter
         }
         $cfg['letter_number_format'] = mb_substr($format, 0, 40);
         return $cfg;
+    }
+
+    /** A known design key, or null. */
+    public static function design($value): ?string
+    {
+        return is_string($value) && isset(self::DESIGNS[$value]) ? $value : null;
     }
 
     /** Upsert letter_* keys. Unknown keys are ignored. */
@@ -249,8 +285,10 @@ class OfficialLetter
             if ($out['name'] === '') {
                 throw new InvalidArgumentException('ناوی قاڵب پێویستە');
             }
+            $out['design'] = self::design($in['design'] ?? null);
             return $out;
         }
+        $out['design'] = self::design($in['design'] ?? null) ?? 'classic';
 
         $date = trim(self::normalizeDigits((string)($in['letter_date'] ?? '')));
         $d = DateTime::createFromFormat('!Y-m-d', $date);
@@ -539,7 +577,7 @@ class OfficialLetter
 
     public function saveTemplate(array $data, int $userId, int $id = 0): int
     {
-        $row = ['name' => $data['name']];
+        $row = ['name' => $data['name'], 'design' => self::design($data['design'] ?? null)];
         foreach (array_keys(self::TEXT_FIELDS) as $f) {
             $row[$f] = ($data[$f] ?? '') === '' ? null : $data[$f];
         }
