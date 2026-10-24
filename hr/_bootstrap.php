@@ -127,7 +127,10 @@ function hr_device_state(array $dv): array
 function hr_devices(): array
 {
     try {
-        return Database::getInstance()->fetchAll('SELECT * FROM hr_devices ORDER BY id');
+        // The one the service reported most recently first: the live board shows
+        // only the first, and an address no longer used must not stand for it.
+        return Database::getInstance()->fetchAll(
+            'SELECT * FROM hr_devices ORDER BY last_seen_at IS NULL, last_seen_at DESC, id');
     } catch (Throwable $e) {
         return [];
     }

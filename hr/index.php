@@ -15,12 +15,33 @@
 require_once __DIR__ . '/_bootstrap.php';
 hr_require('hr.employees.view', 'hr.reports.view');
 
+// Remove a device card the service no longer reports: an old IP, or a device
+// that is not used any more. A device still in use comes back within a minute.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'device_remove') {
+    Csrf::require();
+    hr_require('hr.settings');
+    $db = Database::getInstance();
+    $dv = $db->fetch('SELECT * FROM hr_devices WHERE id = ?', [(int)($_POST['id'] ?? 0)]);
+    if ($dv && hr_device_state($dv)['cls'] === 'down') {
+        $db->query('DELETE FROM hr_devices WHERE id = ?', [$dv['id']]);
+        if (!$db->fetch('SELECT id FROM hr_devices WHERE ip = ?', [$dv['ip']])) {
+            $db->query('DELETE FROM hr_device_users WHERE device_ip = ?', [$dv['ip']]);
+        }
+        AuditLog::log('hr_device_remove', 'hr_devices', (int)$dv['id'], ['ip' => $dv['ip'], 'serial' => $dv['serial']], null);
+        hr_flash('success', 'ئامێری ' . $dv['ip'] . ' لابرا');
+    } else {
+        hr_flash('error', 'تەنها ئامێرێک لادەبرێت کە خزمەتگوزارییەکە ئێستا ناینێرێت');
+    }
+    hr_redirect();
+}
+
 $hr = new HrAttendance();
 $today = HrAttendance::currentWorkDate();
 $monthStart = substr($today, 0, 8) . '01';
 $canReports = hr_can('hr.reports.view');
 $canPay = hr_can('hr.payroll.view');
 $canOpenDay = $canReports || hr_can('hr.punches.manage');
+$canRemoveDevice = hr_can('hr.settings');
 
 $employees = $hr->employees();
 $month = $hr->period($employees, $monthStart, $today);
@@ -151,6 +172,7 @@ a.db-warn:hover{background:#fef3c7;text-decoration:none;color:#92400e}
 @media (max-width:1100px){.db-grid{grid-template-columns:1fr}.db-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 CSS;
 require_once __DIR__ . '/../includes/header.php';
+hr_flash_render();
 ?>
 
 <div class="db-head">
@@ -231,7 +253,15 @@ require_once __DIR__ . '/../includes/header.php';
             <?php if ($cls === 'warn' && $dv['last_error']): ?>
             <div class="db-warn"><i class="fas fa-plug-circle-xmark"></i> ئامێرەکە وەڵام ناداتەوە — تەل و کارەبای بپشکنە. پەنجەمۆرەکان لەسەری دەمێننەوە و دوای پەیوەندی دێن.</div>
             <?php elseif ($cls === 'down'): ?>
-            <div class="db-warn"><i class="fas fa-power-off"></i> خزمەتگوزارییەکە دوایین جار <?= hr_esc(hr_ago($dv['last_seen_at'])) ?> کاری کرد. لەسەر کۆمپیوتەری سەنتەر <b>fingerprint-sync\status.bat</b> بکەرەوە.</div>
+            <div class="db-warn"><i class="fas fa-power-off"></i> خزمەتگوزارییەکە دوایین جار <?= hr_esc(hr_ago($dv['last_seen_at'])) ?> ئەم ئامێرەی ناردووە. لەسەر کۆمپیوتەری سەنتەر <b>fingerprint-sync\status.bat</b> بکەرەوە.
+                <?php if ($canRemoveDevice && count($devices) > 1): ?>
+                <br>ئەگەر ئەمە IP ـی کۆنی ئامێرەکەیە یان ئیتر بەکارنایەت:
+                <form method="POST" style="display:inline" onsubmit="return confirm('ئامێری <?= hr_esc($dv['ip']) ?> لە لێزان لاببرێت؟ پەنجەمۆرەکان دەمێننەوە.')">
+                    <input type="hidden" name="action" value="device_remove">
+                    <input type="hidden" name="id" value="<?= (int)$dv['id'] ?>">
+                    <button type="submit" class="btn btn-sm btn-danger" style="margin-top:6px"><i class="fas fa-trash"></i> لابردنی ئەم کارتە</button>
+                </form>
+                <?php endif; ?></div>
             <?php endif; ?>
             <?php if (abs($offset) > 120): ?>
             <div class="db-warn"><i class="fas fa-clock"></i> کاتژمێری ئامێرەکە <bdo dir="ltr"><?= round($offset / 60) ?></bdo> خولەک جیاوازە — لە config.ini دا sync_time = yes بکە.</div>
