@@ -4817,19 +4817,22 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
 /* !important on the sizes: the app's text-size setting (body.app-font-scaled)
    forces its own size on every div/span/label/button with !important; these
    selectors are more specific, so the dialog stays compact either way. */
-.rx-dialog .rxs-pt, .rx-dialog .rxs-pt bdi { font-size: 14px !important; }
-.rx-dialog .rxs-legend, .rx-dialog .rxs-find input { font-size: 12px !important; }
-.rx-dialog .rxs-head { padding: 7px 9px 6px; min-height: 0; }
-.rx-dialog .rxs-head h5 { font-size: 15px; margin-bottom: 5px; }
-.rx-dialog .rxs-types { gap: 2px 6px; }
-.rx-dialog .rxs-t { font-size: 12px !important; gap: 5px; }
-.rx-dialog .rxs-t::before { width: 12px; height: 12px; }
-.rx-dialog .rxs-body { padding: 6px 6px 8px; margin-top: 4px; }
-.rx-dialog .rxs-it, .rx-dialog .rxs-it span { font-size: 12px !important; }
-.rx-dialog .rxs-it { padding: 3px 4px; gap: 6px; line-height: 1.3; }
-.rx-dialog .rxs-it .bx { width: 15px; height: 15px; font-size: 9px !important; }
-.rx-dialog .rxs-it .tp, .rx-dialog .rxs-it .ds { font-size: 10px !important; }
-.rx-dialog .rxs-q, .rx-dialog .rxs-it .rxs-q { height: 16px; min-width: 20px; padding: 0 5px; font-size: 10px !important; }
+/* The project font everywhere in the dialog — buttons and inputs do not
+   inherit it on their own (their "font: 14px inherit" shorthand is invalid). */
+.rx-dialog, .rx-dialog button, .rx-dialog input, .rx-dialog select, .rx-dialog textarea { font-family: var(--app-font-family) !important; }
+.rx-dialog .rxs-pt, .rx-dialog .rxs-pt bdi { font-size: 15px !important; }
+.rx-dialog .rxs-legend, .rx-dialog .rxs-find input { font-size: 13px !important; }
+.rx-dialog .rxs-head { padding: 8px 10px 7px; min-height: 0; }
+.rx-dialog .rxs-head h5 { font-size: 16px; margin-bottom: 6px; }
+.rx-dialog .rxs-types { gap: 3px 7px; }
+.rx-dialog .rxs-t { font-size: 13px !important; gap: 6px; }
+.rx-dialog .rxs-t::before { width: 13px; height: 13px; }
+.rx-dialog .rxs-body { padding: 6px 7px 9px; margin-top: 5px; }
+.rx-dialog .rxs-it, .rx-dialog .rxs-it span { font-size: 13px !important; }
+.rx-dialog .rxs-it { padding: 3px 5px; gap: 6px; line-height: 1.35; }
+.rx-dialog .rxs-it .bx { width: 16px; height: 16px; font-size: 10px !important; }
+.rx-dialog .rxs-it .tp, .rx-dialog .rxs-it .ds { font-size: 11px !important; }
+.rx-dialog .rxs-q, .rx-dialog .rxs-it .rxs-q { height: 17px; min-width: 21px; padding: 0 5px; font-size: 11px !important; }
 .rx-search-wrap { position: relative; margin-bottom: 14px; }
 .rx-label { display:block; font-size:12px; color:#666; margin-bottom:5px; font-weight:600; }
 .rx-input { width:100%; border:1.5px solid #e0e0e0; border-radius:8px; padding:9px 11px; font:13px inherit; background:#fff; color:#222; }
