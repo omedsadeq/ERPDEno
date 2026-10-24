@@ -4674,11 +4674,10 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                 </div>
             </div>
             <div class="d-flex gap-2 align-center flex-wrap">
-                <?php if ($canRequestPayment): ?>
-                <button class="btn btn-success" style="padding: 8px 16px;" onclick="openDialog('paymentDialog')" title="<?= $canReceiveMoney ? 'وەرگرتنی پارە (Alt+P)' : 'داواکاری پارەدان (Alt+P)' ?>">
-                    <i class="fas fa-money-bill"></i> <?= $canReceiveMoney ? 'پارەدان' : ($doctorPaymentDraft ? 'دەستکاری / ناردنی قەبز' : 'داواکاری پارەدانی نوێ') ?>
-                </button>
-                <?php elseif ($case['status'] === 'open' && $pendingPaymentsTotal > 0 && $remaining > 0): ?>
+                <?php // No پارەدان button in the header: money is taken from the پارەدان
+                      // tab (its «وەرگرتنی پارە» button) or Alt+P. Only the pending-request
+                      // notice stays here. ?>
+                <?php if (!$canRequestPayment && $case['status'] === 'open' && $pendingPaymentsTotal > 0 && $remaining > 0): ?>
                 <span class="btn btn-warning" style="padding: 8px 16px; cursor:default;" title="داواکاری پارەدان چاوەڕوانی پەسەندکردنە">
                     <i class="fas fa-hourglass-half"></i> پارەدان چاوەڕوانە (<?= number_format($pendingPaymentsTotal) ?>)
                 </span>
