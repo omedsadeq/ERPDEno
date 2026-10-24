@@ -40,6 +40,9 @@ function dsRows(array $rows)
 .ds-bar .day{color:#cfe0ec;font-size:12.5px}
 .ds-pdf{margin-inline-start:auto;background:#fff;color:#244b68;padding:6px 14px;font-size:12px;font-weight:700;text-decoration:none;border-radius:3px}
 .ds-pdf:hover{background:#e3edf4}
+.ds-lockform{margin:0}
+.ds-lockform button{background:transparent;color:#fff;border:1px solid #9fbbd0;padding:5px 12px;font:inherit;font-size:12px;font-weight:700;border-radius:3px;cursor:pointer}
+.ds-lockform button:hover{background:#1b3a51}
 .ds-filter{border:1px solid #c3d0da;border-top:0;background:#f5f7f9;padding:7px 10px;display:flex;flex-wrap:wrap;align-items:center;gap:7px}
 .ds-filter label{display:flex;align-items:center;gap:5px;font-size:12px;color:#445b6c}
 .ds-filter input,.ds-filter select{height:31px;border:1px solid #9cafbd;background:#fff;padding:3px 7px;font:inherit;font-size:12px}
@@ -88,6 +91,12 @@ function dsRows(array $rows)
         <a class="ds-pdf" href="<?= dsEsc($pdfUrl) ?>" target="_blank">
             <i class="fas fa-file-pdf"></i> ڕاپۆرتی PDF
         </a>
+        <form method="post" class="ds-lockform">
+            <?= Csrf::field() ?>
+            <button type="submit" name="ds_lock" value="1" title="پەڕەکە قفڵ بکە؛ بۆ کردنەوەی دووبارە وشەی نهێنی دەوێت">
+                <i class="fas fa-lock"></i> قفڵکردن
+            </button>
+        </form>
     </div>
 
     <form method="get" class="ds-filter">

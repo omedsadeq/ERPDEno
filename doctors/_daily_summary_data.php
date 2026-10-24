@@ -27,6 +27,9 @@ $dsViewer = $authGate->getCurrentUser();
 $viewerUserId = (int)($dsViewer['id'] ?? 0);
 $isAdminView = $authGate->isAdmin() || $authGate->isAccountant();
 
+// The viewer re-types their own password before the sheet opens.
+require __DIR__ . '/_daily_summary_lock.php';
+
 // A doctor is pinned to themselves and may never widen the scope; only an
 // admin/accountant gets the picker.
 $docUserId = $viewerUserId;
