@@ -5348,6 +5348,24 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                                             <i class="fas fa-receipt"></i>
                                         </a>
                                         <?php endif; ?>
+                                        <?php
+                                        // «تەعدیل»: the admin corrects an approved receipt's amount in
+                                        // place (Payment::editApproved via api/finance-actions.php —
+                                        // reallocation, cashbox and audit included). Receipts the server
+                                        // refuses show why instead of a button.
+                                        if ($isAdmin && ($pay['status'] ?? '') === 'approved'):
+                                            $payEditBlock = Settings::allowEditApprovedInvoice()
+                                                ? $paymentManager->approvedEditBlockReason($pay)
+                                                : 'دەستکاریکردنی تۆماری پەسەندکراو ناچالاکە — لە ڕێکخستنەکان (دەستگەیشتن) چالاکی بکە';
+                                        ?>
+                                        <?php if ($payEditBlock === null): ?>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" style="padding:3px 8px;"
+                                                onclick="openEditPaymentDialog(<?= (int)$pay['id'] ?>, '<?= htmlspecialchars($pay['payment_number'], ENT_QUOTES) ?>', <?= (float)$pay['amount'] ?>)"
+                                                title="تەعدیلی بڕی قەبز"><i class="fas fa-pen"></i> تەعدیل</button>
+                                        <?php else: ?>
+                                        <span style="color:#94a3b8;cursor:help;" title="<?= htmlspecialchars($payEditBlock) ?>"><i class="fas fa-lock"></i></span>
+                                        <?php endif; ?>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
@@ -8688,6 +8706,36 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
         </form>
     </div>
 </div>
+
+<?php if ($isAdmin): ?>
+<!-- «تەعدیل» of an approved receipt (قەبز) — openEditPaymentDialog / saveEditPayment -->
+<div class="dialog-overlay" id="editPaymentDialog">
+    <div class="dialog" style="max-width: 400px;">
+        <div class="dialog-header">
+            <h4><i class="fas fa-pen"></i> تەعدیلی قەبز <span id="epNumber" dir="ltr" style="font-size:13px;color:#64748b;"></span></h4>
+            <button type="button" class="dialog-close" onclick="closeDialog('editPaymentDialog')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="dialog-body">
+            <div class="form-group">
+                <label for="epAmount">بڕی قەبز</label>
+                <input type="number" id="epAmount" class="form-control" min="1" step="0.01" dir="ltr"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();saveEditPayment();}">
+                <small class="text-secondary" style="display:block;margin-top:6px;">
+                    بڕی ئێستا: <b id="epOld" dir="ltr"></b> — قەبزەکە پەسەندکراو دەمێنێتەوە، ژمارە و بەروارەکەی ناگۆڕێت.
+                </small>
+            </div>
+            <div class="form-group">
+                <label for="epNote">هۆکار</label>
+                <input type="text" id="epNote" class="form-control" maxlength="500" placeholder="بۆ نموونە: هەڵەی نووسینی بڕ">
+            </div>
+        </div>
+        <div class="dialog-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeDialog('editPaymentDialog')">هەڵوەشاندنەوە</button>
+            <button type="button" class="btn btn-primary" id="epSave" onclick="saveEditPayment()"><i class="fas fa-check"></i> پاشەکەوتکردن</button>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- Send ONE visit tab to the accountant -->
 <style>
@@ -14283,6 +14331,46 @@ function editVisitTabDate(invoiceId, current, anchor) {
     try { picker.showPicker(); } catch (e) { picker.focus(); picker.click(); }
 }
 window.editVisitTabDate = editVisitTabDate;
+
+// «تەعدیل» on an approved receipt (پارەدان tab, admin). The amount changes in
+// place and is reallocated over this case's receipts by the same endpoint the
+// Approval Center uses; the page reloads so every figure follows.
+let editPaymentId = 0;
+function openEditPaymentDialog(paymentId, number, amount) {
+    editPaymentId = paymentId;
+    document.getElementById('epNumber').textContent = number;
+    document.getElementById('epOld').textContent = numberFormat(amount);
+    document.getElementById('epAmount').value = amount;
+    document.getElementById('epNote').value = '';
+    openDialog('editPaymentDialog');
+    setTimeout(() => { const a = document.getElementById('epAmount'); a.focus(); a.select(); }, 60);
+}
+function saveEditPayment() {
+    const btn = document.getElementById('epSave');
+    const amount = parseFloat(document.getElementById('epAmount').value);
+    if (!(amount > 0)) { toast('error', 'بڕی قەبز دەبێت لە سفر زیاتر بێت'); return; }
+    if (btn.disabled) return;
+    btn.disabled = true;
+    const fd = new FormData();
+    fd.set('csrf_token', window.CSRF_TOKEN || CSRF_TOKEN);
+    fd.set('action', 'edit_approved_payment');
+    fd.set('payment_id', editPaymentId);
+    fd.set('amount', amount);
+    fd.set('note', document.getElementById('epNote').value.trim());
+    fetch('<?= APP_URL ?>/api/finance-actions.php', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(d => {
+            if (!d.ok) { btn.disabled = false; toast('error', d.error || 'قەبزەکە نەگۆڕدرا'); return; }
+            toast('success', 'قەبزەکە تەعدیل کرا');
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', 'payments');
+            url.hash = '';
+            window.location.href = url.toString();
+        })
+        .catch(() => { btn.disabled = false; toast('error', 'هەڵەیەک ڕوویدا لە پەیوەندیکردن'); });
+}
+window.openEditPaymentDialog = openEditPaymentDialog;
+window.saveEditPayment = saveEditPayment;
 
 // Whose work a receipt is — the header's دکتۆر box (admin/accountant only).
 function setInvoiceDoctor(invoiceId, doctorId, select) {
