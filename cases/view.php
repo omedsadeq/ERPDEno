@@ -9293,6 +9293,20 @@ function openDeleteInvoiceDialog(invoiceId, invoiceNumber) {
     box-shadow: 0 25px 80px rgba(0, 0, 0, 0.35);
     background: #fff;
 }
+/* Wide layout: balance, type/amount/method and notes on one side, the extra
+   discount box beside them — everything visible without scrolling. Only when
+   there is a discount box to put there; phones keep the single column. */
+@media (min-width: 760px) {
+    .payment-dialog-modern:has(.payment-settlement-discount) { max-width: 860px; }
+    .payment-dialog-body:has(> .payment-settlement-discount) {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        column-gap: 20px;
+        align-items: start;
+    }
+    .payment-dialog-body:has(> .payment-settlement-discount) > * { grid-column: 1; }
+    .payment-dialog-body > .payment-settlement-discount { grid-column: 2; grid-row: 1 / span 12; margin-top: 0; }
+}
 
 .payment-dialog-header {
     background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
