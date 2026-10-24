@@ -19,11 +19,49 @@
         el.hidden = !message;
         if (message) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
+    // ددان: the same four-quadrant cross as the printed receipt. A row is one
+    // tooth, so typing its Palmer number (1-8, or A-E for a primary tooth) into
+    // a quadrant sets tooth_number (FDI) and clears the other three.
+    var QUAD_FDI = { UR: [1, 5], UL: [2, 6], LL: [3, 7], LR: [4, 8] };
+    var FDI_QUAD = { 1: 'UR', 2: 'UL', 3: 'LL', 4: 'LR', 5: 'UR', 6: 'UL', 7: 'LL', 8: 'LR' };
+    var QUAD_NAME = { UR: 'سەرەوەی ڕاست', UL: 'سەرەوەی چەپ', LR: 'خوارەوەی ڕاست', LL: 'خوارەوەی چەپ' };
+    var PRIMARY = 'ABCDE';
+    function crossHtml() {
+        return '<div class="tooth-cross is-input ic-cross">' + ['UR', 'UL', 'LR', 'LL'].map(function (q) {
+            return '<input type="text" class="tc-' + q.toLowerCase() + ' ic-tooth-in" data-q="' + q + '" maxlength="1"'
+                + ' placeholder="—" title="' + QUAD_NAME[q] + '" aria-label="ددان — ' + QUAD_NAME[q] + '">';
+        }).join('') + '</div>';
+    }
+    function paintCross(tr) {
+        var fdi = String(tr.querySelector('[data-field="tooth_number"]').value || '').trim();
+        var valid = /^(?:[1-4][1-8]|[5-8][1-5])$/.test(fdi);
+        var q = valid ? FDI_QUAD[fdi.charAt(0)] : null, n = valid ? Number(fdi.charAt(1)) : 0;
+        tr.querySelectorAll('.ic-tooth-in').forEach(function (inp) {
+            inp.setCustomValidity('');
+            inp.classList.remove('is-bad');
+            inp.value = inp.dataset.q === q ? (Number(fdi.charAt(0)) >= 5 ? PRIMARY.charAt(n - 1) : String(n)) : '';
+        });
+    }
+    function crossInput(inp) {
+        var tr = inp.closest('[data-ic-row]'), hidden = tr.querySelector('[data-field="tooth_number"]');
+        var v = inp.value.trim().toUpperCase(), fdi = QUAD_FDI[inp.dataset.q];
+        tr.querySelectorAll('.ic-tooth-in').forEach(function (other) {
+            if (other !== inp) { other.value = ''; other.classList.remove('is-bad'); other.setCustomValidity(''); }
+        });
+        inp.value = v;
+        var tooth = /^[1-8]$/.test(v) ? String(fdi[0]) + v
+            : (/^[A-E]$/.test(v) ? String(fdi[1]) + (PRIMARY.indexOf(v) + 1) : null);
+        // A bad entry blocks the save (reportValidity) instead of silently
+        // dropping the tooth that was there.
+        inp.classList.toggle('is-bad', v !== '' && tooth === null);
+        inp.setCustomValidity(v !== '' && tooth === null ? 'ژمارەی ددان: ١-٨ یان A-E' : '');
+        if (v === '' || tooth !== null) hidden.value = tooth || '';
+    }
     function addRow(form, data) {
         var tr = document.createElement('tr');
         tr.dataset.icRow = String(data.id || 0);
         tr.innerHTML = '<td><input data-field="treatment_name" maxlength="100" required aria-label="ناوەڕۆک"></td>'
-            + '<td><input data-field="tooth_number" inputmode="numeric" pattern="(?:[1-4][1-8]|[5-8][1-5])" aria-label="ددان"></td>'
+            + '<td class="ic-teeth"><input type="hidden" data-field="tooth_number">' + crossHtml() + '</td>'
             + '<td><select data-field="arch_type" aria-label="شوێن"><option value="none">ددان / خزمەتگوزاری</option><option value="upper">چەناگەی سەرەوە</option><option value="lower">چەناگەی خوارەوە</option></select></td>'
             + '<td><input type="number" data-field="quantity" min="1" max="9999" step="1" required aria-label="ژمارە"></td>'
             + '<td><input type="number" data-field="unit_price" min="0" max="9999999999.99" step="0.01" required aria-label="نرخی تاک"></td>'
@@ -33,6 +71,7 @@
         fields.forEach(function (key) {
             tr.querySelector('[data-field="' + key + '"]').value = data[key] == null ? (key === 'arch_type' ? 'none' : '') : data[key];
         });
+        paintCross(tr);
         form.querySelector('[data-ic-rows]').appendChild(tr);
         preview(form);
     }
@@ -129,7 +168,9 @@
     });
     document.addEventListener('input', function (event) {
         var form = event.target.closest('.ic-editor');
-        if (form && !busy) preview(form);
+        if (!form || busy) return;
+        if (event.target.classList.contains('ic-tooth-in')) crossInput(event.target);
+        preview(form);
     });
     document.addEventListener('submit', async function (event) {
         var form = event.target.closest('.ic-editor');

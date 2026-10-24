@@ -687,15 +687,26 @@ input.rt-in-price::-webkit-outer-spin-button, input.rt-in-price::-webkit-inner-s
 .ic-editor input:focus,.ic-editor select:focus,.ic-editor textarea:focus { outline:2px solid #65acff; outline-offset:1px; }
 .ic-editor small { display:block; font-size:.7rem; font-weight:400; color:#6a7b8c; }
 .ic-table-wrap { overflow:auto; margin:6px 0 10px; border:1px solid #d5e1ed; border-radius:9px; }
-.ic-table { width:100%; min-width:880px; border-collapse:collapse; }
+.ic-table { width:100%; min-width:920px; border-collapse:collapse; }
 .ic-table th { background:#eaf2fa; color:#35516e; font-size:.75rem; padding:6px 6px; text-align:start; white-space:nowrap; }
 .ic-table td { padding:3px 4px; border-top:1px solid #e4ebf2; vertical-align:middle; }
 .ic-table td:first-child { min-width:170px; }
 .ic-table input[data-field=tooth_number] { width:56px; text-align:center; }
 .ic-table input[data-field=quantity] { width:56px; }
-.ic-table input[data-field=unit_price],.ic-table input[data-field=discount] { min-width:92px; }
+.ic-table input[data-field=unit_price],.ic-table input[data-field=discount] { min-width:104px; }
+.ic-table select[data-field=arch_type] { min-width:108px; }
 .ic-table [data-ic-line-total] { display:block; min-width:80px; color:#075bbb; font-size:.85rem; }
 .ic-table input[data-field=notes] { min-width:110px; }
+/* ددان: the receipt's quadrant cross, one Palmer number per row
+   (assets/js/invoice-correction.js crossInput). */
+.ic-table td.ic-teeth { width:92px; }
+.ic-editor .ic-cross { max-width:84px; }
+.ic-editor .ic-cross .ic-tooth-in { width:100%; min-height:19px; padding:1px 2px; border:0; border-radius:0; background:transparent; font-size:11.5px; font-weight:700; color:#1b2b3a; text-align:center; direction:ltr; outline:none; }
+.ic-editor .ic-cross .ic-tooth-in::placeholder { color:#c3cedb; font-weight:400; }
+.ic-editor .ic-cross .ic-tooth-in:focus { background:#eaf4fd; outline:none; }
+.ic-editor .ic-cross .ic-tooth-in.is-bad { background:#fdecea; color:#c62026; }
+.ic-editor .ic-cross .tc-ur, .ic-editor .ic-cross .tc-ul { border-bottom:1px solid #1b2b3a; }
+.ic-editor .ic-cross .tc-ur, .ic-editor .ic-cross .tc-lr { border-right:1px solid #1b2b3a; }
 .ic-table tr.is-removed { opacity:.55; background:#fff0f0; }
 .ic-table tr.is-removed td:first-child { text-decoration:line-through; }
 .ic-summary { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:10px; }

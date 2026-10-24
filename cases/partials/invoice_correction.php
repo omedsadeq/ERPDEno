@@ -21,7 +21,7 @@ $lastCorrection = Database::getInstance()->fetch("SELECT a.created_at,u.full_nam
     </div>
     <div class="ic-section-title"><strong>چارەسەرەکان</strong><button type="button" class="vt-btn" data-ic-add><i class="fas fa-plus"></i> زیادکردنی ڕیز</button></div>
     <div class="ic-table-wrap"><table class="ic-table">
-        <thead><tr><th>ناوەڕۆک</th><th>ددان (FDI)</th><th>شوێن</th><th>ژمارە</th><th>نرخی تاک</th><th>داشکاندنی ڕیز</th><th>کۆ</th><th>تێبینی</th><th></th></tr></thead>
+        <thead><tr><th>ناوەڕۆک</th><th>چارتی ددان</th><th>شوێن</th><th>ژمارە</th><th>نرخی تاک</th><th>داشکاندنی ڕیز</th><th>کۆ</th><th>تێبینی</th><th></th></tr></thead>
         <tbody data-ic-rows></tbody>
     </table></div>
     <div class="ic-summary">
