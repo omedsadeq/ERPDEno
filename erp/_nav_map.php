@@ -40,6 +40,7 @@ if (!function_exists('erp_nav_groups')) {
             'issue' => [
                 'label' => 'مەواد بۆ دکتۆر', 'icon' => 'fa-hand-holding-medical', 'color' => '#0369a1',
                 'items' => [
+                    ['page' => 'material-requests', 'url' => 'material-requests.php', 'label' => 'داواکاری مەواد', 'icon' => 'fa-clipboard-list', 'can' => ['erp.material_request.approve']],
                     ['page' => 'doctor-issue', 'url' => 'doctor-issue.php', 'label' => 'پێدانی مەواد', 'icon' => 'fa-hand-holding-medical', 'can' => ['erp.doctor_issue.create']],
                     ['page' => 'doctor-issues', 'url' => 'doctor-issues.php', 'label' => 'وەسڵەکانی مەواد', 'icon' => 'fa-file-medical', 'can' => ['erp.doctor_issue.view']],
                     ['page' => 'expenses-inventory', 'url' => '', 'href' => APP_URL . '/admin/expenses-inventory.php', 'label' => 'خەرجی کۆگا', 'icon' => 'fa-receipt', 'can' => ['page.expenses_inventory']],

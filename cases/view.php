@@ -67,6 +67,9 @@ $invoiceDoctors = $isDoctor ? [] : $db->fetchAll(
 require_once __DIR__ . '/../classes/Permission.php';
 $canPrescribe = Permission::getInstance()->can('erp2.prescriptions.create');
 $canSeePrescriptions = Permission::getInstance()->can('erp2.prescriptions.view');
+// مەواد — the doctor asks the store for materials (ErpMaterialRequest); the
+// store approves on erp/material-requests.php.
+$canRequestMaterial = Permission::getInstance()->can('erp.material_request.create');
 // cases.edit_sent_invoice (admin/settings.php?tab=access): the doctor may still
 // correct the WORK on his invoice after sending it — treatments and prices, and
 // the discount while it is with the accountant. Money that was received never:
@@ -4838,6 +4841,44 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
     background: #e2e8f0; color: #334155; font-size: 11px !important; font-weight: 800; }
 .rx-tab.on .rx-tab-count { background: var(--win-accent, #0078D4); color: #fff; }
 .rx-pane[hidden] { display: none; }
+/* مەواد dialog (openMaterialDialog): cards per category, − / + on a chosen one */
+.mr-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.mr-top .rxs-find { margin-inline-start: 0; width: min(340px, 100%); }
+.mr-cat { margin-bottom: 14px; }
+.mr-cat h5 { margin: 0 0 8px; padding-bottom: 5px; border-bottom: 2px solid #e2e8f0; font-size: 15px; font-weight: 800; color: #0f172a; }
+.mr-cat h5 small { font-size: 11px !important; color: #64748b; font-weight: 600; }
+.mr-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.mr-item { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 8px 10px; border: 1.5px solid #dbe3ea; border-radius: 10px;
+    background: #fff; cursor: pointer; user-select: none; transition: border-color .12s, background .12s; }
+.mr-item:hover { border-color: #93c5fd; background: #f8fbff; }
+.mr-item:focus-visible { outline: 2px solid var(--win-accent, #0078D4); outline-offset: 1px; }
+.mr-item.on { border-color: #16a34a; background: #f0fdf4; }
+.mr-item.out { opacity: .75; }
+.mr-item-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.mr-name { font-size: 13px !important; font-weight: 700; color: #0f172a; }
+.mr-sub { font-size: 11px !important; color: #64748b; }
+.mr-item .rxs-q { font-size: 11px !important; }
+.mr-step { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 8px; background: #dcfce7; }
+.mr-step button { width: 26px; height: 26px; border: 0; border-radius: 6px; background: #fff; color: #166534; font-size: 16px !important; font-weight: 800; cursor: pointer; line-height: 1; }
+.mr-step button:hover { background: #16a34a; color: #fff; }
+.mr-step b { min-width: 26px; text-align: center; font-size: 13px; color: #14532d; }
+.mr-history { display: flex; flex-direction: column; gap: 8px; }
+.mr-req { padding: 10px 12px; border: 1px solid #e2e8f0; border-inline-start: 4px solid #94a3b8; border-radius: 8px; background: #fff; }
+.mr-req.is-pending { border-inline-start-color: #f59e0b; }
+.mr-req.is-approved { border-inline-start-color: #16a34a; }
+.mr-req.is-rejected { border-inline-start-color: #dc2626; }
+.mr-req-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px !important; }
+.mr-req-date { color: #64748b; font-size: 12px !important; direction: ltr; }
+.mr-badge { padding: 1px 9px; border-radius: 999px; background: #f1f5f9; color: #475569; font-size: 11px !important; font-weight: 700; }
+.mr-req.is-pending .mr-badge { background: #fef3c7; color: #92400e; }
+.mr-req.is-approved .mr-badge { background: #dcfce7; color: #166534; }
+.mr-req.is-rejected .mr-badge { background: #fee2e2; color: #991b1b; }
+.mr-req-issue { font-size: 12px !important; color: #0369a1; direction: ltr; }
+.mr-req-cancel { margin-inline-start: auto; padding: 3px 10px; border: 1px solid #fecaca; border-radius: 6px; background: #fff; color: #b91c1c; font-size: 12px !important; cursor: pointer; }
+.mr-req-items { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; font-size: 12.5px !important; color: #1e293b; }
+.mr-req-items span { font-size: 12.5px !important; }
+.mr-req-note { margin-top: 5px; font-size: 12px !important; color: #475569; }
+.mr-req-note.is-decision { color: #991b1b; }
 /* A circled type filters its group (renderSheet) */
 .rxs-it.typed-out { display: none; }
 .rx-dialog .rxs-col.is-filtered .rxs-head { box-shadow: inset 0 -3px 0 #2e7d32; }
@@ -5011,6 +5052,14 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                     <i class="fas fa-pills" aria-hidden="true"></i>
                     <span class="tab-label">دەرمان</span>
                     <span class="tab-count" id="rxTabCount">0</span>
+                </button>
+                <?php endif; ?>
+                <?php if ($canRequestMaterial): ?>
+                <?php // داواکاری مەواد لە کۆگا — a dialog, like دەرمان. ?>
+                <button type="button" class="tab" onclick="openMaterialDialog()">
+                    <i class="fas fa-boxes-stacked" aria-hidden="true"></i>
+                    <span class="tab-label">مەواد</span>
+                    <span class="tab-count" id="mrTabCount">0</span>
                 </button>
                 <?php endif; ?>
                 <?php if ($isArchCase): ?>
@@ -8739,6 +8788,72 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
     }
 }
 </style>
+
+<?php if ($canRequestMaterial): ?>
+<!-- داواکاری مەواد لە کۆگا (openMaterialDialog): pick materials with the store's
+     stock beside them, then send; the store approves on erp/material-requests.php -->
+<div class="dialog-overlay rx-dialog-overlay" id="materialDialog">
+    <div class="dialog rx-dialog">
+        <div class="dialog-header rx-dialog-header">
+            <h4><i class="fas fa-boxes-stacked"></i> داواکاری مەواد
+                <span class="badge badge-blue">لە کۆگای سەرەکی</span></h4>
+            <button type="button" class="dialog-close" onclick="closeDialog('materialDialog')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="dialog-body rx-dialog-body">
+            <div class="rx-tabs" role="tablist">
+                <button type="button" class="rx-tab on" data-mr-tab="pick" role="tab" aria-selected="true">
+                    <i class="fas fa-list-check"></i> هەڵبژاردن
+                </button>
+                <button type="button" class="rx-tab" data-mr-tab="send" role="tab" aria-selected="false">
+                    <i class="fas fa-paper-plane"></i> ناردن <span class="rx-tab-count" id="mrSendCount">0</span>
+                </button>
+            </div>
+
+            <div class="rx-pane" data-mr-pane="pick">
+                <div class="mr-top">
+                    <div class="rxs-find">
+                        <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+                        <input type="search" id="mrFind" autocomplete="off" placeholder="گەڕان بۆ مەواد…" aria-label="گەڕان بۆ مەواد">
+                    </div>
+                    <div class="rxs-legend"><span class="rxs-q">12</span> بەردەست لە کۆگا <span class="rxs-q zero">0</span> لە کۆگا نییە</div>
+                </div>
+                <div id="mrGrid" class="mr-grid"><div class="rx-empty">بارکردن…</div></div>
+                <div class="rx-next" id="mrNext" hidden>
+                    <span><i class="fas fa-check-circle"></i> <b id="mrNextCount">0</b> مەواد هەڵبژێردرا</span>
+                    <button type="button" class="btn btn-primary" data-mr-tab="send">ناردن <i class="fas fa-arrow-left"></i></button>
+                </div>
+            </div>
+
+            <div class="rx-pane" data-mr-pane="send" hidden>
+                <div class="rx-table-wrap">
+                    <table class="rx-table">
+                        <thead>
+                            <tr>
+                                <th style="width:36px">#</th>
+                                <th>مەواد</th>
+                                <th style="width:150px">بڕ</th>
+                                <th style="width:130px">لە کۆگا</th>
+                                <th style="width:40px"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="mrRows"></tbody>
+                    </table>
+                    <div id="mrEmpty" class="rx-empty">هێشتا هیچ مەوادێک هەڵنەبژێردراوە — لە تابی «هەڵبژاردن» دیاری بکە.</div>
+                </div>
+                <div class="rx-foot">
+                    <input type="text" id="mrNotes" class="rx-input" maxlength="1000" placeholder="تێبینی بۆ کۆگا (ئیختیاری)…">
+                    <button type="button" class="btn btn-primary" id="mrSendBtn" onclick="mrSend()" disabled>
+                        <i class="fas fa-paper-plane"></i> ناردن بۆ کۆگا
+                    </button>
+                </div>
+                <div id="mrMsg" class="rx-msg"></div>
+                <h4 style="margin:22px 0 10px;font-size:14px;"><i class="fas fa-clock-rotate-left"></i> داواکارییەکانی ئەم کەیسە</h4>
+                <div id="mrHistory" class="mr-history"><div class="rx-empty">بارکردن…</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- New visit tab: opens another draft receipt, for today or a past day -->
 <div class="dialog-overlay" id="newVisitTabDialog">
@@ -12555,6 +12670,217 @@ document.addEventListener('DOMContentLoaded', function() {
             body.addEventListener('change', () => lines.forEach(l => refreshItem(l.product_id)));
         }
         loadHistory();
+    });
+})();
+<?php endif; ?>
+
+<?php if ($canRequestMaterial): ?>
+/* ---------------------------------------------------------------------------
+ * مەواد — the doctor asks the store for materials (erp/api/material-requests.php).
+ * Step one: click materials (cards with the store's stock), − / + for the
+ * quantity. Step two: check the list, add a note, send. The store approves
+ * on erp/material-requests.php; this case's requests and their state are
+ * listed under the send button.
+ * ------------------------------------------------------------------------ */
+(function () {
+    const MR_API = '<?= APP_URL ?>/erp/api/material-requests.php';
+    const MR_CASE_ID = <?= (int)$caseId ?>;
+    let mrGroups = [];
+    let mrLines = [];   // [{product_id, name, unit, stock, quantity}]
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const nf = n => new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 }).format(Number(n) || 0);
+    const STATUS_CLASS = { pending: 'is-pending', approved: 'is-approved', rejected: 'is-rejected', cancelled: 'is-cancelled' };
+
+    function mrMsg(text, kind) {
+        const box = $('mrMsg');
+        if (!box) return;
+        box.className = 'rx-msg ' + (kind || '');
+        box.textContent = text || '';
+    }
+    function findProduct(id) {
+        for (const g of mrGroups) { const p = g.items.find(x => x.id === id); if (p) return p; }
+        return null;
+    }
+
+    async function loadSheet() {
+        const grid = $('mrGrid');
+        try {
+            const res = await fetch(MR_API + '?action=sheet');
+            const d = await res.json();
+            if (!d.ok) { grid.innerHTML = '<div class="rx-empty">' + esc(d.error || 'نەتوانرا بارببرێت') + '</div>'; return; }
+            mrGroups = d.groups || [];
+            renderGrid();
+        } catch (e) { grid.innerHTML = '<div class="rx-empty">نەتوانرا لیستی مەواد بارببرێت</div>'; }
+    }
+
+    function renderGrid() {
+        const grid = $('mrGrid');
+        if (!mrGroups.length) { grid.innerHTML = '<div class="rx-empty">هیچ مەوادێک لە کۆگا تۆمار نەکراوە</div>'; return; }
+        const q = ($('mrFind')?.value || '').trim().toLowerCase();
+        const chosen = {};
+        mrLines.forEach(l => { chosen[l.product_id] = l; });
+        let html = '';
+        mrGroups.forEach(g => {
+            const items = g.items.filter(p => !q || (p.name + ' ' + p.name_ku).toLowerCase().includes(q));
+            if (!items.length) return;
+            html += '<section class="mr-cat"><h5>' + esc(g.name) + ' <small>' + items.length + '</small></h5><div class="mr-items">'
+                + items.map(p => {
+                    const l = chosen[p.id];
+                    return '<div class="mr-item' + (l ? ' on' : '') + (p.stock <= 0 ? ' out' : '') + '" data-mr-p="' + p.id + '" role="button" tabindex="0">'
+                        + '<div class="mr-item-main"><span class="mr-name">' + esc(p.name) + '</span>'
+                        + (p.name_ku ? '<span class="mr-sub">' + esc(p.name_ku) + '</span>' : '') + '</div>'
+                        + '<span class="rxs-q' + (p.stock <= 0 ? ' zero' : '') + '" title="لە کۆگا">' + nf(p.stock) + (p.unit ? ' ' + esc(p.unit) : '') + '</span>'
+                        + (l ? '<span class="mr-step"><button type="button" data-mr-dec="' + p.id + '" aria-label="کەمکردنەوە">−</button>'
+                            + '<b>' + nf(l.quantity) + '</b><button type="button" data-mr-inc="' + p.id + '" aria-label="زیادکردن">+</button></span>' : '')
+                        + '</div>';
+                }).join('') + '</div></section>';
+        });
+        grid.innerHTML = html || '<div class="rx-empty">هیچ مەوادێک بەم ناوە نییە</div>';
+    }
+
+    function setQty(pid, qty) {
+        const at = mrLines.findIndex(l => l.product_id === pid);
+        if (qty <= 0) { if (at >= 0) mrLines.splice(at, 1); }
+        else if (at >= 0) { mrLines[at].quantity = qty; }
+        else {
+            const p = findProduct(pid);
+            if (!p) return;
+            mrLines.push({ product_id: pid, name: p.name, unit: p.unit, stock: p.stock, quantity: qty });
+        }
+        renderGrid();
+        renderLines();
+    }
+
+    function renderLines() {
+        const body = $('mrRows');
+        body.innerHTML = mrLines.map((l, i) =>
+            '<tr><td style="color:#999">' + (i + 1) + '</td><td>' + esc(l.name) + '</td>'
+            + '<td><input type="number" min="0.001" step="any" value="' + l.quantity + '" data-mr-row="' + l.product_id + '"></td>'
+            + '<td class="rx-stock">' + (l.stock > 0 ? nf(l.stock) + ' ' + esc(l.unit) : '<span class="rx-out">نییە</span>')
+            + (l.quantity > l.stock ? ' <i class="fas fa-triangle-exclamation" style="color:#b45309" title="لە کۆگا کەمترە"></i>' : '') + '</td>'
+            + '<td class="rx-del" data-mr-del="' + l.product_id + '" title="لابردن"><i class="fas fa-times"></i></td></tr>'
+        ).join('');
+        $('mrEmpty').style.display = mrLines.length ? 'none' : 'block';
+        $('mrSendBtn').disabled = !mrLines.length;
+        $('mrSendCount').textContent = mrLines.length;
+        $('mrNextCount').textContent = mrLines.length;
+        $('mrNext').hidden = !mrLines.length;
+    }
+
+    async function loadHistory() {
+        const box = $('mrHistory');
+        try {
+            const res = await fetch(MR_API + '?action=case_list&case_id=' + MR_CASE_ID);
+            const d = await res.json();
+            if (!d.ok) { box.innerHTML = '<div class="rx-empty">' + esc(d.error || '') + '</div>'; return; }
+            const list = d.requests || [];
+            $('mrTabCount').textContent = list.filter(r => r.status === 'pending').length;
+            box.innerHTML = list.length ? list.map(r =>
+                '<div class="mr-req ' + (STATUS_CLASS[r.status] || '') + '">'
+                + '<div class="mr-req-head"><b>#' + r.id + '</b> <span class="mr-req-date">' + esc(String(r.created_at).slice(0, 16)) + '</span>'
+                + ' <span class="mr-badge">' + esc(r.status_label) + '</span>'
+                + (r.issue_number ? ' <span class="mr-req-issue">وەسڵ ' + esc(r.issue_number) + '</span>' : '')
+                + (r.status === 'pending' ? ' <button type="button" class="mr-req-cancel" data-mr-cancel="' + r.id + '">هەڵوەشاندنەوە</button>' : '')
+                + '</div><div class="mr-req-items">' + r.items.map(it => {
+                    const appr = it.approved_quantity !== null && Number(it.approved_quantity) !== Number(it.quantity)
+                        ? ' <s>' + nf(it.quantity) + '</s> → ' + nf(it.approved_quantity) : ' × ' + nf(it.quantity);
+                    return '<span>' + esc(it.product_name) + appr + (it.unit ? ' ' + esc(it.unit) : '') + '</span>';
+                }).join('') + '</div>'
+                + (r.notes ? '<div class="mr-req-note"><i class="fas fa-comment"></i> ' + esc(r.notes) + '</div>' : '')
+                + (r.decision_note ? '<div class="mr-req-note is-decision"><i class="fas fa-reply"></i> ' + esc(r.decision_note) + '</div>' : '')
+                + '</div>').join('') : '<div class="rx-empty">هیچ داواکارییەکی مەواد بۆ ئەم کەیسە نییە.</div>';
+        } catch (e) { box.innerHTML = '<div class="rx-empty">نەتوانرا بارببرێت</div>'; }
+    }
+
+    window.mrSend = async function () {
+        if (!mrLines.length) return;
+        const btn = $('mrSendBtn');
+        btn.disabled = true;
+        mrMsg('');
+        const fd = new FormData();
+        fd.set('csrf_token', window.CSRF_TOKEN || '');
+        fd.set('action', 'save');
+        fd.set('case_id', MR_CASE_ID);
+        fd.set('notes', $('mrNotes').value.trim());
+        fd.set('items', JSON.stringify(mrLines.map(l => ({ product_id: l.product_id, quantity: l.quantity }))));
+        try {
+            const res = await fetch(MR_API, { method: 'POST', body: fd });
+            const d = await res.json();
+            if (!d.ok) { mrMsg(d.error || 'نەنێردرا', 'err'); btn.disabled = false; return; }
+            mrLines = [];
+            $('mrNotes').value = '';
+            renderGrid();
+            renderLines();
+            mrMsg('داواکاری #' + d.id + ' نێردرا بۆ کۆگا — چاوەڕوانی پەسەندکردنە', 'ok');
+            loadHistory();
+        } catch (e) { mrMsg('هەڵەیەک ڕوویدا لە پەیوەندیکردن', 'err'); btn.disabled = false; }
+    };
+
+    function showMrTab(name) {
+        document.querySelectorAll('#materialDialog .rx-tab').forEach(t => {
+            const on = t.dataset.mrTab === name;
+            t.classList.toggle('on', on);
+            t.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        document.querySelectorAll('#materialDialog [data-mr-pane]').forEach(p => { p.hidden = p.dataset.mrPane !== name; });
+        const body = document.querySelector('#materialDialog .rx-dialog-body');
+        if (body) body.scrollTop = 0;
+    }
+
+    window.openMaterialDialog = function () {
+        showMrTab('pick');
+        openDialog('materialDialog');
+    };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const dlg = $('materialDialog');
+        if (!dlg) return;
+        if (dlg.parentElement !== document.body) document.body.appendChild(dlg);
+        dlg.addEventListener('click', async e => {
+            const tab = e.target.closest('[data-mr-tab]');
+            if (tab) { showMrTab(tab.dataset.mrTab); return; }
+            const inc = e.target.closest('[data-mr-inc]');
+            if (inc) { const id = +inc.dataset.mrInc; const l = mrLines.find(x => x.product_id === id); setQty(id, (l ? l.quantity : 0) + 1); return; }
+            const dec = e.target.closest('[data-mr-dec]');
+            if (dec) { const id = +dec.dataset.mrDec; const l = mrLines.find(x => x.product_id === id); setQty(id, (l ? l.quantity : 1) - 1); return; }
+            const del = e.target.closest('[data-mr-del]');
+            if (del) { setQty(+del.dataset.mrDel, 0); return; }
+            const cancel = e.target.closest('[data-mr-cancel]');
+            if (cancel) {
+                if (!confirm('ئەم داواکارییە هەڵبوەشێنرێتەوە؟')) return;
+                const fd = new FormData();
+                fd.set('csrf_token', window.CSRF_TOKEN || '');
+                fd.set('action', 'cancel');
+                fd.set('id', cancel.dataset.mrCancel);
+                const d = await (await fetch(MR_API, { method: 'POST', body: fd })).json();
+                if (!d.ok) { mrMsg(d.error || '', 'err'); return; }
+                loadHistory();
+                return;
+            }
+            const card = e.target.closest('[data-mr-p]');
+            if (card && !e.target.closest('.mr-step')) {
+                // a click on a card adds it; a second click on a chosen card removes it
+                const id = +card.dataset.mrP;
+                setQty(id, mrLines.some(l => l.product_id === id) ? 0 : 1);
+            }
+        });
+        dlg.addEventListener('keydown', e => {
+            const card = e.target.closest('[data-mr-p]');
+            if (card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); card.click(); }
+        });
+        dlg.addEventListener('input', e => {
+            if (e.target.id === 'mrFind') { renderGrid(); return; }
+            const row = e.target.closest('[data-mr-row]');
+            if (row) {
+                const l = mrLines.find(x => x.product_id === +row.dataset.mrRow);
+                const v = parseFloat(row.value);
+                if (l && v > 0) { l.quantity = Math.round(v * 1000) / 1000; renderGrid(); $('mrSendCount').textContent = mrLines.length; }
+            }
+        });
+        loadSheet();
+        loadHistory();
+        renderLines();
     });
 })();
 <?php endif; ?>
