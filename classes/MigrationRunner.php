@@ -90,9 +90,16 @@ class MigrationRunner {
      * changes whenever a file is edited, added, renamed or removed, which is
      * exactly what this lock needs to detect — and it costs a stat() instead
      * of a full read.
+     *
+     * The computer's name and the folder's path are part of the hash too. The
+     * lock lives in storage/, so copying the project folder to the clinic's
+     * computer carries it along; there the database is also called "leza"
+     * and copying keeps file times, so without them the copied lock would
+     * match and the new computer's database would never get the pending
+     * migrations (e.g. the HR tables and their imported data).
      */
     private function hashFiles(array $files): string {
-        $parts = [DB_HOST, DB_NAME];
+        $parts = [DB_HOST, DB_NAME, php_uname('n'), $this->migrationsDir];
         foreach ($files as $file) {
             $parts[] = basename($file) . ':' . (@filesize($file) ?: 0) . ':' . (@filemtime($file) ?: 0);
         }

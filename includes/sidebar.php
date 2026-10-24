@@ -153,6 +153,8 @@ if (in_array($currentPage, ['appointments', 'reception-call-lists', 'doctor-sche
     $activeSection = 'erp2';
 } elseif ($currentDir === 'letters') {
     $activeSection = 'letters';
+} elseif ($currentDir === 'hr') {
+    $activeSection = 'hr';
 } elseif ($currentDir === 'admin' && in_array($currentPage, ['users', 'treatments', 'inventory', 'reports', 'settings', 'pdf_settings', 'cancellation-reasons', 'xray-external-doctors', 'role-permissions', 'doctor-permissions'])) {
     $activeSection = 'admin';
 }
@@ -536,6 +538,35 @@ if (in_array($currentPage, ['appointments', 'reception-call-lists', 'doctor-sche
                     <span class="nav-item-text">سەردێڕ و واژۆ</span>
                 </a>
                 <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- سەرچاوە مرۆییەکان (hr/) - Collapsible. One entry per group; every
+             other screen is on the bar at the top of each HR page (hr/_nav.php).
+             Both read hr/_nav_map.php. -->
+        <?php
+        $hrSideGroups = [];
+        if (is_file(__DIR__ . '/../hr/_nav_map.php')) {
+            require_once __DIR__ . '/../hr/_nav_map.php';
+            $hrSideGroups = hr_nav_groups();
+        }
+        $hrSideCurrent = ($hrSideGroups && $currentDir === 'hr') ? hr_nav_group_of($currentPage) : null;
+        ?>
+        <?php if ($hrSideGroups): ?>
+        <div class="nav-group <?= $activeSection === 'hr' ? 'open' : '' ?>">
+            <div class="nav-group-header" onclick="toggleNavGroup(this)">
+                <span class="nav-item-icon" style="color:#0f766e;"><i class="fas fa-people-group"></i></span>
+                <span class="nav-item-text">سەرچاوە مرۆییەکان</span>
+                <span class="nav-group-arrow"><i class="fas fa-chevron-left"></i></span>
+            </div>
+            <div class="nav-group-items">
+                <?php foreach ($hrSideGroups as $hrKey => $hrG): ?>
+                <a href="<?= htmlspecialchars(module_nav_href(APP_URL . '/hr/', $hrG['items'][0])) ?>" class="nav-item <?= $hrSideCurrent === $hrKey ? 'active' : '' ?>">
+                    <span class="nav-item-icon" style="color:<?= htmlspecialchars($hrG['color']) ?>;"><i class="fas <?= htmlspecialchars($hrG['icon']) ?>"></i></span>
+                    <span class="nav-item-text"><?= htmlspecialchars($hrG['label']) ?></span>
+                </a>
+                <?php endforeach; ?>
             </div>
         </div>
         <?php endif; ?>
