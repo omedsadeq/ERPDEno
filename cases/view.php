@@ -4802,7 +4802,34 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
     #tab-chart .panel-body > .d-flex.justify-between > div { justify-content: flex-start; }
 }
 
-/* دەرمان tab */
+/* دەرمان — a large dialog (openMedicineDialog); the sheet scrolls inside it */
+.rx-dialog { max-width: 1400px; width: calc(100% - 32px); height: calc(100vh - 32px); max-height: calc(100vh - 32px); }
+.rx-dialog-header h4 { display: flex; align-items: center; gap: 10px; margin: 0; }
+.rx-dialog-header h4 .badge { font-size: 11px; font-weight: 600; }
+/* Fill the tall dialog: the page-wide .dialog-body cap (85vh - 110px) left an
+   empty band under a clipped sheet. min-height:0 lets it scroll inside. */
+.rx-dialog-body { padding: 14px 18px 18px; max-height: none; min-height: 0; }
+/* Roomy columns in the dialog (4 across on a wide screen): the paper's six
+   across at ~150px squeezed names and spilled the type labels into the
+   neighbouring group. Beats the .rxs container query by specificity. */
+.rx-dialog .rxs-grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; }
+/* Compact type in the dialog — the paper-sheet sizes were too big on screen */
+/* !important on the sizes: the app's text-size setting (body.app-font-scaled)
+   forces its own size on every div/span/label/button with !important; these
+   selectors are more specific, so the dialog stays compact either way. */
+.rx-dialog .rxs-pt, .rx-dialog .rxs-pt bdi { font-size: 14px !important; }
+.rx-dialog .rxs-legend, .rx-dialog .rxs-find input { font-size: 12px !important; }
+.rx-dialog .rxs-head { padding: 7px 9px 6px; min-height: 0; }
+.rx-dialog .rxs-head h5 { font-size: 15px; margin-bottom: 5px; }
+.rx-dialog .rxs-types { gap: 2px 6px; }
+.rx-dialog .rxs-t { font-size: 12px !important; gap: 5px; }
+.rx-dialog .rxs-t::before { width: 12px; height: 12px; }
+.rx-dialog .rxs-body { padding: 6px 6px 8px; margin-top: 4px; }
+.rx-dialog .rxs-it, .rx-dialog .rxs-it span { font-size: 12px !important; }
+.rx-dialog .rxs-it { padding: 3px 4px; gap: 6px; line-height: 1.3; }
+.rx-dialog .rxs-it .bx { width: 15px; height: 15px; font-size: 9px !important; }
+.rx-dialog .rxs-it .tp, .rx-dialog .rxs-it .ds { font-size: 10px !important; }
+.rx-dialog .rxs-q, .rx-dialog .rxs-it .rxs-q { height: 16px; min-width: 20px; padding: 0 5px; font-size: 10px !important; }
 .rx-search-wrap { position: relative; margin-bottom: 14px; }
 .rx-label { display:block; font-size:12px; color:#666; margin-bottom:5px; font-weight:600; }
 .rx-input { width:100%; border:1.5px solid #e0e0e0; border-radius:8px; padding:9px 11px; font:13px inherit; background:#fff; color:#222; }
@@ -4960,7 +4987,8 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                     <span class="tab-count"><?= count($caseImages) ?><span class="cap-max">/6</span></span>
                 </button>
                 <?php if ($canPrescribe || $canSeePrescriptions): ?>
-                <button type="button" class="tab" onclick="showTab('medicine', this)">
+                <?php // دەرمان opens as a large dialog, not a tab: the sheet is too big to share the page. ?>
+                <button type="button" class="tab" onclick="openMedicineDialog()">
                     <i class="fas fa-pills" aria-hidden="true"></i>
                     <span class="tab-label">دەرمان</span>
                     <span class="tab-count" id="rxTabCount">0</span>
@@ -5855,12 +5883,15 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
 
             <?php if ($canPrescribe || $canSeePrescriptions): ?>
             <!-- دەرمان Tab — prescribe from دەرمانخانە stock, send to the till -->
-            <div class="tab-content" id="tab-medicine" style="display: none;">
-                <div class="panel-body">
-                    <div class="d-flex justify-between align-center" style="margin-bottom: 14px;">
-                        <h4 style="margin:0;"><i class="fas fa-pills"></i> دەرمانی نەخۆش</h4>
-                        <span class="badge badge-blue">لە کۆگای سەرەکیی دەرمانخانە</span>
+            <!-- دەرمان: a large dialog (openMedicineDialog), moved under <body> on load. -->
+            <div class="dialog-overlay rx-dialog-overlay" id="medicineDialog">
+                <div class="dialog rx-dialog">
+                    <div class="dialog-header rx-dialog-header">
+                        <h4><i class="fas fa-pills"></i> دەرمانی نەخۆش
+                            <span class="badge badge-blue">لە کۆگای سەرەکیی دەرمانخانە</span></h4>
+                        <button type="button" class="dialog-close" onclick="closeDialog('medicineDialog')"><i class="fas fa-times"></i></button>
                     </div>
+                    <div class="dialog-body rx-dialog-body">
 
                     <?php if ($canPrescribe): ?>
                     <!-- The clinic's paper prescription sheet: tick the items, circle the
@@ -5908,6 +5939,7 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                     </h4>
                     <div id="rxHistory" class="rx-history">
                         <div class="rx-empty">بارکردن…</div>
+                    </div>
                     </div>
                 </div>
             </div>
@@ -11962,8 +11994,19 @@ window.showTab = function(tabName, button, openPaymentDialog = false) {
     }
 };
 
+// دەرمان is a dialog, not a tab. It lives under <body> so no panel styling
+// (overflow, stacking) can clip a fixed overlay.
+window.openMedicineDialog = function () {
+    if (document.getElementById('medicineDialog')) openDialog('medicineDialog');
+};
+document.addEventListener('DOMContentLoaded', function () {
+    const dlg = document.getElementById('medicineDialog');
+    if (dlg && dlg.parentElement !== document.body) document.body.appendChild(dlg);
+});
+
 // Switch tab by name (finds its button) — usable from links/redirect hashes
 window.switchTab = function(tabName) {
+    if (tabName === 'medicine') { openMedicineDialog(); return; }
     const btn = document.querySelector('.tab[onclick*="\'' + tabName + '\'"]');
     showTab(tabName, btn);
 };
