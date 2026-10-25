@@ -235,7 +235,7 @@ class Erp2Delete
                     self::takeOut($pid, $wh, $qty, $cost, 'SALE', $id, $ret['return_number'], 'سڕینەوەی گەڕاندنەوە');
                 }
                 if ($ret['original_invoice_id']) {
-                    self::giveBackReturned('erp2_sales_items', (int)$ret['original_invoice_id'], $items);
+                    self::giveBackReturned('erp2_sales_items', (int)$ret['original_invoice_id'], $items, true);
                 }
             }
             self::dropTrail($id, $ret['return_number'], ['SALE_RETURN', 'SALE']);
@@ -456,20 +456,25 @@ class Erp2Delete
         );
     }
 
-    /** A deleted return gives its quantities back to the original invoice's lines, so they can be returned again. */
-    private static function giveBackReturned(string $itemsTable, int $invoiceId, array $returnItems): void
+    /**
+     * A deleted return gives its quantities back to the original invoice's lines, so they can be returned again.
+     * $baseUnits: the return's lines are in base units (sales returns — Erp2Sales::createReturn) while a
+     * line's returned_qty counts the unit it was sold in, so a box of 10 takes back 10 pieces.
+     */
+    private static function giveBackReturned(string $itemsTable, int $invoiceId, array $returnItems, bool $baseUnits = false): void
     {
         $db = Database::getInstance();
         foreach ($returnItems as $ri) {
             $left = (float)$ri['quantity'];
             foreach ($db->fetchAll(
-                "SELECT id, returned_qty FROM {$itemsTable} WHERE invoice_id = :i AND product_id = :p AND returned_qty > 0 ORDER BY id",
+                "SELECT id, returned_qty, unit_factor FROM {$itemsTable} WHERE invoice_id = :i AND product_id = :p AND returned_qty > 0 ORDER BY id",
                 ['i' => $invoiceId, 'p' => (int)$ri['product_id']]
             ) as $line) {
                 if ($left <= Erp2Stock::QTY_EPSILON) { break; }
-                $take = min($left, (float)$line['returned_qty']);
+                $factor = $baseUnits ? ((float)$line['unit_factor'] ?: 1.0) : 1.0;
+                $take = min($left / $factor, (float)$line['returned_qty']);
                 $db->query("UPDATE {$itemsTable} SET returned_qty = returned_qty - :q WHERE id = :id", ['q' => $take, 'id' => (int)$line['id']]);
-                $left -= $take;
+                $left -= $take * $factor;
             }
         }
     }

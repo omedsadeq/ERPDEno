@@ -141,6 +141,7 @@ class Erp2Sales
         if ($inv['status'] !== 'confirmed') {
             throw new RuntimeException('تەنها وەسڵی پەسەندکراو دەکرێت دەستکاری بکرێت');
         }
+        self::refuseIfReturned($invoiceId);
 
         $items = $data['items'] ?? [];
         if (!$items) {
@@ -251,6 +252,7 @@ class Erp2Sales
         if ($inv['status'] === 'cancelled') {
             throw new RuntimeException('ئەم وەسڵە پێشتر هەڵوەشێنراوەتەوە');
         }
+        self::refuseIfReturned($invoiceId);
 
         $db->beginTransaction();
         try {
@@ -314,11 +316,27 @@ class Erp2Sales
      * average would leave a phantom gain or loss on the books for goods that
      * only went out and came back.
      *
+     * PRICE. A line returned against the invoice is credited at what the
+     * customer actually paid for it (netUnitPrice: the line total after its
+     * own discount, less its share of the whole-receipt discount). The bare
+     * unit price would hand back more than was ever charged.
+     *
+     * UNITS. A line sold in a pack unit (a box of 10) counts its returned_qty
+     * in boxes, but stock, the return's own lines and their cost are in the
+     * product's base unit — exactly as postItems() took them out.
+     *
+     * CASH. refund_amount is the money handed back over the counter, posted
+     * as a debit SALE_RETURN row (the mirror of a cash sale's PAYMENT row).
+     * The walk-in customer always gets it back — an anonymous account cannot
+     * carry a credit; a named customer may keep it on account instead. Never
+     * more than the return is worth, nor than was paid on the invoice less
+     * what earlier returns already handed back.
+     *
      * @param array $data customer_id, warehouse_id, original_invoice_id, return_date,
-     *                    reason, notes,
+     *                    reason, notes, refund_amount, refund_mode ('cash' | 'account'),
      *                    items[] => [item_id (original line), product_id, quantity,
      *                                unit_price?, unit_cost?]
-     * @return array{id:int, return_number:string, grand_total:float, total_cost:float}
+     * @return array{id:int, return_number:string, grand_total:float, total_cost:float, refund_amount:float}
      */
     public static function createReturn(array $data): array
     {
@@ -328,16 +346,40 @@ class Erp2Sales
         $warehouseId = (int)($data['warehouse_id'] ?? 0);
         $originalId  = ((int)($data['original_invoice_id'] ?? 0)) ?: null;
         $items       = $data['items'] ?? [];
+        $refund      = max(0, (float)($data['refund_amount'] ?? 0));
+        // 'cash': hand back all that may be (worked out here, to the fil);
+        // 'account': nothing back, it all stays on the customer's account.
+        $refundMode  = (string)($data['refund_mode'] ?? '');
 
         if (!$items) {
             throw new RuntimeException('گەڕاندنەوە پێویستی بە لانیکەم یەک کاڵا هەیە');
         }
-        if ($customerId <= 0 || !$db->fetch("SELECT id FROM erp2_customers WHERE id = :id", ['id' => $customerId])) {
+        $customer = $customerId > 0
+            ? $db->fetch("SELECT id, is_walk_in FROM erp2_customers WHERE id = :id", ['id' => $customerId])
+            : null;
+        if (!$customer) {
             throw new RuntimeException('کڕیار نەدۆزرایەوە');
         }
         if ($warehouseId <= 0
             || !$db->fetch("SELECT id FROM erp2_warehouses WHERE id = :id AND is_active = 1", ['id' => $warehouseId])) {
             throw new RuntimeException('کۆگا نەدۆزرایەوە');
+        }
+        $original = null;
+        if ($originalId) {
+            $original = $db->fetch(
+                "SELECT id, customer_id, status, grand_total, paid_amount FROM erp2_sales_invoices WHERE id = :id",
+                ['id' => $originalId]
+            );
+            if (!$original) {
+                throw new RuntimeException('وەسڵ نەدۆزرایەوە');
+            }
+            if ($original['status'] !== 'confirmed') {
+                throw new RuntimeException('تەنها وەسڵی پەسەندکراو دەگەڕێندرێتەوە');
+            }
+            // The credit goes to whoever bought it, never to another account.
+            if ((int)$original['customer_id'] !== $customerId) {
+                throw new RuntimeException('ئەم وەسڵە هی کڕیارێکی ترە');
+            }
         }
 
         $returnDate = self::validDate($data['return_date'] ?? null) ?: date('Y-m-d');
@@ -380,8 +422,10 @@ class Erp2Sales
                 // let a crafted request refund more than was ever charged.
                 if (!empty($raw['item_id'])) {
                     $line = $db->fetch(
-                        "SELECT it.quantity, it.returned_qty, it.unit_price, it.unit_cost, it.product_id
+                        "SELECT it.quantity, it.returned_qty, it.unit_price, it.unit_cost, it.unit_factor,
+                                it.line_total, it.product_id, si.subtotal AS inv_subtotal, si.grand_total AS inv_grand
                          FROM erp2_sales_items it
+                         JOIN erp2_sales_invoices si ON si.id = it.invoice_id
                          WHERE it.id = :id" . ($originalId ? " AND it.invoice_id = :inv" : ""),
                         $originalId
                             ? ['id' => (int)$raw['item_id'], 'inv' => $originalId]
@@ -399,12 +443,18 @@ class Erp2Sales
                                 rtrim(rtrim(number_format($remaining, 3, '.', ''), '0'), '.')
                             ));
                         }
-                        $price = (float)$line['unit_price'];
-                        $cost  = (float)$line['unit_cost'];
                         $db->query(
                             "UPDATE erp2_sales_items SET returned_qty = returned_qty + :q WHERE id = :id",
                             ['q' => $qty, 'id' => (int)$raw['item_id']]
                         );
+                        // From here on in base units: price and cost per piece.
+                        $factor = (float)$line['unit_factor'] ?: 1.0;
+                        $price  = self::netUnitPrice($line) / $factor;
+                        $cost   = (float)$line['unit_cost'];
+                        $qty    = $qty * $factor;
+                    } else {
+                        // never a silent goodwill line at a posted price
+                        throw new RuntimeException('ڕیزەکە لەم وەسڵەدا نەدۆزرایەوە');
                     }
                 }
 
@@ -440,30 +490,75 @@ class Erp2Sales
             if ($subtotal <= 0 && $costTotal <= 0) {
                 throw new RuntimeException('گەڕاندنەوە پێویستی بە لانیکەم یەک کاڵای دروست هەیە');
             }
+            $subtotal = round($subtotal, 2);
+
+            // The cash handed back (see CASH above).
+            $paidLeft = null;
+            if ($original) {
+                $paidLeft = min((float)$original['paid_amount'], (float)$original['grand_total'])
+                    - (float)$db->fetch(
+                        "SELECT COALESCE(SUM(refund_amount), 0) AS s FROM erp2_sales_returns
+                         WHERE original_invoice_id = :inv AND status = 'confirmed' AND id <> :me",
+                        ['inv' => $originalId, 'me' => $returnId]
+                    )['s'];
+                $paidLeft = max(0.0, round($paidLeft, 2));
+            }
+            if (!empty($customer['is_walk_in']) || $refundMode === 'cash') {
+                // whatever of it was paid goes back; an unpaid rest only lowers what is owed
+                $refund = $paidLeft === null ? $subtotal : min($subtotal, $paidLeft);
+            } elseif ($refundMode === 'account') {
+                $refund = 0.0;
+            }
+            $refund = round($refund, 2);
+            // a typed figure a fil or two over (rounded on the screen) is taken as "all of it"
+            if ($refund > $subtotal && $refund - $subtotal < 1.0) {
+                $refund = $subtotal;
+            }
+            if ($paidLeft !== null && $refund > $paidLeft && $refund - $paidLeft < 1.0) {
+                $refund = $paidLeft;
+            }
+            if ($refund > $subtotal + 0.005) {
+                throw new RuntimeException('پارەی گەڕێنراوە ناتوانێت لە کۆی گەڕاندنەوە زیاتر بێت');
+            }
+            if ($paidLeft !== null && $refund > $paidLeft + 0.005) {
+                throw new RuntimeException(sprintf(
+                    'لەم وەسڵە تەنها %s پارە دراوە کە هێشتا نەگەڕێنراوەتەوە — ئەوەی تر دەچێتە سەر حیسابی کڕیار',
+                    number_format($paidLeft, 0)
+                ));
+            }
 
             $db->update('erp2_sales_returns', [
-                'subtotal'    => round($subtotal, 2),
-                'grand_total' => round($subtotal, 2),
-                'total_cost'  => round($costTotal, 2),
+                'subtotal'      => $subtotal,
+                'grand_total'   => $subtotal,
+                'refund_amount' => $refund,
+                'total_cost'    => round($costTotal, 2),
             ], 'id = ?', [$returnId]);
 
-            // Goods back means the customer owes less: CREDIT.
+            // Goods back means the customer owes less: CREDIT. Cash handed
+            // back is the other side: DEBIT, so a fully refunded return nets
+            // to zero on the statement, like a cash sale does.
             Erp2Ledger::customerEntry($customerId, 'SALE_RETURN', 0, $subtotal,
                 $returnId, $number, $returnDate);
+            if ($refund > 0) {
+                Erp2Ledger::customerEntry($customerId, 'SALE_RETURN', $refund, 0,
+                    $returnId, $number, $returnDate, 'پارەی گەڕێنراوە بە نەقد');
+            }
 
             $db->commit();
 
             Erp2Audit::log('sale_return', 'SALE_RETURN', $returnId, $number, null, [
-                'customer_id' => $customerId,
-                'original'    => $originalId,
-                'grand_total' => $subtotal,
-                'total_cost'  => $costTotal,
+                'customer_id'   => $customerId,
+                'original'      => $originalId,
+                'grand_total'   => $subtotal,
+                'refund_amount' => $refund,
+                'total_cost'    => $costTotal,
             ]);
 
             return [
                 'id'            => $returnId,
                 'return_number' => $number,
                 'grand_total'   => $subtotal,
+                'refund_amount' => $refund,
                 'total_cost'    => $costTotal,
             ];
 
@@ -476,13 +571,20 @@ class Erp2Sales
     /**
      * An invoice's lines with how much of each is still returnable.
      * Drives the return screen so it can never offer more than remains.
+     *
+     * refund_price is what one unit of the line (as sold: a box when sold in
+     * boxes) is credited at; refundable is the paid cash not yet handed back
+     * by earlier returns — the most a new return may give back.
      */
     public static function returnableLines(int $invoiceId): array
     {
         $db = Database::getInstance();
         $inv = $db->fetch(
             "SELECT si.id, si.invoice_number, si.invoice_date, si.customer_id, si.warehouse_id,
-                    si.status, c.name AS customer_name, w.name AS warehouse_name
+                    si.status, si.subtotal, si.grand_total, LEAST(si.paid_amount, si.grand_total) AS paid,
+                    c.name AS customer_name, c.is_walk_in, w.name AS warehouse_name,
+                    (SELECT COALESCE(SUM(r.refund_amount), 0) FROM erp2_sales_returns r
+                      WHERE r.original_invoice_id = si.id AND r.status = 'confirmed') AS refunded
              FROM erp2_sales_invoices si
              JOIN erp2_customers c ON c.id = si.customer_id
              JOIN erp2_warehouses w ON w.id = si.warehouse_id
@@ -492,17 +594,59 @@ class Erp2Sales
         if (!$inv) {
             return [];
         }
+        $inv['refundable'] = max(0, round((float)$inv['paid'] - (float)$inv['refunded'], 2));
         $inv['items'] = $db->fetchAll(
             "SELECT it.id AS item_id, it.product_id, it.quantity, it.returned_qty,
                     (it.quantity - it.returned_qty) AS returnable,
-                    it.unit_price, it.unit_cost, p.name AS product_name, p.product_code
+                    it.unit_price, it.unit_cost, it.unit_factor, it.line_total,
+                    u.name AS unit_name, p.name AS product_name, p.product_code
              FROM erp2_sales_items it
              JOIN erp2_products p ON p.id = it.product_id
+             LEFT JOIN erp2_units u ON u.id = it.unit_id
              WHERE it.invoice_id = :id
              ORDER BY it.id",
             ['id' => $invoiceId]
         );
+        foreach ($inv['items'] as &$it) {
+            $it['refund_price'] = round(self::netUnitPrice($it + [
+                'inv_subtotal' => $inv['subtotal'], 'inv_grand' => $inv['grand_total'],
+            ]), 2);
+        }
+        unset($it);
         return $inv;
+    }
+
+    /**
+     * What one unit of a sale line (in the unit it was sold in) actually cost
+     * the customer: the line total after its own discount, scaled by the
+     * invoice's grand total over its subtotal — the whole-receipt discount
+     * spread over the lines by value. Expects quantity, line_total,
+     * inv_subtotal and inv_grand.
+     */
+    private static function netUnitPrice(array $line): float
+    {
+        $qty = (float)$line['quantity'];
+        if ($qty <= 0) {
+            return 0.0;
+        }
+        $sub   = (float)$line['inv_subtotal'];
+        $ratio = $sub > 0 ? (float)$line['inv_grand'] / $sub : 1.0;
+        return (float)$line['line_total'] / $qty * $ratio;
+    }
+
+    /**
+     * Editing or cancelling an invoice that goods were returned against would
+     * count those goods twice (stock and money); the return goes first.
+     */
+    private static function refuseIfReturned(int $invoiceId): void
+    {
+        $n = (int)Database::getInstance()->fetch(
+            "SELECT COUNT(*) AS c FROM erp2_sales_returns WHERE original_invoice_id = :id AND status = 'confirmed'",
+            ['id' => $invoiceId]
+        )['c'];
+        if ($n > 0) {
+            throw new RuntimeException('گەڕاندنەوەی لەسەر ئەم وەسڵە تۆمارکراوە — سەرەتا گەڕاندنەوەکە بسڕەوە');
+        }
     }
 
     /** Invoice header + lines + customer, for printing or reloading into the grid. */

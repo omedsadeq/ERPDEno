@@ -231,7 +231,8 @@ async function loadInvoice(id) {
         // Default to zero, not the full amount: a return is usually partial,
         // and pre-filling the whole line makes over-returning the default.
         qty: 0,
-        unit_price: Number(it.unit_price)
+        // what was actually paid per unit (after the line and receipt discounts) — the server credits this
+        unit_price: Number(it.refund_price ?? it.unit_price)
     }));
     msg(rows.every(r => r.returnable <= 0) ? 'هەموو کاڵاکانی ئەم وەسڵە پێشتر گەڕێنراونەتەوە' : '');
     render();
@@ -308,7 +309,9 @@ async function retSave() {
     });
     btn.disabled = false;
     if (!d || !d.ok) { msg((d && d.error) || 'هەڵە'); return; }
-    showToast('success', 'گەڕاندنەوە ' + d.return_number + ' تۆمارکرا — ' + U.nf(d.grand_total));
+    // A walk-in customer's money is handed back over the counter (Erp2Sales::createReturn).
+    showToast('success', 'گەڕاندنەوە ' + d.return_number + ' تۆمارکرا — ' + U.nf(d.grand_total)
+        + (Number(d.refund_amount) > 0 ? ' · پارەی گەڕێنراوە: ' + U.nf(d.refund_amount) : ''));
     retReset();
     loadHistory();
 }

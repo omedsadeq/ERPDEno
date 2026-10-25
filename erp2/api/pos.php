@@ -13,7 +13,9 @@
  *   scan          one product by barcode / pack barcode / code
  *   customers     customer picker, walk-in first, with what each one owes
  *   add_customer  POST — quick-create a customer from the till
- *   today         this cashier's sales today: totals + receipt list
+ *   today         this cashier's sales today: totals + receipt list (cash net of refunds)
+ *   receipts      receipts to return goods against (erp2.sales.return); the
+ *                 return itself is saved by api/sales.php?action=return
  */
 
 require_once __DIR__ . '/../_bootstrap.php';
@@ -252,10 +254,18 @@ try {
                  WHERE created_by = :u AND created_at >= :a AND created_at < :b AND status = 'confirmed'",
                 $range
             );
+            // Cash this cashier handed back on returns today leaves the same drawer.
+            $refunds = (float)$db->fetch(
+                "SELECT COALESCE(SUM(refund_amount), 0) AS s FROM erp2_sales_returns
+                 WHERE created_by = :u AND created_at >= :a AND created_at < :b AND status = 'confirmed'",
+                $range
+            )['s'];
             $rows = $db->fetchAll(
                 "SELECT si.id, si.invoice_number, si.grand_total, si.paid_amount, si.status,
                         DATE_FORMAT(si.created_at, '%H:%i') AS time, c.name AS customer_name, c.is_walk_in,
-                        (SELECT COUNT(*) FROM erp2_sales_items it WHERE it.invoice_id = si.id) AS line_count
+                        (SELECT COUNT(*) FROM erp2_sales_items it WHERE it.invoice_id = si.id) AS line_count,
+                        (SELECT COALESCE(SUM(r.grand_total), 0) FROM erp2_sales_returns r
+                          WHERE r.original_invoice_id = si.id AND r.status = 'confirmed') AS returned
                  FROM erp2_sales_invoices si
                  JOIN erp2_customers c ON c.id = si.customer_id
                  WHERE si.created_by = :u AND si.created_at >= :a AND si.created_at < :b
@@ -263,7 +273,36 @@ try {
                 $range
             );
             pos_json(['ok' => true, 'count' => (int)$sum['cnt'], 'total' => (float)$sum['total'],
-                      'cash' => (float)$sum['cash'], 'results' => $rows]);
+                      'cash' => (float)$sum['cash'] - $refunds, 'refunds' => $refunds, 'results' => $rows]);
+        }
+
+        /**
+         * Receipts to take goods back against: a scanned or typed number
+         * (the whole number, or just its last digits), else the latest ones.
+         */
+        case 'receipts': {
+            if (!erp2_can('erp2.sales.return')) {
+                pos_json(['ok' => false, 'error' => 'ڕێگەت نییە گەڕاندنەوە بکەیت'], 403);
+            }
+            $q = trim((string)($_GET['q'] ?? ''));
+            $where  = "si.status = 'confirmed'";
+            $params = [];
+            if ($q !== '') {
+                $where .= ' AND (si.invoice_number = :exact OR si.invoice_number LIKE :tail OR c.name LIKE :name)';
+                $params = ['exact' => $q, 'tail' => '%' . $q, 'name' => $q . '%'];
+            }
+            $rows = $db->fetchAll(
+                "SELECT si.id, si.invoice_number, si.invoice_date, si.grand_total, si.paid_amount,
+                        DATE_FORMAT(si.created_at, '%H:%i') AS time, c.name AS customer_name, c.is_walk_in,
+                        (SELECT COALESCE(SUM(it.quantity - it.returned_qty), 0) FROM erp2_sales_items it
+                          WHERE it.invoice_id = si.id) AS open_qty
+                 FROM erp2_sales_invoices si
+                 JOIN erp2_customers c ON c.id = si.customer_id
+                 WHERE {$where}
+                 ORDER BY si.id DESC LIMIT 20",
+                $params
+            );
+            pos_json(['ok' => true, 'results' => $rows]);
         }
 
         default:

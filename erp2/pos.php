@@ -127,6 +127,8 @@ $cfg = [
     'walkIn'   => $walkIn ? ['id' => (int)$walkIn['id'], 'name' => $walkIn['name']] : null,
     'canPrice' => erp2_can('erp2.price.sale'),
     'canRx'    => $canRx,
+    'canReturn'  => erp2_can('erp2.sales.return'),
+    'returnsUrl' => APP_URL . '/erp2/sales-returns.php',
     'types'    => (object)$typesByCat,
     'today'    => date('Y-m-d'),
     'user'     => ['id' => (int)($me['id'] ?? 0), 'name' => (string)($me['full_name'] ?? '')],
@@ -463,6 +465,45 @@ kbd{font-family:inherit;direction:ltr;display:inline-block;background:#fff;borde
 .toast.ok{background:#065f46}
 .toast button{border:0;background:rgba(255,255,255,.18);color:#fff;border-radius:9px;padding:4px 10px;font-weight:800;font-size:12px}
 
+/* return (گەڕاندنەوە): find the receipt → pick what comes back → hand the cash back */
+.md.wide{width:min(820px,100%)}
+.ret-link{display:block;margin-top:12px;text-align:center;font-size:12.5px;font-weight:700;color:var(--muted);text-decoration:none}
+.ret-link:hover{color:var(--brand-d)}
+.ret-inv{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:13px;background:var(--soft);margin-bottom:10px;font-size:12.5px}
+.ret-inv b{font-size:14px}
+.ret-inv .sp{margin-inline-start:auto}
+.ret-inv button{height:32px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:700;color:#475569;padding:0 10px}
+.rt{width:100%;border-collapse:collapse;font-size:13px}
+.rt th{font-size:11px;font-weight:700;color:var(--muted);text-align:start;padding:6px 8px;border-bottom:1px solid var(--line)}
+.rt td{padding:7px 8px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.rt td.n,.rt th.n{text-align:left;white-space:nowrap}
+.rt tr.done td{opacity:.45}
+.rt tr.on td{background:#fff1f2}
+.rt small{color:var(--muted);font-size:11px}
+.rq{display:inline-flex;align-items:center;border:1.5px solid var(--line);border-radius:11px;overflow:hidden;background:#fff}
+.rq button{width:32px;height:34px;border:0;background:var(--soft);font-size:16px;font-weight:800;color:#475569}
+.rq input{width:56px;height:34px;border:0;text-align:center;font-weight:800;font-size:14px}
+.rq input:focus{outline:0;background:#fff7ed}
+.ret-opts{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0}
+.ret-opts label{flex:1;min-width:200px;display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid var(--line);border-radius:13px;font-size:13px;font-weight:700;cursor:pointer}
+.ret-opts label:has(input:checked){border-color:var(--bad);background:#fff1f2}
+.ret-note{margin-top:8px;font-size:12px;color:#b45309}
+.ret-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;border-top:1px solid var(--line);background:#fff}
+.ret-foot .reason{flex:1;min-width:180px;height:42px;border:1.5px solid var(--line);border-radius:12px;padding:0 12px;font-size:13px}
+.ret-foot .reason:focus{outline:0;border-color:var(--bad)}
+.ret-tot{text-align:left;line-height:1.25}
+.ret-tot small{display:block;font-size:11px;color:var(--muted)}
+.ret-tot b{font-size:22px;color:var(--bad)}
+.ret-go{height:46px;border:0;border-radius:13px;padding:0 18px;background:var(--bad);color:#fff;font-weight:800;font-size:14px;white-space:nowrap}
+.ret-go:disabled{opacity:.45}
+.ret-done{text-align:center;padding:26px 10px 10px}
+.ret-done .big{font-size:44px;font-weight:900;color:var(--bad);margin:6px 0 2px}
+.ret-done p{margin:4px 0;color:var(--muted);font-size:13px}
+.ret-done .acts2{display:flex;gap:8px;justify-content:center;margin-top:18px}
+.ret-done .acts2 button{height:44px;border-radius:12px;padding:0 18px;font-weight:800;font-size:13px;border:1px solid var(--line);background:#fff}
+.ret-done .acts2 button.pri{background:var(--brand);border-color:var(--brand);color:#fff}
+.rc .pb.rt-b:hover{border-color:var(--bad);color:var(--bad)}
+
 @media (max-width:1400px){
     .cols,.row{grid-template-columns:24px minmax(0,1fr) 104px 86px 64px 94px 28px;gap:6px}
 }
@@ -697,7 +738,7 @@ kbd{font-family:inherit;direction:ltr;display:inline-block;background:#fff;borde
                 <button type="button" class="btn3 hold" id="holdBtn" title="ڕاگرتنی ئەم فرۆشتنە (F6)" <?= $edit ? 'disabled' : '' ?>><i class="fas fa-pause"></i> ڕاگرتن</button>
                 <button type="button" class="btn3 rec" id="recBtn"><i class="fas fa-clock-rotate-left"></i> پسوولەکان</button>
                 <?php if (erp2_can('erp2.sales.return')): ?>
-                <a class="btn3 ret" href="<?= APP_URL ?>/erp2/sales-returns.php"><i class="fas fa-rotate-left"></i> گەڕاندنەوە</a>
+                <button type="button" class="btn3 ret" id="retBtn" title="گەڕاندنەوەی کاڵا و دانەوەی پارە"><i class="fas fa-rotate-left"></i> گەڕاندنەوە</button>
                 <?php else: ?>
                 <a class="btn3" href="<?= APP_URL ?>/erp2/index.php"><i class="fas fa-gauge-high"></i> داشبۆرد</a>
                 <?php endif; ?>
@@ -750,12 +791,59 @@ kbd{font-family:inherit;direction:ltr;display:inline-block;background:#fff;borde
             <div class="sums">
                 <div><small>ژمارە</small><b class="n" id="recCount">0</b></div>
                 <div><small>کۆی فرۆشتن</small><b class="n" id="recTotal">0</b></div>
-                <div><small>پارەی وەرگیراو</small><b class="n" id="recCash">0</b></div>
+                <div><small id="recCashLbl">پارەی وەرگیراو</small><b class="n" id="recCash">0</b></div>
             </div>
             <div id="recList"></div>
         </div>
     </div>
 </div>
+
+<?php if (erp2_can('erp2.sales.return')): ?>
+<!-- return: goods come back over the counter, the cash goes back -->
+<div class="ov" id="retOv" hidden>
+    <div class="md wide" role="dialog" aria-modal="true" aria-labelledby="retTitle">
+        <div class="md-h">
+            <span class="ic" style="background:linear-gradient(135deg,#fb7185,#be123c)"><i class="fas fa-rotate-left"></i></span>
+            <div><h3 id="retTitle">گەڕاندنەوەی فرۆشتن</h3><p>پسوولەکە بدۆزەوە، بڕی گەڕاوە دیاری بکە و پارەکە بدەرەوە</p></div>
+            <button type="button" class="x" data-close aria-label="داخستن"><i class="fas fa-xmark"></i></button>
+        </div>
+        <div class="md-b" id="retFind">
+            <div class="search">
+                <i class="fas fa-receipt" aria-hidden="true"></i>
+                <input id="retQ" type="search" autocomplete="off" placeholder="ژمارەی پسوولە سکان بکە یان بنووسە (تەنها کۆتاییەکەی بەسە)، یان ناوی کڕیار..." aria-label="گەڕانی پسوولە">
+            </div>
+            <div class="list" id="retList" role="listbox"></div>
+            <a class="ret-link" href="<?= APP_URL ?>/erp2/sales-returns.php"><i class="fas fa-up-right-from-square"></i> گەڕاندنەوەی بێ پسوولە (پەڕەی گەڕاندنەوە)</a>
+        </div>
+        <div class="md-b" id="retForm" hidden>
+            <div class="ret-inv" id="retInv"></div>
+            <table class="rt">
+                <thead><tr><th>کاڵا</th><th class="n">فرۆشراو</th><th class="n">نرخ</th><th>گەڕاوە</th><th class="n">کۆ</th></tr></thead>
+                <tbody id="retRows"></tbody>
+            </table>
+            <div class="ret-opts" id="retOpts"></div>
+            <div class="ret-note" id="retNote" hidden></div>
+        </div>
+        <div class="ret-foot" id="retFoot" hidden>
+            <input class="reason" id="retReason" maxlength="250" placeholder="هۆکار (ئارەزوومەندانە) — نموونە: هەڵە لە فرۆشتن" autocomplete="off">
+            <div class="ret-tot"><small>پارەی دەدرێتەوە</small><b class="n" id="retCash">0</b></div>
+            <button type="button" class="ret-go" id="retGo" disabled><i class="fas fa-rotate-left"></i> گەڕاندنەوە و دانەوەی پارە</button>
+        </div>
+        <div class="md-b" id="retDone" hidden>
+            <div class="ret-done">
+                <i class="fas fa-circle-check" style="font-size:40px;color:var(--ok)"></i>
+                <p id="retDoneWhat"></p>
+                <div class="big n" id="retDoneCash">0</div>
+                <p id="retDoneNote"></p>
+                <div class="acts2">
+                    <button type="button" id="retAgain"><i class="fas fa-rotate-left"></i> گەڕاندنەوەیەکی تر</button>
+                    <button type="button" class="pri" data-close>تەواو <kbd>Enter</kbd></button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php if ($canRx): ?>
 <!-- prescriptions -->
@@ -1538,25 +1626,210 @@ async function openReceipts() {
     const d = await refreshToday();
     if (!d) { $('#recList').innerHTML = '<div class="empty-sm">کێشەی پەیوەندی</div>'; return; }
     $('#recCount').textContent = nf(d.count); $('#recTotal').textContent = nf(d.total); $('#recCash').textContent = nf(d.cash);
+    // the drawer's cash is net of what was handed back on returns
+    $('#recCashLbl').innerHTML = Number(d.refunds) > 0
+        ? 'پارەی لای کاشێر <span style="color:var(--bad)">(−<span class="n">' + nf(d.refunds) + '</span> گەڕاوە)</span>' : 'پارەی وەرگیراو';
     $('#recList').innerHTML = d.results.length ? d.results.map(r => {
         const cx = r.status !== 'confirmed', due = Number(r.grand_total) - Number(r.paid_amount);
         return '<div class="rc' + (cx ? ' cx' : '') + '">'
             + '<div class="tx"><b class="n">' + esc(r.invoice_number) + '</b> ' + (cx ? '<span class="tag">هەڵوەشاوە</span>' : '')
+            + (Number(r.returned) > 0 ? ' <span class="tag">گەڕاوە <span class="n">' + nf(r.returned) + '</span></span>' : '')
             + '<small><span class="n">' + esc(r.time) + '</span> · ' + esc(r.customer_name) + ' · ' + r.line_count + ' کاڵا'
             + (due > 0.5 && !cx ? ' · <span style="color:var(--bad)">قەرز <span class="n">' + nf(due) + '</span></span>' : '') + '</small></div>'
             + '<span class="amt n">' + nf(r.grand_total) + '</span>'
             + '<button type="button" class="pb" data-print="80" data-id="' + r.id + '" title="پسوولەی 80mm"><i class="fas fa-receipt"></i></button>'
             + '<button type="button" class="pb" data-print="a4" data-id="' + r.id + '" title="A4"><i class="fas fa-file-lines"></i></button>'
+            + (CFG.canReturn && !cx ? '<button type="button" class="pb rt-b" data-ret="' + r.id + '" title="گەڕاندنەوە"><i class="fas fa-rotate-left"></i></button>' : '')
             + '</div>';
     }).join('') : '<div class="empty-sm"><i class="fas fa-receipt" style="font-size:26px;display:block;margin-bottom:8px;color:#cbd5e1"></i>هێشتا هیچ فرۆشتنێکت نەکردووە ئەمڕۆ</div>';
 }
 $('#recList').addEventListener('click', e => {
+    const r = e.target.closest('[data-ret]');
+    if (r) { closeOv('#recOv'); openReturn(Number(r.dataset.ret)); return; }
     const b = e.target.closest('[data-print]'); if (!b) return;
     printInvoice(b.dataset.id, b.dataset.print);
     toast('چاپ دەکرێت...', 'ok');
 });
 $('#todayBtn').addEventListener('click', openReceipts);
 $('#recBtn').addEventListener('click', openReceipts);
+
+/* ── return (گەڕاندنەوە) ─────────────────────────────────
+ * Goods come back over the counter: find the receipt, pick what comes back
+ * (never more than is still open on each line), hand the cash back. Saved by
+ * api/sales.php?action=return (Erp2Sales::createReturn), which credits each
+ * line at what was actually paid for it and posts the cash handed back.
+ * A walk-in customer always gets the money; a named one may keep it on
+ * account instead. */
+const R = { inv: null, rows: [], mode: 'cash', req: 0, timer: null, list: [], listQ: null, on: -1, busy: false };
+function retStep(step) {
+    ['#retFind', '#retForm', '#retDone'].forEach(s => { $(s).hidden = s !== step; });
+    $('#retFoot').hidden = step !== '#retForm';
+}
+function openReturn(invoiceId) {
+    if (!CFG.canReturn) return;
+    if (S.edit) { toast(EDIT_BLOCK, 'err'); return; }
+    openOv('#retOv');
+    R.inv = null; R.rows = [];
+    if (invoiceId) { retPick(invoiceId); return; }
+    retStep('#retFind');
+    $('#retQ').value = '';
+    retSearch();
+    setTimeout(() => $('#retQ').focus(), 0);
+}
+async function retSearch() {
+    const my = ++R.req, q = latin($('#retQ').value).trim();
+    $('#retList').innerHTML = '<div class="empty-sm">...</div>';
+    const d = await getJson(API.pos + '?action=receipts&q=' + enc(q));
+    if (my !== R.req) return;
+    if (!d || !d.ok) { $('#retList').innerHTML = '<div class="empty-sm">' + esc((d && d.error) || 'کێشەی پەیوەندی') + '</div>'; return; }
+    R.list = d.results; R.listQ = q; R.on = R.list.length ? 0 : -1;
+    $('#retList').innerHTML = R.list.length ? R.list.map((r, i) => {
+        const open = Number(r.open_qty) > 0.0005;
+        return '<button type="button" class="li' + (i === 0 ? ' on' : '') + '" data-i="' + i + '"' + (open ? '' : ' style="opacity:.5"') + '>'
+            + '<span class="av"><i class="fas fa-receipt"></i></span>'
+            + '<span class="tx"><b class="n">' + esc(r.invoice_number) + '</b><small>' + esc(r.customer_name)
+            + ' · <span class="n">' + esc(r.invoice_date) + ' ' + esc(r.time) + '</span>' + (open ? '' : ' · هەمووی گەڕاوە') + '</small></span>'
+            + '<span class="end n">' + nf(r.grand_total) + '</span></button>';
+    }).join('') : '<div class="empty-sm">هیچ پسوولەیەک نەدۆزرایەوە</div>';
+}
+async function retPick(id) {
+    const d = await getJson(API.sales + '?action=returnable&id=' + Number(id));
+    if (!d || !d.ok) { toast((d && d.error) || 'پسوولەکە نەکرایەوە', 'err'); retStep('#retFind'); return; }
+    const inv = d.invoice;
+    if (inv.status !== 'confirmed') { toast('تەنها پسوولەی پەسەندکراو دەگەڕێندرێتەوە', 'err'); retStep('#retFind'); return; }
+    R.inv = inv;
+    R.rows = inv.items.map(it => ({
+        item_id: Number(it.item_id), product_id: Number(it.product_id), name: it.product_name, unit: it.unit_name || '',
+        sold: Number(it.quantity), open: Math.max(0, Number(it.returnable)), price: Number(it.refund_price), qty: 0
+    }));
+    // A paid receipt hands the cash back; an unpaid one only lowers what is owed.
+    R.mode = Number(inv.is_walk_in) || Number(inv.refundable) > 0 ? 'cash' : 'account';
+    $('#retReason').value = '';
+    retStep('#retForm');
+    retRender();
+    const first = document.querySelector('#retRows input');
+    if (first) setTimeout(() => { first.focus(); first.select(); }, 0);
+}
+function retTotal() { return R.rows.reduce((s, r) => s + r.qty * r.price, 0); }
+function retCash() {
+    const total = retTotal();
+    if (!R.inv || R.mode !== 'cash') return 0;
+    return Math.min(total, Number(R.inv.refundable));
+}
+function retRender() {
+    const inv = R.inv;
+    $('#retInv').innerHTML = '<b class="n">' + esc(inv.invoice_number) + '</b>'
+        + '<span>' + esc(inv.customer_name) + '</span><span class="n">' + esc(inv.invoice_date) + '</span>'
+        + '<span>کۆ <b class="n">' + nf(inv.grand_total) + '</b></span>'
+        + '<span class="sp"></span>'
+        + '<button type="button" id="retAll"><i class="fas fa-check-double"></i> هەمووی</button>'
+        + '<button type="button" id="retBack"><i class="fas fa-arrow-right"></i> پسوولەیەکی تر</button>';
+    $('#retRows').innerHTML = R.rows.map((r, i) => {
+        const done = r.open <= 0.0005;
+        return '<tr class="' + (done ? 'done' : (r.qty > 0 ? 'on' : '')) + '">'
+            + '<td><b>' + esc(r.name) + '</b>' + (r.unit ? ' <small>' + esc(r.unit) + '</small>' : '')
+            + (r.sold - r.open > 0.0005 ? '<br><small>پێشتر گەڕاوە: <span class="n">' + qf(r.sold - r.open) + '</span></small>' : '') + '</td>'
+            + '<td class="n">' + qf(r.sold) + '</td>'
+            + '<td class="n">' + nf(r.price) + '</td>'
+            + '<td>' + (done ? '<small>هەمووی گەڕاوە</small>'
+                : '<span class="rq"><button type="button" data-rd="' + i + '" aria-label="کەمتر">−</button>'
+                + '<input class="n" inputmode="decimal" data-ri="' + i + '" value="' + qf(r.qty) + '" aria-label="بڕی گەڕاوە">'
+                + '<button type="button" data-ru="' + i + '" aria-label="زیاتر">+</button></span> <small>لە <span class="n">' + qf(r.open) + '</span></small>') + '</td>'
+            + '<td class="n">' + (r.qty > 0 ? nf(r.qty * r.price) : '') + '</td></tr>';
+    }).join('');
+    retTotals();
+}
+function retTotals() {
+    const inv = R.inv, total = retTotal(), walk = Number(inv.is_walk_in) > 0;
+    $('#retOpts').innerHTML = walk
+        ? '<label style="cursor:default"><i class="fas fa-money-bill-wave" style="color:var(--ok)"></i> کڕیاری نەقد — پارەکەی بە نەقد دەدرێتەوە</label>'
+        : '<label><input type="radio" name="retMode" value="cash"' + (R.mode === 'cash' ? ' checked' : '') + '> <i class="fas fa-money-bill-wave" style="color:var(--ok)"></i> پارە بدرێتەوە (نەقد)</label>'
+        + '<label><input type="radio" name="retMode" value="account"' + (R.mode === 'account' ? ' checked' : '') + '> <i class="fas fa-user-tag" style="color:var(--info)"></i> بخرێتە سەر حیسابی کڕیار</label>';
+    const cash = retCash();
+    const note = $('#retNote');
+    if (R.mode === 'cash' && total > cash + 0.5) {
+        note.hidden = false;
+        note.textContent = 'لەم پسوولەیە تەنها ' + nf(inv.refundable) + ' پارە دراوە کە هێشتا نەگەڕێنراوەتەوە — '
+            + nf(total - cash) + ' دەچێتە سەر حیسابی کڕیار.';
+    } else {
+        note.hidden = true;
+    }
+    $('#retCash').textContent = nf(cash);
+    $('#retCash').previousElementSibling.textContent = R.mode === 'cash' ? 'پارەی دەدرێتەوە' : 'دەچێتە سەر حیساب';
+    if (R.mode !== 'cash') $('#retCash').textContent = nf(total);
+    $('#retGo').disabled = !(total > 0) || R.busy;
+    $('#retGo').innerHTML = '<i class="fas fa-rotate-left"></i> ' + (R.mode === 'cash' ? 'گەڕاندنەوە و دانەوەی پارە' : 'گەڕاندنەوە');
+}
+function retSetQty(i, v) {
+    const r = R.rows[i]; if (!r) return;
+    r.qty = Math.max(0, Math.min(r.open, round3(v)));
+    retRender();
+}
+async function retSave() {
+    if (R.busy || !R.inv) return;
+    const items = R.rows.filter(r => r.qty > 0).map(r => ({ item_id: r.item_id, product_id: r.product_id, quantity: r.qty }));
+    if (!items.length) { toast('بڕی گەڕاوە دیاری بکە', 'err'); return; }
+    R.busy = true; retTotals();
+    const d = await postJson(API.sales + '?action=return', {
+        customer_id: Number(R.inv.customer_id), warehouse_id: Number(R.inv.warehouse_id),
+        original_invoice_id: Number(R.inv.id), return_date: CFG.today,
+        // the server works out the exact cash ('cash' = all that may go back)
+        reason: $('#retReason').value.trim(), refund_mode: R.mode, items: items
+    });
+    R.busy = false;
+    if (!d || !d.ok) { retTotals(); toast((d && d.error) || 'گەڕاندنەوە تۆمار نەکرا', 'err'); beep('err'); return; }
+    const refund = Number(d.refund_amount || 0), total = Number(d.grand_total || 0);
+    $('#retDoneWhat').innerHTML = 'گەڕاندنەوەی <b class="n">' + esc(d.return_number) + '</b> تۆمارکرا — '
+        + (refund > 0 ? 'ئەم پارەیە بدەرەوە بە کڕیار:' : 'پارە نادرێتەوە');
+    $('#retDoneCash').textContent = nf(refund);
+    $('#retDoneNote').textContent = total - refund > 0.5 ? nf(total - refund) + ' چووە سەر حیسابی ' + R.inv.customer_name : '';
+    retStep('#retDone');
+    beep('ok');
+    refreshToday();
+    loadCatalog();   // the goods are back on the shelf
+    setTimeout(() => { const b = document.querySelector('#retDone [data-close]'); if (b) b.focus(); }, 0);
+}
+if (CFG.canReturn) {
+    $('#retBtn').addEventListener('click', () => openReturn());
+    $('#retQ').addEventListener('input', () => { clearTimeout(R.timer); R.timer = setTimeout(retSearch, 220); });
+    $('#retQ').addEventListener('keydown', e => {
+        const items = document.querySelectorAll('#retList .li');
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (!items.length) return;
+            R.on = Math.max(0, Math.min(items.length - 1, R.on + (e.key === 'ArrowDown' ? 1 : -1)));
+            items.forEach((b, i) => b.classList.toggle('on', i === R.on));
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            // a scanner types the number and Enter: search it now, then open the match
+            clearTimeout(R.timer);
+            const q = latin($('#retQ').value).trim();
+            const exact = R.list.find(r => r.invoice_number === q);
+            if (exact) { retPick(exact.id); return; }
+            // the list on screen is for what is typed: open the highlighted one
+            if (R.listQ === q && R.on >= 0 && R.list[R.on]) { retPick(R.list[R.on].id); return; }
+            retSearch().then(() => { if (R.list.length === 1 || (R.list[0] && R.list[0].invoice_number === q)) retPick(R.list[0].id); });
+        }
+    });
+    $('#retList').addEventListener('click', e => { const b = e.target.closest('.li'); if (b && R.list[b.dataset.i]) retPick(R.list[b.dataset.i].id); });
+    $('#retRows').addEventListener('click', e => {
+        const d = e.target.closest('[data-rd]'), u = e.target.closest('[data-ru]');
+        if (d) retSetQty(Number(d.dataset.rd), R.rows[d.dataset.rd].qty - 1);
+        if (u) retSetQty(Number(u.dataset.ru), R.rows[u.dataset.ru].qty + 1);
+    });
+    $('#retRows').addEventListener('change', e => { const el = e.target.closest('[data-ri]'); if (el) retSetQty(Number(el.dataset.ri), num(el.value)); });
+    $('#retRows').addEventListener('keydown', e => {
+        const el = e.target.closest('[data-ri]'); if (!el) return;
+        if (e.key === 'Enter') { e.preventDefault(); retSetQty(Number(el.dataset.ri), num(el.value)); $('#retGo').focus(); }
+    });
+    $('#retInv').addEventListener('click', e => {
+        if (e.target.closest('#retBack')) { retStep('#retFind'); $('#retQ').focus(); retSearch(); }
+        if (e.target.closest('#retAll')) { R.rows.forEach(r => { r.qty = r.open; }); retRender(); }
+    });
+    $('#retOpts').addEventListener('change', e => { if (e.target.name === 'retMode') { R.mode = e.target.value; retTotals(); } });
+    $('#retGo').addEventListener('click', retSave);
+    $('#retAgain').addEventListener('click', () => openReturn());
+}
 
 /* ── prescriptions ───────────────────────────────────── */
 let rxList = [];
