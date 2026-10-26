@@ -71,6 +71,12 @@ if (!empty($pr['date_of_birth']) && $pr['date_of_birth'] !== '0000-00-00') {
     try { $age = (string)(new DateTime($pr['date_of_birth']))->diff(new DateTime())->y; } catch (Throwable $ex) { $age = ''; }
 }
 $qty = fn($v) => rtrim(rtrim(number_format((float)$v, 3, '.', ''), '0'), '.');
+// The circled form, else the item's own type — unless it only repeats the
+// name (some of the pharmacy's types are named after the medicine itself).
+$form = function (array $it): string {
+    $f = trim((string)($it['notes'] ?: $it['type_name']));
+    return ($f === '' || mb_stripos((string)$it['product_name'], $f) !== false) ? '' : $f;
+};
 
 $doctor = $pr['doctor_id'] ? RxProfile::forUser((int)$pr['doctor_id']) : RxProfile::resolve([], []);
 
@@ -81,7 +87,7 @@ rx_sheet_page([
     'date'    => substr((string)$pr['created_at'], 0, 10),
     'items'   => array_map(fn($it) => [
         'name'   => $it['product_name'],
-        'form'   => trim((string)($it['notes'] ?: $it['type_name'])),   // the circled form, else the item's own
+        'form'   => $form($it),
         'qty'    => $qty($it['quantity']),
         'unit'   => (string)($it['unit_name'] ?? ''),
         'dosage' => (string)$it['dosage'],

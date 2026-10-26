@@ -1,29 +1,32 @@
 <?php
 /**
- * RxProfile — a doctor's prescription sheet (ڕەچەتە), the left half of the
- * A5 landscape page printed by erp2/prescription-print.php.
+ * RxProfile — one doctor's part of the prescription sheet (ڕەچەتە), the left
+ * half of the A5 landscape page printed by erp2/prescription-print.php.
  *
- * One row per doctor in doctor_rx_profiles. An empty field falls back to the
- * clinic (classes/Branding.php): the address, the first two phones, and the
- * clinic's own QR links. panel_mode 'image' prints an uploaded ready-made
- * design instead of the fields; when that file is missing the fields are used,
- * so a sheet never prints with a hole in it.
+ * One row per prescriber (a doctor, or an admin who writes prescriptions) in
+ * doctor_rx_profiles. An empty field falls back to the clinic's template
+ * (classes/RxTemplate.php: title, address, phones, QR links, caption).
+ * panel_mode 'image' prints an uploaded ready-made design instead of the
+ * fields; when that file is missing the fields are used, so a sheet never
+ * prints with a hole in it.
  */
 
 require_once __DIR__ . '/Database.php';
-require_once __DIR__ . '/Branding.php';
+require_once __DIR__ . '/RxTemplate.php';
 
 class RxProfile
 {
     const UPLOAD_DIR = 'uploads/rx';
-    const MAX_IMAGE  = 6 * 1024 * 1024;
 
-    // The clinic's two pages, as on «lezan a5 v3.pdf».
-    const DEFAULT_QR1     = 'https://lezan.zediamarketing.com/';
-    const DEFAULT_QR2     = 'https://lezanclinics.carrd.co/';
-    const DEFAULT_CAPTION = "سکان بکە\nو زیاتر\nبمانناسە";
+    // the template's originals, for the edit form's placeholders
+    const DEFAULT_QR1     = RxTemplate::DEFAULT_QR1;
+    const DEFAULT_QR2     = RxTemplate::DEFAULT_QR2;
+    const DEFAULT_CAPTION = RxTemplate::DEFAULT_CAPTION;
 
-    /** The fields the admin edits (admin/doctor-rx.php), with their limits. */
+    /** Who may have a sheet: whoever writes prescriptions. */
+    const ROLES = ['doctor', 'admin'];
+
+    /** The fields edited on admin/doctor-rx.php, with their limits. */
     const FIELDS = [
         'title'        => 60,
         'display_name' => 150,
@@ -38,7 +41,7 @@ class RxProfile
 
     /**
      * The doctor's sheet, ready to print: every field filled (own value or the
-     * clinic's), 'mode' resolved against the image actually being there, and
+     * template's), 'mode' resolved against the image actually being there, and
      * 'image_url' when it is.
      */
     public static function forUser(int $userId): array
@@ -49,25 +52,24 @@ class RxProfile
         return self::resolve($row, $user);
     }
 
-    /** Merge a stored (or posted, for the live preview) row with the defaults. */
-    public static function resolve(array $row, array $user): array
+    /** Merge a stored (or posted, for the live preview) row with the template. */
+    public static function resolve(array $row, array $user, ?array $tpl = null): array
     {
+        $tpl = $tpl ?? RxTemplate::get();
         $val = fn(string $k) => trim((string)($row[$k] ?? ''));
-        $phones = Branding::phones();
+        $lines = fn(string $s) => array_values(array_filter(array_map('trim', preg_split('/\R/u', $s)), 'strlen'));
 
         $p = [
             'user_id'      => (int)($user['id'] ?? $row['user_id'] ?? 0),
-            'title'        => $val('title') !== '' ? $val('title') : 'دکتۆر',
+            'title'        => $val('title') !== '' ? $val('title') : $tpl['rx_title'],
             'display_name' => $val('display_name') !== '' ? $val('display_name') : self::plainName((string)($user['full_name'] ?? '')),
-            'credentials'  => array_values(array_filter(array_map('trim', preg_split('/\R/u', $val('credentials'))), 'strlen')),
+            'credentials'  => $lines($val('credentials')),
             'degrees'      => $val('degrees'),
-            'phones'       => $val('phones') !== '' ? $val('phones') : implode(' - ', array_slice($phones, 0, 2)),
-            'address'      => array_values(array_filter(array_map('trim', preg_split('/\R/u',
-                                  $val('address') !== '' ? $val('address') : Branding::address())), 'strlen')),
-            'qr1_url'      => $val('qr1_url') !== '' ? $val('qr1_url') : self::DEFAULT_QR1,
-            'qr2_url'      => $val('qr2_url') !== '' ? $val('qr2_url') : self::DEFAULT_QR2,
-            'qr_caption'   => array_values(array_filter(array_map('trim', preg_split('/\R/u',
-                                  $val('qr_caption') !== '' ? $val('qr_caption') : self::DEFAULT_CAPTION)), 'strlen')),
+            'phones'       => $val('phones') !== '' ? $val('phones') : $tpl['rx_phones'],
+            'address'      => $lines($val('address') !== '' ? $val('address') : $tpl['rx_address']),
+            'qr1_url'      => $val('qr1_url') !== '' ? $val('qr1_url') : $tpl['rx_qr1'],
+            'qr2_url'      => $val('qr2_url') !== '' ? $val('qr2_url') : $tpl['rx_qr2'],
+            'qr_caption'   => $lines($val('qr_caption') !== '' ? $val('qr_caption') : $tpl['rx_qr_caption']),
             'panel_image'  => $val('panel_image'),
             'mode'         => 'fields',
             'image_url'    => null,
@@ -86,15 +88,30 @@ class RxProfile
         return $row ?: array_fill_keys(array_keys(self::FIELDS), '') + ['panel_mode' => 'fields', 'panel_image' => ''];
     }
 
+    /** Everyone who may have a sheet, with whether theirs is filled in (admin/rx-templates.php). */
+    public static function prescribers(): array
+    {
+        $in = "'" . implode("','", self::ROLES) . "'";
+        return Database::getInstance()->fetchAll(
+            "SELECT u.id, u.full_name, u.role, u.is_active, r.panel_mode, r.panel_image, r.updated_at,
+                    (COALESCE(r.credentials, '') <> '' OR COALESCE(r.degrees, '') <> '') AS has_details,
+                    (SELECT COUNT(*) FROM erp2_prescriptions pr WHERE pr.doctor_id = u.id) AS rx_count
+             FROM users u
+             LEFT JOIN doctor_rx_profiles r ON r.user_id = u.id
+             WHERE u.role IN ({$in})
+             ORDER BY u.is_active DESC, u.role = 'admin', u.full_name"
+        );
+    }
+
     /**
-     * Save the admin's form. $file is the uploaded panel image (or null);
+     * Save the edit form. $file is the uploaded panel image (or null);
      * $dropImage removes the current one. Returns the stored row.
      */
     public static function save(int $userId, array $in, ?array $file, bool $dropImage, int $actorId): array
     {
         $db = Database::getInstance();
-        if (!$db->fetch("SELECT id FROM users WHERE id = :id AND role = 'doctor'", ['id' => $userId])) {
-            throw new RuntimeException('دکتۆر نەدۆزرایەوە');
+        if (!self::mayHave($userId)) {
+            throw new RuntimeException('تەنها دکتۆر (یان بەڕێوەبەر) ڕەچەتەی هەیە');
         }
         $old = self::stored($userId);
 
@@ -112,12 +129,10 @@ class RxProfile
         $image = (string)($old['panel_image'] ?? '');
         $newFile = null;
         if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-            $newFile = self::storeImage($file, $userId);
+            $newFile = RxTemplate::storeUpload($file, 'panel_doctor_' . $userId);
         }
         if ($newFile !== null || $dropImage) {
-            if ($image !== '' && self::isSafePath($image)) {
-                @unlink(APP_ROOT . '/' . $image);
-            }
+            self::dropFile($image);
             $image = $newFile ?? '';
         }
         $mode = ($in['panel_mode'] ?? 'fields') === 'image' ? 'image' : 'fields';
@@ -137,6 +152,20 @@ class RxProfile
             $db->insert('doctor_rx_profiles', ['user_id' => $userId] + $data);
         }
         return self::stored($userId);
+    }
+
+    /** Back to the template: the doctor's own fields and picture are removed. */
+    public static function reset(int $userId): void
+    {
+        $old = self::stored($userId);
+        self::dropFile((string)($old['panel_image'] ?? ''));
+        Database::getInstance()->query("DELETE FROM doctor_rx_profiles WHERE user_id = :id", ['id' => $userId]);
+    }
+
+    public static function mayHave(int $userId): bool
+    {
+        $u = Database::getInstance()->fetch("SELECT role FROM users WHERE id = :id", ['id' => $userId]);
+        return $u && in_array($u['role'], self::ROLES, true);
     }
 
     /**
@@ -164,8 +193,7 @@ class RxProfile
 
     public static function isSafePath(string $path): bool
     {
-        return strpos($path, '..') === false
-            && preg_match('#^' . preg_quote(self::UPLOAD_DIR, '#') . '/[A-Za-z0-9_.-]+\.(png|jpe?g)$#', $path) === 1;
+        return RxTemplate::isSafePath($path);
     }
 
     private static function imageExists(string $path): bool
@@ -173,28 +201,10 @@ class RxProfile
         return $path !== '' && self::isSafePath($path) && is_file(APP_ROOT . '/' . $path);
     }
 
-    /** Validate (PNG/JPG by its bytes, ≤ 6 MB) and store an uploaded panel. */
-    private static function storeImage(array $file, int $userId): string
+    private static function dropFile(string $path): void
     {
-        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
-            throw new RuntimeException('بارکردنی وێنە سەرکەوتوو نەبوو');
+        if ($path !== '' && self::isSafePath($path)) {
+            @unlink(APP_ROOT . '/' . $path);
         }
-        if ($file['size'] > self::MAX_IMAGE) {
-            throw new RuntimeException('قەبارەی وێنە دەبێت لە ٦ مێگابایت کەمتر بێت');
-        }
-        $info = @getimagesize($file['tmp_name']);
-        $ext  = [IMAGETYPE_PNG => 'png', IMAGETYPE_JPEG => 'jpg'][$info[2] ?? 0] ?? null;
-        if ($ext === null) {
-            throw new RuntimeException('تەنها وێنەی PNG یان JPG وەردەگیرێت');
-        }
-        $dir = APP_ROOT . '/' . self::UPLOAD_DIR;
-        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
-            throw new RuntimeException('فۆڵدەری وێنە دروست نەکرا');
-        }
-        $rel = self::UPLOAD_DIR . '/panel_doctor_' . $userId . '_' . date('Ymd_His') . '.' . $ext;
-        if (!move_uploaded_file($file['tmp_name'], APP_ROOT . '/' . $rel)) {
-            throw new RuntimeException('پاشەکەوتکردنی وێنە سەرکەوتوو نەبوو');
-        }
-        return $rel;
     }
 }

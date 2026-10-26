@@ -665,6 +665,9 @@ require_once __DIR__ . '/../includes/header.php';
         <button class="tab-settings <?= $activeTab === 'print' ? 'active' : '' ?>" onclick="location='?tab=print'">
             <i class="fas fa-print"></i> چاپ
         </button>
+        <button class="tab-settings" onclick="location='<?= APP_URL ?>/admin/rx-templates.php'" title="دیزاینی ڕەچەتەی A5 و زانیاری دکتۆرەکان">
+            <i class="fas fa-prescription"></i> ڕەچەتە
+        </button>
         <button class="tab-settings <?= $activeTab === 'access' ? 'active' : '' ?>" onclick="location='?tab=access'">
             <i class="fas fa-user-shield"></i> دەستگەیشتن
         </button>

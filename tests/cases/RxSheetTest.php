@@ -56,3 +56,39 @@ $db->update('doctor_rx_profiles', ['panel_mode' => 'image', 'panel_image' => 'up
 $t->assertSame('fields', RxProfile::forUser($doc)['mode'], 'a missing picture prints the fields instead');
 $db->update('doctor_rx_profiles', ['panel_image' => '../config/config.php'], 'user_id = :id', ['id' => $doc]);
 $t->assertSame('fields', RxProfile::forUser($doc)['mode'], 'a path outside uploads/rx is never used');
+
+// ── an admin who writes prescriptions has a sheet too ──
+$admin = fx_user('admin');
+RxProfile::save($admin, ['display_name' => 'بەڕێوەبەر ' . $admin], null, false, 1);
+$t->assertSame('بەڕێوەبەر ' . $admin, RxProfile::forUser($admin)['display_name'], 'an admin can have their own sheet');
+RxProfile::reset($admin);
+$t->assertSame(null, $db->fetch("SELECT user_id FROM doctor_rx_profiles WHERE user_id = :id", ['id' => $admin]) ?: null,
+    '«گەڕاندنەوە» removes a doctor\'s own part: the sheet is the template again');
+
+// ── the clinic template (admin/rx-templates.php) ──
+require_once __DIR__ . '/../../classes/RxTemplate.php';
+RxTemplate::reset();
+$tpl = RxTemplate::get();
+$t->assertSame(Branding::shortName(), $tpl['rx_line1'], 'the first line is the clinic\'s short name by default');
+$t->assertSame('#0e74a4', $tpl['rx_color_frame'], 'the original frame colour');
+$t->assertTrue(strpos($tpl['rx_image_right'], 'assets/images/rx/braces.png') !== false, 'the original right-hand picture');
+$t->assertTrue(strpos($tpl['rx_warning'], '{phone}') === false, 'the notice carries the clinic\'s phone, not the placeholder');
+
+RxTemplate::save(['rx_line1' => 'نموونە', 'rx_warning' => '-', 'rx_color_text' => '#123456', 'rx_qr1' => RxTemplate::DEFAULT_QR1],
+    ['rx_image_right' => 'hide'], [], 1);
+$tpl = RxTemplate::get();
+$t->assertSame('نموونە', $tpl['rx_line1'], 'a changed line is printed');
+$t->assertSame('', $tpl['rx_warning'], '«-» leaves a line out');
+$t->assertSame('#123456', $tpl['rx_color_text'], 'a changed colour is used');
+$t->assertSame('', $tpl['rx_image_right'], 'a hidden picture is not printed');
+$t->assertSame('', RxTemplate::stored()['rx_qr1'], 'the original\'s own value is stored as «original», so it follows the clinic');
+$t->assertThrows(fn() => RxTemplate::save(['rx_qr2' => 'ftp://x'], [], [], 1), 'a QR link must be a web address');
+
+RxTemplate::save(['rx_title' => 'پزیشک'], [], [], 1);
+$t->assertSame('پزیشک', RxProfile::resolve([], ['id' => fx_user('doctor'), 'full_name' => 'X'])['title'],
+    'a doctor without a title of their own takes the template\'s');
+
+RxTemplate::reset();
+$tpl = RxTemplate::get();
+$t->assertTrue($tpl['rx_line1'] === Branding::shortName() && $tpl['rx_color_text'] === '#296fa0' && $tpl['rx_image_right'] !== '',
+    '«گەڕاندنەوە بۆ دیزاینی بنەڕەت» brings back the original design');

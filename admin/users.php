@@ -496,7 +496,7 @@ $roleLabels = [
                                         class="btn btn-icon btn-sm btn-primary" title="دەستکاری">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <?php if ($user['role'] === 'doctor'): ?>
+                                <?php if (in_array($user['role'], ['doctor', 'admin'], true)): ?>
                                 <a href="<?= APP_URL ?>/admin/doctor-rx.php?id=<?= (int)$user['id'] ?>"
                                    class="btn btn-icon btn-sm" style="color:#296fa0;border:1px solid #bcd6ea;background:#f0f7fc"
                                    title="ڕەچەتەی دکتۆر — بڕوانامە، مۆبایل، QR و دیزاینی ڕەچەتە">

@@ -213,6 +213,20 @@ try {
                 erp2_presc_json(['ok' => false, 'error' => 'هیچ دەرمانێکی دروست نەدۆزرایەوە'], 422);
             }
 
+            // The prescription is the prescribing doctor's — it prints on their
+            // sheet. Written by someone who is not a doctor (an admin, the
+            // reception, for the case): the case's own doctor.
+            $doctorId = $actor;
+            if (($_SESSION['role'] ?? '') !== 'doctor' && $caseId > 0) {
+                $caseDoctor = $db->fetch(
+                    "SELECT pf.doctor_id FROM cases c JOIN patient_folders pf ON pf.id = c.folder_id WHERE c.id = :id",
+                    ['id' => $caseId]
+                );
+                if (!empty($caseDoctor['doctor_id'])) {
+                    $doctorId = (int)$caseDoctor['doctor_id'];
+                }
+            }
+
             $db->beginTransaction();
             try {
                 // Link (or create) the erp2 customer for this patient — the
@@ -233,7 +247,7 @@ try {
                 $prescId = (int)$db->insert('erp2_prescriptions', [
                     'patient_id'  => $patientId,
                     'case_id'     => $caseId ?: null,
-                    'doctor_id'   => $actor ?: null,
+                    'doctor_id'   => $doctorId ?: null,
                     'customer_id' => $customerId,
                     'status'      => 'pending',
                     'notes'       => $notes,

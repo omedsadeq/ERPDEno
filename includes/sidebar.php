@@ -585,6 +585,11 @@ if (in_array($currentPage, ['appointments', 'reception-call-lists', 'doctor-sche
                     <span class="nav-item-text">بەکارهێنەران</span>
                 </a>
 
+                <a href="<?= APP_URL ?>/admin/rx-templates.php" class="nav-item <?= ($currentDir === 'admin' && in_array($currentPage, ['rx-templates', 'doctor-rx'], true)) ? 'active' : '' ?>">
+                    <span class="nav-item-icon icon-pdf"><i class="fas fa-prescription"></i></span>
+                    <span class="nav-item-text">قاڵبی ڕەچەتە</span>
+                </a>
+
                 <a href="<?= APP_URL ?>/admin/treatments.php" class="nav-item <?= ($currentDir === 'admin' && $currentPage === 'treatments') ? 'active' : '' ?>">
                     <span class="nav-item-icon icon-treatments"><i class="fas fa-tooth"></i></span>
                     <span class="nav-item-text">چارەسەرەکان</span>

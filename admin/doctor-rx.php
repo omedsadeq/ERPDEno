@@ -3,7 +3,9 @@
  * ڕەچەتەی دکتۆر — edit one doctor's prescription sheet (the left half of
  * erp2/prescription-print.php), with the sheet itself as a live preview.
  *
- * Opened from admin/users.php (the «ڕەچەتە» button on a doctor's row).
+ * Opened from admin/rx-templates.php (the doctors' list) or admin/users.php
+ * (the «ڕەچەتە» button on a doctor's row). «گەڕاندنەوە بۆ بنەڕەت» removes the
+ * doctor's own fields and picture: the sheet is the clinic template again.
  * Two kinds of panel: built from the fields below (title, name, credentials,
  * degrees, phones, address, two QR links), or a ready-made picture uploaded
  * as it is. Empty fields take the clinic's own (settings → clinic).
@@ -27,9 +29,13 @@ if (!$auth->isLoggedIn() || !$auth->isAdmin()) {
 }
 $db = Database::getInstance();
 $id = (int)($_GET['id'] ?? 0);
-$doctor = $db->fetch("SELECT id, full_name, phone, is_active FROM users WHERE id = :id AND role = 'doctor'", ['id' => $id]);
+// a doctor, or an admin who writes prescriptions (RxProfile::ROLES)
+$doctor = $db->fetch(
+    "SELECT id, full_name, phone, is_active, role FROM users WHERE id = :id AND role IN ('" . implode("','", RxProfile::ROLES) . "')",
+    ['id' => $id]
+);
 if (!$doctor) {
-    header('Location: ' . APP_URL . '/admin/users.php');
+    header('Location: ' . APP_URL . '/admin/rx-templates.php');
     exit;
 }
 
@@ -46,31 +52,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['preview'])) {
         $p['mode'] = 'image';
         $p['image_url'] = 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
     }
-    rx_sheet_page([
-        'title'   => 'ڕەچەتە — پێشبینین',
-        'doctor'  => $p,
-        'patient' => ['name' => 'نموونەی ناوی نەخۆش', 'age' => '32'],
-        'date'    => date('Y-m-d'),
-        'items'   => [
-            ['name' => 'AMOXICILLIN 500MG', 'form' => 'Capsule', 'qty' => '2', 'unit' => 'پاکەت', 'dosage' => 'ڕۆژانە ٣ جار، هەر ٨ کاتژمێر جارێک، بۆ ماوەی ٥ ڕۆژ'],
-            ['name' => 'IBUPROFEN 400MG', 'form' => 'Tab', 'qty' => '1', 'unit' => 'پاکەت', 'dosage' => 'لە کاتی ئازاردا، دوای نانخواردن'],
-            ['name' => 'Chlorhexidine 0.12%', 'form' => 'Mouth Wash', 'qty' => '1', 'unit' => 'بوتڵ', 'dosage' => 'ڕۆژانە ٢ جار دەم بشۆ'],
-        ],
-        'notes'   => '',
-        'rx_id'   => 1234,
-        'barcode' => RxProfile::barcode(1234),
-        'sold'    => null,
-        'embed'   => true,
-        'bar'     => false,
-    ]);
+    rx_sheet_page(['doctor' => $p] + rx_sample_ctx());
     exit;
 }
 
-/* ── save ── */
+/* ── save / back to the template ── */
 $errors = [];
 $saved  = !empty($_GET['saved']);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::require();
+    if (($_POST['action'] ?? '') === 'reset') {
+        RxProfile::reset($id);
+        header('Location: ' . APP_URL . '/admin/doctor-rx.php?id=' . $id . '&reset=1');
+        exit;
+    }
     try {
         RxProfile::save($id, $_POST, $_FILES['panel_image'] ?? null, !empty($_POST['drop_image']), (int)($_SESSION['user_id'] ?? 0));
         header('Location: ' . APP_URL . '/admin/doctor-rx.php?id=' . $id . '&saved=1');
@@ -89,8 +84,8 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 
 $pageTitle  = 'ڕەچەتەی ' . $doctor['full_name'];
 $breadcrumb = [
-    ['title' => 'بەکارهێنەران', 'url' => APP_URL . '/admin/users.php'],
-    ['title' => 'ڕەچەتەی دکتۆر'],
+    ['title' => 'قاڵبی ڕەچەتە', 'url' => APP_URL . '/admin/rx-templates.php'],
+    ['title' => $doctor['full_name']],
 ];
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -118,6 +113,7 @@ require_once __DIR__ . '/../includes/header.php';
 </style>
 
 <?php if ($saved): ?><div class="alert alert-success"><i class="fas fa-check-circle"></i> ڕەچەتەی دکتۆر پاشەکەوت کرا.</div><?php endif; ?>
+<?php if (!empty($_GET['reset'])): ?><div class="alert alert-success"><i class="fas fa-rotate-left"></i> ڕەچەتەی ئەم دکتۆرە گەڕایەوە بۆ قاڵبی کلینیک.</div><?php endif; ?>
 <?php foreach ($errors as $err): ?><div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> <?= $e($err) ?></div><?php endforeach; ?>
 
 <form method="post" enctype="multipart/form-data" id="drxForm">
@@ -163,7 +159,10 @@ require_once __DIR__ . '/../includes/header.php';
 
         <div class="drx-acts">
             <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> پاشەکەوتکردن</button>
-            <a class="btn btn-secondary" href="<?= APP_URL ?>/admin/users.php">گەڕانەوە</a>
+            <a class="btn btn-secondary" href="<?= APP_URL ?>/admin/rx-templates.php"><i class="fas fa-arrow-right"></i> قاڵبی ڕەچەتە</a>
+            <button type="button" class="btn btn-secondary" id="drxReset" style="margin-inline-start:auto"
+                    title="هەموو زانیارییەکانی ئەم دکتۆرە و وێنەکەی لادەبرێن؛ ڕەچەتەکەی دەبێتەوە بە قاڵبی کلینیک">
+                <i class="fas fa-rotate-left"></i> گەڕاندنەوە بۆ بنەڕەت</button>
         </div>
     </div>
 
@@ -211,6 +210,13 @@ require_once __DIR__ . '/../includes/header.php';
             localUrl = file.files[0] ? URL.createObjectURL(file.files[0]) : null;
         }
         later();
+    });
+    document.getElementById('drxReset').addEventListener('click', () => {
+        if (!confirm('زانیارییەکانی ئەم دکتۆرە (بڕوانامە، مۆبایل، QR و وێنە) لادەبرێن و ڕەچەتەکەی دەبێتەوە بە قاڵبی کلینیک. بەردەوام دەبیت؟')) return;
+        const a = document.createElement('input');
+        a.type = 'hidden'; a.name = 'action'; a.value = 'reset';
+        form.appendChild(a);
+        form.submit();
     });
     refresh();
 })();
