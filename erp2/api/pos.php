@@ -20,6 +20,7 @@
 
 require_once __DIR__ . '/../_bootstrap.php';
 require_once __DIR__ . '/../../classes/Csrf.php';
+require_once __DIR__ . '/../../classes/RxProfile.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -169,6 +170,18 @@ try {
                      LIMIT 1",
                     ['w' => $wh, 'c' => $code]
                 );
+            }
+            // Not a product: maybe the barcode on a printed prescription
+            // (erp2/prescription-print.php) — the till then loads its medicines.
+            if (!$row && ($rxId = RxProfile::barcodeId($code)) !== null) {
+                $rx = $db->fetch(
+                    "SELECT pr.id, pr.status, si.invoice_number
+                     FROM erp2_prescriptions pr
+                     LEFT JOIN erp2_sales_invoices si ON si.id = pr.invoice_id
+                     WHERE pr.id = :id",
+                    ['id' => $rxId]
+                );
+                pos_json(['ok' => true, 'product' => null, 'prescription' => $rx ?: ['id' => $rxId, 'status' => 'missing']]);
             }
             pos_json(['ok' => true, 'product' => $row ?: null]);
         }

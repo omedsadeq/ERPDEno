@@ -496,6 +496,13 @@ $roleLabels = [
                                         class="btn btn-icon btn-sm btn-primary" title="دەستکاری">
                                     <i class="fas fa-edit"></i>
                                 </button>
+                                <?php if ($user['role'] === 'doctor'): ?>
+                                <a href="<?= APP_URL ?>/admin/doctor-rx.php?id=<?= (int)$user['id'] ?>"
+                                   class="btn btn-icon btn-sm" style="color:#296fa0;border:1px solid #bcd6ea;background:#f0f7fc"
+                                   title="ڕەچەتەی دکتۆر — بڕوانامە، مۆبایل، QR و دیزاینی ڕەچەتە">
+                                    <i class="fas fa-prescription"></i>
+                                </a>
+                                <?php endif; ?>
                                 <?php if ($user['id'] != $currentUser['id']): ?>
                                 <?php if ($user['is_active']): ?>
                                 <form method="POST" action="" style="display: inline;">

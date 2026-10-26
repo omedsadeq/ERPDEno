@@ -434,7 +434,9 @@ try {
             // Not an error: the sale itself already succeeded, and the till must
             // never show a scary failure for a bookkeeping flag that was
             // already set (a double submit, or two counters on the same queue).
-            if ($pr['status'] !== 'pending') {
+            // One sent «outside» and then bought here after all (its printed
+            // barcode scanned at the till) is sold too.
+            if (!in_array($pr['status'], ['pending', 'outside'], true)) {
                 erp2_presc_json(['ok' => true, 'already' => true]);
             }
             $db->update('erp2_prescriptions', [

@@ -5013,6 +5013,9 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
 .rx-badge.outside { background:#ede9fe; color:#5b21b6; }
 .rx-card-print { width:28px; height:28px; border:1px solid #cfe3ef; border-radius:7px; background:#fff; color:#0369a1; display:inline-grid; place-items:center; font-size:12px; text-decoration:none; }
 .rx-card-print:hover { background:#e0f2fe; }
+button.rx-card-print { cursor:pointer; padding:0; }
+.rx-msg-print { margin-inline-start:10px; padding:4px 12px; border:1px solid #9cc4e0; border-radius:8px; background:#fff; color:#0369a1; font:inherit; font-size:12.5px !important; font-weight:700; cursor:pointer; }
+.rx-msg-print:hover { background:#e0f2fe; }
 .rx-card-del { width:28px; height:28px; border:1px solid #f1c4c4; border-radius:7px; background:#fff; color:#c62828; cursor:pointer; font-size:12px; }
 .rx-card-del:hover { background:#fff1f2; }
 @media (max-width: 767px) {
@@ -6029,6 +6032,7 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
                     <div id="rxHistory" class="rx-history">
                         <div class="rx-empty">بارکردن…</div>
                     </div>
+                    <script src="<?= asset_url('assets/js/rx-print.js') ?>" data-app="<?= APP_URL ?>"></script>
                     <?php if ($canPrescribe): ?>
                     </div><!-- /send pane -->
                     <?php endif; ?>
@@ -12551,6 +12555,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 renderSheet();
                 render();
                 msg('نێردرا بۆ دەرمانخانە ✓', 'ok');
+                // the doctor can hand the patient the printed sheet right away
+                if (data.id && window.RxPrint) {
+                    const pb = document.createElement('button');
+                    pb.type = 'button';
+                    pb.className = 'rx-msg-print';
+                    pb.innerHTML = '<i class="fas fa-print"></i> پێشبینین و چاپی ڕەچەتە';
+                    pb.addEventListener('click', () => window.RxPrint.open(data.id));
+                    $('rxMsg').appendChild(pb);
+                }
                 loadHistory();
             } else {
                 msg((data && (data.error || data.message)) || 'هەڵەیەک ڕوویدا', 'err');
@@ -12588,7 +12601,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         ' · ' + esc(r.doctor_name || '—') + '</span>' +
                     '<span style="display:flex;align-items:center;gap:6px">' +
                     '<span class="rx-badge ' + esc(r.status) + '">' + esc(labels[r.status] || r.status) + '</span>' +
-                    '<a class="rx-card-print" href="<?= APP_URL ?>/erp2/prescription-print.php?id=' + r.id + '" target="_blank" title="چاپی ڕەچەتە"><i class="fas fa-print"></i></a>' +
+                    '<button type="button" class="rx-card-print" data-rxprint="' + r.id + '"' + (r.status === 'sold' ? ' data-sold="1"' : '') + ' title="پێشبینین و چاپی ڕەچەتە"><i class="fas fa-print"></i></button>' +
                     (mayDelete(r) ? '<button type="button" class="rx-card-del" data-rxdel="' + r.id + '" title="سڕینەوە"><i class="fas fa-trash-can"></i></button>' : '') +
                     '</span>' +
                 '</div><div class="items" dir="auto">' + esc(r.items_summary || '') + '</div></div>'
@@ -12669,6 +12682,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // a dose or quantity finished in the table shows under the name too
             body.addEventListener('change', () => lines.forEach(l => refreshItem(l.product_id)));
         }
+        // print (assets/js/rx-print.js): for whoever sees the list, not only who writes
+        const histBox = $('rxHistory');
+        if (histBox) histBox.addEventListener('click', e => {
+            const p = e.target.closest('[data-rxprint]');
+            if (p && window.RxPrint) window.RxPrint.open(Number(p.dataset.rxprint), { sold: p.dataset.sold === '1' });
+        });
         loadHistory();
     });
 })();

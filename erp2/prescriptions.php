@@ -73,6 +73,8 @@ table.rxq tr.clickable:hover td{background:#f2fbfa}
 .rxq-acts .btn{white-space:nowrap}
 .rxq-out{background:#7c3aed;border-color:#7c3aed;color:#fff}
 .rxq-out:hover{background:#6d28d9;color:#fff}
+.rxq-print{color:#0e74a4;border-color:#bcd6ea;background:#f0f7fc}
+.rxq-print:hover{background:#e0f2fe;color:#0e74a4}
 .rxq-rej{color:#b71c1c;border-color:#f3c5c5;background:#fff}
 .rxq-rej:hover{background:#fdecea;color:#b71c1c}
 CSS;
@@ -135,7 +137,6 @@ $tabs = [
     'all'       => 'هەموو',
 ];
 $statusLabels = ['pending' => 'چاوەڕوان', 'sold' => 'فرۆشراوە', 'outside' => 'دەرەوەی کلینیک', 'cancelled' => 'ڕەتکراوە'];
-$printUrl = APP_URL . '/erp2/prescription-print.php?id=';
 ?>
 
 <div class="rxq-tabs no-print">
@@ -221,7 +222,9 @@ $printUrl = APP_URL . '/erp2/prescription-print.php?id=';
                     <?php if (in_array($st, ['outside', 'cancelled'], true)): ?>
                     <button type="button" class="btn btn-secondary btn-sm" onclick="rxReopen(<?= $rid ?>)" title="گەڕاندنەوە بۆ لیستی چاوەڕوان"><i class="fas fa-rotate-left"></i> گەڕاندنەوە</button>
                     <?php endif; ?>
-                    <a class="btn btn-icon btn-sm" href="<?= $printUrl . $rid ?>" target="_blank" title="چاپی ڕەچەتە (ناوی نەخۆش، دکتۆر، دەرمان و دۆز)"><i class="fas fa-print"></i></a>
+                    <button type="button" class="btn btn-sm rxq-print" onclick="RxPrint.open(<?= $rid ?>, { sold: <?= $st === 'sold' ? 'true' : 'false' ?> })"
+                            title="<?= $st === 'sold' ? 'ڕەچەتەکە بە نرخ و مۆری «فرۆشرا»وە' : 'ڕەچەتەی A5 ـی دکتۆر — کاغەزی سپی یان چاپکراو' ?>">
+                        <i class="fas fa-print"></i> چاپی ڕەچەتە</button>
                     <?php if ($canDelete): ?>
                     <button type="button" class="btn btn-icon btn-sm" title="سڕینەوە" style="color:#c62828" onclick="rxDelete(<?= $rid ?>, this)"><i class="fas fa-trash-can"></i></button>
                     <?php endif; ?>
@@ -234,9 +237,9 @@ $printUrl = APP_URL . '/erp2/prescription-print.php?id=';
     <?php endif; ?>
 </div>
 
+<script src="<?= asset_url('assets/js/rx-print.js') ?>" data-app="<?= APP_URL ?>"></script>
 <script>
 const RX_API = '<?= APP_URL ?>/erp2/api/prescriptions.php';
-const RX_PRINT = '<?= $printUrl ?>';
 
 async function rxPost(data) {
     const fd = new FormData();
@@ -248,21 +251,18 @@ async function rxPost(data) {
 }
 
 /**
- * The patient buys outside: one click. The print window is opened at once
- * (still inside the click, so no pop-up blocker stops it), the request moves
- * to «دەرەوەی کلینیک», and the prescription loads ready to print.
+ * The patient buys outside: one click. The request moves to «دەرەوەی کلینیک»
+ * and the doctor's sheet opens in the print dialog (assets/js/rx-print.js);
+ * the list refreshes once the dialog is closed.
  */
 async function rxOutside(id) {
-    const win = window.open('about:blank', '_blank');
     const d = await rxPost({ action: 'outside', id: id });
     if (!d || !d.ok) {
-        if (win) win.close();
         showToast('error', (d && (d.error || d.message)) || 'هەڵە');
         return;
     }
-    if (win) win.location = RX_PRINT + id + '&autoprint=1';
     showToast('success', 'داواکاری #' + id + ' نێردرا بۆ دەرەوەی کلینیک');
-    setTimeout(() => location.reload(), 600);
+    RxPrint.open(id, { onClose: () => location.reload() });
 }
 
 async function rxReject(id) {

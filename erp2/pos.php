@@ -280,6 +280,8 @@ kbd{font-family:inherit;direction:ltr;display:inline-block;background:#fff;borde
 .rx-ban{margin:10px 14px 0;padding:9px 12px;border-radius:12px;background:#fdf2f8;border:1px solid #fbcfe8;color:#9d174d;display:flex;gap:10px;align-items:center;font-size:12.5px}
 .rx-ban b{color:#831843}
 .rx-ban button{margin-inline-start:auto;border:0;background:transparent;color:#be185d;font-size:15px}
+.rx-ban .rx-ban-print{font-size:12px;font-weight:700;border:1px solid #f9a8d4;border-radius:9px;padding:4px 10px;background:#fff;white-space:nowrap}
+.rx-ban .rx-ban-print + button{margin-inline-start:4px}
 .edit-ban{background:#fffbeb;border-color:#fde68a;color:#92400e}
 .edit-ban b{color:#78350f}
 .edit-ban a{margin-inline-start:auto;color:#b45309;font-weight:800;text-decoration:none;white-space:nowrap}
@@ -643,6 +645,7 @@ kbd{font-family:inherit;direction:ltr;display:inline-block;background:#fff;borde
         <div class="rx-ban" id="rxBan" hidden>
             <i class="fas fa-prescription" aria-hidden="true"></i>
             <span>داواکاری دەرمانی <b id="rxBanName"></b> <span id="rxBanDoc"></span> — دوای فرۆشتن وەک «فرۆشراو» نیشانە دەکرێت</span>
+            <button type="button" id="rxBanPrint" class="rx-ban-print" title="چاپی ڕەچەتەی دکتۆر (A5)"><i class="fas fa-print"></i> ڕەچەتە</button>
             <button type="button" id="rxBanX" title="جیاکردنەوە لە داواکارییەکە" aria-label="جیاکردنەوە"><i class="fas fa-xmark"></i></button>
         </div>
         <?php if ($edit): ?>
@@ -677,6 +680,7 @@ kbd{font-family:inherit;direction:ltr;display:inline-block;background:#fff;borde
                 <div class="done-acts">
                     <button type="button" id="donePrint"><i class="fas fa-receipt"></i> پسوولە</button>
                     <button type="button" id="doneA4"><i class="fas fa-file-lines"></i> A4</button>
+                    <button type="button" id="doneRx" hidden title="ڕەچەتەکە بە نرخ و مۆری «فرۆشرا»وە"><i class="fas fa-prescription"></i> ڕەچەتە</button>
                     <button type="button" class="go" id="doneNext">فرۆشتنی نوێ <kbd>Enter</kbd></button>
                 </div>
             </div>
@@ -861,6 +865,7 @@ kbd{font-family:inherit;direction:ltr;display:inline-block;background:#fff;borde
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<script src="<?= asset_url('assets/js/rx-print.js') ?>" data-app="<?= APP_URL ?>"></script>
 <script>
 window.CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
 </script>
@@ -1196,6 +1201,17 @@ rowsEl.addEventListener('keydown', e => {
 
 /* ── scanner ─────────────────────────────────────────── */
 let scanChain = Promise.resolve();
+/* The barcode on a printed prescription (erp2/prescription-print.php): the
+ * patient hands over the paper, one scan fills the cart with its medicines. */
+function scannedRx(p) {
+    const no = msg => { beep('err'); toast(msg, 'err'); };
+    if (!CFG.canRx) { no('ڕێگەت نییە داواکاری دەرمان بکەیتەوە'); return; }
+    if (S.edit) { no(EDIT_BLOCK); return; }
+    if (p.status === 'missing') { no('ڕەچەتەی #' + p.id + ' نەدۆزرایەوە'); return; }
+    if (p.status === 'sold') { no('ڕەچەتەی #' + p.id + ' پێشتر فرۆشراوە' + (p.invoice_number ? ' — ' + p.invoice_number : '')); return; }
+    if (p.status === 'cancelled') { no('ڕەچەتەی #' + p.id + ' ڕەتکراوەتەوە'); return; }
+    loadRx(-1, Number(p.id));   // pending, or one that was sent «outside» and is bought here after all
+}
 function parseScan(raw) {
     const m = raw.match(/^(\d+(?:\.\d+)?)\s*[*xX×]\s*(.+)$/);
     return m ? { qty: parseFloat(m[1]), code: m[2].trim() } : { qty: 1, code: raw };
@@ -1205,6 +1221,7 @@ async function doScan(raw) {
     if (!code) return;
     const d = await getJson(API.pos + '?action=scan&warehouse_id=' + S.wh + '&code=' + enc(code));
     if (d && d.ok && d.product) { addProduct(d.product, qty); return; }
+    if (d && d.ok && d.prescription) { scannedRx(d.prescription); return; }
     // Not a code: treat it as a name. One hit sells it; several go to the cards.
     const s = await getJson(API.pos + '?action=catalog&limit=48&warehouse_id=' + S.wh + '&q=' + enc(code));
     const list = (s && s.ok && s.results) || [];
@@ -1486,12 +1503,14 @@ async function checkout(print) {
 
     // The sale is booked. Flag the prescription; a failure here must never
     // read as "the sale failed", so it is quiet.
+    let rxMarked = null;
     if (S.rx) {
-        postForm(API.rx, { action: 'mark_sold', id: S.rx.id, invoice_id: d.id }).then(refreshRx).catch(() => {});
+        rxMarked = postForm(API.rx, { action: 'mark_sold', id: S.rx.id, invoice_id: d.id }).then(refreshRx).catch(() => {});
     }
     if (print) printInvoice(d.id, print);
     beep('done');
     showDone({
+        rx: S.rx ? S.rx.id : 0, rxMarked: rxMarked,
         id: d.id, number: d.invoice_number, total: Number(d.grand_total), printed: print,
         received: t.received === null ? Number(d.grand_total) : t.received,
         change: t.received !== null ? Math.max(0, t.received - Number(d.grand_total)) : 0,
@@ -1534,6 +1553,7 @@ function showDone(info) {
     $('#doneGrid').innerHTML = g;
     $('#donePrint').hidden = info.printed === '80';
     $('#doneA4').hidden = info.printed === 'a4';
+    $('#doneRx').hidden = !info.rx;
     $('#doneNext').innerHTML = (info.edited ? 'گەڕانەوە بۆ وەسڵەکان' : 'فرۆشتنی نوێ') + ' <kbd>Enter</kbd>';
     $('#done').hidden = false;
     clearTimeout(doneT);
@@ -1549,6 +1569,13 @@ $('#done').addEventListener('click', e => { if (e.target.id === 'done') { hideDo
 $('#doneNext').addEventListener('click', () => { hideDone(); scanEl.focus(); });
 $('#donePrint').addEventListener('click', () => { if (lastSale) printInvoice(lastSale.id, '80'); scanEl.focus(); });
 $('#doneA4').addEventListener('click', () => { if (lastSale) printInvoice(lastSale.id, 'a4'); scanEl.focus(); });
+// the sold prescription, with its prices and the «فرۆشرا» stamp — once it is marked sold
+$('#doneRx').addEventListener('click', async () => {
+    if (!lastSale || !lastSale.rx || !window.RxPrint) return;
+    clearTimeout(doneT);
+    if (lastSale.rxMarked) await lastSale.rxMarked;
+    window.RxPrint.open(lastSale.rx, { sold: true, onClose: () => scanEl.focus() });
+});
 
 /* ── sale lifecycle: reset, hold, draft ──────────────── */
 function snapshot() {
@@ -1855,9 +1882,10 @@ async function openRx() {
         + '<span class="end">' + r.item_count + ' دەرمان</span></button>'
     ).join('') : '<div class="empty-sm"><i class="fas fa-circle-check" style="font-size:26px;display:block;margin-bottom:8px;color:#a7f3d0"></i>هیچ داواکارییەکی چاوەڕوان نییە</div>';
 }
-async function loadRx(i) {
-    const r = rxList[i]; if (!r) return;
-    const d = await getJson(API.rx + '?action=detail&id=' + r.id);
+/* i: a row of the F7 list; or rxId: a scanned prescription barcode (doScan) */
+async function loadRx(i, rxId) {
+    const id = rxId || (rxList[i] && rxList[i].id); if (!id) return;
+    const d = await getJson(API.rx + '?action=detail&id=' + id);
     if (!d || !d.ok) { toast('نەتوانرا داواکارییەکە بکرێتەوە', 'err'); return; }
     const pr = d.prescription;
     if (S.rows.length) { held.push({ at: Date.now(), snap: snapshot() }); store(KEY_HOLD, held); toast('فرۆشتنی پێشوو ڕاگیرا', 'ok'); }
@@ -1886,6 +1914,9 @@ if (CFG.canRx) {
     setInterval(refreshRx, 60000);
 }
 $('#rxBanX').addEventListener('click', () => { S.rx = null; renderRx(); persist(); });
+$('#rxBanPrint').addEventListener('click', () => {
+    if (S.rx && window.RxPrint) window.RxPrint.open(S.rx.id, { onClose: () => scanEl.focus() });
+});
 
 /* ── keyboard ────────────────────────────────────────── */
 document.addEventListener('keydown', e => {
