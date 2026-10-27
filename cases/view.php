@@ -6720,30 +6720,6 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 </div>
 
-<!-- Right-click context menu for selected teeth -->
-<div id="toothContextMenu" class="tooth-ctx-menu"></div>
-<style>
-.tooth-ctx-menu {
-    display: none; position: fixed; z-index: 4000; min-width: 210px;
-    background: #fff; border: 1px solid #e0e6ed; border-radius: 10px;
-    box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 6px; overflow: hidden;
-}
-.tooth-ctx-menu .ctx-title {
-    padding: 6px 12px 8px; font-size: 11px; color: #78909c; font-weight: 700;
-    border-bottom: 1px solid #eef2f5; margin-bottom: 4px;
-}
-.tooth-ctx-item {
-    display: flex; align-items: center; gap: 10px; width: 100%;
-    padding: 9px 12px; border: none; background: transparent; cursor: pointer;
-    font-size: 13px; color: #37474f; border-radius: 6px; text-align: right;
-}
-.tooth-ctx-item:hover { background: #e6fffa; color: #0f766e; }
-.tooth-ctx-item.danger:hover { background: #fef2f2; color: #dc2626; }
-.tooth-ctx-item i { width: 16px; text-align: center; color: #0d9488; }
-.tooth-ctx-item.danger i { color: #dc2626; }
-.tooth-ctx-item .ctx-sub { margin-right: auto; font-size: 11px; color: #9aa7b3; }
-.tooth-ctx-sep { height: 1px; background: #eef2f5; margin: 4px 0; }
-</style>
 
 <div class="dialog-overlay" id="bulkTreatmentDialog">
     <div class="dialog treatment-dialog-modern" style="max-width: 560px;">
@@ -13201,46 +13177,6 @@ function selectBulkRange(num) {
     renderBulkSelection();
 }
 
-// ── Right-click context menu ──
-function openToothContextMenu(x, y) {
-    const menu = document.getElementById('toothContextMenu');
-    if (!menu) return;
-    const n = bulkSelected.length;
-    if (!n) return;
-
-    let html = '<div class="ctx-title"><i class="fas fa-tooth"></i> ' + n + ' ددان هەڵبژێردراوە</div>';
-    html += '<button type="button" class="tooth-ctx-item" onclick="ctxAddTreatment()">'
-          + '<i class="fas fa-plus-circle"></i> زیادکردنی چارەسەر'
-          + '<span class="ctx-sub">' + n + ' ددان</span></button>';
-    if (n === 1) {
-        html += '<button type="button" class="tooth-ctx-item" onclick="ctxViewDetail()">'
-              + '<i class="fas fa-eye"></i> بینینی وردەکاری</button>';
-    }
-    html += '<div class="tooth-ctx-sep"></div>';
-    html += '<button type="button" class="tooth-ctx-item danger" onclick="clearBulkSelection(); closeToothContextMenu();">'
-          + '<i class="fas fa-eraser"></i> پاککردنەوەی هەڵبژاردن</button>';
-    menu.innerHTML = html;
-
-    // Show then clamp inside the viewport
-    menu.style.display = 'block';
-    const rect = menu.getBoundingClientRect();
-    let left = x, top = y;
-    if (left + rect.width > window.innerWidth - 8)  left = window.innerWidth - rect.width - 8;
-    if (top + rect.height > window.innerHeight - 8) top = window.innerHeight - rect.height - 8;
-    menu.style.left = Math.max(8, left) + 'px';
-    menu.style.top  = Math.max(8, top) + 'px';
-}
-
-function closeToothContextMenu() {
-    const menu = document.getElementById('toothContextMenu');
-    if (menu) menu.style.display = 'none';
-}
-
-// Context-menu actions — the same picker as the selection bar
-function ctxAddTreatment() {
-    closeToothContextMenu();
-    openQuickTeethAdd();
-}
 /** «مێژوو» on the bar: the one selected tooth's history panel. */
 function bulkShowHistory() {
     if (bulkSelected.length !== 1) return;
@@ -13249,16 +13185,7 @@ function bulkShowHistory() {
     showToothHistory(num);
 }
 
-function ctxViewDetail() {
-    closeToothContextMenu();
-    if (bulkSelected.length === 1) {
-        const num = bulkSelected[0];
-        clearBulkSelection();
-        showToothHistory(num);
-    }
-}
-
-// Wire modifier-click selection + right-click menu onto the chart
+// Wire click/sweep selection and the right click onto the chart
 function initChartSelection() {
     const chart = document.getElementById('smartDentalChart');
     if (!chart) return;
@@ -13316,28 +13243,25 @@ function initChartSelection() {
         // tooth's own onclick (showToothDetail), which toggles it.
     }, true);
 
+    // Right click opens the treatment list straight away: for the whole
+    // selection when the tooth is in it, otherwise for that tooth alone. On a
+    // closed case nothing can be added, so it shows the tooth's history.
     chart.addEventListener('contextmenu', function(e) {
         const toothEl = e.target.closest('.tooth');
         if (!toothEl) return;
         e.preventDefault();
         const num = parseInt(toothEl.dataset.tooth, 10);
-        // Right-clicking a tooth outside the selection targets just that tooth
+        if (!CASE_IS_OPEN) { showToothHistory(num); return; }
         if (!bulkSelected.includes(num)) {
             bulkSelected = [num];
             lastBulkClicked = num;
             renderBulkSelection();
         }
-        openToothContextMenu(e.clientX, e.clientY);
+        openQuickTeethAdd();
     });
 
-    // Dismiss the menu on any outside click, scroll, or Escape
-    document.addEventListener('click', function(e) {
-        if (!e.target.closest('#toothContextMenu')) closeToothContextMenu();
-    });
-    document.addEventListener('scroll', closeToothContextMenu, true);
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
-            closeToothContextMenu();
             clearBulkSelection();
             if (document.getElementById('receiptDialog')?.classList.contains('open')) {
                 closeReceiptDialog();
