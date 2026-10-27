@@ -4664,198 +4664,284 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
 </div>
 <?php endif; ?>
 
-<!-- Case Header -->
-<div class="panel mb-3">
-    <div class="panel-body">
-        <div class="d-flex justify-between align-center flex-wrap gap-2">
-            <div class="d-flex align-center gap-3">
-                <div style="width: 60px; height: 60px; border-radius: 12px; background: <?= $case['status'] === 'open' ? 'var(--success-light)' : 'var(--secondary-light)' ?>; color: <?= $case['status'] === 'open' ? 'var(--success-color)' : 'var(--text-secondary)' ?>; display: flex; align-items: center; justify-content: center; font-size: 24px;">
-                    <i class="fas fa-briefcase-medical"></i>
-                </div>
-                <div>
-                    <h2 style="margin: 0 0 4px;"><?= htmlspecialchars($case['case_number']) ?>
-                        <span class="badge <?= $case['status'] === 'open' ? 'badge-green' : ($case['status'] === 'pending' ? 'badge-orange' : 'badge-secondary') ?>" style="font-size: 12px; padding: 4px 12px; vertical-align: middle;">
-                            <?= $case['status'] === 'open' ? 'کراوە' : ($case['status'] === 'pending' ? 'چاوەڕوان' : 'داخراو') ?>
-                        </span>
-                        <?php
-                        // نوێ / کۆن — switchable only while no receipt has reached the accountant.
-                        $caseTypeLocked = (bool)$db->fetch(
-                            "SELECT id FROM case_invoices WHERE case_id = :cid AND accounting_status NOT IN ('draft','returned','cancelled') LIMIT 1",
-                            ['cid' => $caseId]
-                        );
-                        $canToggleHistorical = $case['status'] === 'open' && !$caseTypeLocked;
-                        ?>
-                        <?php if (!empty($case['is_historical'])): ?>
-                        <span class="badge" style="font-size: 12px; padding: 4px 12px; vertical-align: middle; background:#fff1dc; color:#7a4a12;"
-                              title="کاری پێش سیستەم — دراوی پێشوو ناچێتە ناو داهاتی سندوق">
-                            <i class="fas fa-history"></i> کەیسی کۆن<?= !empty($case['historical_date']) ? ' · ' . htmlspecialchars($case['historical_date']) : '' ?>
-                        </span>
-                        <?php endif; ?>
-                        <?php if ($canToggleHistorical): ?>
-                        <button type="button" class="btn btn-sm" onclick="openDialog('caseHistoricalDialog')"
-                                style="font-size: 11px; padding: 3px 10px; vertical-align: middle; background:#fff8ee; border:1px dashed #d9a35b; color:#7a4a12;"
-                                title="گۆڕینی جۆری کەیس (نوێ / کۆن)">
-                            <i class="fas fa-exchange-alt"></i> <?= !empty($case['is_historical']) ? 'گۆڕین بۆ نوێ' : 'نیشانکردن وەک کەیسی کۆن' ?>
-                        </button>
-                        <?php endif; ?>
-                        <?php
-                        // ئامانەت — the whole point of the feature: the patient
-                        // paid at the counter this morning, hours before the
-                        // doctor opened this case. Without this the doctor has
-                        // no way to know, and asks them for the money again.
-                        require_once __DIR__ . '/../classes/PatientAdvance.php';
-                        $caseAdvanceAvailable = (new PatientAdvance())->balanceOf((int)($case['patient_id'] ?? 0));
-                        if ($caseAdvanceAvailable > 0.009):
-                        ?>
-                        <span class="badge" style="font-size: 12px; padding: 4px 12px; vertical-align: middle; background:#e8f5e9; color:#1b5e20;"
-                              title="لە پێشوازی وەرگیراوە. لە خانەی «ئامانەت»ی وەسڵەکەوە دایبنێ لەسەر ئەم کەیسە.">
-                            <i class="fas fa-hand-holding-usd"></i> ئامانەتی بەردەست: <?= number_format($caseAdvanceAvailable) ?>
-                        </span>
-                        <?php endif; ?>
-                    </h2>
-                    <p class="text-secondary" style="margin: 0;">
-                        <a href="<?= APP_URL ?>/patients/view.php?id=<?= $case['patient_id'] ?>">
-                            <i class="fas fa-user"></i> <?= htmlspecialchars($case['patient_name']) ?>
-                        </a>
-                        <?php if (!empty($case['doctor_name'])): ?>
-                        &nbsp;&bull;&nbsp; <i class="fas fa-user-md"></i> د. <?= htmlspecialchars($case['doctor_name']) ?>
-                        <?php endif; ?>
-                        <?php if (!empty($case['case_name'])): ?>
-                        &nbsp;&bull;&nbsp; <?= htmlspecialchars($case['case_name']) ?>
-                        <?php endif; ?>
-                        <?php if ($nextAppointment): ?>
-                        <!-- Next appointment, moved out of the removed stats row -->
-                        <span class="next-appt-chip" title="مەوعیدی داهاتوو">
-                            <i class="fas fa-calendar-alt"></i>
-                            <?= date('Y/m/d', strtotime($nextAppointment['appointment_date'])) ?>
-                            — <?= date('H:i', strtotime($nextAppointment['appointment_time'])) ?>
-                        </span>
-                        <?php endif; ?>
-                    </p>
-                    <?php // The case-wide figures live here — the sidebar
-                          // "پوختەی دارایی" panel was removed. Work is entered
-                          // receipt by receipt, but the case total still has to be
-                          // readable at a glance, so all three ride in the chip
-                          // and update live through data-case-bind. Discounts are
-                          // negotiated per receipt now (invoice پەنجەری داشکاندن) —
-                          // there is no case-level discount edit here any more. ?>
-                    <div class="case-total-chip">
-                        <i class="fas fa-calculator"></i>
-                        <span class="ctc-label">کۆی گشتی</span>
-                        <span class="ctc-value" data-case-bind="total_amount"><?= number_format($doctorFinancialSummary['total_invoiced']) ?></span>
-                        <span class="ctc-sep"></span>
-                        <span class="ctc-label">پارەی دراو</span>
-                        <span class="ctc-value is-paid" data-case-bind="paid_amount"><?= number_format($doctorFinancialSummary['paid']) ?></span>
-                        <span class="ctc-sep"></span>
-                        <span class="ctc-label">ماوە</span>
-                        <span class="ctc-value<?= $remaining > 0.009 ? ' is-due' : '' ?>" data-case-bind="remaining"><?= number_format($remaining) ?></span>
-                    </div>
-                </div>
-            </div>
-            <div class="d-flex gap-2 align-center flex-wrap">
-                <?php if ($canRequestPayment): ?>
-                <button class="btn btn-success" style="padding: 8px 16px;" onclick="openDialog('paymentDialog')" title="<?= $canReceiveMoney ? 'وەرگرتنی پارە (Alt+P)' : 'داواکاری پارەدان (Alt+P)' ?>">
-                    <i class="fas fa-money-bill"></i> <?= $canReceiveMoney ? 'پارەدان' : ($doctorPaymentDraft ? 'دەستکاری / ناردنی قەبز' : 'داواکاری پارەدانی نوێ') ?>
-                </button>
-                <?php elseif ($case['status'] === 'open' && $pendingPaymentsTotal > 0 && $remaining > 0): ?>
-                <span class="btn btn-warning" style="padding: 8px 16px; cursor:default;" title="داواکاری پارەدان چاوەڕوانی پەسەندکردنە">
-                    <i class="fas fa-hourglass-half"></i> پارەدان چاوەڕوانە (<?= number_format($pendingPaymentsTotal) ?>)
-                </span>
-                <?php endif; ?>
-                <?php // The appointment button lives in the کردارەکان panel (and Alt+A). ?>
-                <?php // No «چاپکردنی وەسڵ» here: each receipt prints from its own
-                      // «چاپ» button and from the print icon in the وەسڵەکان list. ?>
-                <?php // Accounting control — ONE per role. Doctors use the green
-                      // "complete case" floating button (bottom); admins send here. ?>
-                <?php if ($isAdmin && $showLegacyCaseAccountingActions): ?>
-                    <?php if ($canSendToAccounting): ?>
-                    <button class="btn btn-warning" style="padding: 8px 16px;" onclick="openDialog('sendAccountingDialog')" title="ناردن بۆ ژمێریار">
-                        <i class="fas fa-paper-plane"></i> ناردن بۆ ژمێریار
-                    </button>
-                    <?php elseif (!empty($accountingReport) && $accountingReport['status'] === 'processed'): ?>
-                    <span class="btn btn-success" style="padding: 8px 16px; cursor:default;" title="ژمێریار کاری تێکردووە">
-                        <i class="fas fa-check-circle"></i> جێبەجێکراوە
+<!-- Case Header — a dark indigo band: the case and its people on the right,
+     the actions on the left, and underneath the case's money and its receipts
+     (وەسڵەکان, moved up here from the sidebar). -->
+<?php
+// نوێ / کۆن — switchable only while no receipt has reached the accountant.
+$caseTypeLocked = (bool)$db->fetch(
+    "SELECT id FROM case_invoices WHERE case_id = :cid AND accounting_status NOT IN ('draft','returned','cancelled') LIMIT 1",
+    ['cid' => $caseId]
+);
+$canToggleHistorical = $case['status'] === 'open' && !$caseTypeLocked;
+// ئامانەت — the whole point of the feature: the patient paid at the counter
+// this morning, hours before the doctor opened this case. Without this the
+// doctor has no way to know, and asks them for the money again.
+require_once __DIR__ . '/../classes/PatientAdvance.php';
+$caseAdvanceAvailable = (new PatientAdvance())->balanceOf((int)($case['patient_id'] ?? 0));
+$caseStatusKey = in_array($case['status'], ['open', 'pending'], true) ? $case['status'] : 'closed';
+$caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'closed' => 'داخراو'][$caseStatusKey];
+?>
+<div class="case-hero mb-3">
+    <div class="ch-top">
+        <div class="ch-id">
+            <div class="ch-icon ch-icon--<?= $caseStatusKey ?>"><i class="fas fa-briefcase-medical"></i></div>
+            <div class="ch-id-text">
+                <div class="ch-title-row">
+                    <h2 class="ch-number"><?= htmlspecialchars($case['case_number']) ?></h2>
+                    <span class="ch-pill ch-pill--<?= $caseStatusKey ?>"><span class="ch-dot"></span><?= $caseStatusLabel ?></span>
+                    <?php if (!empty($case['is_historical'])): ?>
+                    <span class="ch-pill ch-pill--old" title="کاری پێش سیستەم — دراوی پێشوو ناچێتە ناو داهاتی سندوق">
+                        <i class="fas fa-history"></i> کەیسی کۆن<?= !empty($case['historical_date']) ? ' · ' . htmlspecialchars($case['historical_date']) : '' ?>
                     </span>
-                    <?php elseif (!empty($accountingReport)): ?>
-                    <?php // Already sent, still waiting — allow a follow-up note/resend ?>
-                    <button class="btn btn-warning" style="padding: 8px 16px;" onclick="openDialog('resendAccountingDialog')" title="ناردنی تێبینی نوێ بۆ ژمێریار">
-                        <i class="fas fa-comment-dots"></i> ناردنی تێبینی بۆ ژمێریار
+                    <?php endif; ?>
+                    <?php if ($canToggleHistorical): ?>
+                    <button type="button" class="ch-old-toggle" onclick="openDialog('caseHistoricalDialog')" title="گۆڕینی جۆری کەیس (نوێ / کۆن)">
+                        <i class="fas fa-exchange-alt"></i> <?= !empty($case['is_historical']) ? 'گۆڕین بۆ نوێ' : 'نیشانکردن وەک کەیسی کۆن' ?>
                     </button>
                     <?php endif; ?>
+                    <?php if ($caseAdvanceAvailable > 0.009): ?>
+                    <span class="ch-pill ch-pill--advance" title="لە پێشوازی وەرگیراوە. لە خانەی «ئامانەت»ی وەسڵەکەوە دایبنێ لەسەر ئەم کەیسە.">
+                        <i class="fas fa-hand-holding-usd"></i> ئامانەتی بەردەست: <?= number_format($caseAdvanceAvailable) ?>
+                    </span>
+                    <?php endif; ?>
+                </div>
+                <div class="ch-meta">
+                    <a class="ch-meta-item ch-patient" href="<?= APP_URL ?>/patients/view.php?id=<?= $case['patient_id'] ?>">
+                        <i class="fas fa-user"></i> <?= htmlspecialchars($case['patient_name']) ?>
+                    </a>
+                    <?php if (!empty($case['doctor_name'])): ?>
+                    <span class="ch-meta-item"><i class="fas fa-user-md"></i> د. <?= htmlspecialchars($case['doctor_name']) ?></span>
+                    <?php endif; ?>
+                    <?php if (!empty($case['case_name'])): ?>
+                    <span class="ch-meta-item"><i class="fas fa-notes-medical"></i> <?= htmlspecialchars($case['case_name']) ?></span>
+                    <?php endif; ?>
+                    <?php if ($nextAppointment): ?>
+                    <span class="ch-meta-item ch-appt" title="مەوعیدی داهاتوو">
+                        <i class="fas fa-calendar-alt"></i>
+                        <?= date('Y/m/d', strtotime($nextAppointment['appointment_date'])) ?>
+                        — <?= date('H:i', strtotime($nextAppointment['appointment_time'])) ?>
+                    </span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <div class="ch-actions">
+            <?php if ($canRequestPayment): ?>
+            <button class="btn ch-btn ch-btn--green" onclick="openDialog('paymentDialog')" title="<?= $canReceiveMoney ? 'وەرگرتنی پارە (Alt+P)' : 'داواکاری پارەدان (Alt+P)' ?>">
+                <i class="fas fa-money-bill"></i> <?= $canReceiveMoney ? 'پارەدان' : ($doctorPaymentDraft ? 'دەستکاری / ناردنی قەبز' : 'داواکاری پارەدانی نوێ') ?>
+            </button>
+            <?php elseif ($case['status'] === 'open' && $pendingPaymentsTotal > 0 && $remaining > 0): ?>
+            <span class="btn ch-btn ch-btn--amber" style="cursor:default;" title="داواکاری پارەدان چاوەڕوانی پەسەندکردنە">
+                <i class="fas fa-hourglass-half"></i> پارەدان چاوەڕوانە (<?= number_format($pendingPaymentsTotal) ?>)
+            </span>
+            <?php endif; ?>
+            <?php // The appointment button lives in the کردارەکان panel (and Alt+A).
+                  // No «چاپکردنی وەسڵ» here: each receipt prints from its own «چاپ»
+                  // button and from the print icon on its card below.
+                  // Accounting control — ONE per role. Doctors use the green
+                  // "complete case" floating button (bottom); admins send here. ?>
+            <?php if ($isAdmin && $showLegacyCaseAccountingActions): ?>
+                <?php if ($canSendToAccounting): ?>
+                <button class="btn ch-btn ch-btn--amber" onclick="openDialog('sendAccountingDialog')" title="ناردن بۆ ژمێریار">
+                    <i class="fas fa-paper-plane"></i> ناردن بۆ ژمێریار
+                </button>
+                <?php elseif (!empty($accountingReport) && $accountingReport['status'] === 'processed'): ?>
+                <span class="btn ch-btn ch-btn--green" style="cursor:default;" title="ژمێریار کاری تێکردووە">
+                    <i class="fas fa-check-circle"></i> جێبەجێکراوە
+                </span>
+                <?php elseif (!empty($accountingReport)): ?>
+                <?php // Already sent, still waiting — allow a follow-up note/resend ?>
+                <button class="btn ch-btn ch-btn--amber" onclick="openDialog('resendAccountingDialog')" title="ناردنی تێبینی نوێ بۆ ژمێریار">
+                    <i class="fas fa-comment-dots"></i> ناردنی تێبینی بۆ ژمێریار
+                </button>
                 <?php endif; ?>
-                <?php if ($auth->canRequestXray()): ?>
-                <a href="<?= APP_URL ?>/xray/request.php?patient_id=<?= $case['patient_id'] ?>&case_id=<?= $caseId ?>" class="btn btn-secondary" style="padding: 8px 16px;" title="داواکاری ئێکسڕەی">
-                    <i class="fas fa-x-ray"></i> ئێکسڕەی
-                </a>
-                <?php endif; ?>
+            <?php endif; ?>
+            <?php if ($auth->canRequestXray()): ?>
+            <a href="<?= APP_URL ?>/xray/request.php?patient_id=<?= $case['patient_id'] ?>&case_id=<?= $caseId ?>" class="btn ch-btn ch-btn--glass" title="داواکاری ئێکسڕەی">
+                <i class="fas fa-x-ray"></i> ئێکسڕەی
+            </a>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <div class="ch-bottom">
+        <?php // The case-wide figures, updated live through data-case-bind.
+              // Discounts are negotiated per receipt (invoice پەنجەری داشکاندن). ?>
+        <div class="ch-money">
+            <div class="ch-stat">
+                <span class="ch-stat-label"><i class="fas fa-calculator"></i> کۆی گشتی</span>
+                <span class="ch-stat-value" data-case-bind="total_amount"><?= number_format($doctorFinancialSummary['total_invoiced']) ?></span>
+            </div>
+            <div class="ch-stat ch-stat--paid">
+                <span class="ch-stat-label"><i class="fas fa-check-circle"></i> پارەی دراو</span>
+                <span class="ch-stat-value" data-case-bind="paid_amount"><?= number_format($doctorFinancialSummary['paid']) ?></span>
+            </div>
+            <div class="ch-stat ch-stat--due<?= $remaining > 0.009 ? ' is-due' : '' ?>">
+                <span class="ch-stat-label"><i class="fas fa-hourglass-half"></i> ماوە</span>
+                <span class="ch-stat-value" data-case-bind="remaining"><?= number_format($remaining) ?></span>
             </div>
         </div>
 
-        <?php // The case-level money cards used to sit here. Money is settled
-              // per receipt now (see the وەسڵەکان panel + the visit tabs), so a
-              // case-wide total at the top of the page was misleading. ?>
+        <?php if (!empty($invoiceTabs)): ?>
+        <?php // Visit invoices (وەسڵی سەردان) — one receipt per work day ?>
+        <div class="ch-receipts">
+            <div class="ch-receipts-label"><i class="fas fa-receipt"></i> وەسڵەکان <span class="ch-count"><?= count($invoiceTabs) ?></span></div>
+            <div class="ch-receipts-list">
+                <?php foreach ($invoiceTabs as $inv): ?>
+                <div class="ci-card<?= $inv['status'] === 'processed' ? ' ci-card--done' : ($inv['status'] === 'draft' ? ' ci-card--draft' : '') ?>">
+                    <div class="ci-card-top">
+                        <span class="ci-no"><?= htmlspecialchars($inv['invoice_no']) ?></span>
+                        <?php if ($inv['status'] === 'draft'): ?>
+                        <span class="ci-badge ci-badge--drafted" title="هێشتا نەنێردراوە بۆ ژمێریار"><i class="fas fa-pen-ruler"></i> نەنێردراو</span>
+                        <?php elseif ($inv['status'] === 'processed'): ?>
+                        <span class="ci-badge ci-badge--done" title="پارەکەی بە تەواوی وەرگیراوە"><i class="fas fa-check-double"></i> تەواو</span>
+                        <?php elseif ($inv['fifo_covered'] > 0.009): ?>
+                        <span class="ci-badge ci-badge--part" title="بەشێکی دراوە — ماوە: <?= number_format($inv['fifo_remaining']) ?>"><i class="fas fa-hourglass-half"></i> بەشی</span>
+                        <?php else: ?>
+                        <span class="ci-badge ci-badge--sent" title="لای ژمێریارە"><i class="fas fa-paper-plane"></i> نێردراو</span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="ci-card-bottom">
+                        <span class="ci-amount" data-invoice-amount="<?= (int)$inv['id'] ?>"><?= number_format($inv['total_amount']) ?></span>
+                        <span class="ci-date"><?= htmlspecialchars($inv['work_date']) ?> · <span data-invoice-count="<?= (int)$inv['id'] ?>"><?= (int)$inv['treatment_count'] ?> چارەسەر</span></span>
+                        <button type="button" class="ci-print" onclick="openReceiptDialog(<?= (int)$inv['id'] ?>)" title="چاپکردنی ئەم وەسڵە">
+                            <i class="fas fa-print"></i>
+                        </button>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 
 <style>
-/* Next appointment as a small chip on the patient line (the old money
-   stat cards above it are gone — money is per receipt now). */
-.next-appt-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    margin-right: 8px;
-    padding: 2px 9px;
-    border: 1px solid #cfe0f0;
-    border-radius: 999px;
-    background: #f2f8fd;
-    color: #0f6cbd;
-    font-size: 11.5px;
-    font-weight: 700;
-    white-space: nowrap;
-    vertical-align: middle;
+/* ── Case header: dark indigo band with a faint diamond lattice ── */
+.case-hero {
+    --ch-ink: #ffffff;
+    --ch-soft: rgba(255, 255, 255, .72);
+    --ch-line: rgba(255, 255, 255, .13);
+    --ch-glass: rgba(255, 255, 255, .07);
+    position: relative;
+    margin-bottom: 16px;
+    padding: 18px 22px 16px;
+    border-radius: 16px;
+    color: var(--ch-ink);
+    background:
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, .035) 0 1px, transparent 1px 22px),
+        repeating-linear-gradient(-45deg, rgba(255, 255, 255, .035) 0 1px, transparent 1px 22px),
+        radial-gradient(120% 140% at 100% 0%, #2a2d86 0%, rgba(42, 45, 134, 0) 55%),
+        linear-gradient(135deg, #12134a 0%, #181a5c 55%, #1e2170 100%);
+    box-shadow: 0 10px 28px rgba(18, 19, 74, .28);
+    overflow: hidden;
 }
-.next-appt-chip i { font-size: 10px; }
-/* Case total — the one number kept from the old پوختەی دارایی panel. */
-.case-total-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    margin-top: 7px;
-    padding: 4px 12px;
-    border: 1px solid var(--border-color, #e1dfdd);
-    border-radius: 8px;
-    background: var(--bg-secondary, #faf9f8);
-    white-space: nowrap;
+.case-hero a { color: inherit; }
+.ch-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.ch-id { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.ch-icon {
+    flex: 0 0 auto; width: 54px; height: 54px; border-radius: 14px;
+    display: grid; place-items: center; font-size: 22px;
+    background: rgba(255, 255, 255, .1); border: 1px solid var(--ch-line); color: #c7d2fe;
 }
-.case-total-chip > i { font-size: 11px; color: var(--text-muted, #8a8886); }
-.ctc-label { font-size: 11.5px; color: var(--text-secondary, #605e5c); }
-.ctc-value { font-size: 15px; font-weight: 700; color: var(--text-primary, #201f1e); }
-.ctc-value.is-paid { color: #14713b; }
-.ctc-value.is-due  { color: #c62026; }
-/* Hairline between the three figures so they do not read as one number */
-.ctc-sep {
-    width: 1px;
-    align-self: stretch;
-    min-height: 16px;
-    margin: 0 2px;
-    background: var(--border-color, #e1dfdd);
+.ch-icon--open { color: #86efac; }
+.ch-id-text { min-width: 0; }
+.ch-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.ch-number { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: .3px; color: #fff; direction: ltr; }
+.ch-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap;
+    background: rgba(255, 255, 255, .1); border: 1px solid var(--ch-line); color: #e0e7ff;
 }
-.ctc-edit {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    padding: 0;
-    border: none;
-    border-radius: 5px;
-    background: transparent;
-    color: var(--status-warning, #d83b01);
-    font-size: 11px;
-    cursor: pointer;
+.ch-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px rgba(255, 255, 255, .08); }
+.ch-pill--open    { background: rgba(34, 197, 94, .16); border-color: rgba(134, 239, 172, .35); color: #86efac; }
+.ch-pill--pending { background: rgba(245, 158, 11, .16); border-color: rgba(252, 211, 77, .35); color: #fcd34d; }
+.ch-pill--closed  { color: #cbd5e1; }
+.ch-pill--old     { background: rgba(251, 191, 36, .12); border-color: rgba(252, 211, 77, .3); color: #fde68a; }
+.ch-pill--advance { background: rgba(52, 211, 153, .14); border-color: rgba(110, 231, 183, .35); color: #a7f3d0; }
+.ch-old-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 999px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+    background: transparent; border: 1px dashed rgba(252, 211, 77, .55); color: #fcd34d;
 }
-.ctc-edit:hover { background: var(--border-light, #edebe9); }
+.ch-old-toggle:hover { background: rgba(252, 211, 77, .1); }
+.ch-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 13px; color: var(--ch-soft); }
+.ch-meta-item { display: inline-flex; align-items: center; gap: 6px; }
+.ch-meta-item i { font-size: 12px; opacity: .8; }
+.ch-patient { color: #fff !important; font-weight: 700; text-decoration: none; }
+.ch-patient:hover { text-decoration: underline; }
+.ch-appt { padding: 1px 10px; border-radius: 999px; background: rgba(96, 165, 250, .16); color: #bfdbfe; font-weight: 700; }
+.ch-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.case-hero .ch-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 16px; border-radius: 11px; font-weight: 700; font-size: 13px;
+    border: 1px solid transparent; box-shadow: none; text-decoration: none;
+}
+.case-hero .ch-btn--glass { background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .22); color: #fff; }
+.case-hero .ch-btn--glass:hover { background: rgba(255, 255, 255, .18); }
+.case-hero .ch-btn--green { background: #16a34a; border-color: #16a34a; color: #fff; }
+.case-hero .ch-btn--green:hover { background: #15803d; }
+.case-hero .ch-btn--amber { background: #f59e0b; border-color: #f59e0b; color: #1f1300; }
+
+/* money and receipts, side by side under a hairline */
+.ch-bottom {
+    display: flex; align-items: stretch; gap: 14px; flex-wrap: wrap;
+    margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--ch-line);
+}
+.ch-money { display: flex; gap: 8px; flex: 0 0 auto; }
+.ch-stat {
+    display: flex; flex-direction: column; justify-content: center; gap: 3px;
+    min-width: 116px; padding: 9px 14px; border-radius: 12px;
+    background: var(--ch-glass); border: 1px solid var(--ch-line);
+}
+.ch-stat-label { font-size: 11.5px; color: var(--ch-soft); white-space: nowrap; }
+.ch-stat-label i { font-size: 10.5px; margin-inline-end: 3px; opacity: .8; }
+.ch-stat-value { font-size: 19px; font-weight: 800; color: #fff; direction: ltr; text-align: right; }
+.ch-stat--paid .ch-stat-value { color: #6ee7b7; }
+.ch-stat--due.is-due { background: rgba(248, 113, 113, .1); border-color: rgba(252, 165, 165, .3); }
+.ch-stat--due.is-due .ch-stat-value { color: #fca5a5; }
+
+.ch-receipts { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.ch-receipts-label { font-size: 12px; font-weight: 700; color: var(--ch-soft); display: flex; align-items: center; gap: 6px; }
+.ch-count { padding: 0 7px; border-radius: 999px; background: rgba(255, 255, 255, .14); color: #fff; font-size: 11px; }
+.ch-receipts-list { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .25) transparent; }
+/* more receipts than fit: they scroll, and the far (left) edge fades out to say so */
+.ch-receipts-list.is-overflowing { -webkit-mask-image: linear-gradient(to right, transparent 0, #000 36px); mask-image: linear-gradient(to right, transparent 0, #000 36px); }
+.ci-card {
+    flex: 0 0 auto; min-width: 210px; display: flex; flex-direction: column; gap: 6px;
+    padding: 8px 10px; border-radius: 12px; background: var(--ch-glass); border: 1px solid var(--ch-line);
+}
+.ci-card--draft { border-style: dashed; }
+.ci-card-top, .ci-card-bottom { display: flex; align-items: center; gap: 8px; }
+.ci-card-top { justify-content: space-between; }
+.ci-no { font-weight: 800; font-size: 12.5px; color: #fff; direction: ltr; }
+.ci-amount { font-weight: 800; font-size: 15px; color: #93c5fd; white-space: nowrap; direction: ltr; }
+.ci-card--done .ci-amount { color: #6ee7b7; }
+.ci-date { flex: 1 1 auto; font-size: 11px; color: var(--ch-soft); white-space: nowrap; }
+.ci-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700; white-space: nowrap;
+}
+.ci-badge--sent    { background: rgba(245, 158, 11, .18); color: #fcd34d; }
+.ci-badge--drafted { background: rgba(255, 255, 255, .12); color: #e2e8f0; }
+.ci-badge--part    { background: rgba(96, 165, 250, .2);  color: #bfdbfe; }
+.ci-badge--done    { background: rgba(34, 197, 94, .2);   color: #86efac; }
+.ci-print {
+    flex: 0 0 auto; width: 28px; height: 28px; display: inline-grid; place-items: center;
+    border: 1px solid rgba(255, 255, 255, .22); border-radius: 8px; background: rgba(255, 255, 255, .08);
+    color: #fff; cursor: pointer; font-size: 11.5px;
+}
+.ci-print:hover { background: rgba(255, 255, 255, .2); }
+@media (max-width: 767px) {
+    .case-hero { padding: 14px 14px 12px; border-radius: 14px; }
+    .ch-icon { width: 44px; height: 44px; font-size: 18px; }
+    .ch-number { font-size: 20px; }
+    .ch-money { width: 100%; }
+    .ch-stat { flex: 1 1 0; min-width: 0; padding: 8px 10px; }
+    .ch-stat-value { font-size: 16px; }
+    .ch-actions { width: 100%; }
+}
 /* Visit-tab + receipt-pane rules live in assets/css/invoice-pane.css,
    shared with the accountant screen. Page-specific rules only below. */
 
@@ -4867,7 +4953,6 @@ if ((isset($_GET['payment_added']) || isset($_GET['payment_requested']))
     .collapsible-sidebar-grid { grid-template-columns: 1fr !important; gap: 16px !important; }
 }
 @media (max-width: 767px) {
-    .next-appt-chip { margin: 4px 0 0; }
     .tabs-container { -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; }
     .tabs-container .tab { scroll-snap-align: center; padding: 14px 12px 13px; }
     /* Chart toolbar: title, dentition filters and action buttons on their own
@@ -6202,71 +6287,6 @@ button.rx-card-print { cursor:pointer; padding:0; }
 
     <!-- Sidebar -->
     <div>
-        <!-- Visit invoices (وەسڵی سەردان) — one receipt per work day -->
-        <?php if (!empty($invoiceTabs)): ?>
-        <div class="panel">
-            <div class="panel-header">
-                <h4 class="panel-title"><i class="fas fa-receipt"></i> وەسڵەکان</h4>
-            </div>
-            <div class="panel-body" style="padding: 8px 10px;">
-                <?php foreach ($invoiceTabs as $inv): ?>
-                <div class="ci-row<?= $inv['status'] === 'processed' ? ' ci-row--done' : ($inv['status'] === 'draft' ? ' ci-row--draft' : '') ?>">
-                    <div class="ci-main">
-                        <span class="ci-no"><?= htmlspecialchars($inv['invoice_no']) ?></span>
-                        <span class="ci-date"><?= htmlspecialchars($inv['work_date']) ?> — <span data-invoice-count="<?= (int)$inv['id'] ?>"><?= (int)$inv['treatment_count'] ?> چارەسەر</span></span>
-                    </div>
-                    <span class="ci-amount" data-invoice-amount="<?= (int)$inv['id'] ?>"><?= number_format($inv['total_amount']) ?></span>
-                    <?php if ($inv['status'] === 'draft'): ?>
-                    <span class="ci-badge ci-badge--drafted" title="هێشتا نەنێردراوە بۆ ژمێریار"><i class="fas fa-pen-ruler"></i> نەنێردراو</span>
-                    <?php elseif ($inv['status'] === 'processed'): ?>
-                    <span class="ci-badge ci-badge--done" title="پارەکەی بە تەواوی وەرگیراوە"><i class="fas fa-check-double"></i> تەواو</span>
-                    <?php elseif ($inv['fifo_covered'] > 0.009): ?>
-                    <span class="ci-badge ci-badge--part" title="بەشێکی دراوە — ماوە: <?= number_format($inv['fifo_remaining']) ?>"><i class="fas fa-hourglass-half"></i> بەشی</span>
-                    <?php else: ?>
-                    <span class="ci-badge ci-badge--sent" title="لای ژمێریارە"><i class="fas fa-paper-plane"></i> نێردراو</span>
-                    <?php endif; ?>
-                    <button type="button" class="ci-print" onclick="openReceiptDialog(<?= (int)$inv['id'] ?>)" title="چاپکردنی ئەم وەسڵە">
-                        <i class="fas fa-print"></i>
-                    </button>
-                </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-        <style>
-        .ci-row {
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            padding: 7px 6px;
-            border-bottom: 1px solid var(--border-light, #eee);
-            font-size: 12px;
-        }
-        .ci-row:last-child { border-bottom: 0; }
-        .ci-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-        .ci-no { font-weight: 700; color: var(--text-primary, #263544); direction: ltr; text-align: right; }
-        .ci-date { font-size: 10.5px; color: var(--text-secondary, #7a8794); }
-        .ci-amount { font-weight: 700; white-space: nowrap; color: #0f6cbd; }
-        .ci-badge {
-            display: inline-flex; align-items: center; gap: 3px;
-            padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap;
-        }
-        .ci-badge--sent { background: #fff4e5; color: #b25e09; }
-        .ci-badge--drafted { background: #f1f3f6; color: #5a6672; }
-        .ci-badge--part { background: #e8f0fe; color: #1a56b0; }
-        .ci-badge--done { background: #e6f6ea; color: #137a37; }
-        .ci-row--done .ci-amount { color: #137a37; }
-        .ci-row--draft { background: #fbfcfe; border-radius: 8px; }
-        .ci-row--draft .ci-no { color: #8a5a00; }
-        .ci-print {
-            flex: 0 0 auto; width: 26px; height: 26px;
-            display: inline-flex; align-items: center; justify-content: center;
-            border: 1px solid #d5dee8; border-radius: 7px; background: #fff;
-            color: #0f6cbd; cursor: pointer; font-size: 11px;
-        }
-        .ci-print:hover { background: #eef6fd; }
-        </style>
-        <?php endif; ?>
-
         <!-- Actions -->
         <div class="panel">
             <div class="panel-header">
@@ -12168,8 +12188,17 @@ function updateCaseTotalsUI(t) {
         if (t[k] === undefined) return;
         const dec = parseInt(el.dataset.decimals || '0', 10);
         el.textContent = new Intl.NumberFormat('en-US', {minimumFractionDigits: dec, maximumFractionDigits: dec}).format(t[k]);
+        if (k === 'remaining') el.closest('.ch-stat')?.classList.toggle('is-due', Number(t[k]) > 0.009);
     });
 }
+
+// The header's receipts strip fades its far edge only when it really scrolls.
+function markReceiptsOverflow() {
+    document.querySelectorAll('.ch-receipts-list').forEach(list =>
+        list.classList.toggle('is-overflowing', list.scrollWidth > list.clientWidth + 1));
+}
+document.addEventListener('DOMContentLoaded', markReceiptsOverflow);
+window.addEventListener('resize', markReceiptsOverflow);
 
 function fmt2(n) {
     return new Intl.NumberFormat('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}).format(n || 0);
@@ -12178,7 +12207,8 @@ function fmt2(n) {
 // Count visit invoices, including empty drafts, rather than treatment rows.
 function updateInvoiceCount(count) {
     if (!Number.isInteger(count) || count < 0) return;
-    document.querySelectorAll('[data-invoice-count]').forEach(el => {
+    // only the bare counter (the tab's); a receipt card's [data-invoice-count="id"] holds its own count
+    document.querySelectorAll('[data-invoice-count=""]').forEach(el => {
         el.textContent = count;
     });
 }
@@ -14769,7 +14799,7 @@ function applyInvoiceSnapshot(d, invoiceId) {
     if (d.invoice) {
         const total = Number(d.invoice.total_amount) || 0;
         const fmt = new Intl.NumberFormat('en-US').format(total);
-        // Sidebar «وەسڵەکان» row for this invoice
+        // The header's «وەسڵەکان» card for this invoice
         document.querySelectorAll('[data-invoice-amount="' + invoiceId + '"]').forEach(el => { el.textContent = fmt; });
         document.querySelectorAll('[data-invoice-count="' + invoiceId + '"]').forEach(el => {
             el.textContent = (d.invoice.treatment_count || 0) + ' چارەسەر';
