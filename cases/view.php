@@ -3568,12 +3568,12 @@ $doctorCap = max(0, $unrequestedBalance);
 /* ── Compact chart: the two jaws meet at the bite line like a mouth ──
    Upper crowns point down and lower crowns up, so the work painted on the
    crowns sits along the middle; the numbers are on the outer edges and the
-   jaw headings are gone. The upper jaw follows a gentle smile curve. */
+   jaw headings are gone. The jaws follow the shape of an open mouth. */
 .smart-dental-chart { padding: 12px 16px; }
 .smart-dental-chart .jaw-section { position: relative; padding: 3px 4px; }
-/* room above for the back teeth, which ride higher on the curve */
-.smart-dental-chart .jaw-section--upper { padding-top: calc(20px * var(--chart-scale)); }
-.smart-dental-chart .jaw-section + .jaw-section { border-top: 2px dashed #d3dfeb; padding-top: 3px; }
+/* room by the bite line for the back teeth, which curve in toward it */
+.smart-dental-chart .jaw-section--upper { padding-bottom: calc(3px + 20px * var(--chart-scale)); }
+.smart-dental-chart .jaw-section + .jaw-section { border-top: 2px dashed #d3dfeb; padding-top: calc(3px + 20px * var(--chart-scale)); }
 /* the mouth shape already says which jaw is which: no jaw headings */
 .smart-dental-chart .jaw-label { display: none; }
 .smart-dental-chart .quadrant { gap: calc(2px * var(--chart-scale)); padding: 0; }
@@ -3584,6 +3584,7 @@ $doctorCap = max(0, $unrequestedBalance);
     gap: 1px; padding: 2px 1px 3px; border-radius: 10px;
     user-select: none; -webkit-user-select: none;
     touch-action: pan-y;            /* a sideways finger sweep selects, an up/down one scrolls */
+    --arc-y: 0; --arc-r: 0deg; --arc-dir: 1;
 }
 .smart-dental-chart .tooth--incisor  { --tooth-base-w: 44px; --tooth-base-art: 38px; }
 .smart-dental-chart .tooth--canine   { --tooth-base-w: 48px; --tooth-base-art: 40px; }
@@ -3591,28 +3592,34 @@ $doctorCap = max(0, $unrequestedBalance);
 .smart-dental-chart .tooth--molar    { --tooth-base-w: 57px; --tooth-base-art: 47px; }
 .smart-dental-chart .tooth-number { min-width: 20px; height: 20px; padding: 0 4px; border-radius: 6px; font-size: 12.5px !important; }
 
-/* The upper smile curve: the front teeth stay at the bite line, each tooth
-   further back sits a little higher and leans a little toward the middle,
-   pivoting on its crown edge. --arc-y is in px at full size; --arc-dir turns
-   the lean the other way on the patient's left (the right of the chart). */
+/* The mouth curve: the upper jaw arches down at both ends (∩) and the lower
+   jaw up (U), so the back teeth close in on the bite line and the front ones
+   stand furthest from it. Each tooth further back moves --arc-y px (at full
+   size) toward the bite line and leans out by --arc-r, pivoting on its crown
+   edge; --arc-dir turns the lean the other way on the patient's left (the
+   right of the chart). */
 .smart-dental-chart .jaw-section--upper .tooth {
-    --arc-y: 0; --arc-r: 0deg; --arc-dir: 1;
     transform-origin: 50% 100%;
+    transform: translateY(calc(var(--arc-y) * 1px * var(--chart-scale))) rotate(calc(var(--arc-r) * var(--arc-dir) * -1));
+}
+.smart-dental-chart .jaw-section--lower .tooth {
+    transform-origin: 50% 0;
     transform: translateY(calc(var(--arc-y) * -1px * var(--chart-scale))) rotate(calc(var(--arc-r) * var(--arc-dir)));
 }
-.smart-dental-chart .jaw-section--upper .tooth[data-quadrant="UL"] { --arc-dir: -1; }
-.smart-dental-chart .jaw-section--upper .tooth[data-palmer="2"] { --arc-y: 1;  --arc-r: .8deg; }
-.smart-dental-chart .jaw-section--upper .tooth[data-palmer="3"] { --arc-y: 3;  --arc-r: 1.6deg; }
-.smart-dental-chart .jaw-section--upper .tooth[data-palmer="4"] { --arc-y: 5;  --arc-r: 2.4deg; }
-.smart-dental-chart .jaw-section--upper .tooth[data-palmer="5"] { --arc-y: 8;  --arc-r: 3.2deg; }
-.smart-dental-chart .jaw-section--upper .tooth[data-palmer="6"] { --arc-y: 11; --arc-r: 4deg; }
-.smart-dental-chart .jaw-section--upper .tooth[data-palmer="7"] { --arc-y: 14; --arc-r: 4.8deg; }
-.smart-dental-chart .jaw-section--upper .tooth[data-palmer="8"] { --arc-y: 18; --arc-r: 5.6deg; }
+.smart-dental-chart .tooth[data-quadrant="UL"],
+.smart-dental-chart .tooth[data-quadrant="LL"] { --arc-dir: -1; }
+.smart-dental-chart .tooth[data-palmer="2"] { --arc-y: 1;  --arc-r: .8deg; }
+.smart-dental-chart .tooth[data-palmer="3"] { --arc-y: 3;  --arc-r: 1.6deg; }
+.smart-dental-chart .tooth[data-palmer="4"] { --arc-y: 5;  --arc-r: 2.4deg; }
+.smart-dental-chart .tooth[data-palmer="5"] { --arc-y: 8;  --arc-r: 3.2deg; }
+.smart-dental-chart .tooth[data-palmer="6"] { --arc-y: 11; --arc-r: 4deg; }
+.smart-dental-chart .tooth[data-palmer="7"] { --arc-y: 14; --arc-r: 4.8deg; }
+.smart-dental-chart .tooth[data-palmer="8"] { --arc-y: 18; --arc-r: 5.6deg; }
 /* milk teeth: a shorter arch, so the same curve in five steps */
-.smart-dental-chart .jaw-section--upper .tooth[data-palmer="B"] { --arc-y: 2;  --arc-r: 1.2deg; }
-.smart-dental-chart .jaw-section--upper .tooth[data-palmer="C"] { --arc-y: 5;  --arc-r: 2.4deg; }
-.smart-dental-chart .jaw-section--upper .tooth[data-palmer="D"] { --arc-y: 9;  --arc-r: 3.6deg; }
-.smart-dental-chart .jaw-section--upper .tooth[data-palmer="E"] { --arc-y: 13; --arc-r: 4.8deg; }
+.smart-dental-chart .tooth[data-palmer="B"] { --arc-y: 2;  --arc-r: 1.2deg; }
+.smart-dental-chart .tooth[data-palmer="C"] { --arc-y: 5;  --arc-r: 2.4deg; }
+.smart-dental-chart .tooth[data-palmer="D"] { --arc-y: 9;  --arc-r: 3.6deg; }
+.smart-dental-chart .tooth[data-palmer="E"] { --arc-y: 13; --arc-r: 4.8deg; }
 .smart-dental-chart .jaw-section--upper .tooth-svg svg { transform: scaleY(-1); }
 .smart-dental-chart .jaw-section--lower .tooth-number { order: 2; }
 .smart-dental-chart .jaw-section--upper .treatment-count { top: auto; bottom: 3px; }
@@ -3677,6 +3684,11 @@ $doctorCap = max(0, $unrequestedBalance);
         margin: 3px 0;
         background: repeating-linear-gradient(to right, #cfd9e5 0 5px, transparent 5px 10px);
     }
+    /* stacked quadrants are no longer an arch: keep them straight */
+    .smart-dental-chart .jaw-section--upper .tooth,
+    .smart-dental-chart .jaw-section--lower .tooth { transform: none; }
+    .smart-dental-chart .jaw-section--upper { padding-bottom: 3px; }
+    .smart-dental-chart .jaw-section + .jaw-section { padding-top: 3px; }
 }
 @media (max-width: 767px) {
     .smart-dental-chart { padding: 13px 10px 12px; border-radius: 13px; }
