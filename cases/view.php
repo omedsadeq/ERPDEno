@@ -5129,6 +5129,22 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
 .rx-table tr:last-child td { border-bottom:0; }
 .rx-table input { width:100%; border:1px solid #e2e2e2; border-radius:6px; padding:6px 8px; font:13px inherit; }
 .rx-table input:focus { outline:none; border-color:var(--win-accent, #0078d4); }
+/* دەرمانی دەرەوە — a line by name, bought outside */
+.rx-add-outside { display:flex; align-items:center; gap:10px; width:100%; padding:10px 14px; border:0; border-top:1px dashed #f0c27a;
+                  background:#fffaf0; color:#8a5a00; font:inherit; text-align:right; cursor:pointer; }
+.rx-add-outside:hover { background:#fff3dc; }
+.rx-add-outside > i { width:26px; height:26px; border-radius:50%; display:grid; place-items:center; background:#f59e0b; color:#fff; font-size:12px; flex:0 0 auto; }
+.rx-add-outside span { display:flex; flex-direction:column; }
+.rx-add-outside b { font-size:13.5px; }
+.rx-add-outside small { font-size:11.5px; color:#a0742a; }
+.rx-row-outside td { background:#fffcf5; }
+.rx-row-outside .rx-out-name { border-color:#f0c27a; background:#fff; }
+.rx-outside-tag { display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; background:#fff1d6; color:#9a5b00;
+                  font-size:11.5px; font-weight:700; white-space:nowrap; }
+.rxs-out-sug { display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border:1px dashed #f0c27a; border-radius:999px;
+               background:#fffaf0; color:#8a5a00; font:inherit; font-size:12.5px; cursor:pointer; }
+.rxs-out-sug:hover { background:#fff3dc; }
+.rxs-out-sug[hidden] { display:none; }
 .rx-del { color:#c62828; cursor:pointer; text-align:center; }
 .rx-stock { direction:ltr; text-align:left; font-variant-numeric:tabular-nums; color:#2e7d32; font-weight:600; }
 .rx-empty { text-align:center; color:#999; padding:22px 12px; font-size:13px; }
@@ -6310,6 +6326,8 @@ button.rx-card-print { cursor:pointer; padding:0; }
                                 <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
                                 <input type="search" id="rxFind" autocomplete="off" placeholder="گەڕان لە پەڕەکەدا…" aria-label="گەڕان لە پەڕەکەدا">
                             </div>
+                            <!-- the search found nothing: offer it as a medicine bought outside -->
+                            <button type="button" class="rxs-out-sug" id="rxFindOutside" hidden></button>
                             <div class="rxs-legend"><span class="rxs-q">12</span> بەردەست لە کۆگا <span class="rxs-q zero">0</span> لە کۆگا نییە</div>
                         </div>
                         <div class="rxs-grid" id="rxGrid"><div class="rx-empty">بارکردن…</div></div>
@@ -6339,6 +6357,12 @@ button.rx-card-print { cursor:pointer; padding:0; }
                             <tbody id="rxRows"></tbody>
                         </table>
                         <div id="rxEmpty" class="rx-empty">هێشتا هیچ دەرمانێک دیاری نەکراوە — لە تابی «هەڵبژاردن» کاڵاکان دیاری بکە.</div>
+                        <!-- دەرمانی دەرەوە: a medicine the system does not have, by name,
+                             for the patient to buy outside (printed on the sheet, not sold here) -->
+                        <button type="button" class="rx-add-outside" id="rxAddOutside">
+                            <i class="fas fa-plus"></i>
+                            <span><b>دەرمانێکی دەرەوە زیاد بکە</b><small>ئەوەی لە سیستەم نییە — لەسەر ڕەچەتە دەنووسرێت و نەخۆش لە دەرەوە دەیکڕێت</small></span>
+                        </button>
                     </div>
 
                     <div class="rx-foot">
@@ -12622,6 +12646,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const RX_ME      = <?= (int)($_SESSION['user_id'] ?? 0) ?>;
 
     let lines = [];        // [{product_id, group_id, name, type_name, quantity, dosage, stock, unit}]
+                           // or a medicine bought outside: {outside: true, product_id: null, name, quantity, dosage}
     let groups = [];       // the sheet, from ?action=sheet
     const groupForm = {};  // group id → chosen header type id
 
@@ -12721,10 +12746,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function applyFind() {
         const box = $('rxFind');
-        const q = box ? box.value.trim().toLowerCase() : '';
+        const raw = box ? box.value.trim() : '', q = raw.toLowerCase();
+        let shown = 0;
         document.querySelectorAll('#rxGrid .rxs-it').forEach(el => {
-            el.classList.toggle('gone', q !== '' && !el.dataset.name.includes(q));
+            const gone = q !== '' && !el.dataset.name.includes(q);
+            el.classList.toggle('gone', gone);
+            if (!gone) shown++;
         });
+        // nothing on the sheet by that name: it can still go on the prescription
+        const sug = $('rxFindOutside');
+        if (sug) {
+            sug.hidden = !(CAN_WRITE && raw.length >= 2 && shown === 0);
+            if (!sug.hidden) sug.innerHTML = '<i class="fas fa-plus"></i> «' + esc(raw) + '» لە سیستەم نییە — وەک دەرمانی دەرەوە زیادی بکە';
+        }
+    }
+
+    /** A medicine bought outside, by name; focuses where the doctor types next. */
+    function addOutside(name) {
+        lines.push({ outside: true, product_id: null, name: name || '', type_name: '', quantity: 1, dosage: '', stock: 0, unit: '' });
+        render();
+        const i = lines.length - 1;
+        const box = document.querySelector('#rxRows [data-i="' + i + '"][data-f="' + (name ? 'dosage' : 'name') + '"]');
+        if (box) box.focus();
     }
 
     function findItem(pid) {
@@ -12881,8 +12924,20 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!body) return;
         body.innerHTML = '';
         lines.forEach((l, i) => {
-            const form = lineForm(l);
             const tr = document.createElement('tr');
+            if (l.outside) {
+                tr.className = 'rx-row-outside';
+                tr.innerHTML =
+                    '<td style="color:#999">' + (i + 1) + '</td>' +
+                    '<td><input type="text" class="rx-out-name" value="' + esc(l.name) + '" data-i="' + i + '" data-f="name" placeholder="ناوی دەرمان، بۆ نموونە: Augmentin 1g" maxlength="200"></td>' +
+                    '<td><input type="number" min="0.001" step="any" value="' + l.quantity + '" data-i="' + i + '" data-f="quantity"></td>' +
+                    '<td><input type="text" value="' + esc(l.dosage) + '" data-i="' + i + '" data-f="dosage" placeholder="ڕۆژانە ٢ جار…"></td>' +
+                    '<td><span class="rx-outside-tag" title="لە سیستەم نییە — نەخۆش لە دەرەوە دەیکڕێت"><i class="fas fa-store-slash"></i> دەرەوە</span></td>' +
+                    '<td class="rx-del" data-del="' + i + '" title="لابردن"><i class="fas fa-times"></i></td>';
+                body.appendChild(tr);
+                return;
+            }
+            const form = lineForm(l);
             tr.innerHTML =
                 '<td style="color:#999">' + (i + 1) + '</td>' +
                 '<td>' + esc(l.name) + (form ? '<span class="rx-form">' + esc(form) + '</span>' : '') + '</td>' +
@@ -12930,7 +12985,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     /** Not a block — on paper the doctor may ask for anything — but say so. */
     function stockWarning() {
-        const short = lines.filter(l => Number(l.quantity) > Number(l.stock)).map(l => l.name);
+        const short = lines.filter(l => !l.outside && Number(l.quantity) > Number(l.stock)).map(l => l.name);
         if (short.length) {
             msg('ئاگاداری: ئەمانە لە کۆگا نین یان کەمن — دەرمانخانە دەبێت دابینیان بکات: ' + short.join('، '), 'warn');
         } else if ($('rxMsg') && /\b(warn|err)\b/.test($('rxMsg').className)) {
@@ -12942,7 +12997,14 @@ document.addEventListener('DOMContentLoaded', function() {
     window.rxSend = async function () {
         if (!lines.length) return;
         const bad = lines.find(l => !(Number(l.quantity) > 0));
-        if (bad) { msg('بڕی «' + bad.name + '» دروست نییە', 'err'); return; }
+        if (bad) { msg('بڕی «' + (bad.name || 'دەرمانی دەرەوە') + '» دروست نییە', 'err'); return; }
+        const nameless = lines.findIndex(l => l.outside && !String(l.name || '').trim());
+        if (nameless >= 0) {
+            msg('ناوی دەرمانی دەرەوە بنووسە (ڕیزی ' + (nameless + 1) + ')', 'err');
+            const box = document.querySelector('#rxRows [data-i="' + nameless + '"][data-f="name"]');
+            if (box) box.focus();
+            return;
+        }
         const btn = $('rxSendBtn');
         btn.disabled = true;
         const original = btn.innerHTML;
@@ -12954,10 +13016,9 @@ document.addEventListener('DOMContentLoaded', function() {
             fd.append('case_id', RX_CASE_ID);
             fd.append('notes', $('rxNotes') ? $('rxNotes').value : '');
             // notes per line = the circled form/brand, when the item has none of its own
-            fd.append('items', JSON.stringify(lines.map(l => ({
-                product_id: l.product_id, quantity: l.quantity, dosage: l.dosage,
-                notes: l.type_name ? '' : lineForm(l)
-            }))));
+            fd.append('items', JSON.stringify(lines.map(l => l.outside
+                ? { outside: true, name: String(l.name).trim(), quantity: l.quantity, dosage: l.dosage }
+                : { product_id: l.product_id, quantity: l.quantity, dosage: l.dosage, notes: l.type_name ? '' : lineForm(l) })));
             const res  = await fetch(RX_API, { method: 'POST', body: fd });
             const data = await res.json();
             if (data && data.ok) {
@@ -12966,7 +13027,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 if ($('rxNotes')) $('rxNotes').value = '';
                 renderSheet();
                 render();
-                msg('نێردرا بۆ دەرمانخانە ✓', 'ok');
+                // all of it bought outside: nothing for the counter, the paper is the point
+                msg(data.outside ? 'ڕەچەتەکە پاشەکەوت کرا — هەمووی لە دەرەوە دەکڕدرێت، چاپی بکە بۆ نەخۆش ✓' : 'نێردرا بۆ دەرمانخانە ✓', 'ok');
                 // the doctor can hand the patient the printed sheet right away
                 if (data.id && window.RxPrint) {
                     const pb = document.createElement('button');
@@ -13050,6 +13112,15 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             const find = $('rxFind');
             if (find) find.addEventListener('input', applyFind);
+            const sug = $('rxFindOutside');
+            if (sug) sug.addEventListener('click', () => {
+                const name = find ? find.value.trim() : '';
+                if (!name) return;
+                find.value = '';
+                applyFind();
+                showRxTab('send');
+                addOutside(name);
+            });
             loadSheet();
         }
         const body = $('rxRows');
@@ -13074,6 +13145,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const cell = e.target.closest('[data-del]');
                 if (cell) removeLine(Number(cell.dataset.del));
             });
+            const addOut = $('rxAddOutside');
+            if (addOut) addOut.addEventListener('click', () => addOutside(''));
             // a request withdrawn from the history list
             const hist = $('rxHistory');
             if (hist) hist.addEventListener('click', async e => {

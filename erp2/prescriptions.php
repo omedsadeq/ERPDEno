@@ -113,7 +113,7 @@ $lines = [];
 if ($rows) {
     $in = implode(',', array_map(fn($r) => (int)$r['id'], $rows));
     foreach ($db->fetchAll(
-        "SELECT i.prescription_id, i.product_name, i.quantity, i.dosage, COALESCE(NULLIF(i.notes, ''), t.name) AS form
+        "SELECT i.prescription_id, i.product_name, i.is_outside, i.quantity, i.dosage, COALESCE(NULLIF(i.notes, ''), t.name) AS form
          FROM erp2_prescription_items i
          LEFT JOIN erp2_products p ON p.id = i.product_id
          LEFT JOIN erp2_product_types t ON t.id = p.type_id
@@ -191,6 +191,7 @@ $statusLabels = ['pending' => 'چاوەڕوان', 'sold' => 'فرۆشراوە', 
                     <div class="rxq-line">
                         <bdi class="nm"><?= erp2_esc($l['product_name']) ?></bdi>
                         <?php if (!empty($l['form'])): ?><span class="fm"><?= erp2_esc($l['form']) ?></span><?php endif; ?>
+                        <?php if (!empty($l['is_outside'])): ?><span class="fm" style="background:#fff4e0;color:#9a5b00" title="لە سیستەم نییە — نەخۆش لە دەرەوە دەیکڕێت">دەرەوە</span><?php endif; ?>
                         <span class="qt">× <?= erp2_qty($l['quantity']) ?></span>
                         <?php if (trim((string)$l['dosage']) !== ''): ?><div class="ds"><?= erp2_esc($l['dosage']) ?></div><?php endif; ?>
                     </div>

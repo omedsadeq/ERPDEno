@@ -1892,8 +1892,10 @@ async function loadRx(i, rxId) {
     resetSale();
     S.rx = { id: Number(pr.id), patient: pr.patient_name, doctor: pr.doctor_name || '' };
     S.cust = pr.customer_id ? { id: Number(pr.customer_id), name: pr.patient_name, phone: pr.patient_phone || '', walk: false, balance: 0 } : walkIn();
-    const skipped = [];
+    const skipped = [], outside = [];
     (pr.items || []).forEach(it => {
+        // دەرمانی دەرەوە: written by name, not sold here
+        if (Number(it.is_outside)) { outside.push(it.product_name); return; }
         if (!it.product_id) { skipped.push(it.product_name); return; }
         const stock = Number(it.stock || 0), want = Number(it.quantity || 1);
         const ok = addProduct({ id: it.product_id, name: it.product_name, sale_price: it.sale_price, min_sale_price: it.min_sale_price,
@@ -1906,7 +1908,8 @@ async function loadRx(i, rxId) {
     renderAll();
     beep('ok');
     if (skipped.length) toast('لە کۆگا نییە: ' + skipped.join('، '), 'err');
-    else toast('داواکارییەکە بارکرا — ' + S.rows.length + ' دەرمان', 'ok');
+    else toast('داواکارییەکە بارکرا — ' + S.rows.length + ' دەرمان'
+        + (outside.length ? ' · لە دەرەوە دەکڕدرێت: ' + outside.join('، ') : ''), 'ok');
 }
 if (CFG.canRx) {
     $('#rxBtn').addEventListener('click', openRx);

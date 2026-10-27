@@ -187,6 +187,23 @@ try {
             foreach ($itemsRaw as $row) {
                 $pid = (int)($row['product_id'] ?? 0);
                 $qty = round((float)($row['quantity'] ?? 0), 3);
+                // دەرمانی دەرەوە: not in the system at all — written by name for
+                // the patient to buy outside, so there is no product to check.
+                if (!empty($row['outside'])) {
+                    $name = mb_substr(trim((string)($row['name'] ?? '')), 0, 200);
+                    if ($name === '' || $qty <= 0) {
+                        continue;
+                    }
+                    $clean[] = [
+                        'product_id'   => null,
+                        'is_outside'   => 1,
+                        'product_name' => $name,
+                        'quantity'     => $qty,
+                        'dosage'       => trim((string)($row['dosage'] ?? '')) ?: null,
+                        'notes'        => null,
+                    ];
+                    continue;
+                }
                 if ($pid <= 0 || $qty <= 0) {
                     continue;
                 }
@@ -212,6 +229,9 @@ try {
             if (!$clean) {
                 erp2_presc_json(['ok' => false, 'error' => 'هیچ دەرمانێکی دروست نەدۆزرایەوە'], 422);
             }
+            // Everything bought outside: nothing for the counter to sell, so it
+            // goes straight to «دەرەوەی کلینیک» instead of the waiting queue.
+            $allOutside = !array_filter($clean, fn($it) => empty($it['is_outside']));
 
             // The prescription is the prescribing doctor's — it prints on their
             // sheet. Written by someone who is not a doctor (an admin, the
@@ -249,7 +269,8 @@ try {
                     'case_id'     => $caseId ?: null,
                     'doctor_id'   => $doctorId ?: null,
                     'customer_id' => $customerId,
-                    'status'      => 'pending',
+                    'status'      => $allOutside ? 'outside' : 'pending',
+                    'outside_at'  => $allOutside ? date('Y-m-d H:i:s') : null,
                     'notes'       => $notes,
                     'created_by'  => $actor ?: null,
                 ]);
@@ -266,7 +287,7 @@ try {
             Erp2Audit::log('prescription_created', 'PRESCRIPTION', $prescId, (string)$prescId, null, [
                 'patient_id' => $patientId, 'case_id' => $caseId, 'items' => count($clean),
             ]);
-            erp2_presc_json(['ok' => true, 'id' => $prescId, 'items' => count($clean)]);
+            erp2_presc_json(['ok' => true, 'id' => $prescId, 'items' => count($clean), 'outside' => $allOutside]);
         }
 
         /** Queue for the counter: one row per pending prescription. */
@@ -313,6 +334,7 @@ try {
                         u.full_name AS doctor_name,
                         COUNT(i.id) AS item_count,
                         GROUP_CONCAT(CONCAT(i.product_name,
+                            CASE WHEN i.is_outside = 1 THEN ' [دەرەوە]' ELSE '' END,
                             CASE WHEN i.notes IS NULL OR i.notes = '' THEN ''
                                  ELSE CONCAT(' (', i.notes, ')') END,
                             CASE WHEN i.quantity <> 1 THEN CONCAT(' ×', TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM i.quantity))) ELSE '' END,
@@ -351,7 +373,7 @@ try {
             }
             $wh = erp2_default_warehouse_id();
             $pr['items'] = $db->fetchAll(
-                "SELECT i.id, i.product_id, i.product_name, i.quantity, i.dosage, i.notes,
+                "SELECT i.id, i.product_id, i.is_outside, i.product_name, i.quantity, i.dosage, i.notes,
                         p.sale_price, p.min_sale_price, p.unit_id,
                         COALESCE(s.quantity, 0) AS stock
                  FROM erp2_prescription_items i
