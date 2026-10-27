@@ -3625,8 +3625,14 @@ $doctorCap = max(0, $unrequestedBalance);
 .smart-dental-chart .jaw-section--upper .treatment-count { top: auto; bottom: 3px; }
 .smart-dental-chart .jaw-section--lower .treatment-count { top: 3px; }
 .smart-dental-chart .dentition-pane-title { margin: 0 0 2px; }
-/* a solid line between the adult and the milk-teeth charts, unlike the dashed bite line */
-.smart-dental-chart .dentition-pane + .dentition-pane { margin-top: 14px; padding-top: 10px; border-top: 2px solid #a9bdd1; }
+/* a thick rounded band between the adult and the milk-teeth charts, fading
+   out at both ends, so it never reads as the dashed bite line */
+.smart-dental-chart .dentition-pane + .dentition-pane { position: relative; margin-top: 18px; padding-top: 16px; border-top: 0; }
+.smart-dental-chart .dentition-pane + .dentition-pane::before {
+    content: ''; position: absolute; top: 0; left: 2%; right: 2%; height: 5px; border-radius: 999px;
+    background: linear-gradient(90deg, rgba(47, 111, 165, 0), #8fb3d3 14%, #2f6fa5 50%, #8fb3d3 86%, rgba(47, 111, 165, 0));
+    box-shadow: 0 2px 6px rgba(47, 111, 165, .18);
+}
 .smart-dental-chart .chart-legend { margin-top: 6px; padding: 6px 8px; gap: 2px 6px; }
 .smart-dental-chart .smart-chart-legend-item { padding: 2px 5px; }
 
