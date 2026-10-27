@@ -9171,19 +9171,20 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
     .si-installment-grid { grid-template-columns:1fr; }
 }
 
-.chart-service-work { display: none; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 12px; }
-.chart-service-work.has-items { display: grid; }
-.chart-service-lane { min-width: 0; padding: 9px; border: 1px solid #dbe7f3; border-radius: 9px; background: #f8fbff; }
+/* inline: each lane is one line — its title, then its work — and the lanes sit side by side */
+.chart-service-work { display: none; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.chart-service-work.has-items { display: flex; }
+.chart-service-lane { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 8px; min-width: 0; padding: 5px 8px; border: 1px solid #dbe7f3; border-radius: 9px; background: #f8fbff; }
 .chart-service-lane.is-upper { border-color: #bfdbfe; background: #eff6ff; }
 .chart-service-lane.is-lower { border-color: #ddd6fe; background: #f5f3ff; }
 .chart-service-lane.is-service { border-color: #99f6e4; background: #f0fdfa; }
-.chart-service-title { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; color: #526579; font-size: 11px; font-weight: 800; }
+.chart-service-title { display: flex; align-items: center; gap: 6px; color: #526579; font-size: 11px; font-weight: 800; white-space: nowrap; }
 .chart-service-list { display: flex; flex-wrap: wrap; gap: 5px; }
 .chart-service-card { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 5px 7px; border: 1px solid rgba(100,116,139,.2); border-radius: 7px; background: #fff; font-size: 10.5px; }
 .chart-service-card strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chart-service-card .qty { color: #64748b; }
 .chart-service-card .price { color: #b91c1c; font-weight: 800; white-space: nowrap; }
-@media (max-width: 760px) { .chart-service-work { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .chart-service-lane { flex: 1 1 100%; } }
 #sendInvoiceDialog .required { color: #c62828; font-weight: 700; }
 </style>
 <?php if ($canDeleteInvoices): ?>
