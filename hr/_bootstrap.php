@@ -99,6 +99,21 @@ function hr_redirect(?string $url = null): void
     exit;
 }
 
+/** Send rows as a UTF-8 CSV that Excel opens with Kurdish intact. */
+function hr_csv(string $filename, array $rows): void
+{
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: no-store');
+    echo "\xEF\xBB\xBF";
+    $out = fopen('php://output', 'w');
+    foreach ($rows as $row) {
+        fputcsv($out, $row, ';', '"', '\\');
+    }
+    fclose($out);
+    exit;
+}
+
 /** Kurdish month heading, e.g. "10 / 2026". */
 function hr_month_label(string $month): string
 {

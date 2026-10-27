@@ -27,10 +27,23 @@ $currentUser = $auth->getCurrentUser();
 $dateFrom = $_GET['date_from'] ?? date('Y-m-01');
 $dateTo = $_GET['date_to'] ?? date('Y-m-d');
 
+// Rows written by another screen (source_type, e.g. 'hr_payroll' for a salary
+// paid on hr/payroll.php) belong to it: they change only by cancelling them
+// there, or the expense and the record it pays for would stop agreeing.
+$lockedRow = function ($id) use ($db) {
+    $row = $db->fetch("SELECT source_type FROM expenses_general WHERE id = :id", ['id' => (int)$id]);
+    return $row && !empty($row['source_type']);
+};
+
 // Handle POST actions BEFORE including header (which outputs HTML)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     Csrf::require();
     $action = $_POST['action'];
+
+    if (in_array($action, ['edit', 'delete'], true) && $lockedRow($_POST['expense_id'] ?? 0)) {
+        header('Location: ' . APP_URL . '/admin/expenses-general.php?locked=1&date_from=' . urlencode($dateFrom) . '&date_to=' . urlencode($dateTo));
+        exit;
+    }
 
     if ($action === 'add') {
         $db->insert('expenses_general', [
@@ -147,6 +160,10 @@ $paymentMethods = [
 
 <?php if (isset($_GET['deleted'])): ?>
 <div class="alert alert-success" data-auto-hide><i class="fas fa-check-circle alert-icon"></i> خەرجی گشتی سڕایەوە</div>
+<?php endif; ?>
+
+<?php if (isset($_GET['locked'])): ?>
+<div class="alert alert-warning"><i class="fas fa-lock alert-icon"></i> ئەم خەرجییە مووچەیەکە کە لە «سەرچاوە مرۆییەکان ← پێدانی مووچە» دراوە. بۆ گۆڕین یان سڕینەوە، لە وەسڵی مووچەدانەکەیدا «دەستکاری» یان «سڕینەوە» بکە.</div>
 <?php endif; ?>
 
 <style>
@@ -298,8 +315,12 @@ $paymentMethods = [
                         <td><?php $pm = $paymentMethods[$exp['payment_method']] ?? $paymentMethods['cash']; ?><span class="payment-badge" style="background: <?= $pm['color'] ?>15; color: <?= $pm['color'] ?>;"><i class="<?= $pm['icon'] ?>"></i> <?= $pm['label'] ?></span></td>
                         <td><strong style="color: #c62828;"><?= number_format($exp['amount']) ?></strong></td>
                         <td>
+                            <?php if (!empty($exp['source_type'])): ?>
+                            <span title="لە «پێدانی مووچە» دراوە — لە وەسڵەکەیدا دەستکاری بکە یان بیسڕەوە" style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #0f766e; background: #ccfbf1; padding: 3px 8px; border-radius: 6px;"><i class="fas fa-lock"></i> مووچە</span>
+                            <?php else: ?>
                             <button class="btn btn-sm btn-secondary" onclick='editExpense(<?= json_encode($exp) ?>)'><i class="fas fa-edit"></i></button>
                             <form method="POST" style="display: inline;"><input type="hidden" name="action" value="delete"><input type="hidden" name="expense_id" value="<?= $exp['id'] ?>"><button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('ئایا دڵنیایت؟')"><i class="fas fa-trash"></i></button></form>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <?php endforeach; ?>

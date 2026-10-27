@@ -56,21 +56,6 @@ $activeEmployees = array_values(array_filter($allEmployees, fn($e) => $e['status
 $departments = $db->fetchAll('SELECT id, name FROM hr_departments WHERE is_active = 1 ORDER BY name');
 $filters = ['type' => $fType, 'department_id' => $fDept];
 
-/** Send rows as a UTF-8 CSV that Excel opens with Kurdish intact. */
-function hr_csv(string $filename, array $rows): void
-{
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Cache-Control: no-store');
-    echo "\xEF\xBB\xBF";
-    $out = fopen('php://output', 'w');
-    foreach ($rows as $row) {
-        fputcsv($out, $row, ';', '"', '\\');
-    }
-    fclose($out);
-    exit;
-}
-
 /** "08:01 ← 17:03" pairs of a day, for CSV and print. */
 function hr_pairs_text(array $pairs): string
 {
@@ -238,8 +223,7 @@ if ($tab === 'monthly') {
 // row switches between them (hr/_nav_map.php), so it needs to know which.
 $hrNavPage = 'reports-' . $tab;
 $pageTitle = $tabs[$tab][0];
-$pageActions = '<button class="btn btn-secondary" onclick="window.print()"><i class="fas fa-print"></i> چاپ</button>'
-    . ' <a class="btn btn-secondary" href="' . hr_esc($qs(['export' => 'csv'])) . '"><i class="fas fa-file-excel"></i> Excel</a>';
+$pageActions = '<a class="btn btn-secondary" href="' . hr_esc($qs(['export' => 'csv'])) . '"><i class="fas fa-file-excel"></i> Excel</a>';
 if ($tab === 'employee') {
     $pageActions .= ' <a class="btn btn-primary" target="_blank" href="' . APP_URL . '/hr/report-pdf.php' . hr_esc($qs([])) . '"><i class="fas fa-file-pdf"></i> PDF</a>';
 }

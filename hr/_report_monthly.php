@@ -150,7 +150,9 @@ body.hrf { display: flex; flex-direction: column; height: 100vh; overflow: hidde
             <i class="fas fa-table-columns"></i> ستوونەکان<span data-hr-refresh="hiddenbadge"><?= $hiddenCount ? '<span class="n">' . $hiddenCount . '</span>' : '' ?></span>
         </button>
         <?php endif; ?>
-        <button type="button" class="btn btn-secondary" onclick="window.print()" title="چاپ"><i class="fas fa-print"></i></button>
+        <?php if ($canPay): ?>
+        <a class="btn btn-primary" href="<?= APP_URL ?>/hr/payroll.php?month=<?= $e($month) ?>" title="پەسەندکردن و پێدانی مووچەی ئەم مانگە"><i class="fas fa-money-bill-wave"></i> پێدانی مووچە</a>
+        <?php endif; ?>
         <a class="btn btn-secondary" href="<?= $e($qs(['export' => 'csv'])) ?>" title="Excel"><i class="fas fa-file-excel"></i></a>
         <a class="btn btn-secondary" target="_blank" href="<?= APP_URL ?>/hr/report-pdf.php<?= $e($qs([])) ?>" title="PDF"><i class="fas fa-file-pdf"></i></a>
         <button type="button" class="btn btn-secondary" id="hrfFull" title="پڕبەشاشە"><i class="fas fa-expand"></i></button>

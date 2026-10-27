@@ -57,6 +57,14 @@ if (!function_exists('hr_nav_groups')) {
                     ['page' => 'reports-late', 'url' => 'reports.php?r=late', 'label' => 'دواکەوتن و زوو ڕۆیشتن', 'icon' => 'fa-hourglass-half', 'can' => ['hr.reports.view']],
                 ],
             ],
+            'payroll' => [
+                'label' => 'مووچە', 'icon' => 'fa-money-bill-wave', 'color' => '#15803d',
+                // Approving and paying need hr.payroll.pay; the page checks it.
+                'items' => [
+                    ['page' => 'payroll', 'url' => 'payroll.php', 'label' => 'پێدانی مووچە', 'icon' => 'fa-money-bill-wave', 'can' => ['hr.payroll.view']],
+                    ['page' => 'salary-receipts', 'url' => 'salary-receipts.php', 'label' => 'وەسڵەکانی مووچە', 'icon' => 'fa-receipt', 'can' => ['hr.payroll.view']],
+                ],
+            ],
             'settings' => [
                 'label' => 'ڕێکخستنەکان', 'icon' => 'fa-sliders', 'color' => '#475569',
                 'items' => [
