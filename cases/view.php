@@ -5115,19 +5115,14 @@ button.rx-card-print { cursor:pointer; padding:0; }
                         </div>
                         <?php if ($case['status'] === 'open'): ?>
                         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                            <?php if (($case['scope_type'] ?? 'tooth') !== 'arch'): ?>
-                            <button type="button" id="bulkModeBtn" class="btn btn-sm" onclick="toggleBulkMode()"
-                                    style="background: #0d9488; border-color: #0d9488; color: #fff;"
-                                    title="چەند ددان هەڵبژێرە و یەک چارەسەریان بۆ زیاد بکە">
-                                <i class="fas fa-object-group"></i> هەڵبژاردنی چەند ددان
-                            </button>
-                            <?php endif; ?>
+                            <?php // Several teeth are picked by plain clicks on the chart now
+                                  // (showToothDetail → the selection bar), so no mode button. ?>
                             <button type="button" class="btn btn-sm" onclick="openManageTreatmentsDialog()"
                                     style="background: #6d28d9; border-color: #6d28d9; color: #fff;"
                                     title="زیادکردن، دەستکاری و سڕینەوەی جۆرەکانی چارەسەر">
                                 <i class="fas fa-list-check"></i> جۆری چارەسەر
                             </button>
-                            <?php // Tooth cases add work by clicking the tooth (openQuickToothAdd);
+                            <?php // Tooth cases add work from the chart (select teeth → «زیادکردنی ئیش»);
                                   // an arch case has no teeth to click, so it keeps its button. ?>
                             <?php if (($case['scope_type'] ?? 'tooth') === 'arch'): ?>
                             <button class="btn btn-primary btn-sm" onclick="openArchTreatmentDialog()">
@@ -5138,12 +5133,6 @@ button.rx-card-print { cursor:pointer; padding:0; }
                         <?php endif; ?>
                     </div>
 
-                    <?php if ($case['status'] === 'open' && ($case['scope_type'] ?? 'tooth') !== 'arch'): ?>
-                    <!-- Bulk-select hint banner (shown while touch multi-select mode is ON) -->
-                    <div id="bulkModeHint" style="display: none; margin: 0 0 10px; padding: 8px 12px; background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; color: #0f766e; font-size: 12px;">
-                        <i class="fas fa-hand-pointer"></i> کلیک لەسەر ددانەکان بکە بۆ هەڵبژاردن، پاشان کلیکی ڕاست بکە یان دوگمەی سەوز لە خوارەوە دابگرە.
-                    </div>
-                    <?php endif; ?>
 
                     <!-- Whole-arch and toothless service work cannot be painted
                          on one tooth. This compact strip is part of the chart,
@@ -6637,10 +6626,18 @@ document.addEventListener('DOMContentLoaded', function() {
         <span class="bulk-bar-teeth" id="bulkTeethList"></span>
         <div class="bulk-bar-actions">
             <button type="button" class="btn btn-sm" onclick="clearBulkSelection()" style="background:#eef2f5;color:#37474f;border:1px solid #cfd8dc;">
-                <i class="fas fa-eraser"></i> پاککردنەوە
+                <i class="fas fa-eraser"></i> لابردن
             </button>
-            <button type="button" class="btn btn-sm btn-primary" id="bulkApplyBtn" onclick="openBulkTreatmentDialog()">
-                <i class="fas fa-plus-circle"></i> زیادکردنی چارەسەر بۆ هەموو
+            <button type="button" class="btn btn-sm" id="bulkHistBtn" onclick="bulkShowHistory()"
+                    style="background:#fff;color:#0369a1;border:1px solid #bae6fd;" title="چارەسەرە پێشووەکانی ئەم ددانە">
+                <i class="fas fa-history"></i> مێژوو
+            </button>
+            <button type="button" class="btn btn-sm" onclick="openBulkTreatmentDialog()"
+                    style="background:#fff;color:#0f766e;border:1px solid #99f6e4;" title="نرخ، ژمارە و داشکاندن پێش زیادکردن دیاری بکە">
+                <i class="fas fa-sliders"></i> بە نرخی جیا
+            </button>
+            <button type="button" class="btn btn-sm btn-primary" id="bulkApplyBtn" onclick="openQuickTeethAdd()">
+                <i class="fas fa-plus-circle"></i> زیادکردنی ئیش
             </button>
         </div>
     </div>
@@ -6757,6 +6754,7 @@ document.addEventListener('DOMContentLoaded', function() {
     color: #0f766e; border-radius: 14px; padding: 3px 10px; font-size: 12px; font-weight: 700;
 }
 body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
+.arch-tooth.bulk-selected .at-body { stroke: #0d9488; stroke-width: 3px; }
 
 /* Searchable treatment combo inside the bulk dialog */
 #bulkTreatmentDialog .city-combo { position: relative; }
@@ -11649,30 +11647,42 @@ function closeTreatmentPicker() {
     setQuickToothMode(null);
 }
 
-// ── Quick add from the chart: tooth → treatment → added ──
+// ── Quick add from the chart: teeth → treatment → added ──
+// Teeth are picked on the chart first (a click selects, a second click
+// unselects — as on the patient's treatment-plan tab), then «زیادکردنی ئیش»
+// opens this picker and one click adds the work to every selected tooth.
 // The picker doubles as the whole form: the catalog's default price, quantity
-// 1, no discount, filed on the receipt open in the treatments tab (or the
-// newest draft). Price/quantity are corrected afterwards in the receipt table.
-let tpQuickTooth = null;
+// 1 a tooth, no discount, filed on the receipt open in the treatments tab (or
+// the newest draft). Price/quantity are corrected afterwards in the receipt
+// table, or set beforehand with «بە نرخی جیا» (the bulk dialog).
+let tpQuickTeeth = null;            // FDI numbers the picked work goes to, or null
 let quickAddBusy = false;
-function setQuickToothMode(num) {
-    tpQuickTooth = num;
+const palmerOf = num => palmerNumbers[num] || (num % 10);
+function setQuickToothMode(nums) {
+    tpQuickTeeth = nums === null ? null : [].concat(nums);
     const title = document.getElementById('tpTitle');
     const foot = document.getElementById('tpFoot');
     if (!title || !foot) return;
-    if (num === null) {
+    const history = document.getElementById('tpHistory');
+    if (tpQuickTeeth === null) {
         title.innerHTML = '<i class="fas fa-briefcase-medical"></i> هەڵبژاردنی چارەسەر';
         foot.hidden = true;
         return;
     }
-    const palmer = palmerNumbers[num] || (num % 10);
-    title.innerHTML = '<i class="fas fa-tooth"></i> ددان ' + escapeHtml(String(palmer))
-        + ' <small>' + escapeHtml(toothNames[num] || '') + '</small>';
-    const count = (toothTreatmentMap[num] && toothTreatmentMap[num].treatments || []).length;
-    const history = document.getElementById('tpHistory');
-    if (history) {
-        history.hidden = count === 0;
-        history.innerHTML = '<i class="fas fa-history"></i> ' + count + ' چارەسەری پێشوو';
+    if (tpQuickTeeth.length === 1) {
+        const num = tpQuickTeeth[0];
+        title.innerHTML = '<i class="fas fa-tooth"></i> ددان ' + escapeHtml(String(palmerOf(num)))
+            + ' <small>' + escapeHtml(toothNames[num] || '') + '</small>';
+        const count = (toothTreatmentMap[num] && toothTreatmentMap[num].treatments || []).length;
+        if (history) {
+            history.hidden = count === 0;
+            history.innerHTML = '<i class="fas fa-history"></i> ' + count + ' چارەسەری پێشوو';
+        }
+    } else {
+        title.innerHTML = '<i class="fas fa-tooth"></i> ' + tpQuickTeeth.length + ' ددان'
+            + ' <small>' + tpQuickTeeth.map(n => escapeHtml(String(palmerOf(n)))).join(' · ')
+            + ' — هەر ددانێک بە نرخی خۆی</small>';
+        if (history) history.hidden = true;
     }
     foot.hidden = false;
 }
@@ -11680,20 +11690,33 @@ function openQuickToothAdd(num) {
     openTreatmentPicker();
     setQuickToothMode(num);
 }
+/** «زیادکردنی ئیش» on the selection bar: the picker for every selected tooth. */
+function openQuickTeethAdd() {
+    if (!bulkSelected.length) return;
+    openTreatmentPicker();
+    setQuickToothMode(bulkSelected.slice());
+}
 function quickAddTreatment(id) {
     const t = treatmentCatalog.find(x => x.id === id);
-    if (!t || quickAddBusy || tpQuickTooth === null) return;
+    if (!t || quickAddBusy || !tpQuickTeeth || !tpQuickTeeth.length) return;
     quickAddBusy = true;
-    const tooth = tpQuickTooth;
+    const teeth = tpQuickTeeth.slice();
     const fd = new FormData();
     fd.set('csrf_token', window.CSRF_TOKEN || CSRF_TOKEN);
     fd.set('ajax', '1');
-    fd.set('action', 'add_treatment');
-    fd.set('tooth_number', tooth);
+    if (teeth.length === 1) {
+        fd.set('action', 'add_treatment');
+        fd.set('tooth_number', teeth[0]);
+        fd.set('quantity', '1');
+    } else {
+        // all-or-nothing on the server; the quantity is the group's (1 a tooth)
+        fd.set('action', 'add_treatment_bulk');
+        fd.set('tooth_numbers', JSON.stringify(teeth));
+        fd.set('quantity', String(teeth.length));
+    }
     fd.set('treatment_id', t.id);
     fd.set('treatment_name', t.name);
     fd.set('unit_price', t.price);
-    fd.set('quantity', '1');
     fd.set('discount', '0');
     const activeTab = document.querySelector('.vt-tab.is-active[data-invoice-tab]');
     if (activeTab) fd.set('invoice_id', activeTab.dataset.invoiceTab);
@@ -11703,8 +11726,11 @@ function quickAddTreatment(id) {
         .then(d => {
             if (!d.success) { toast('error', d.message || 'هەڵەیەک ڕوویدا'); return; }
             closeTreatmentPicker();
+            clearBulkSelection();
             applyCaseSnapshot(d);
-            toast('success', t.name + ' بۆ ددان ' + (palmerNumbers[tooth] || tooth % 10) + ' زیادکرا');
+            toast('success', teeth.length === 1
+                ? t.name + ' بۆ ددان ' + palmerOf(teeth[0]) + ' زیادکرا'
+                : t.name + ' بۆ ' + teeth.length + ' ددان زیادکرا');
         })
         .catch(() => toast('error', 'هەڵەیەک ڕوویدا لە پەیوەندیکردن'))
         .finally(() => {
@@ -11713,9 +11739,9 @@ function quickAddTreatment(id) {
         });
 }
 function openQuickToothHistory() {
-    const num = tpQuickTooth;
+    const num = tpQuickTeeth && tpQuickTeeth.length === 1 ? tpQuickTeeth[0] : null;
     closeTreatmentPicker();
-    if (num !== null) showToothHistory(num);
+    if (num !== null) { clearBulkSelection(); showToothHistory(num); }
 }
 
 function renderTreatmentPicker() {
@@ -11755,7 +11781,7 @@ document.addEventListener('click', function (e) {
     const item = e.target.closest('#tpList .tp-item');
     if (item) {
         const id = parseInt(item.dataset.id, 10);
-        if (tpQuickTooth !== null) quickAddTreatment(id); else chooseTreatment(id);
+        if (tpQuickTeeth !== null) quickAddTreatment(id); else chooseTreatment(id);
         return;
     }
     const ov = document.getElementById('treatmentPicker');
@@ -12922,18 +12948,13 @@ window.selectTooth = function(num) {
     currentSelectedTooth = num;
 };
 
-// A tooth click on an open case: pick the work in the treatment list and it is
-// added — nothing else to fill in (openQuickToothAdd). The tooth's history
-// panel is one link away from that list, and is what a closed case shows.
+// A tooth click on an open case selects it (a second click unselects), as on
+// the patient's treatment-plan tab: pick several teeth, then «زیادکردنی ئیش»
+// on the bar adds one work to all of them (openQuickTeethAdd). One selected
+// tooth also offers its history; a closed case shows the history directly.
 window.showToothDetail = function(num) {
-    if (window.bulkMode) {
+    if (window.bulkMode || CASE_IS_OPEN) {
         toggleBulkTooth(num);
-        return;
-    }
-    if (CASE_IS_OPEN) {
-        selectTooth(num);
-        currentSelectedTooth = num;
-        openQuickToothAdd(num);
         return;
     }
     showToothHistory(num);
@@ -13027,29 +13048,14 @@ function closeToothDetail() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Bulk (multi-tooth) treatment — pick several teeth, one treatment for all
+// Bulk (multi-tooth) treatment — pick several teeth, one treatment for all.
+// On an open case a plain click selects (showToothDetail); Ctrl+click and
+// Shift+click (a range) still work, and so does a right-click menu.
 // ═══════════════════════════════════════════════════════════════════
 window.bulkMode = false;
 let bulkSelected = [];               // FDI tooth numbers, in click order
 let bulkTreatmentId = null;
 let bulkTreatmentName = '';
-
-function toggleBulkMode() {
-    window.bulkMode = !window.bulkMode;
-    const btn  = document.getElementById('bulkModeBtn');
-    const hint = document.getElementById('bulkModeHint');
-    document.body.classList.toggle('bulk-mode-on', window.bulkMode);
-    if (window.bulkMode) {
-        // Leaving single-select state so the two highlights never mix
-        document.querySelectorAll('.tooth.selected').forEach(t => t.classList.remove('selected'));
-        if (btn) { btn.style.background = '#0f766e'; btn.innerHTML = '<i class="fas fa-times"></i> وەستاندنی هەڵبژاردن'; }
-        if (hint) hint.style.display = 'block';
-    } else {
-        if (btn) { btn.style.background = '#0d9488'; btn.innerHTML = '<i class="fas fa-object-group"></i> هەڵبژاردنی چەند ددان'; }
-        if (hint) hint.style.display = 'none';
-        clearBulkSelection();
-    }
-}
 
 let lastBulkClicked = null;
 
@@ -13115,23 +13121,17 @@ function closeToothContextMenu() {
     if (menu) menu.style.display = 'none';
 }
 
-// Context-menu actions
+// Context-menu actions — the same picker as the selection bar
 function ctxAddTreatment() {
     closeToothContextMenu();
-    if (bulkSelected.length === 1) {
-        const num = bulkSelected[0];
-        selectTooth(num);
-        currentSelectedTooth = num;
-        const sel = document.getElementById('selectedToothNumber');
-        if (sel) sel.value = num;
-        clearBulkSelection();
-        openDialog('addTreatmentDialog');
-        onDialogToothChange();
-        const tsel = document.getElementById('treatmentSelect');
-        if (tsel && !tsel.value) setTimeout(openTreatmentPicker, 120);
-    } else {
-        openBulkTreatmentDialog();
-    }
+    openQuickTeethAdd();
+}
+/** «مێژوو» on the bar: the one selected tooth's history panel. */
+function bulkShowHistory() {
+    if (bulkSelected.length !== 1) return;
+    const num = bulkSelected[0];
+    clearBulkSelection();
+    showToothHistory(num);
 }
 
 function ctxViewDetail() {
@@ -13139,7 +13139,7 @@ function ctxViewDetail() {
     if (bulkSelected.length === 1) {
         const num = bulkSelected[0];
         clearBulkSelection();
-        showToothDetail(num);
+        showToothHistory(num);
     }
 }
 
@@ -13159,11 +13159,9 @@ function initChartSelection() {
         } else if (e.shiftKey) {
             e.stopPropagation(); e.preventDefault();
             selectBulkRange(num);
-        } else if (bulkSelected.length) {
-            // A plain click abandons a multi-selection and falls through to
-            // the normal single-tooth detail (inline onclick still runs).
-            clearBulkSelection();
         }
+        // A plain click falls through to the tooth's own onclick
+        // (showToothDetail), which adds it to the selection or takes it out.
     }, true);
 
     chart.addEventListener('contextmenu', function(e) {
@@ -13484,17 +13482,20 @@ function mtDropFromCatalog(id) {
 }
 
 function renderBulkSelection() {
-    // Highlight the teeth on the chart
-    document.querySelectorAll('.smart-dental-chart .tooth.bulk-selected').forEach(t => t.classList.remove('bulk-selected'));
+    // Highlight the teeth on both charts (teeth row and the occlusal arch)
+    document.querySelectorAll('.smart-dental-chart .tooth.bulk-selected, .arch-tooth.bulk-selected')
+        .forEach(t => t.classList.remove('bulk-selected'));
     bulkSelected.forEach(num => {
-        const el = document.querySelector('.smart-dental-chart .tooth[data-tooth="' + num + '"]');
-        if (el) el.classList.add('bulk-selected');
+        document.querySelectorAll('.smart-dental-chart .tooth[data-tooth="' + num + '"], .arch-tooth[data-tooth="' + num + '"]')
+            .forEach(el => el.classList.add('bulk-selected'));
     });
 
     const bar = document.getElementById('bulkActionBar');
     if (!bar) return;
     if (!bulkSelected.length) { bar.style.display = 'none'; return; }
     bar.style.display = 'block';
+    const hist = document.getElementById('bulkHistBtn');
+    if (hist) hist.style.display = bulkSelected.length === 1 ? '' : 'none';   // .btn sets display: the hidden attribute alone loses
 
     document.getElementById('bulkCount').textContent = bulkSelected.length;
     const listEl = document.getElementById('bulkTeethList');
