@@ -5104,16 +5104,16 @@ button.rx-card-print { cursor:pointer; padding:0; }
         <!-- Tabs -->
         <div class="panel">
             <div class="tabs-container">
-                <?php // Treatments are the record of work done, not an injection.
-                      // First tab and open by default; the chart comes second. ?>
-                <button type="button" class="tab active" data-case-tab="treatments" onclick="showTab('treatments', this)">
+                <?php // The chart is where work is picked (teeth → treatment), so it is the
+                      // first tab and open by default; the treatments come second. ?>
+                <button type="button" class="tab active" onclick="showTab('chart', this)">
+                    <i class="fas fa-tooth" aria-hidden="true"></i>
+                    <span class="tab-label">چارتی ددان</span>
+                </button>
+                <button type="button" class="tab" data-case-tab="treatments" onclick="showTab('treatments', this)">
                     <i class="fas fa-tasks" aria-hidden="true"></i>
                     <span class="tab-label">چارەسەرەکان</span>
                     <span class="tab-count" data-invoice-count><?= count($invoiceTabs) ?></span>
-                </button>
-                <button type="button" class="tab" onclick="showTab('chart', this)">
-                    <i class="fas fa-tooth" aria-hidden="true"></i>
-                    <span class="tab-label">چارتی ددان</span>
                 </button>
                 <button type="button" class="tab" data-case-tab="payments" onclick="showTab('payments', this, true)">
                     <i class="fas fa-money-bill" aria-hidden="true"></i>
@@ -5151,7 +5151,7 @@ button.rx-card-print { cursor:pointer; padding:0; }
             </div>
 
             <!-- Dental Chart Tab -->
-            <div class="tab-content" id="tab-chart" style="display: none;">
+            <div class="tab-content active" id="tab-chart" style="display: block;">
                 <div class="panel-body" style="padding: 12px;">
                     <div class="d-flex justify-between align-center mb-2">
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
@@ -5352,7 +5352,7 @@ button.rx-card-print { cursor:pointer; padding:0; }
             </div>
 
             <!-- Treatments Tab -->
-            <div class="tab-content active" id="tab-treatments" style="display: block;">
+            <div class="tab-content" id="tab-treatments" style="display: none;">
                 <div class="panel-body">
                     <?php // No heading and no "add treatment" button: the tab
                           // itself names the section, and each visit tab carries
@@ -6848,6 +6848,9 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
                         <i class="fas fa-plus"></i> زیادکردن
                     </button>
                 </div>
+                <!-- the icon its card shows in the treatment picker — required -->
+                <div class="mt-icon-label">ئایکۆن <span class="mt-req">*</span> <span class="mt-icon-name" id="mtNewIconName"></span></div>
+                <div id="mtNewIcons"></div>
                 <div id="mtAddErr" class="mt-err" style="display:none;"></div>
             </div>
 
@@ -6883,6 +6886,11 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
                border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .mt-add-btn:hover { background: #5b21b6; }
 .mt-err { color: #dc2626; font-size: 12px; margin-top: 6px; }
+.mt-icon-label { margin: 10px 0 6px; font-size: 12px; font-weight: 700; color: #4c1d95; }
+.mt-req { color: #dc2626; }
+.mt-icon-name { margin-inline-start: 6px; padding: 2px 9px; border-radius: 999px; background: #ede9fe; color: #5b21b6; font-weight: 600; }
+.mt-icon-name:empty { display: none; }
+.mt-edit-icons { margin-top: 2px; }
 
 .mt-search-row { display: flex; align-items: center; gap: 8px; background: var(--bg-main,#f7f9fc); border: 1px solid #e6ebf1; border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; }
 .mt-search-row input { flex: 1; border: none; background: transparent; outline: none; font-size: 13px; }
@@ -6894,7 +6902,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 .mt-row { display: flex; align-items: center; gap: 10px;
           padding: 9px 12px; border: 1px solid #eef2f5; border-radius: 9px; background: #fff; }
 .mt-row:hover { border-color: #d8c5f5; background: #fcfaff; }
-.mt-row .mt-icon { flex: 0 0 auto; width: 24px; display: flex; align-items: center; justify-content: center; }
+.mt-row .mt-icon { flex: 0 0 auto; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; }
 .mt-row .mt-icon .legend-color { width: 14px; height: 14px; border-radius: 4px; display: inline-block; border: 1px solid rgba(0,0,0,.08); }
 .mt-row .mt-name { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: 13px; color: #37474f;
                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -6935,10 +6943,14 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
             <input type="text" id="tpSearch" placeholder="گەڕان بۆ چارەسەر...">
         </div>
         <div class="tp-cats" id="tpCats"></div>
+        <!-- One card a treatment type: a click picks it, «دیارکردن» or a double click uses it -->
         <div class="tp-list" id="tpList"></div>
-        <!-- Quick add from the chart (openQuickToothAdd): cancel, or see the tooth's history -->
-        <div class="tp-foot" id="tpFoot" hidden>
-            <button type="button" class="tp-cancel" onclick="closeTreatmentPicker()"><i class="fas fa-times"></i> هەڵوەشاندنەوە</button>
+        <div class="tp-foot" id="tpFoot">
+            <div class="tp-foot-acts">
+                <button type="button" class="tp-confirm" id="tpConfirm" onclick="tpConfirmPick()" disabled>دیارکردن</button>
+                <button type="button" class="tp-cancel" onclick="closeTreatmentPicker()">هەڵوەشاندنەوە</button>
+            </div>
+            <!-- quick add for one tooth from the chart: its history -->
             <button type="button" class="tp-history" id="tpHistory" onclick="openQuickToothHistory()" hidden></button>
         </div>
     </div>
@@ -6959,115 +6971,160 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 .tp-overlay.open { display: flex; }
 .tp-sheet {
     background: var(--bg-color, #fff);
-    width: 560px;
+    width: 1040px;
     max-width: 100%;
-    max-height: 82vh;
-    border-radius: 14px;
-    box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+    max-height: 90vh;
+    border-radius: 18px;
+    box-shadow: 0 24px 64px rgba(15, 30, 60, 0.32);
     display: flex;
     flex-direction: column;
     overflow: hidden;
 }
 @media (max-width: 600px) {
     .tp-overlay { align-items: flex-end; padding: 0; }
-    .tp-sheet { width: 100%; max-height: 88vh; border-radius: 14px 14px 0 0; }
+    .tp-sheet { width: 100%; max-height: 92vh; border-radius: 18px 18px 0 0; }
 }
 .tp-head {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 14px 16px;
+    padding: 16px 20px;
     border-bottom: 1px solid var(--border-color, #e3e6ea);
 }
-.tp-head h4 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.tp-head h4 { margin: 0; font-size: 18px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
+.tp-head h4 small { font-size: 13px; font-weight: 500; color: var(--text-secondary); }
 .tp-close {
     background: var(--bg-main, #f2f4f6);
     border: none;
-    width: 30px; height: 30px;
+    width: 36px; height: 36px;
     border-radius: 50%;
     cursor: pointer;
     color: var(--text-secondary);
+    font-size: 15px;
 }
+.tp-close:hover { background: #e5e9ef; }
 .tp-search-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin: 12px 16px 0;
-    padding: 8px 12px;
-    border: 1px solid var(--border-color, #e3e6ea);
-    border-radius: 10px;
-    background: var(--bg-main, #f8f9fa);
+    gap: 10px;
+    margin: 14px 20px 0;
+    padding: 11px 16px;
+    border: 1.5px solid var(--border-color, #e3e6ea);
+    border-radius: 12px;
+    background: var(--bg-main, #f8f9fb);
 }
-.tp-search-row i { color: var(--text-secondary); font-size: 13px; }
+.tp-search-row:focus-within { border-color: #93c5fd; background: #fff; }
+.tp-search-row i { color: var(--text-secondary); font-size: 14px; }
 .tp-search-row input {
     border: none;
     outline: none;
     background: transparent;
     flex: 1;
     font-family: inherit;
-    font-size: 13px;
+    font-size: 14px;
 }
 .tp-cats {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     flex-wrap: wrap;
-    padding: 12px 16px 8px;
+    padding: 14px 20px 6px;
 }
 .tp-cat {
-    border: 1px solid var(--border-color, #e3e6ea);
+    border: 1.5px solid var(--border-color, #e3e6ea);
     background: var(--bg-color, #fff);
-    color: var(--text-secondary);
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    cursor: pointer;
-    font-family: inherit;
-}
-.tp-cat.on {
-    background: var(--win-accent, #0078d4);
-    border-color: var(--win-accent, #0078d4);
-    color: #fff;
+    color: #334155;
+    padding: 6px 18px;
+    border-radius: 999px;
+    font-size: 13px;
     font-weight: 600;
-}
-.tp-list {
-    overflow-y: auto;
-    padding: 4px 12px 14px;
-    flex: 1;
-}
-.tp-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 10px 12px;
-    margin-top: 6px;
-    border: 1px solid var(--border-color, #e3e6ea);
-    border-radius: 10px;
-    background: var(--bg-color, #fff);
     cursor: pointer;
     font-family: inherit;
-    text-align: right;
-    transition: all 0.12s;
 }
-.tp-item:hover {
-    border-color: var(--win-accent, #0078d4);
-    background: rgba(var(--win-accent-rgb, 0, 120, 212), 0.05);
+.tp-cat:hover { border-color: #93c5fd; }
+.tp-cat.on {
+    background: #1d6fe0;
+    border-color: #1d6fe0;
+    color: #fff;
 }
-.tp-item-icon { flex-shrink: 0; display: flex; align-items: center; }
-.tp-item-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--text-color, #222); }
-.tp-no-tooth { display: block; margin-top: 2px; color: #0f766e; font-size: 10px; font-weight: 600; }
-.tp-item-price { font-size: 12.5px; font-weight: 700; color: #107c10; }
-.tp-empty { text-align: center; padding: 30px 0; color: var(--text-secondary); font-size: 13px; }
-/* Quick add from the chart: tooth in the title, cancel + history underneath */
-.tp-head h4 small { font-size: 12px; font-weight: 400; color: var(--text-secondary); }
+/* the cards */
+.tp-list {
+    flex: 1;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+    align-content: start;
+    gap: 10px;
+    padding: 10px 20px 16px;
+}
+.tp-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 128px;
+    padding: 9px 9px 8px;
+    border: 1.5px solid #e4eaf1;
+    border-radius: 13px;
+    background: linear-gradient(180deg, #fff 0%, #f9fbfd 100%);
+    cursor: pointer;
+    font-family: inherit;
+    text-align: center;
+    transition: border-color .15s, box-shadow .15s, transform .15s, background-color .15s;
+}
+.tp-card:hover { border-color: #bcd4f6; box-shadow: 0 8px 20px rgba(30, 64, 120, .09); transform: translateY(-2px); }
+.tp-card:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+.tp-card.on { border-color: #1d6fe0; background: #f6f9ff; box-shadow: 0 0 0 3px rgba(29, 111, 224, .15), 0 8px 20px rgba(30, 64, 120, .1); }
+.tp-card-check {
+    position: absolute; top: 7px; right: 7px;
+    display: none; place-items: center;
+    width: 19px; height: 19px; border-radius: 50%;
+    background: #1d6fe0; color: #fff; font-size: 9px;
+    box-shadow: 0 2px 6px rgba(29, 111, 224, .35);
+}
+.tp-card.on .tp-card-check { display: grid; }
+/* ★ — the user's favourites come first */
+.tp-card-star {
+    position: absolute; top: 5px; left: 5px;
+    display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+    color: #cbd5e1; cursor: pointer; transition: color .15s, transform .15s, background-color .15s;
+}
+.tp-card-star svg { width: 16px; height: 16px; }
+.tp-card-star:hover { color: #f5b301; background: #fff7e0; transform: scale(1.12); }
+.tp-card.is-fav .tp-card-star { color: #f5b301; }
+.tp-card.is-fav { border-color: #f6dc8c; }
+.tp-card.is-fav.on { border-color: #1d6fe0; }
+.tp-card-art { width: 52px; height: 52px; margin: 2px auto 0; }
+.tp-card-name {
+    font-size: 12.5px; font-weight: 700; color: #1f2937; line-height: 1.35;
+    min-height: 2.7em;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.tp-card-foot { display: flex; align-items: center; justify-content: space-between; margin-top: auto; }
+.tp-card-price { font-size: 13px; font-weight: 800; color: #15803d; direction: ltr; }
+/* the colour the work paints on the chart, or an empty box */
+.tp-card-mark { width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid #cbd5e1; background: #fff; flex-shrink: 0; }
+.tp-card-mark.has-colour { border-color: transparent; }
+.tp-empty { grid-column: 1 / -1; text-align: center; padding: 40px 0; color: var(--text-secondary); font-size: 14px; }
 .tp-list.is-busy { opacity: .55; pointer-events: none; }
-.tp-foot[hidden] { display: none; }
-.tp-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--border-color, #e5e7eb); }
-.tp-cancel { padding: 7px 16px; border: 1px solid #d0d7de; border-radius: 8px; background: #fff; color: #444; font: inherit; font-size: 13px; cursor: pointer; }
+.tp-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 20px; border-top: 1px solid var(--border-color, #e5e7eb); }
+.tp-foot-acts { display: flex; gap: 10px; }
+.tp-confirm { padding: 11px 38px; border: 0; border-radius: 12px; background: #1d6fe0; color: #fff; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+              box-shadow: 0 6px 16px rgba(29, 111, 224, .28); }
+.tp-confirm:hover:not(:disabled) { background: #175fc4; }
+.tp-confirm:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+.tp-cancel { padding: 11px 24px; border: 1.5px solid #d0d7de; border-radius: 12px; background: #fff; color: #334155; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
 .tp-cancel:hover { background: #f3f4f6; }
-.tp-history { padding: 6px 10px; border: 0; background: transparent; color: var(--text-accent, #0067C0); font: inherit; font-size: 12.5px; cursor: pointer; }
+.tp-history { padding: 6px 10px; border: 0; background: transparent; color: var(--text-accent, #0067C0); font: inherit; font-size: 13px; cursor: pointer; }
 .tp-history[hidden] { display: none; }
 .tp-history:hover { text-decoration: underline; }
+@media (max-width: 600px) {
+    .tp-list { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; padding: 8px 12px 14px; }
+    .tp-card { min-height: 120px; padding: 8px 7px 7px; }
+    .tp-card-art { width: 46px; height: 46px; }
+    .tp-card-name { font-size: 12px; }
+    .tp-foot { padding: 10px 12px; }
+    .tp-confirm { padding: 10px 26px; }
+}
 
 /* Picker trigger button inside the add dialog */
 .tp-trigger {
@@ -7087,7 +7144,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
     text-align: right;
 }
 .tp-trigger:hover { border-color: var(--win-accent, #0078d4); }
-.tp-btn-icon { display: flex; align-items: center; flex-shrink: 0; }
+.tp-btn-icon { display: flex; align-items: center; flex-shrink: 0; width: 26px; height: 26px; }
 .tp-btn-name { flex: 1; color: var(--text-color, #222); font-weight: 600; }
 .tp-btn-price { font-weight: 700; color: #107c10; font-size: 12.5px; }
 
@@ -7567,7 +7624,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 
 <!-- Add New Treatment (to treatments table) Dialog -->
 <div class="dialog-overlay" id="addNewTreatmentDialog">
-    <div class="dialog" style="max-width: 420px;">
+    <div class="dialog" style="max-width: 540px;">
         <div class="dialog-header" style="background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%); color: #fff;">
             <h4 class="dialog-title" style="color: #fff;"><i class="fas fa-briefcase-medical"></i> زیادکردنی چارەسەری نوێ</h4>
             <button class="dialog-close" onclick="closeDialog('addNewTreatmentDialog')" style="color:#fff;"><i class="fas fa-times"></i></button>
@@ -7598,6 +7655,11 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
                     <option value="cosmetic">جوانکاری</option>
                     <option value="surgery">نەشتەرگەری</option>
                 </select>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="display:block; margin-bottom:6px; font-weight:600; font-size:13px;"><i class="fas fa-icons"></i> ئایکۆن <span style="color:#f44336;">*</span>
+                    <span class="mt-icon-name" id="newTreatmentIconName"></span></label>
+                <div id="newTreatmentIcons"></div>
             </div>
             <div id="newTreatmentError" style="color:#f44336; font-size:12px; margin-top:6px; display:none;"></div>
         </div>
@@ -10609,6 +10671,7 @@ function openDeleteInvoiceDialog(invoiceId, invoiceNumber) {
     <?php endif; ?>
 </div>
 
+<script src="<?= asset_url('assets/js/treatment-icons.js') ?>"></script>
 <script>
 console.log('=== SCRIPT STARTING ===');
 
@@ -10656,12 +10719,15 @@ let toothTreatmentMap = <?= json_encode($toothTreatmentMap, JSON_HEX_TAG | JSON_
 let serviceTreatmentRows = <?= json_encode($serviceTreatmentRows, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
 console.log('toothTreatmentMap loaded');
 
-// Treatment catalog for the searchable picker (id, name, category, price)
-let treatmentCatalog = <?= json_encode(array_map(function ($t) {
+// Treatment catalog for the searchable picker (id, name, category, price, ★)
+<?php $favoriteTreatmentIds = $treatmentManager->favoriteIds((int)($currentUser['id'] ?? 0)); ?>
+let treatmentCatalog = <?= json_encode(array_map(function ($t) use ($favoriteTreatmentIds) {
     return [
         'id' => (int)$t['id'],
         'name' => $t['treatment_name'],
         'category' => $t['category'] ?? 'other',
+        'icon' => $t['icon'] ?? null,
+        'fav' => in_array((int)$t['id'], $favoriteTreatmentIds, true),
         'price' => (float)$t['default_price'],
         'requiresTooth' => (int)($t['requires_tooth_number'] ?? 1) === 1
     ];
@@ -11699,26 +11765,56 @@ function onDialogToothChange() {
 // ═══ Searchable, categorized treatment picker ═══
 let tpActiveCat = 'all';
 
-function categoryIconFor(t) {
+/** A treatment type's illustrated icon (assets/js/treatment-icons.js). */
+function treatmentIconSvg(t) {
+    return window.TreatmentIcons ? TreatmentIcons.svg(TreatmentIcons.keyFor(t)) : '';
+}
+/** The colour the work paints on the chart, if it paints one. */
+function tpMarkColour(t) {
     switch (t.category) {
-        case 'filling':
-            return legendSample('chip', /کۆمپۆزیت|كۆمپۆزیت|composite/i.test(t.name) ? CHART_COLORS.composite : CHART_COLORS.amalgam);
-        case 'root_canal': return legendSample('canal');
-        case 'crown':
-        case 'bridge': return legendSample('crown');
-        case 'implant': return legendSample('implant');
-        case 'extraction':
-        case 'surgery': return legendSample('extract');
-        case 'cleaning': return legendSample('sparkle', CHART_COLORS.cleaning);
-        case 'whitening': return legendSample('sparkle', CHART_COLORS.whitening);
-        case 'cosmetic': return legendSample('chip', CHART_COLORS.cosmetic);
-        default: return legendSample('chip', CHART_COLORS.other);
+        case 'filling': return /کۆمپۆزیت|كۆمپۆزیت|composite/i.test(t.name) ? CHART_COLORS.composite : CHART_COLORS.amalgam;
+        case 'cosmetic': return CHART_COLORS.cosmetic;
+        case 'examination': return CHART_COLORS.other;
+        default: return '';
     }
+}
+
+// ★ on a card: the user's own favourites, shown first (saved per user,
+// api/treatments.php?action=favorite).
+const TP_STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.5l-5.9 3.1 1.2-6.5-4.8-4.6 6.6-.9z" fill="currentColor"/></svg>';
+function tpToggleFavorite(id) {
+    const t = treatmentCatalog.find(x => Number(x.id) === id);
+    if (!t) return;
+    t.fav = !t.fav;
+    renderTreatmentPicker();
+    mtPost({ action: 'favorite', id: id, on: t.fav })
+        .then(d => { if (!d.success) throw new Error(d.message || ''); })
+        .catch(() => {
+            t.fav = !t.fav;
+            renderTreatmentPicker();
+            toast('error', 'نەتوانرا ئەستێرەکە پاشەکەوت بکرێت');
+        });
+}
+
+// A click picks a card, «دیارکردن» (or a double click, or Enter) uses it.
+let tpSelectedId = null;
+function tpPaintSelection() {
+    document.querySelectorAll('#tpList .tp-card').forEach(c =>
+        c.classList.toggle('on', Number(c.dataset.id) === tpSelectedId));
+    const ok = document.getElementById('tpConfirm');
+    if (ok) ok.disabled = tpSelectedId === null || quickAddBusy;
+}
+function tpConfirmPick() {
+    if (tpSelectedId === null || quickAddBusy) return;
+    if (tpQuickTeeth !== null) quickAddTreatment(tpSelectedId); else chooseTreatment(tpSelectedId);
 }
 
 function openTreatmentPicker() {
     const ov = document.getElementById('treatmentPicker');
     if (!ov) return;
+    // from the add dialog: the treatment already chosen there starts picked
+    const sel = document.getElementById('treatmentSelect');
+    tpSelectedId = sel && sel.value ? parseInt(sel.value, 10) : null;
     ov.classList.add('open');
     renderTreatmentPicker();
     setTimeout(() => document.getElementById('tpSearch')?.focus(), 60);
@@ -11752,14 +11848,16 @@ function toothTag(num) {
 function setQuickToothMode(nums) {
     tpQuickTeeth = nums === null ? null : [].concat(nums);
     const title = document.getElementById('tpTitle');
-    const foot = document.getElementById('tpFoot');
-    if (!title || !foot) return;
+    if (!title) return;
     const history = document.getElementById('tpHistory');
     if (tpQuickTeeth === null) {
         title.innerHTML = '<i class="fas fa-briefcase-medical"></i> هەڵبژاردنی چارەسەر';
-        foot.hidden = true;
+        if (history) history.hidden = true;
         return;
     }
+    // work for teeth on the chart: nothing picked yet
+    tpSelectedId = null;
+    tpPaintSelection();
     if (tpQuickTeeth.length === 1) {
         const num = tpQuickTeeth[0];
         title.innerHTML = '<i class="fas fa-tooth"></i> ددان ' + escapeHtml(String(palmerOf(num)))
@@ -11775,7 +11873,6 @@ function setQuickToothMode(nums) {
             + ' — هەر ددانێک بە نرخی خۆی</small>';
         if (history) history.hidden = true;
     }
-    foot.hidden = false;
 }
 function openQuickToothAdd(num) {
     openTreatmentPicker();
@@ -11791,6 +11888,7 @@ function quickAddTreatment(id) {
     const t = treatmentCatalog.find(x => x.id === id);
     if (!t || quickAddBusy || !tpQuickTeeth || !tpQuickTeeth.length) return;
     quickAddBusy = true;
+    tpPaintSelection();
     const teeth = tpQuickTeeth.slice();
     const fd = new FormData();
     fd.set('csrf_token', window.CSRF_TOKEN || CSRF_TOKEN);
@@ -11827,6 +11925,7 @@ function quickAddTreatment(id) {
         .finally(() => {
             quickAddBusy = false;
             document.getElementById('tpList')?.classList.remove('is-busy');
+            tpPaintSelection();
         });
 }
 function openQuickToothHistory() {
@@ -11856,30 +11955,54 @@ function renderTreatmentPicker() {
     const rows = treatmentCatalog.filter(t =>
         (tpActiveCat === 'all' || (t.category || 'other') === tpActiveCat) &&
         (!q || t.name.toLowerCase().includes(q))
-    );
-    listEl.innerHTML = rows.length ? rows.map(t =>
-        `<button type="button" class="tp-item" data-id="${t.id}">
-            <span class="tp-item-icon">${categoryIconFor(t)}</span>
-            <span class="tp-item-name">${escapeHtml(t.name)}</span>
-            <span class="tp-item-price">${numberFormat(t.price)}</span>
-        </button>`
-    ).join('') : '<div class="tp-empty">هیچ چارەسەرێک نەدۆزرایەوە</div>';
+    ).sort((a, b) => (b.fav ? 1 : 0) - (a.fav ? 1 : 0));   // stable: ★ first, else as listed
+    listEl.innerHTML = rows.length ? rows.map(t => {
+        const colour = tpMarkColour(t);
+        return `<button type="button" class="tp-card${t.fav ? ' is-fav' : ''}" data-id="${t.id}">
+            <span class="tp-card-check"><i class="fas fa-check"></i></span>
+            <span class="tp-card-star" data-star="${t.id}" role="button"
+                  title="${t.fav ? 'لابردن لە دڵخوازەکان' : 'دڵخواز — لە سەرەتای لیستەکە پیشان بدرێت'}">${TP_STAR}</span>
+            <span class="tp-card-art">${treatmentIconSvg(t)}</span>
+            <span class="tp-card-name">${escapeHtml(t.name)}</span>
+            <span class="tp-card-foot">
+                <span class="tp-card-mark${colour ? ' has-colour' : ''}"${colour ? ` style="background:${colour}" title="ڕەنگی سەر چارت"` : ''}></span>
+                <span class="tp-card-price">${numberFormat(t.price)}</span>
+            </span>
+        </button>`;
+    }).join('') : '<div class="tp-empty">هیچ چارەسەرێک نەدۆزرایەوە</div>';
+    tpPaintSelection();
 }
 
 document.addEventListener('click', function (e) {
     const cat = e.target.closest('#tpCats .tp-cat');
     if (cat) { tpActiveCat = cat.dataset.cat; renderTreatmentPicker(); return; }
-    const item = e.target.closest('#tpList .tp-item');
-    if (item) {
-        const id = parseInt(item.dataset.id, 10);
-        if (tpQuickTeeth !== null) quickAddTreatment(id); else chooseTreatment(id);
+    const star = e.target.closest('#tpList .tp-card-star');
+    if (star) { tpToggleFavorite(parseInt(star.dataset.star, 10)); return; }
+    const card = e.target.closest('#tpList .tp-card');
+    if (card) {
+        tpSelectedId = parseInt(card.dataset.id, 10);
+        tpPaintSelection();
         return;
     }
     const ov = document.getElementById('treatmentPicker');
     if (ov && e.target === ov) closeTreatmentPicker();
 });
+document.addEventListener('dblclick', function (e) {
+    const card = e.target.closest('#tpList .tp-card');
+    if (!card || e.target.closest('.tp-card-star')) return;
+    tpSelectedId = parseInt(card.dataset.id, 10);
+    tpConfirmPick();
+});
 document.addEventListener('input', function (e) {
     if (e.target && e.target.id === 'tpSearch') renderTreatmentPicker();
+});
+// Enter in the search: uses the picked card, or picks the first one shown
+document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || !e.target || e.target.id !== 'tpSearch') return;
+    e.preventDefault();
+    const shown = Array.from(document.querySelectorAll('#tpList .tp-card')).map(c => Number(c.dataset.id));
+    if (tpSelectedId !== null && shown.includes(tpSelectedId)) tpConfirmPick();
+    else if (shown.length) { tpSelectedId = shown[0]; tpPaintSelection(); }
 });
 document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && document.getElementById('treatmentPicker')?.classList.contains('open')) {
@@ -11904,7 +12027,7 @@ function updatePickerBtn() {
     if (!btn || !sel) return;
     const t = treatmentCatalog.find(x => String(x.id) === sel.value);
     btn.innerHTML = t
-        ? `<span class="tp-btn-icon">${categoryIconFor(t)}</span><span class="tp-btn-name">${escapeHtml(t.name)}</span><span class="tp-btn-price">${numberFormat(t.price)}</span>`
+        ? `<span class="tp-btn-icon">${treatmentIconSvg(t)}</span><span class="tp-btn-name">${escapeHtml(t.name)}</span><span class="tp-btn-price">${numberFormat(t.price)}</span>`
         : '<i class="fas fa-hand-pointer"></i> هەڵبژاردنی چارەسەر...';
 }
 
@@ -13366,12 +13489,14 @@ let mtData = <?= json_encode(array_values(array_map(function ($t) {
         'name'     => $t['treatment_name'],
         'price'    => (float)$t['default_price'],
         'category' => $t['category'] ?? 'other',
+        'icon'     => $t['icon'] ?? null,
         'scope'    => $t['scope'] ?? 'both',
         'requiresTooth' => (int)($t['requires_tooth_number'] ?? 1) === 1,
     ];
 }, array_filter($treatments, fn($t) => (int)($t['is_active'] ?? 1) === 1))),
     JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
 let mtEditingId = null;
+let mtNewIconPicker = null, mtEditIconPicker = null;
 const MT_SCOPE_LABELS = { tooth: 'ددان', arch: 'ئەرک', both: 'هەردوو' };
 const CASE_TREATMENT_SCOPE = <?= json_encode(($case['scope_type'] ?? 'tooth') === 'arch' ? 'arch' : 'tooth') ?>;
 
@@ -13390,13 +13515,14 @@ function mtSyncTreatmentCatalog(raw) {
     const requiresTooth = raw.requires_tooth_number != null
         ? Number(raw.requires_tooth_number) === 1
         : raw.requiresTooth !== false;
-    const item = { id: id, name: name, price: price, category: category, scope: scope, requiresTooth: requiresTooth };
+    const icon = raw.icon || null;
+    const item = { id: id, name: name, price: price, category: category, icon: icon, scope: scope, requiresTooth: requiresTooth };
     const appliesHere = scope === CASE_TREATMENT_SCOPE || scope === 'both';
     const at = treatmentCatalog.findIndex(t => Number(t.id) === id);
 
     if (appliesHere) {
         if (at === -1) treatmentCatalog.push(item);
-        else treatmentCatalog[at] = item;
+        else { item.fav = !!treatmentCatalog[at].fav; treatmentCatalog[at] = item; }
     } else if (at !== -1) {
         treatmentCatalog.splice(at, 1);
     }
@@ -13457,8 +13583,29 @@ function mtFillCategorySelect(sel, current) {
     ).join('');
 }
 
+/** An icon chooser that names the chosen icon in nameEl. */
+function mtIconChooser(el, value, nameEl) {
+    if (!el || !window.TreatmentIcons) return null;
+    if (nameEl) nameEl.textContent = value ? TreatmentIcons.label(value) : '';
+    return TreatmentIcons.chooser(el, {
+        value: value,
+        onChange: k => { if (nameEl) nameEl.textContent = TreatmentIcons.label(k); }
+    });
+}
+// While a new type's name is typed, ring the icon it points at (a hint only:
+// the icon still has to be clicked).
+document.addEventListener('input', function (e) {
+    if (!window.TreatmentIcons || !e.target) return;
+    if (e.target.id === 'mtNewName' && mtNewIconPicker) {
+        mtNewIconPicker.suggest(e.target.value.trim() ? TreatmentIcons.guess(e.target.value, '') : '');
+    } else if (e.target.id === 'newTreatmentName' && newTreatmentIconPicker) {
+        newTreatmentIconPicker.suggest(e.target.value.trim() ? TreatmentIcons.guess(e.target.value, '') : '');
+    }
+});
+
 function openManageTreatmentsDialog() {
     mtEditingId = null;
+    mtNewIconPicker = mtIconChooser(document.getElementById('mtNewIcons'), '', document.getElementById('mtNewIconName'));
     document.getElementById('mtNewName').value = '';
     document.getElementById('mtNewPrice').value = 0;
     document.getElementById('mtSearch').value = '';
@@ -13502,6 +13649,8 @@ function mtRender() {
                       '<option value="tooth">ددان</option><option value="arch">ئەرک</option><option value="both">هەردوو</option>' +
                     '</select>' +
                   '</div>' +
+                  '<div class="mt-icon-label">ئایکۆن <span class="mt-icon-name" id="mtEditIconName_' + t.id + '"></span></div>' +
+                  '<div class="mt-edit-icons" id="mtEditIcons_' + t.id + '"></div>' +
                   '<div class="mt-edit-acts">' +
                     '<button type="button" class="mt-save" onclick="mtSaveEdit(' + t.id + ')"><i class="fas fa-check"></i> پاشەکەوت</button>' +
                     '<button type="button" class="mt-cancel" onclick="mtCancelEdit()"><i class="fas fa-times"></i> پاشگەزبوونەوە</button>' +
@@ -13511,7 +13660,7 @@ function mtRender() {
         }
         return (
             '<div class="mt-row" data-id="' + t.id + '">' +
-              '<span class="mt-icon">' + categoryIconFor(t) + '</span>' +
+              '<span class="mt-icon">' + treatmentIconSvg(t) + '</span>' +
               '<span class="mt-name" title="' + escapeHtml(t.name) + '">' + escapeHtml(t.name) + '</span>' +
               '<span class="mt-cat">' + (CATEGORY_LABELS[t.category] || 'تر') + '</span>' +
               '<span class="mt-price">' + numberFormat(t.price) + '</span>' +
@@ -13527,6 +13676,9 @@ function mtRender() {
         if (t) {
             mtFillCategorySelect(document.getElementById('mtEditCategory_' + t.id), t.category);
             const sc = document.getElementById('mtEditScope_' + t.id); if (sc) sc.value = t.scope;
+            // a type saved before icons existed starts on the icon its card shows now
+            mtEditIconPicker = mtIconChooser(document.getElementById('mtEditIcons_' + t.id),
+                window.TreatmentIcons ? TreatmentIcons.keyFor(t) : '', document.getElementById('mtEditIconName_' + t.id));
         }
     }
 }
@@ -13547,20 +13699,28 @@ function mtAdd() {
     const category = document.getElementById('mtNewCategory').value || 'other';
     const scope = document.getElementById('mtNewScope').value || 'tooth';
     const requiresTooth = true;   // tooth number is optional for every treatment
+    const icon = mtNewIconPicker ? mtNewIconPicker.get() : '';
     const err = document.getElementById('mtAddErr');
     const btn = document.getElementById('mtAddBtn');
     err.style.display = 'none';
     if (!name) { err.textContent = 'تکایە ناوی چارەسەر بنووسە'; err.style.display = 'block'; return; }
+    if (mtNewIconPicker && !icon) {
+        err.textContent = 'تکایە ئایکۆنێک بۆ چارەسەرەکە هەڵبژێرە';
+        err.style.display = 'block';
+        mtNewIconPicker.missing();
+        return;
+    }
 
     btn.disabled = true;
-    mtPost({ action: 'add', treatment_name: name, default_price: price, category: category, scope: scope, requires_tooth_number: requiresTooth })
+    mtPost({ action: 'add', treatment_name: name, default_price: price, category: category, icon: icon, scope: scope, requires_tooth_number: requiresTooth })
         .then(d => {
             btn.disabled = false;
             if (!d.success) { err.textContent = d.message || 'هەڵەیەک ڕوویدا'; err.style.display = 'block'; return; }
-            mtData.push({ id: parseInt(d.id, 10), name: d.treatment_name, price: parseFloat(d.default_price) || 0, category: d.category, scope: d.scope, requiresTooth: Number(d.requires_tooth_number) === 1 });
+            mtData.push({ id: parseInt(d.id, 10), name: d.treatment_name, price: parseFloat(d.default_price) || 0, category: d.category, icon: d.icon || null, scope: d.scope, requiresTooth: Number(d.requires_tooth_number) === 1 });
             mtSyncTreatmentCatalog(d);
             document.getElementById('mtNewName').value = '';
             document.getElementById('mtNewPrice').value = 0;
+            mtNewIconPicker = mtIconChooser(document.getElementById('mtNewIcons'), '', document.getElementById('mtNewIconName'));
             mtRender();
         })
         .catch(e => { btn.disabled = false; err.textContent = 'کێشەی پەیوەندی: ' + e.message; err.style.display = 'block'; });
@@ -13574,14 +13734,15 @@ function mtSaveEdit(id) {
     const price = document.getElementById('mtEditPrice_' + id).value || 0;
     const category = document.getElementById('mtEditCategory_' + id).value || 'other';
     const scope = document.getElementById('mtEditScope_' + id).value || 'tooth';
+    const icon = mtEditIconPicker ? mtEditIconPicker.get() : '';
     const requiresTooth = true;   // tooth number is optional for every treatment
     if (!name) { alert('تکایە ناوی چارەسەر بنووسە'); return; }
 
-    mtPost({ action: 'update', id: id, treatment_name: name, default_price: price, category: category, scope: scope, requires_tooth_number: requiresTooth })
+    mtPost({ action: 'update', id: id, treatment_name: name, default_price: price, category: category, icon: icon, scope: scope, requires_tooth_number: requiresTooth })
         .then(d => {
             if (!d.success) { alert(d.message || 'هەڵەیەک ڕوویدا'); return; }
             const t = mtData.find(x => x.id === id);
-            if (t) { t.name = d.treatment_name; t.price = parseFloat(d.default_price) || 0; t.category = d.category; t.scope = d.scope; t.requiresTooth = Number(d.requires_tooth_number) === 1; }
+            if (t) { t.name = d.treatment_name; t.price = parseFloat(d.default_price) || 0; t.category = d.category; t.icon = d.icon || null; t.scope = d.scope; t.requiresTooth = Number(d.requires_tooth_number) === 1; }
             mtSyncTreatmentCatalog(d);
             mtEditingId = null;
             mtRender();
@@ -13819,7 +13980,9 @@ function updateTreatmentPrice() {
 }
 
 // ── Add-new-treatment dialog ──
+let newTreatmentIconPicker = null;
 function openAddTreatmentDialog() {
+    newTreatmentIconPicker = mtIconChooser(document.getElementById('newTreatmentIcons'), '', document.getElementById('newTreatmentIconName'));
     document.getElementById('newTreatmentName').value = '';
     document.getElementById('newTreatmentPrice').value = '';
     document.getElementById('newTreatmentCategory').value = 'other';
@@ -13841,9 +14004,16 @@ function submitNewTreatment() {
 
     const name = (nameEl.value || '').trim();
     const price = priceEl.value || '0';
+    const icon = newTreatmentIconPicker ? newTreatmentIconPicker.get() : '';
 
     err.style.display = 'none';
     if (!name) { err.textContent = 'تکایە ناوی چارەسەر بنووسە'; err.style.display = 'block'; return; }
+    if (newTreatmentIconPicker && !icon) {
+        err.textContent = 'تکایە ئایکۆنێک بۆ چارەسەرەکە هەڵبژێرە';
+        err.style.display = 'block';
+        newTreatmentIconPicker.missing();
+        return;
+    }
 
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> پاشەکەوت دەکرێت...';
@@ -13857,6 +14027,7 @@ function submitNewTreatment() {
             default_price: price,
             scope: 'tooth',
             category: catEl.value || 'other',
+            icon: icon,
             requires_tooth_number: true
         })
     })
@@ -13888,6 +14059,7 @@ function submitNewTreatment() {
             id: parseInt(d.id, 10),
             name: d.treatment_name,
             category: d.category || catEl.value || 'other',
+            icon: d.icon || null,
             price: parseFloat(d.default_price) || 0,
             requiresTooth: Number(d.requires_tooth_number) === 1
         });

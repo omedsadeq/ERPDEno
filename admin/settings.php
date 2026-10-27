@@ -198,6 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             'treatment_name' => trim($_POST['treatment_name']),
             'treatment_name_en' => trim($_POST['treatment_name_en'] ?? ''),
             'category' => $_POST['category'],
+            'icon' => Treatment::cleanIcon($_POST['icon'] ?? ''),
             'scope' => $_POST['scope'] ?? 'both',
             'default_price' => floatval($_POST['default_price']),
             'description' => trim($_POST['description'] ?? ''),
@@ -210,6 +211,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             'treatment_name' => trim($_POST['treatment_name']),
             'treatment_name_en' => trim($_POST['treatment_name_en'] ?? ''),
             'category' => $_POST['category'],
+            'icon' => Treatment::cleanIcon($_POST['icon'] ?? ''),
             'scope' => $_POST['scope'] ?? 'both',
             'default_price' => floatval($_POST['default_price']),
             'description' => trim($_POST['description'] ?? ''),
@@ -1206,7 +1208,11 @@ require_once __DIR__ . '/../includes/header.php';
                     ?>
                     <tr class="<?= !$t['is_active'] ? 'opacity-50' : '' ?>">
                         <td><?= $t['treatment_code'] ?></td>
-                        <td><?= htmlspecialchars($t['treatment_name']) ?></td>
+                        <td>
+                            <span class="tr-icon" data-icon="<?= htmlspecialchars((string)($t['icon'] ?? '')) ?>"
+                                  data-name="<?= htmlspecialchars($t['treatment_name']) ?>" data-category="<?= htmlspecialchars($t['category']) ?>"></span>
+                            <?= htmlspecialchars($t['treatment_name']) ?>
+                        </td>
                         <td><span class="badge"><?= $treatmentCategories[$t['category']] ?? $t['category'] ?></span></td>
                         <td>
                             <span class="badge" style="background: <?= $scopeColors[$t['scope'] ?? 'both'] ?>;">
@@ -1312,8 +1318,9 @@ require_once __DIR__ . '/../includes/header.php';
             <h4 class="dialog-title">زیادکردنی چارەسەر</h4>
             <button class="dialog-close" onclick="closeDialog('addTreatmentDialog')"><i class="fas fa-times"></i></button>
         </div>
-        <form method="POST" action="">
+        <form method="POST" action="" onsubmit="return checkTreatmentIcon()">
             <input type="hidden" name="action" value="add_treatment">
+            <input type="hidden" name="icon" id="add_t_icon">
             <div class="dialog-body">
                 <div class="form-group">
                     <label class="form-label required">ناوی چارەسەر (کوردی)</label>
@@ -1347,6 +1354,11 @@ require_once __DIR__ . '/../includes/header.php';
                     <small style="color: #666; font-size: 11px;">کام جۆری کەیس ئەم چارەسەرە پیشان دەدرێت</small>
                 </div>
                 <div class="form-group">
+                    <label class="form-label required">ئایکۆن <span class="tr-icon-name" id="add_t_icon_name"></span></label>
+                    <div id="add_t_icons"></div>
+                    <small id="add_t_icon_err" style="display: none; color: #dc2626; font-size: 12px;">تکایە ئایکۆنێک بۆ چارەسەرەکە هەڵبژێرە</small>
+                </div>
+                <div class="form-group">
                     <label class="form-label">وەسف</label>
                     <textarea name="description" class="form-control" rows="2"></textarea>
                 </div>
@@ -1369,6 +1381,7 @@ require_once __DIR__ . '/../includes/header.php';
         <form method="POST" action="">
             <input type="hidden" name="action" value="update_treatment">
             <input type="hidden" name="treatment_id" id="edit_t_id">
+            <input type="hidden" name="icon" id="edit_t_icon">
             <div class="dialog-body">
                 <div class="form-group">
                     <label class="form-label required">ناوی چارەسەر (کوردی)</label>
@@ -1402,6 +1415,10 @@ require_once __DIR__ . '/../includes/header.php';
                     <small style="color: #666; font-size: 11px;">کام جۆری کەیس ئەم چارەسەرە پیشان دەدرێت</small>
                 </div>
                 <div class="form-group">
+                    <label class="form-label">ئایکۆن <span class="tr-icon-name" id="edit_t_icon_name"></span></label>
+                    <div id="edit_t_icons"></div>
+                </div>
+                <div class="form-group">
                     <label class="form-label">وەسف</label>
                     <textarea name="description" id="edit_t_desc" class="form-control" rows="2"></textarea>
                 </div>
@@ -1418,7 +1435,45 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<style>
+.tr-icon { display: inline-block; width: 30px; height: 30px; vertical-align: middle; margin-inline-end: 8px; }
+.tr-icon-name { margin-inline-start: 6px; padding: 2px 9px; border-radius: 999px; background: #e0ecff; color: #1d4ed8; font-size: 12px; font-weight: 600; }
+.tr-icon-name:empty { display: none; }
+#addTreatmentDialog .dialog, #editTreatmentDialog .dialog { max-width: 640px; }
+</style>
+<script src="<?= asset_url('assets/js/treatment-icons.js') ?>"></script>
 <script>
+// Treatment types: the icon their card shows in a case's treatment picker.
+// Required for a new type; one made before icons existed shows (and starts
+// editing on) the icon guessed from its name.
+document.querySelectorAll('.tr-icon').forEach(el => {
+    el.innerHTML = TreatmentIcons.svg(TreatmentIcons.keyFor({ icon: el.dataset.icon, name: el.dataset.name, category: el.dataset.category }));
+});
+function treatmentIconChooser(prefix, value) {
+    const input = document.getElementById(prefix + '_icon'), name = document.getElementById(prefix + '_icon_name');
+    input.value = value || '';
+    name.textContent = value ? TreatmentIcons.label(value) : '';
+    return TreatmentIcons.chooser(document.getElementById(prefix + '_icons'), {
+        value: value,
+        onChange: k => {
+            input.value = k;
+            name.textContent = TreatmentIcons.label(k);
+            const err = document.getElementById(prefix + '_icon_err');
+            if (err) err.style.display = 'none';
+        }
+    });
+}
+const addTreatmentIcons = treatmentIconChooser('add_t', '');
+document.querySelector('#addTreatmentDialog [name="treatment_name"]')?.addEventListener('input', function () {
+    addTreatmentIcons.suggest(this.value.trim() ? TreatmentIcons.guess(this.value, '') : '');
+});
+function checkTreatmentIcon() {
+    if (document.getElementById('add_t_icon').value) return true;
+    document.getElementById('add_t_icon_err').style.display = 'block';
+    addTreatmentIcons.missing();
+    return false;
+}
+
 document.getElementById('appFontScaleSelect')?.addEventListener('change', function() {
     const scale = parseFloat(this.value || '1');
     document.documentElement.style.setProperty('--app-font-scale', scale.toFixed(2));
@@ -1434,6 +1489,7 @@ function editTreatment(t) {
     document.getElementById('edit_t_price').value = t.default_price;
     document.getElementById('edit_t_desc').value = t.description || '';
     document.getElementById('edit_t_active').checked = t.is_active == 1;
+    treatmentIconChooser('edit_t', TreatmentIcons.keyFor({ icon: t.icon, name: t.treatment_name, category: t.category }));
     openDialog('editTreatmentDialog');
 }
 

@@ -8,6 +8,7 @@ header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Database.php';
 require_once __DIR__ . '/../classes/Auth.php';
+require_once __DIR__ . '/../classes/Treatment.php';
 
 $db   = Database::getInstance();
 $auth = new Auth();
@@ -28,7 +29,7 @@ if (!in_array($action, ['list', 'lookup', 'compute', 'get', 'search', 'view', 'f
 if ($action === 'list') {
     $scope = $_GET['scope'] ?? $input['scope'] ?? 'tooth';
     $rows = $db->fetchAll(
-        "SELECT id, treatment_code, treatment_name, default_price, scope, category, requires_tooth_number
+        "SELECT id, treatment_code, treatment_name, default_price, scope, category, icon, requires_tooth_number
          FROM treatments
          WHERE is_active = 1 AND (scope = :scope OR scope = 'both')
          ORDER BY treatment_name",
@@ -43,6 +44,7 @@ if ($action === 'add') {
     $priceRaw = $input['default_price'] ?? $_POST['default_price'] ?? '';
     $scope    = $input['scope']          ?? $_POST['scope']          ?? 'tooth';
     $category = $input['category']       ?? $_POST['category']       ?? 'other';
+    $icon     = Treatment::cleanIcon($input['icon'] ?? $_POST['icon'] ?? '');
     $requiresTooth = filter_var(
         $input['requires_tooth_number'] ?? $_POST['requires_tooth_number'] ?? true,
         FILTER_VALIDATE_BOOLEAN,
@@ -71,6 +73,7 @@ if ($action === 'add') {
             'treatment_code' => $code,
             'treatment_name' => $name,
             'category'       => $category,
+            'icon'           => $icon,
             'scope'          => $scope,
             'requires_tooth_number' => $requiresTooth ? 1 : 0,
             'default_price'  => $price,
@@ -85,6 +88,7 @@ if ($action === 'add') {
             'scope'          => $scope,
             'requires_tooth_number' => $requiresTooth ? 1 : 0,
             'category'       => $category,
+            'icon'           => $icon,
         ]);
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
@@ -98,6 +102,7 @@ if ($action === 'update') {
     $priceRaw = $input['default_price'] ?? $_POST['default_price'] ?? '';
     $scope    = $input['scope']          ?? $_POST['scope']          ?? 'tooth';
     $category = $input['category']       ?? $_POST['category']       ?? 'other';
+    $icon     = Treatment::cleanIcon($input['icon'] ?? $_POST['icon'] ?? '');
     $requiresTooth = filter_var(
         $input['requires_tooth_number'] ?? $_POST['requires_tooth_number'] ?? true,
         FILTER_VALIDATE_BOOLEAN,
@@ -126,6 +131,7 @@ if ($action === 'update') {
         $db->update('treatments', [
             'treatment_name' => $name,
             'category'       => $category,
+            'icon'           => $icon,
             'scope'          => $scope,
             'requires_tooth_number' => $requiresTooth ? 1 : 0,
             'default_price'  => $price,
@@ -138,7 +144,25 @@ if ($action === 'update') {
             'scope'          => $scope,
             'requires_tooth_number' => $requiresTooth ? 1 : 0,
             'category'       => $category,
+            'icon'           => $icon,
         ]);
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    }
+    exit;
+}
+
+if ($action === 'favorite') {
+    // ★ on a treatment card: the signed-in user's own favourites
+    $id = (int)($input['id'] ?? $_POST['id'] ?? 0);
+    $on = filter_var($input['on'] ?? $_POST['on'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    if ($id <= 0 || !$db->fetch("SELECT id FROM treatments WHERE id = :id", ['id' => $id])) {
+        echo json_encode(['success' => false, 'message' => 'چارەسەر نەدۆزرایەوە']);
+        exit;
+    }
+    try {
+        (new Treatment())->setFavorite((int)$auth->getCurrentUserId(), $id, $on);
+        echo json_encode(['success' => true, 'id' => $id, 'on' => $on]);
     } catch (Exception $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }

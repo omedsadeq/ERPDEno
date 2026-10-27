@@ -8,6 +8,19 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/Database.php';
 
 class Treatment {
+    /** The icon keys a treatment type may carry (drawn by assets/js/treatment-icons.js). */
+    const ICONS = [
+        'exam', 'filling', 'filling_cosmetic', 'temporary', 'cleaning', 'extraction', 'surgical_extraction',
+        'root_canal', 'retreatment', 'post', 'crown', 'crown_metal', 'cementation', 'bridge', 'implant',
+        'orthodontic', 'whitening', 'veneer', 'gem', 'pediatric', 'surgery', 'denture', 'xray', 'other',
+    ];
+
+    /** A known icon key, or null (no icon: the picker guesses one from the name). */
+    public static function cleanIcon($key): ?string {
+        $key = trim((string)$key);
+        return in_array($key, self::ICONS, true) ? $key : null;
+    }
+
     private $db;
 
     public function __construct() {
@@ -94,6 +107,27 @@ class Treatment {
                 AND (scope = :scope OR scope = 'both')
                 ORDER BY category, treatment_name";
         return $this->db->fetchAll($sql, ['scope' => $scope]);
+    }
+
+    /** The treatment types a user starred (★ in the treatment picker), as ids. */
+    public function favoriteIds($userId) {
+        $rows = $this->db->fetchAll(
+            "SELECT treatment_id FROM user_treatment_favorites WHERE user_id = :u",
+            ['u' => (int)$userId]
+        );
+        return array_map(fn($r) => (int)$r['treatment_id'], $rows);
+    }
+
+    /** Star or unstar a treatment type for one user. */
+    public function setFavorite($userId, $treatmentId, $on) {
+        $params = ['u' => (int)$userId, 't' => (int)$treatmentId];
+        if ($on) {
+            $this->db->query(
+                "INSERT IGNORE INTO user_treatment_favorites (user_id, treatment_id) VALUES (:u, :t)", $params);
+        } else {
+            $this->db->query(
+                "DELETE FROM user_treatment_favorites WHERE user_id = :u AND treatment_id = :t", $params);
+        }
     }
 
     /**
