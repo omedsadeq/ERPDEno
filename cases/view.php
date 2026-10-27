@@ -7174,20 +7174,25 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 }
 .tp-cats {
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    padding: 14px 20px 6px;
+    gap: 6px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 12px 20px 4px;
 }
+.tp-cats::-webkit-scrollbar { display: none; }
 .tp-cat {
-    border: 1.5px solid var(--border-color, #e3e6ea);
-    background: var(--bg-color, #fff);
-    color: #334155;
-    padding: 6px 18px;
+    flex: 0 0 auto;
+    border: 1px solid #e3e8ef;
+    background: #f8fafc;
+    color: #475569;
+    padding: 5px 14px;
     border-radius: 999px;
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 600;
     cursor: pointer;
     font-family: inherit;
+    white-space: nowrap;
 }
 .tp-cat:hover { border-color: #93c5fd; }
 .tp-cat.on {
@@ -7209,12 +7214,13 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    min-height: 128px;
-    padding: 9px 9px 8px;
-    border: 1.5px solid #e4eaf1;
-    border-radius: 13px;
-    background: linear-gradient(180deg, #fff 0%, #f9fbfd 100%);
+    align-items: center;
+    gap: 6px;
+    min-height: 146px;
+    padding: 12px 8px 10px;
+    border: 1.5px solid #e8edf3;
+    border-radius: 14px;
+    background: #fff;
     cursor: pointer;
     font-family: inherit;
     text-align: center;
@@ -7226,33 +7232,40 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 .tp-card-check {
     position: absolute; top: 7px; right: 7px;
     display: none; place-items: center;
-    width: 19px; height: 19px; border-radius: 50%;
-    background: #1d6fe0; color: #fff; font-size: 9px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: #1d6fe0; color: #fff; font-size: 9.5px;
     box-shadow: 0 2px 6px rgba(29, 111, 224, .35);
 }
 .tp-card.on .tp-card-check { display: grid; }
-/* ★ — the user's favourites come first */
+/* ★ — out of the way until the pointer is on the card, gold once chosen */
 .tp-card-star {
     position: absolute; top: 5px; left: 5px;
     display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
-    color: #cbd5e1; cursor: pointer; transition: color .15s, transform .15s, background-color .15s;
+    color: #cbd5e1; cursor: pointer; opacity: 0;
+    transition: opacity .15s, color .15s, transform .15s, background-color .15s;
 }
+.tp-card:hover .tp-card-star, .tp-card:focus-visible .tp-card-star { opacity: 1; }
 .tp-card-star svg { width: 16px; height: 16px; }
 .tp-card-star:hover { color: #f5b301; background: #fff7e0; transform: scale(1.12); }
-.tp-card.is-fav .tp-card-star { color: #f5b301; }
-.tp-card.is-fav { border-color: #f6dc8c; }
-.tp-card.is-fav.on { border-color: #1d6fe0; }
-.tp-card-art { width: 52px; height: 52px; margin: 2px auto 0; }
+.tp-card.is-fav .tp-card-star { opacity: 1; color: #f5b301; }
+@media (hover: none) { .tp-card-star { opacity: 1; } }
+.tp-card-art { width: 50px; height: 50px; flex-shrink: 0; }
+/* never squeezed: overflow:hidden would let the card shrink the name away */
 .tp-card-name {
-    font-size: 12.5px; font-weight: 700; color: #1f2937; line-height: 1.35;
-    min-height: 2.7em;
+    flex-shrink: 0;
+    min-height: 2.7em;   /* room for two lines, so every card lines up */
+    font-size: 13px; font-weight: 700; color: #1f2937; line-height: 1.35;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.tp-card-foot { display: flex; align-items: center; justify-content: space-between; margin-top: auto; }
-.tp-card-price { font-size: 13px; font-weight: 800; color: #15803d; direction: ltr; }
-/* the colour the work paints on the chart, or an empty box */
-.tp-card-mark { width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid #cbd5e1; background: #fff; flex-shrink: 0; }
-.tp-card-mark.has-colour { border-color: transparent; }
+.tp-card-price {
+    flex-shrink: 0; margin-top: auto; padding: 2px 10px; border-radius: 999px;
+    background: #f0fdf4; color: #15803d; font-size: 12.5px; font-weight: 800; direction: ltr;
+}
+.tp-card.on .tp-card-price { background: #dbeafe; color: #1d4ed8; }
+/* «★ دڵخوازەکان» and «هەموو» headings across the grid */
+.tp-section { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; margin: 4px 2px 0; font-size: 12.5px; font-weight: 800; color: #64748b; }
+.tp-section::after { content: ''; flex: 1; height: 1px; background: #e8edf3; }
+.tp-section i { color: #f5b301; }
 .tp-empty { grid-column: 1 / -1; text-align: center; padding: 40px 0; color: var(--text-secondary); font-size: 14px; }
 .tp-list.is-busy { opacity: .55; pointer-events: none; }
 .tp-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 20px; border-top: 1px solid var(--border-color, #e5e7eb); }
@@ -7268,7 +7281,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 .tp-history:hover { text-decoration: underline; }
 @media (max-width: 600px) {
     .tp-list { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; padding: 8px 12px 14px; }
-    .tp-card { min-height: 120px; padding: 8px 7px 7px; }
+    .tp-card { min-height: 132px; padding: 8px 7px 7px; }
     .tp-card-art { width: 46px; height: 46px; }
     .tp-card-name { font-size: 12px; }
     .tp-foot { padding: 10px 12px; }
@@ -11967,15 +11980,6 @@ let tpActiveCat = 'all';
 function treatmentIconSvg(t) {
     return window.TreatmentIcons ? TreatmentIcons.svg(TreatmentIcons.keyFor(t)) : '';
 }
-/** The colour the work paints on the chart, if it paints one. */
-function tpMarkColour(t) {
-    switch (t.category) {
-        case 'filling': return /کۆمپۆزیت|كۆمپۆزیت|composite/i.test(t.name) ? CHART_COLORS.composite : CHART_COLORS.amalgam;
-        case 'cosmetic': return CHART_COLORS.cosmetic;
-        case 'examination': return CHART_COLORS.other;
-        default: return '';
-    }
-}
 
 // ★ on a card: the user's own favourites, shown first (saved per user,
 // api/treatments.php?action=favorite).
@@ -12154,20 +12158,21 @@ function renderTreatmentPicker() {
         (tpActiveCat === 'all' || (t.category || 'other') === tpActiveCat) &&
         (!q || t.name.toLowerCase().includes(q))
     ).sort((a, b) => (b.fav ? 1 : 0) - (a.fav ? 1 : 0));   // stable: ★ first, else as listed
-    listEl.innerHTML = rows.length ? rows.map(t => {
-        const colour = tpMarkColour(t);
-        return `<button type="button" class="tp-card${t.fav ? ' is-fav' : ''}" data-id="${t.id}">
+    const card = t => `<button type="button" class="tp-card${t.fav ? ' is-fav' : ''}" data-id="${t.id}">
             <span class="tp-card-check"><i class="fas fa-check"></i></span>
             <span class="tp-card-star" data-star="${t.id}" role="button"
                   title="${t.fav ? 'لابردن لە دڵخوازەکان' : 'دڵخواز — لە سەرەتای لیستەکە پیشان بدرێت'}">${TP_STAR}</span>
             <span class="tp-card-art">${treatmentIconSvg(t)}</span>
             <span class="tp-card-name">${escapeHtml(t.name)}</span>
-            <span class="tp-card-foot">
-                <span class="tp-card-mark${colour ? ' has-colour' : ''}"${colour ? ` style="background:${colour}" title="ڕەنگی سەر چارت"` : ''}></span>
-                <span class="tp-card-price">${numberFormat(t.price)}</span>
-            </span>
+            <span class="tp-card-price">${numberFormat(t.price)}</span>
         </button>`;
-    }).join('') : '<div class="tp-empty">هیچ چارەسەرێک نەدۆزرایەوە</div>';
+    // the doctor's ★ ones under their own heading, then everything else
+    const favs = rows.filter(t => t.fav), rest = rows.filter(t => !t.fav);
+    listEl.innerHTML = !rows.length ? '<div class="tp-empty">هیچ چارەسەرێک نەدۆزرایەوە</div>'
+        : favs.length && rest.length
+            ? '<div class="tp-section"><i class="fas fa-star"></i> دڵخوازەکانم</div>' + favs.map(card).join('')
+              + '<div class="tp-section">هەموو چارەسەرەکان</div>' + rest.map(card).join('')
+            : rows.map(card).join('');
     tpPaintSelection();
 }
 
