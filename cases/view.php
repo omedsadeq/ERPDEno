@@ -10737,7 +10737,7 @@ const CHART_COLORS = {
     cosmetic:  '#9775fa',   // ڤینیر / لامینیت
     ortho:     '#f76707',   // ڕاستکردنەوە
     other:     '#4dabf7',   // پشکنین / تر
-    outline:   '#b8c3d1',   // tooth outline
+    outline:   '#59626f',   // tooth outline
     body:      '#ffffff'
 };
 
@@ -10759,26 +10759,32 @@ const CATEGORY_LABELS = {
 // Categories whose treatments are applied to a specific tooth surface
 const SURFACE_CATEGORIES = ['filling', 'cosmetic', 'other', 'examination'];
 
-// Tooth shapes by type (viewBox 0 0 44 60 — crown up, roots down).
-// crown = the gold cap overlay, canal = pulp chamber + canals,
+// Tooth shapes by type (viewBox 0 0 44 60 — crown up, roots down), drawn
+// like a textbook tooth: white enamel crown, ivory root.
+// crown = the gold cap overlay, cej = where the enamel ends (y), gloss = the
+// shine on the crown, canal = pulp chamber + canals,
 // zones = ellipse geometry for the 5 surface areas.
 const TOOTH_SHAPES = {
     molar: {
-        body: 'M5,17 C5,6 11,3 22,3 C33,3 39,6 39,17 C39,23 37,27 34,30 C34.5,36 33,44 30.5,51 C29.5,54 27,54 26.5,51 C25.8,45 25,39 24.5,35 Q22,32 19.5,35 C19,39 18.2,45 17.5,51 C17,54 14.5,54 13.5,51 C11,44 9.5,36 10,30 C7,27 5,23 5,17 Z',
-        crown: 'M6,16 C6,6 12,3 22,3 C32,3 38,6 38,16 C38,20 37,23.5 35.5,26.5 L8.5,26.5 C7,23.5 6,20 6,16 Z',
+        body: 'M9.5,27 C7,25 5,21 5,16 C5,10 6.5,5.5 11,4.2 C14,3.4 17.2,4 19.2,6 Q22,7.6 24.8,6 C26.8,4 30,3.4 33,4.2 C37.5,5.5 39,10 39,16 C39,21 37,25 34.5,27 C34.6,34 33.2,42 31,50 C30,54 27.4,55 26.6,51.6 C26,46 25.4,40 24,35.2 Q22,31.6 20,35.2 C18.6,40 18,46 17.4,51.6 C16.6,55 14,54 13,50 C10.8,42 9.4,34 9.5,27 Z',
+        crown: 'M9.5,27 C7,25 5,21 5,16 C5,10 6.5,5.5 11,4.2 C14,3.4 17.2,4 19.2,6 Q22,7.6 24.8,6 C26.8,4 30,3.4 33,4.2 C37.5,5.5 39,10 39,16 C39,21 37,25 34.5,27 Q22,29.6 9.5,27 Z',
+        cej: 27,
+        gloss: {cx: 14.5, cy: 13, rx: 3.6, ry: 6.5},
         chamber: {cx: 22, cy: 25, rx: 4.5, ry: 3},
-        canals: ['M16,30 C15.2,36 15,42.5 16.5,48.5', 'M28,30 C28.8,36 29,42.5 27.5,48.5'],
+        canals: ['M15.5,30 C14.8,36 14.8,42.5 15.8,48.5', 'M28.5,30 C29.2,36 29.2,42.5 28.2,48.5'],
         zones: {
             occlusal: {star: [22, 14.5, 1]},
             left:  {cx: 10, cy: 15, rx: 4.5, ry: 7},
             right: {cx: 34, cy: 15, rx: 4.5, ry: 7},
-            buccal:  {cx: 22, cy: 6.5, rx: 9, ry: 4},
+            buccal:  {cx: 22, cy: 7.5, rx: 9, ry: 3.6},
             lingual: {cx: 22, cy: 23.5, rx: 9, ry: 4}
         }
     },
     premolar: {
-        body: 'M8,16 C8,7 13,4 22,4 C31,4 36,7 36,16 C36,22 34,26 31.5,29 C31,37 29,46 24.5,52.5 Q22,55.5 19.5,52.5 C15,46 13,37 12.5,29 C10,26 8,22 8,16 Z',
-        crown: 'M9,15 C9,7 14,4 22,4 C30,4 35,7 35,15 C35,19 34,22.5 32.5,25.5 L11.5,25.5 C10,22.5 9,19 9,15 Z',
+        body: 'M12.5,26.5 C10,24 8,20 8,15.5 C8,9.5 11.5,5.2 16.5,4 Q22,1.6 27.5,4 C32.5,5.2 36,9.5 36,15.5 C36,20 34,24 31.5,26.5 C31.6,34 29.6,43 25.6,51.4 Q22.4,57.4 18.6,51.6 C14.6,43 12.4,34 12.5,26.5 Z',
+        crown: 'M12.5,26.5 C10,24 8,20 8,15.5 C8,9.5 11.5,5.2 16.5,4 Q22,1.6 27.5,4 C32.5,5.2 36,9.5 36,15.5 C36,20 34,24 31.5,26.5 Q22,29 12.5,26.5 Z',
+        cej: 26.5,
+        gloss: {cx: 16, cy: 12.5, rx: 3.2, ry: 6},
         chamber: {cx: 22, cy: 24.5, rx: 3.8, ry: 2.8},
         canals: ['M22,28 C21.8,36 21.8,43 22,49'],
         zones: {
@@ -10790,52 +10796,53 @@ const TOOTH_SHAPES = {
         }
     },
     canine: {
-        body: 'M22,2.5 C29,4 35,7 35,14.5 C35,20 33,25 30,28.5 C29.5,38 27,47 23.8,53.5 Q22,56.5 20.2,53.5 C17,47 14.5,38 14,28.5 C11,25 9,20 9,14.5 C9,7 15,4 22,2.5 Z',
-        crown: 'M22,2.5 C29,4 35,7 35,14.5 C35,18.5 34,22 32,25 L12,25 C10,22 9,18.5 9,14.5 C9,7 15,4 22,2.5 Z',
+        body: 'M14,25.5 C11.5,22 9.6,17.5 10,13 C10.4,9 13,6.4 16.6,5 Q19.6,3.6 22,1.8 Q24.4,3.6 27.4,5 C31,6.4 33.6,9 34,13 C34.4,17.5 32.5,22 30,25.5 C30,35 27.6,46 24,54.4 Q22,58.4 20,54.4 C16.4,46 14,35 14,25.5 Z',
+        crown: 'M14,25.5 C11.5,22 9.6,17.5 10,13 C10.4,9 13,6.4 16.6,5 Q19.6,3.6 22,1.8 Q24.4,3.6 27.4,5 C31,6.4 33.6,9 34,13 C34.4,17.5 32.5,22 30,25.5 Q22,28 14,25.5 Z',
+        cej: 25.5,
+        gloss: {cx: 17, cy: 13, rx: 2.8, ry: 6},
         chamber: {cx: 22, cy: 24, rx: 3.2, ry: 2.6},
         canals: ['M22,27 C21.8,35 21.9,43 22,50'],
         zones: {
             occlusal: {star: [22, 13.5, 0.82]},
             left:  {cx: 12.5, cy: 14, rx: 3.8, ry: 6},
             right: {cx: 31.5, cy: 14, rx: 3.8, ry: 6},
-            buccal:  {cx: 22, cy: 6.5, rx: 7.5, ry: 3.4},
+            buccal:  {cx: 22, cy: 7, rx: 7.5, ry: 3.4},
             lingual: {cx: 22, cy: 21.5, rx: 7.5, ry: 3.4}
         }
     },
     incisor: {
-        body: 'M11,3.5 C18,2 26,2 33,3.5 C33.5,10 32.5,17 30.5,23.5 C30,32 27,44 23.5,52 Q22,55 20.5,52 C17,44 14,32 13.5,23.5 C11.5,17 10.5,10 11,3.5 Z',
-        crown: 'M11,3.5 C18,2 26,2 33,3.5 C33.3,9 32.7,15 31.3,20.5 L12.7,20.5 C11.3,15 10.7,9 11,3.5 Z',
+        body: 'M14,24 C12.6,19 11,12.5 11,6.2 Q11,3.2 14.2,3 L29.8,3 Q33,3.2 33,6.2 C33,12.5 31.4,19 30,24 C29.6,33 27.2,44 23.8,52.6 Q22,56.6 20.2,52.6 C16.8,44 14.4,33 14,24 Z',
+        crown: 'M14,24 C12.6,19 11,12.5 11,6.2 Q11,3.2 14.2,3 L29.8,3 Q33,3.2 33,6.2 C33,12.5 31.4,19 30,24 Q22,26.6 14,24 Z',
+        cej: 24,
+        gloss: {cx: 17, cy: 11.5, rx: 2.8, ry: 6},
         chamber: {cx: 22, cy: 24, rx: 3, ry: 2.5},
         canals: ['M22,26.5 C21.8,34 21.9,42 22,49.5'],
         zones: {
             occlusal: {star: [22, 12, 0.78]},
             left:  {cx: 13, cy: 12, rx: 3.5, ry: 6},
             right: {cx: 31, cy: 12, rx: 3.5, ry: 6},
-            buccal:  {cx: 22, cy: 4.8, rx: 8, ry: 2.8},
+            buccal:  {cx: 22, cy: 5, rx: 8, ry: 2.8},
             lingual: {cx: 22, cy: 19, rx: 7.5, ry: 3.2}
         }
     }
 };
 
-// Fine anatomy lines give each type a soft, clinical three-dimensional form.
-// They are drawn underneath treatment overlays, so treatment data remains the
+// Fine anatomy lines — the cusp ridges and grooves seen on the crown. They
+// are drawn underneath treatment overlays, so treatment data remains the
 // visual priority and surface picking keeps the same SVG hit targets.
 const TOOTH_ANATOMY = {
     molar: [
-        'M10.5,13.5 C14.5,17.5 18,17.5 22,13.5 C26,17.5 29.5,17.5 33.5,13.5',
-        'M12.5,22 C16.5,19 19.5,20 22,22 C24.5,20 27.5,19 31.5,22'
+        'M8.6,9.6 C12,12.6 17,12.4 22,10.2 C27,12.4 32,12.6 35.4,9.6',
+        'M22,10.6 C21.6,14 21.8,17 22.4,20'
     ],
     premolar: [
-        'M13.5,13 C17.5,17 19.5,17 22,13 C24.5,17 26.5,17 30.5,13',
-        'M15,22 C18.5,19.5 21,20.5 22,22 C23,20.5 25.5,19.5 29,22'
+        'M11.2,10.2 C15,12.6 19,12.2 22,9.4 C25,12.2 29,12.6 32.8,10.2'
     ],
     canine: [
-        'M14,14 C17.5,17.5 20,17.5 22,14 C24,17.5 26.5,17.5 30,14',
-        'M16,22 C18.5,20 20.5,20 22,22 C23.5,20 25.5,20 28,22'
+        'M22,4.6 C21.5,10 21.6,15.5 22.2,21'
     ],
     incisor: [
-        'M13,11.5 Q22,15.5 31,11.5',
-        'M14.5,19.5 Q22,17.2 29.5,19.5'
+        'M13.4,6.6 Q22,8.4 30.6,6.6'
     ]
 };
 
@@ -10924,16 +10931,28 @@ function toothSVG(fdi, opts) {
     const zoneOf = side => (mesialIsLeft(fdi) === (side === 'left')) ? 'mesial' : 'distal';
     const selected = opts.selectedSurfaces || null;
 
+    // enamel white down to the crown's neck, then ivory root; a side-to-side
+    // shade over it rounds the tooth, and a soft shine sits on the crown
+    const cej = shape.cej / 60;
     let defs = `
-        <linearGradient id="tooth-base-${uid}" x1="18%" y1="0%" x2="82%" y2="100%">
-            <stop offset="0%" stop-color="#ffffff"/>
-            <stop offset="58%" stop-color="#fbfcfe"/>
-            <stop offset="100%" stop-color="#edf2f7"/>
+        <linearGradient id="tooth-base-${uid}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="60">
+            <stop offset="0" stop-color="#ffffff"/>
+            <stop offset="${(cej - 0.07).toFixed(3)}" stop-color="#f8f9fb"/>
+            <stop offset="${(cej + 0.025).toFixed(3)}" stop-color="#f3e9d5"/>
+            <stop offset="1" stop-color="#dfcba5"/>
         </linearGradient>
-        <linearGradient id="tooth-root-${uid}" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stop-color="#f8fafc"/>
-            <stop offset="100%" stop-color="#e8eef5"/>
+        <linearGradient id="tooth-shade-${uid}" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#3f4b5c" stop-opacity=".30"/>
+            <stop offset=".17" stop-color="#3f4b5c" stop-opacity=".06"/>
+            <stop offset=".35" stop-color="#ffffff" stop-opacity=".6"/>
+            <stop offset=".52" stop-color="#ffffff" stop-opacity="0"/>
+            <stop offset=".83" stop-color="#3f4b5c" stop-opacity=".08"/>
+            <stop offset="1" stop-color="#3f4b5c" stop-opacity=".32"/>
         </linearGradient>
+        <radialGradient id="tooth-gloss-${uid}">
+            <stop offset="0" stop-color="#ffffff" stop-opacity=".95"/>
+            <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+        </radialGradient>
         <clipPath id="clip-${uid}"><path d="${shape.body}"/></clipPath>`;
     let parts = [];
 
@@ -10941,10 +10960,13 @@ function toothSVG(fdi, opts) {
     const ghost = st.extract ? ' opacity="0.18"' : '';
     if (!st.implant) {
         parts.push(`<g${ghost}>`);
-        parts.push(`<path d="${shape.body}" fill="url(#tooth-base-${uid})" stroke="${CHART_COLORS.outline}" stroke-width="1.95" stroke-linejoin="round"/>`);
+        parts.push(`<path d="${shape.body}" fill="url(#tooth-base-${uid})"/>`);
+        parts.push(`<path d="${shape.body}" fill="url(#tooth-shade-${uid})"/>`);
+        const gl = shape.gloss;
+        parts.push(`<ellipse cx="${gl.cx}" cy="${gl.cy}" rx="${gl.rx}" ry="${gl.ry}" fill="url(#tooth-gloss-${uid})"/>`);
         const anatomy = TOOTH_ANATOMY[shapeKey] || [];
         if (anatomy.length) {
-            parts.push(`<g fill="none" stroke="#d5dee8" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round" opacity="0.72">`);
+            parts.push(`<g fill="none" stroke="#bfc6d0" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" opacity="0.8">`);
             anatomy.forEach(path => parts.push(`<path d="${path}"/>`));
             parts.push('</g>');
         }
@@ -10987,6 +11009,8 @@ function toothSVG(fdi, opts) {
         }
         parts.push(zoneEls.join(''));
         parts.push('</g>'); // end clip
+        // the outline last, so it stays crisp over the surface colours
+        parts.push(`<path d="${shape.body}" fill="none" stroke="${CHART_COLORS.outline}" stroke-width="1.2" stroke-linejoin="round"/>`);
 
         // root canal indicator
         if (st.canal) {
