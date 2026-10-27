@@ -3597,14 +3597,14 @@ $doctorCap = max(0, $unrequestedBalance);
    stand furthest from it. Each tooth further back moves --arc-y px (at full
    size) toward the bite line and leans out by --arc-r, pivoting on its crown
    edge; --arc-dir turns the lean the other way on the patient's left (the
-   right of the chart). */
+   right of the chart). --pop is the hover magnification (below). */
 .smart-dental-chart .jaw-section--upper .tooth {
     transform-origin: 50% 100%;
-    transform: translateY(calc(var(--arc-y) * 1px * var(--chart-scale))) rotate(calc(var(--arc-r) * var(--arc-dir) * -1));
+    transform: translateY(calc(var(--arc-y) * 1px * var(--chart-scale))) rotate(calc(var(--arc-r) * var(--arc-dir) * -1)) scale(var(--pop, 1));
 }
 .smart-dental-chart .jaw-section--lower .tooth {
     transform-origin: 50% 0;
-    transform: translateY(calc(var(--arc-y) * -1px * var(--chart-scale))) rotate(calc(var(--arc-r) * var(--arc-dir)));
+    transform: translateY(calc(var(--arc-y) * -1px * var(--chart-scale))) rotate(calc(var(--arc-r) * var(--arc-dir))) scale(var(--pop, 1));
 }
 .smart-dental-chart .tooth[data-quadrant="UL"],
 .smart-dental-chart .tooth[data-quadrant="LL"] { --arc-dir: -1; }
@@ -3635,6 +3635,30 @@ $doctorCap = max(0, $unrequestedBalance);
 }
 .smart-dental-chart .chart-legend { margin-top: 6px; padding: 6px 8px; gap: 2px 6px; }
 .smart-dental-chart .smart-chart-legend-item { padding: 2px 5px; }
+
+/* Hover, with a mouse only: the tooth springs up out of the arch (its
+   neighbours a little, like a dock), a band of light sweeps across the
+   enamel and it casts a soft blue glow. While the whole arch fits, the jaw
+   rows stop clipping so a popped tooth is never cut off; when they have to
+   scroll sideways (.chart-fits off) they keep clipping. */
+.smart-dental-chart.chart-fits .jaw-section { overflow: visible; }
+@keyframes tooth-shine { from { transform: translateX(0); } to { transform: translateX(84px); } }
+@media (hover: hover) and (pointer: fine) {
+    .smart-dental-chart .tooth {
+        transition: transform .34s cubic-bezier(.34, 1.56, .64, 1), box-shadow .25s ease,
+                    background-color .2s ease, border-color .2s ease;
+    }
+    .smart-dental-chart .tooth:hover { --pop: 1.16; box-shadow: 0 12px 26px rgba(22, 119, 255, .18); }
+    .smart-dental-chart .tooth:hover + .tooth,
+    .smart-dental-chart .tooth:has(+ .tooth:hover) { --pop: 1.06; z-index: 50; }
+    .smart-dental-chart .tooth-svg svg { transition: filter .25s ease; }
+    .smart-dental-chart .tooth:hover .tooth-svg svg { filter: drop-shadow(0 5px 7px rgba(22, 119, 255, .28)); }
+    .smart-dental-chart .tooth:hover .tooth-shine { animation: tooth-shine .8s cubic-bezier(.3, .6, .4, 1) .08s both; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .smart-dental-chart .tooth, .smart-dental-chart .tooth-svg svg { transition: none !important; }
+    .smart-dental-chart .tooth:hover .tooth-shine { animation: none !important; }
+}
 
 
 
@@ -10926,6 +10950,11 @@ function toothSVG(fdi, opts) {
             <stop offset="0" stop-color="#ffffff" stop-opacity=".95"/>
             <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
         </radialGradient>
+        <linearGradient id="tooth-sweep-${uid}" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+            <stop offset=".5" stop-color="#ffffff" stop-opacity=".9"/>
+            <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+        </linearGradient>
         <clipPath id="clip-${uid}"><path d="${shape.body}"/></clipPath>`;
     let parts = [];
 
@@ -10981,6 +11010,8 @@ function toothSVG(fdi, opts) {
             zoneEls.push(`<path d="${starPath(scx, scy, ss * 1.16)}" fill="${oFill}" fill-opacity="0.96" stroke="#00000022" stroke-width="0.7"/>`);
         }
         parts.push(zoneEls.join(''));
+        // a band of light, parked off the tooth until hover sweeps it across (CSS)
+        parts.push(`<g transform="skewX(-16)"><rect class="tooth-shine" x="-26" y="-4" width="16" height="68" fill="url(#tooth-sweep-${uid})" pointer-events="none"/></g>`);
         parts.push('</g>'); // end clip
         // the outline last, so it stays crisp over the surface colours
         parts.push(`<path d="${shape.body}" fill="none" stroke="${CHART_COLORS.outline}" stroke-width="1.2" stroke-linejoin="round"/>`);
@@ -11306,6 +11337,7 @@ function fitChartScale() {
     document.querySelectorAll('.smart-dental-chart').forEach(chart => {
         const current = parseFloat(getComputedStyle(chart).getPropertyValue('--chart-scale')) || 1;
         let scale = 1;
+        const rows = [];
         chart.querySelectorAll('.dentition-pane:not([hidden]) .jaw-section').forEach(sec => {
             const row = sec.querySelector('.teeth-row');
             // Headroom for sub-pixel rounding plus the drop-shadow ink of the
@@ -11313,10 +11345,13 @@ function fitChartScale() {
             const avail = sec.clientWidth - 12;
             if (!row || avail <= 0) return;
             const natural = rowNaturalWidth(row, current);
+            rows.push([natural, avail]);
             if (natural > 0 && natural > avail) scale = Math.min(scale, avail / natural);
         });
         scale = Math.max(CHART_MIN_SCALE, Math.min(1, scale));
         chart.style.setProperty('--chart-scale', scale.toFixed(4));
+        // rows that fit need no sideways scroll, so they may let a hovered tooth spill out
+        chart.classList.toggle('chart-fits', rows.every(([natural, avail]) => natural * scale <= avail + 1));
     });
 }
 
