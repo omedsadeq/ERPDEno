@@ -3625,7 +3625,8 @@ $doctorCap = max(0, $unrequestedBalance);
 .smart-dental-chart .jaw-section--upper .treatment-count { top: auto; bottom: 3px; }
 .smart-dental-chart .jaw-section--lower .treatment-count { top: 3px; }
 .smart-dental-chart .dentition-pane-title { margin: 0 0 2px; }
-.smart-dental-chart .dentition-pane + .dentition-pane { margin-top: 8px; padding-top: 6px; }
+/* a solid line between the adult and the milk-teeth charts, unlike the dashed bite line */
+.smart-dental-chart .dentition-pane + .dentition-pane { margin-top: 14px; padding-top: 10px; border-top: 2px solid #a9bdd1; }
 .smart-dental-chart .chart-legend { margin-top: 6px; padding: 6px 8px; gap: 2px 6px; }
 .smart-dental-chart .smart-chart-legend-item { padding: 2px 5px; }
 
