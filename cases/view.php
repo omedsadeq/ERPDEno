@@ -4844,17 +4844,9 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
             <div class="ch-receipts-list">
                 <?php foreach ($invoiceTabs as $inv): ?>
                 <div class="ci-card<?= $inv['status'] === 'processed' ? ' ci-card--done' : ($inv['status'] === 'draft' ? ' ci-card--draft' : '') ?>">
+                    <?php // No state badge (نێردراو / نەنێردراو …): the receipt itself shows it. ?>
                     <div class="ci-card-top">
                         <span class="ci-no"><?= htmlspecialchars($inv['invoice_no']) ?></span>
-                        <?php if ($inv['status'] === 'draft'): ?>
-                        <span class="ci-badge ci-badge--drafted" title="هێشتا نەنێردراوە بۆ ژمێریار"><i class="fas fa-pen-ruler"></i> نەنێردراو</span>
-                        <?php elseif ($inv['status'] === 'processed'): ?>
-                        <span class="ci-badge ci-badge--done" title="پارەکەی بە تەواوی وەرگیراوە"><i class="fas fa-check-double"></i> تەواو</span>
-                        <?php elseif ($inv['fifo_covered'] > 0.009): ?>
-                        <span class="ci-badge ci-badge--part" title="بەشێکی دراوە — ماوە: <?= number_format($inv['fifo_remaining']) ?>"><i class="fas fa-hourglass-half"></i> بەشی</span>
-                        <?php else: ?>
-                        <span class="ci-badge ci-badge--sent" title="لای ژمێریارە"><i class="fas fa-paper-plane"></i> نێردراو</span>
-                        <?php endif; ?>
                     </div>
                     <div class="ci-card-bottom">
                         <span class="ci-amount" data-invoice-amount="<?= (int)$inv['id'] ?>"><?= number_format($inv['total_amount']) ?></span>
@@ -4991,14 +4983,6 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
 .ci-amount { font-weight: 800; font-size: 13.5px; color: #93c5fd; white-space: nowrap; direction: ltr; }
 .ci-card--done .ci-amount { color: #6ee7b7; }
 .ci-date { flex: 1 1 auto; font-size: 10.5px; color: var(--ch-soft); white-space: nowrap; }
-.ci-badge {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap;
-}
-.ci-badge--sent    { background: rgba(245, 158, 11, .18); color: #fcd34d; }
-.ci-badge--drafted { background: rgba(255, 255, 255, .12); color: #e2e8f0; }
-.ci-badge--part    { background: rgba(96, 165, 250, .2);  color: #bfdbfe; }
-.ci-badge--done    { background: rgba(34, 197, 94, .2);   color: #86efac; }
 .ci-print {
     flex: 0 0 auto; width: 23px; height: 23px; display: inline-grid; place-items: center;
     border: 1px solid rgba(255, 255, 255, .22); border-radius: 7px; background: rgba(255, 255, 255, .08);
@@ -5016,6 +5000,57 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
     .ch-actions { width: 100%; max-width: none; justify-content: flex-start; }
     .ch-note { white-space: normal; }
 }
+/* ── کەشف حیساب beside the receipt: only where the screen has room ── */
+.ms-card { display: none; }
+@media (min-width: 1500px) {
+    .tt-layout.has-aside { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 16px; align-items: start; }
+    .tt-layout.has-aside .ms-card { display: flex; }
+}
+.ms-card {
+    position: sticky; top: 12px;
+    flex-direction: column; gap: 10px;
+    padding: 12px; border-radius: 14px;
+    background: #fff; border: 1px solid #e3e7f2;
+    box-shadow: 0 8px 22px rgba(24, 26, 92, .07);
+}
+.ms-head { display: flex; align-items: center; justify-content: space-between; }
+.ms-title { font-size: 14px; font-weight: 800; color: #181a5c; display: flex; align-items: center; gap: 7px; }
+.ms-title i { color: #4f46e5; }
+.ms-full { font-size: 12px; font-weight: 700; color: #4f46e5; text-decoration: none; }
+.ms-full:hover { text-decoration: underline; }
+.ms-balance {
+    display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; color: #fff;
+    background:
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, .04) 0 1px, transparent 1px 16px),
+        linear-gradient(135deg, #12134a 0%, #1e2170 100%);
+}
+.ms-balance-label { font-size: 11.5px; color: rgba(255, 255, 255, .72); }
+.ms-balance-value { font-size: 22px; font-weight: 800; direction: ltr; text-align: right; }
+.ms-balance--due .ms-balance-value { color: #fca5a5; }
+.ms-balance--clear .ms-balance-value, .ms-balance--credit .ms-balance-value { color: #6ee7b7; }
+.ms-totals { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: #64748b; }
+.ms-totals b { color: #0f172a; font-weight: 800; }
+.ms-totals b.is-paid { color: #15803d; }
+.ms-notyet { padding: 6px 9px; border-radius: 9px; background: #fff8e6; border: 1px dashed #f3c969; color: #8a5a00; font-size: 11.5px; }
+.ms-notyet b { color: #6b4500; }
+.ms-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ms-row { display: flex; align-items: center; gap: 8px; padding: 7px 2px; border-top: 1px solid #eef1f7; }
+.ms-row:first-child { border-top: 0; }
+.ms-ico { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-size: 12px; }
+.ms-row--debit .ms-ico  { background: #eef2ff; color: #4f46e5; }
+.ms-row--credit .ms-ico { background: #dcfce7; color: #15803d; }
+.ms-row--note .ms-ico   { background: #f1f5f9; color: #64748b; }
+.ms-what { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.ms-what b { font-size: 12.5px; color: #1f2937; }
+.ms-what small { font-size: 10.5px; color: #94a3b8; direction: ltr; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-amt { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; font-size: 13px; font-weight: 800; direction: ltr; }
+.ms-row--debit .ms-amt  { color: #b91c1c; }
+.ms-row--credit .ms-amt { color: #15803d; }
+.ms-row--note .ms-amt   { color: #64748b; font-weight: 600; }
+.ms-amt small { font-size: 10px; font-weight: 600; color: #94a3b8; direction: rtl; }
+.ms-more { align-self: center; font-size: 12px; font-weight: 700; color: #4f46e5; text-decoration: none; }
+.ms-empty { padding: 14px 0; text-align: center; color: #94a3b8; font-size: 12.5px; }
+
 /* Visit-tab + receipt-pane rules live in assets/css/invoice-pane.css,
    shared with the accountant screen. Page-specific rules only below. */
 
@@ -5520,6 +5555,22 @@ button.rx-card-print { cursor:pointer; padding:0; }
                           // itself names the section, and each visit tab carries
                           // its own quick-entry row, so work always lands on the
                           // receipt the doctor is looking at. ?>
+                    <?php
+                    // کەشف حیساب beside the receipt (wide screens, see .tt-layout):
+                    // the patient's ledger as patients/statement.php shows it,
+                    // scoped the same way — a doctor sees only their own folders.
+                    // Only receipts the accountant approved are in a ledger; this
+                    // case's others are named under it as not counted yet.
+                    $miniStatement = null;
+                    if ($isAdmin || $isDoctor || $auth->isAccountant()) {
+                        require_once __DIR__ . '/../classes/PatientLedger.php';
+                        $miniStatement = (new PatientLedger())->statement(
+                            (int)$case['patient_id'],
+                            ($isDoctor && !$isAdmin) ? (int)$currentUser['id'] : null
+                        );
+                    }
+                    ?>
+                    <div class="tt-layout<?= $miniStatement ? ' has-aside' : '' ?>">
                     <?php if (empty($caseTreatments) && empty($invoiceTabs) && $case['status'] !== 'open'): ?>
                     <div class="empty-state">
                         <i class="fas fa-syringe empty-state-icon"></i>
@@ -5569,6 +5620,89 @@ button.rx-card-print { cursor:pointer; padding:0; }
                     </div><!-- /treatmentTableView -->
 
                     <?php endif; ?>
+
+                    <?php if ($miniStatement):
+                        $msLabels = [
+                            'INVOICE' => ['وەسڵی چارەسەر', 'fa-receipt'],
+                            'DISCOUNT' => ['داشکاندن', 'fa-percent'],
+                            'CHAIR_PAYMENT' => ['نەقدی لای دکتۆر', 'fa-hand-holding-usd'],
+                            'PRIOR_PAYMENT' => ['دراوی پێشوو', 'fa-history'],
+                            'PAYMENT' => ['پارەدان', 'fa-money-bill-wave'],
+                            'REFUND' => ['گەڕاندنەوەی پارە', 'fa-rotate-left'],
+                            'XRAY' => ['قەرزی ئێکسڕەی', 'fa-x-ray'],
+                            'XRAY_PAYMENT' => ['پارەی ئێکسڕەی', 'fa-x-ray'],
+                            'ADVANCE' => ['ئامانەت', 'fa-piggy-bank'],
+                            'ADVANCE_REFUND' => ['گەڕاندنەوەی ئامانەت', 'fa-piggy-bank'],
+                            'ADVANCE_APPLIED' => ['ئامانەت دانرا', 'fa-link'],
+                        ];
+                        $msBalance = (float)$miniStatement['closing'];
+                        $msState = $msBalance > 0.009 ? 'due' : ($msBalance < -0.009 ? 'credit' : 'clear');
+                        $msRows = array_reverse($miniStatement['rows']);
+                        $msMore = max(0, count($msRows) - 8);
+                        $msRows = array_slice($msRows, 0, 8);
+                        // this case's receipts the ledger does not hold yet
+                        $msNotYet = 0.0; $msNotYetCount = 0;
+                        foreach ($caseInvoices as $msInv) {
+                            $msSt = $msInv['accounting_status'] ?? $msInv['status'] ?? '';
+                            if (in_array($msSt, ['draft', 'returned', 'sent'], true) && (float)$msInv['total_amount'] > 0.009) {
+                                $msNotYet += (float)$msInv['total_amount'];
+                                $msNotYetCount++;
+                            }
+                        }
+                    ?>
+                    <aside class="ms-card" aria-label="کەشف حیسابی نەخۆش">
+                        <div class="ms-head">
+                            <span class="ms-title"><i class="fas fa-file-invoice-dollar"></i> کەشف حیساب</span>
+                            <a class="ms-full" href="<?= APP_URL ?>/patients/statement.php?patient_id=<?= (int)$case['patient_id'] ?>&case_id=<?= (int)$caseId ?>">
+                                هەمووی <i class="fas fa-arrow-left"></i>
+                            </a>
+                        </div>
+                        <div class="ms-balance ms-balance--<?= $msState ?>">
+                            <span class="ms-balance-label"><?= $msState === 'due' ? 'قەرزی ماوەی نەخۆش' : ($msState === 'credit' ? 'پارەی زیادە لای نەخۆش' : 'هیچ قەرزێکی نییە') ?></span>
+                            <span class="ms-balance-value"><?= number_format(abs($msBalance)) ?></span>
+                        </div>
+                        <div class="ms-totals">
+                            <span>کۆی وەسڵەکان <b><?= number_format($miniStatement['totals']['debit']) ?></b></span>
+                            <span>کۆی دراو <b class="is-paid"><?= number_format($miniStatement['totals']['credit']) ?></b></span>
+                            <?php if (abs((float)$miniStatement['opening']) > 0.009): ?>
+                            <span>قەرزی کۆن <b><?= number_format($miniStatement['opening']) ?></b></span>
+                            <?php endif; ?>
+                        </div>
+                        <?php if ($msNotYetCount): ?>
+                        <div class="ms-notyet" title="وەسڵە نەنێردراو یان لای ژمێریارەکانی ئەم کەیسە — دوای پەسەندکردن دەچنە ناو حیساب">
+                            <i class="fas fa-hourglass-half"></i>
+                            هێشتا نەچووەتە حیساب: <b><?= number_format($msNotYet) ?></b> · <?= $msNotYetCount ?> وەسڵ
+                        </div>
+                        <?php endif; ?>
+                        <?php if ($msRows): ?>
+                        <ol class="ms-rows">
+                            <?php foreach ($msRows as $msRow):
+                                [$msLabel, $msIcon] = $msLabels[$msRow['doc_type']] ?? [$msRow['doc_type'], 'fa-circle'];
+                                $msKind = $msRow['debit'] > 0.009 ? 'debit' : ($msRow['credit'] > 0.009 ? 'credit' : 'note');
+                                $msAmount = $msKind === 'debit' ? $msRow['debit'] : ($msKind === 'credit' ? $msRow['credit'] : (float)($msRow['note_amount'] ?? 0));
+                            ?>
+                            <li class="ms-row ms-row--<?= $msKind ?>" title="<?= htmlspecialchars($msRow['description']) ?>">
+                                <span class="ms-ico"><i class="fas <?= $msIcon ?>"></i></span>
+                                <span class="ms-what">
+                                    <b><?= htmlspecialchars($msLabel) ?></b>
+                                    <small><?= htmlspecialchars($msRow['doc_number'] ?? '') ?> · <?= date('Y/m/d', strtotime($msRow['entry_date'])) ?></small>
+                                </span>
+                                <span class="ms-amt">
+                                    <?= $msKind === 'debit' ? '+' : ($msKind === 'credit' ? '−' : '') ?><?= number_format($msAmount) ?>
+                                    <small>باڵانس <?= number_format($msRow['balance']) ?></small>
+                                </span>
+                            </li>
+                            <?php endforeach; ?>
+                        </ol>
+                        <?php if ($msMore): ?>
+                        <a class="ms-more" href="<?= APP_URL ?>/patients/statement.php?patient_id=<?= (int)$case['patient_id'] ?>&case_id=<?= (int)$caseId ?>">+<?= $msMore ?> جووڵەی تر</a>
+                        <?php endif; ?>
+                        <?php else: ?>
+                        <div class="ms-empty"><i class="fas fa-inbox"></i> هێشتا هیچ جووڵەیەکی پارە نییە</div>
+                        <?php endif; ?>
+                    </aside>
+                    <?php endif; ?>
+                    </div><!-- /tt-layout -->
                 </div>
             </div>
 
