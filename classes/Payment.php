@@ -1349,6 +1349,227 @@ class Payment
     }
 
     /**
+     * The full «تەعدیل» of an approved receipt (the case's پارەدان tab): the
+     * amount, the date and time, the payment method and the collection
+     * discount, together in one transaction. The receipt stays approved with
+     * the same number and approver; every change goes to the activity log.
+     *
+     *   amount only            correctApproved(): the receipt keeps its invoices
+     *   a discount before/after the old discount comes off its invoices
+     *                          (PaymentDiscount::reverse), then cash + discount
+     *                          are spread oldest invoice first and the discount
+     *                          applied — exactly as when a receipt is first taken
+     *                          with a discount (reserve + apply)
+     *   date / method only     just those columns; allocations are not touched
+     *
+     * The cashbox books any difference now (cash ↔ card moves money in or out
+     * of the doctor's box); it is a journal and keeps its first booking date.
+     * Moving the date into or out of a period already settled for the doctor
+     * (income_settlements) is refused: that paper is signed and paid out.
+     * The note is not editable — ApprovalReversal and approvedEditBlockReason()
+     * read markers in it.
+     *
+     * $in: amount, payment_date (Y-m-d H:i, or the datetime-local «T» form),
+     *      payment_method, discount_mode, discount_value, discount_reason.
+     */
+    public function editApprovedDetails($paymentId, array $in, $actorId, $note = '')
+    {
+        require_once __DIR__ . '/Settings.php';
+        if (!Settings::allowEditApprovedInvoice()) {
+            return ['success' => false, 'message' => 'دەستکاریکردنی تۆماری پەسەندکراو ناچالاکە — لە ڕێکخستنەکان چالاکی بکە'];
+        }
+        $paymentId = (int)$paymentId;
+        $actorId = (int)$actorId;
+        if (!$this->db->fetch("SELECT id FROM users WHERE id=? AND is_active=1 AND role IN ('admin','accountant')", [$actorId])) {
+            return ['success' => false, 'message' => 'تەنها بەڕێوەبەر یان ژمێریار قەبزی پەسەندکراو دەگۆڕێت'];
+        }
+        $preview = $this->db->fetch('SELECT * FROM payments WHERE id=?', [$paymentId]);
+        if (!$preview || $preview['status'] !== 'approved') {
+            return ['success' => false, 'message' => 'تەنها قەبزی پەسەندکراو بەم شێوەیە دەگۆڕدرێت'];
+        }
+        $blocked = $this->approvedEditBlockReason($preview, true);
+        if ($blocked !== null) {
+            return ['success' => false, 'message' => $blocked];
+        }
+        try {
+            $amount = PaymentDiscount::number($in['amount'] ?? '');
+            if ($amount <= 0) {
+                throw new InvalidArgumentException('بڕی قەبز دەبێت لە سفر زیاتر بێت');
+            }
+            $newDate = self::approvedEditDate((string)($in['payment_date'] ?? ''), (string)$preview['payment_date']);
+            $method = (string)($in['payment_method'] ?? $preview['payment_method']);
+            if (!in_array($method, ['cash', 'card', 'transfer', 'other'], true)) {
+                throw new InvalidArgumentException('جۆری پارەدان نادروستە');
+            }
+            $mode = (string)($in['discount_mode'] ?? 'amount');
+            $rawDiscount = trim((string)($in['discount_value'] ?? ''));
+            $discountValue = PaymentDiscount::number($rawDiscount === '' ? '0' : $rawDiscount);
+            $discountReason = trim((string)($in['discount_reason'] ?? ''));
+        } catch (InvalidArgumentException $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+
+        $caseId = (int)$preview['case_id'];
+        $planId = 0;
+        $discounts = new PaymentDiscount();
+        $this->db->beginTransaction();
+        try {
+            // Invoices before the receipt, the order every money writer locks in.
+            $discounts->lockCase($caseId);
+            $payment = $this->db->fetch('SELECT * FROM payments WHERE id=? FOR UPDATE', [$paymentId]);
+            if (!$payment || $payment['status'] !== 'approved') {
+                throw new RuntimeException('تەنها قەبزی پەسەندکراو بەم شێوەیە دەگۆڕدرێت');
+            }
+            $old = $payment;
+            $oldDiscount = round((float)$payment['discount_amount'], 2);
+            $discountTouched = $oldDiscount > 0 || $discountValue > 0;
+            $amountChanged = abs($amount - (float)$payment['amount']) >= 0.005;
+            $discountChanged = $discountTouched && (
+                ($discountValue > 0 && $mode !== (string)$payment['discount_mode'])
+                || abs($discountValue - (float)$payment['discount_value']) >= 0.005
+            );
+
+            if ($newDate !== null) {
+                $this->assertDateNotSettled($caseId, (string)$payment['payment_date'], $newDate);
+            }
+
+            if ($discountTouched && ($amountChanged || $discountChanged)) {
+                $discounts->requireEligible($caseId);
+                $discounts->reverse($payment, $actorId);
+                // What the case owes with this receipt left out — the discount's
+                // percentage and the cash + discount ceiling are measured on it.
+                $open = $this->ledger->autoAllocate($caseId, 1e12, [], true, false, $paymentId);
+                $fields = PaymentDiscount::fields([
+                    'amount' => $amount, 'discount_mode' => $mode,
+                    'discount_value' => $discountValue, 'discount_reason' => $discountReason,
+                ], (float)$open['allocated']);
+                $this->db->update('payments', ['amount' => $amount] + $fields, 'id=?', [$paymentId]);
+                $payment = $this->db->fetch('SELECT * FROM payments WHERE id=? FOR UPDATE', [$paymentId]);
+                $discounts->reserve($payment, $actorId);
+                $payment = $discounts->apply($payment, $actorId);
+            } elseif ($amountChanged) {
+                // No discount on either side: the tested amount correction, as a
+                // savepoint inside this transaction so everything lands together.
+                $result = $this->correctApproved($paymentId, $amount, $actorId, $note);
+                if (empty($result['success'])) {
+                    throw new RuntimeException($result['message'] ?? 'قەبزەکە نەگۆڕدرا');
+                }
+            } elseif ($oldDiscount > 0 && $discountReason !== (string)$payment['discount_reason']) {
+                if ($discountReason === '' || mb_strlen($discountReason) > 500) {
+                    throw new InvalidArgumentException('هۆکاری داشکاندن پێویستە (تا ٥٠٠ پیت)');
+                }
+                $this->db->update('payments', ['discount_reason' => $discountReason], 'id=?', [$paymentId]);
+            }
+
+            $changes = [];
+            if ($newDate !== null) {
+                $changes['payment_date'] = $newDate;
+            }
+            if ($method !== (string)$payment['payment_method']) {
+                $changes['payment_method'] = $method;
+            }
+            if ($changes) {
+                $this->db->update('payments', $changes, 'id=:id AND status=:approved', ['id' => $paymentId, 'approved' => 'approved']);
+            }
+            $link = $this->db->tableExists('installment_payments')
+                ? $this->db->fetch('SELECT * FROM installment_payments WHERE payment_id = ? FOR UPDATE', [$paymentId])
+                : null;
+            if ($link) {
+                $planId = (int)$link['plan_id'];
+                $linkChanges = [];
+                if (isset($changes['payment_date'])) $linkChanges['paid_at'] = $changes['payment_date'];
+                if (isset($changes['payment_method'])) $linkChanges['payment_method'] = $changes['payment_method'];
+                if ($linkChanges) {
+                    $this->db->update('installment_payments', $linkChanges, 'id = ?', [(int)$link['id']]);
+                }
+            }
+
+            $after = $this->db->fetch('SELECT * FROM payments WHERE id=?', [$paymentId]);
+            $fieldsKept = ['amount', 'payment_date', 'payment_method', 'discount_mode', 'discount_value', 'discount_amount', 'discount_reason'];
+            $diff = [];
+            foreach ($fieldsKept as $f) {
+                if ((string)$after[$f] !== (string)$old[$f]) {
+                    $diff[$f] = $after[$f];
+                }
+            }
+            if (!$diff) {
+                $this->db->rollback();
+                return ['success' => true, 'payment_id' => $paymentId, 'unchanged' => true];
+            }
+            AuditLog::log('payment_approved_details_edited', 'payments', $paymentId,
+                array_intersect_key($old, $diff), $diff + ['note' => trim((string)$note)], $actorId);
+            $this->caseManager->updateCaseTotals($caseId);
+            CashboxLedger::captureCase($caseId, $actorId, 'دەستکاری قەبزی ' . $payment['payment_number']);
+            $this->db->commit();
+        } catch (Throwable $e) {
+            $this->db->rollback();
+            if ($e instanceof PDOException) {
+                error_log('Payment::editApprovedDetails failed: ' . $e->getMessage());
+                return ['success' => false, 'message' => 'هەڵەیەک ڕوویدا، دووبارە هەوڵبدەرەوە'];
+            }
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+        if ($planId > 0) {
+            try { $this->installmentManager->recomputePlan($planId); }
+            catch (Throwable $e) { error_log('Plan recompute after receipt edit failed: ' . $e->getMessage()); }
+        }
+        $this->syncInvoiceStatuses($caseId, $actorId);
+        return ['success' => true, 'payment_id' => $paymentId, 'changed' => array_keys($diff)];
+    }
+
+    /**
+     * The new date and time of a receipt as «Y-m-d H:i:s», or null when it is
+     * the same minute as now stored. Not in the future, not before 2000.
+     */
+    private static function approvedEditDate(string $raw, string $current): ?string
+    {
+        $raw = trim(str_replace('T', ' ', $raw));
+        if ($raw === '') {
+            return null;
+        }
+        $d = DateTime::createFromFormat('!Y-m-d H:i', substr($raw, 0, 16));
+        if (!$d || $d->format('Y-m-d H:i') !== substr($raw, 0, 16)) {
+            throw new InvalidArgumentException('ڕێکەوت و کاتی قەبز نادروستە');
+        }
+        if ($d->format('Y-m-d H:i') === substr($current, 0, 16)) {
+            return null;
+        }
+        if ($d->getTimestamp() > time() + 60) {
+            throw new InvalidArgumentException('ڕێکەوتی قەبز نابێت لە داهاتوودا بێت');
+        }
+        if ($d->format('Y') < '2000') {
+            throw new InvalidArgumentException('ڕێکەوت و کاتی قەبز نادروستە');
+        }
+        return $d->format('Y-m-d H:i:00');
+    }
+
+    /** Refuse a date that leaves or enters a period already settled for the case's doctor. */
+    private function assertDateNotSettled(int $caseId, string $oldDate, string $newDate): void
+    {
+        if (!$this->db->tableExists('income_settlements')) {
+            return;
+        }
+        $doctor = $this->db->fetch(
+            'SELECT pf.doctor_id FROM cases c JOIN patient_folders pf ON pf.id = c.folder_id WHERE c.id = ?', [$caseId]
+        );
+        if (!$doctor || !(int)$doctor['doctor_id']) {
+            return;
+        }
+        foreach ([substr($oldDate, 0, 10), substr($newDate, 0, 10)] as $day) {
+            $settled = $this->db->fetch(
+                "SELECT settlement_no, period_from, period_to FROM income_settlements
+                 WHERE doctor_id = ? AND status = 'done' AND period_from <= ? AND period_to >= ? LIMIT 1",
+                [(int)$doctor['doctor_id'], $day, $day]
+            );
+            if ($settled) {
+                throw new RuntimeException('ڕێکەوتی ' . $day . ' لە ماوەیەکی دابەشکراوی داهاتدایە (ژمارە '
+                    . $settled['settlement_no'] . '، ' . $settled['period_from'] . ' بۆ ' . $settled['period_to']
+                    . ')؛ بەرواری قەبز ناچێتە ناو ئەو ماوەیە و لێی دەرناچێت. سەرەتا دابەشکردنەکە هەڵبوەشێنەوە.');
+            }
+        }
+    }
+
+    /**
      * Why an approved receipt may NOT be corrected on its own, or null when it
      * may. Shared by editApproved() and the Approval Center's drawer, so the
      * «تەعدیل» button is never offered on a receipt the server would refuse:
@@ -1356,10 +1577,12 @@ class Payment
      *   - one child of a distributed debt collection shares its cash total
      *     with the master record;
      *   - a plan's down payment receipt is part of the plan's own terms.
+     * $discountEditable: the full editor (editApprovedDetails) re-spreads a
+     * receipt's discount itself, so a discount does not block it there.
      */
-    public function approvedEditBlockReason(array $payment)
+    public function approvedEditBlockReason(array $payment, $discountEditable = false)
     {
-        if ((float)($payment['discount_amount'] ?? 0) > 0) {
+        if (!$discountEditable && (float)($payment['discount_amount'] ?? 0) > 0) {
             return 'ئەم قەبزە داشکاندنی تێدایە؛ بۆ ڕاستکردنەوە قەبزەکە بگەڕێنەوە و دووبارە تۆماری بکە';
         }
         if (($payment['payment_method'] ?? '') === 'advance') {

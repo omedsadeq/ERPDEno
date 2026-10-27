@@ -5514,19 +5514,31 @@ button.rx-card-print { cursor:pointer; padding:0; }
                                         </a>
                                         <?php endif; ?>
                                         <?php
-                                        // «تەعدیل»: the admin corrects an approved receipt's amount in
-                                        // place (Payment::editApproved via api/finance-actions.php —
+                                        // «تەعدیل»: the admin corrects an approved receipt in place —
+                                        // amount, date and time, method and discount
+                                        // (Payment::editApprovedDetails via api/finance-actions.php —
                                         // reallocation, cashbox and audit included). Receipts the server
                                         // refuses show why instead of a button.
                                         if ($isAdmin && ($pay['status'] ?? '') === 'approved'):
                                             $payEditBlock = Settings::allowEditApprovedInvoice()
-                                                ? $paymentManager->approvedEditBlockReason($pay)
+                                                ? $paymentManager->approvedEditBlockReason($pay, true)
                                                 : 'دەستکاریکردنی تۆماری پەسەندکراو ناچالاکە — لە ڕێکخستنەکان (دەستگەیشتن) چالاکی بکە';
                                         ?>
-                                        <?php if ($payEditBlock === null): ?>
+                                        <?php if ($payEditBlock === null):
+                                            $payEditData = [
+                                                'id' => (int)$pay['id'], 'number' => (string)$pay['payment_number'],
+                                                'amount' => (float)$pay['amount'],
+                                                'date' => date('Y-m-d\TH:i', strtotime($pay['payment_date'])),
+                                                'method' => (string)($pay['payment_method'] ?: 'cash'),
+                                                'dmode' => (string)($pay['discount_mode'] ?: 'amount'),
+                                                'dvalue' => (float)($pay['discount_value'] ?? 0),
+                                                'damount' => (float)($pay['discount_amount'] ?? 0),
+                                                'dreason' => (string)($pay['discount_reason'] ?? ''),
+                                            ]; ?>
                                         <button type="button" class="btn btn-sm btn-outline-primary" style="padding:3px 8px;"
-                                                onclick="openEditPaymentDialog(<?= (int)$pay['id'] ?>, '<?= htmlspecialchars($pay['payment_number'], ENT_QUOTES) ?>', <?= (float)$pay['amount'] ?>)"
-                                                title="تەعدیلی بڕی قەبز"><i class="fas fa-pen"></i> تەعدیل</button>
+                                                data-pay="<?= htmlspecialchars(json_encode($payEditData, JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>"
+                                                onclick="openEditPaymentDialog(JSON.parse(this.dataset.pay))"
+                                                title="تەعدیلی قەبز: بڕ، ڕێکەوت و کات، جۆری پارەدان، داشکاندن"><i class="fas fa-pen"></i> تەعدیل</button>
                                         <?php else: ?>
                                         <span style="color:#94a3b8;cursor:help;" title="<?= htmlspecialchars($payEditBlock) ?>"><i class="fas fa-lock"></i></span>
                                         <?php endif; ?>
@@ -9016,25 +9028,73 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 
 <?php if ($isAdmin): ?>
 <!-- «تەعدیل» of an approved receipt (قەبز) — openEditPaymentDialog / saveEditPayment -->
+<style>
+#editPaymentDialog .ep-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+#editPaymentDialog .ep-grid .form-group { margin: 0; }
+#editPaymentDialog .ep-grid small { display: block; margin-top: 4px; }
+#editPaymentDialog .ep-span2 { grid-column: 1 / -1; }
+#editPaymentDialog select.form-control { height: auto; min-height: 38px; padding-top: 6px; padding-bottom: 6px; line-height: 1.6; }
+#editPaymentDialog .ep-discount { border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 12px 10px; margin: 14px 0 0; }
+#editPaymentDialog .ep-discount legend { font-size: 13px; font-weight: 700; color: #475569; padding: 0 6px; width: auto; margin: 0; border: 0; }
+#editPaymentDialog .ep-discount > small { display: block; margin-top: 6px; }
+@media (max-width: 520px) { #editPaymentDialog .ep-grid { grid-template-columns: 1fr; } }
+</style>
 <div class="dialog-overlay" id="editPaymentDialog">
-    <div class="dialog" style="max-width: 400px;">
+    <div class="dialog" style="max-width: 560px;">
         <div class="dialog-header">
             <h4><i class="fas fa-pen"></i> تەعدیلی قەبز <span id="epNumber" dir="ltr" style="font-size:13px;color:#64748b;"></span></h4>
             <button type="button" class="dialog-close" onclick="closeDialog('editPaymentDialog')"><i class="fas fa-times"></i></button>
         </div>
         <div class="dialog-body">
-            <div class="form-group">
-                <label for="epAmount">بڕی قەبز</label>
-                <input type="number" id="epAmount" class="form-control" min="1" step="0.01" dir="ltr"
-                       onkeydown="if(event.key==='Enter'){event.preventDefault();saveEditPayment();}">
-                <small class="text-secondary" style="display:block;margin-top:6px;">
-                    بڕی ئێستا: <b id="epOld" dir="ltr"></b> — قەبزەکە پەسەندکراو دەمێنێتەوە، ژمارە و بەروارەکەی ناگۆڕێت.
-                </small>
+            <div class="ep-grid">
+                <div class="form-group">
+                    <label for="epAmount">بڕی وەرگیراو</label>
+                    <input type="number" id="epAmount" class="form-control" min="1" step="0.01" dir="ltr"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();saveEditPayment();}">
+                    <small class="text-secondary">ئێستا: <b id="epOld" dir="ltr"></b></small>
+                </div>
+                <div class="form-group">
+                    <label for="epMethod">جۆری پارەدان</label>
+                    <select id="epMethod" class="form-control">
+                        <option value="cash">نەقد</option>
+                        <option value="card">کارت</option>
+                        <option value="transfer">گواستنەوە</option>
+                        <option value="other">تر</option>
+                    </select>
+                </div>
+                <div class="form-group ep-span2">
+                    <label for="epDate">ڕێکەوت و کات</label>
+                    <input type="datetime-local" id="epDate" class="form-control" dir="ltr">
+                </div>
             </div>
-            <div class="form-group">
-                <label for="epNote">هۆکار</label>
-                <input type="text" id="epNote" class="form-control" maxlength="500" placeholder="بۆ نموونە: هەڵەی نووسینی بڕ">
+            <fieldset class="ep-discount">
+                <legend><i class="fas fa-percent"></i> داشکاندن</legend>
+                <div class="ep-grid">
+                    <div class="form-group">
+                        <label for="epDiscountValue">بڕ</label>
+                        <div style="display:flex;gap:6px;">
+                            <input type="number" id="epDiscountValue" class="form-control" min="0" step="0.01" dir="ltr" placeholder="0" oninput="epDiscountReasonToggle()">
+                            <select id="epDiscountMode" class="form-control" style="max-width:110px;">
+                                <option value="amount">دینار</option>
+                                <option value="percent">٪</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group ep-span2" id="epDiscountReasonBox">
+                        <label for="epDiscountReason">هۆکاری داشکاندن</label>
+                        <input type="text" id="epDiscountReason" class="form-control" maxlength="500">
+                    </div>
+                </div>
+                <small class="text-secondary">ڕێژە لە قەرزی کەیسەکە حیساب دەکرێت بەبێ ئەم قەبزە. داشکاندن لەسەر ئەو وەسڵانە دادەنرێت کە قەبزەکە دەیاندات (کۆنترین وەسڵ یەکەم).</small>
+            </fieldset>
+            <div class="form-group" style="margin-top:12px;">
+                <label for="epNote">هۆکاری تەعدیل</label>
+                <input type="text" id="epNote" class="form-control" maxlength="500" placeholder="بۆ نموونە: هەڵەی نووسینی بڕ یان بەروار">
             </div>
+            <small class="text-secondary" style="display:block;">
+                قەبزەکە پەسەندکراو دەمێنێتەوە و ژمارەکەی ناگۆڕێت. هەموو گۆڕانکارییەک لە تۆماری چالاکییەکاندا هەڵدەگیرێت.
+                تێبینی قەبز لێرە ناگۆڕدرێت.
+            </small>
         </div>
         <div class="dialog-footer">
             <button type="button" class="btn btn-secondary" onclick="closeDialog('editPaymentDialog')">هەڵوەشاندنەوە</button>
@@ -15142,35 +15202,60 @@ function editVisitTabDate(invoiceId, current, anchor) {
 }
 window.editVisitTabDate = editVisitTabDate;
 
-// «تەعدیل» on an approved receipt (پارەدان tab, admin). The amount changes in
-// place and is reallocated over this case's receipts by the same endpoint the
-// Approval Center uses; the page reloads so every figure follows.
+// «تەعدیل» on an approved receipt (پارەدان tab, admin): amount, date and
+// time, method and discount, saved together by Payment::editApprovedDetails
+// (reallocation, cashbox and audit included); the page reloads so every
+// figure follows.
 let editPaymentId = 0;
-function openEditPaymentDialog(paymentId, number, amount) {
-    editPaymentId = paymentId;
-    document.getElementById('epNumber').textContent = number;
-    document.getElementById('epOld').textContent = numberFormat(amount);
-    document.getElementById('epAmount').value = amount;
+function openEditPaymentDialog(p) {
+    editPaymentId = p.id;
+    document.getElementById('epNumber').textContent = p.number;
+    document.getElementById('epOld').textContent = numberFormat(p.amount);
+    document.getElementById('epAmount').value = p.amount;
+    document.getElementById('epDate').value = p.date;
+    document.getElementById('epDate').max = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    document.getElementById('epMethod').value = p.method;
+    document.getElementById('epDiscountMode').value = p.dmode === 'percent' ? 'percent' : 'amount';
+    document.getElementById('epDiscountValue').value = p.dvalue > 0 ? p.dvalue : '';
+    document.getElementById('epDiscountReason').value = p.dreason || '';
     document.getElementById('epNote').value = '';
+    epDiscountReasonToggle();
     openDialog('editPaymentDialog');
     setTimeout(() => { const a = document.getElementById('epAmount'); a.focus(); a.select(); }, 60);
+}
+// The reason is asked for only once there is a discount.
+function epDiscountReasonToggle() {
+    const v = parseFloat(document.getElementById('epDiscountValue').value);
+    document.getElementById('epDiscountReasonBox').style.display = v > 0 ? '' : 'none';
 }
 function saveEditPayment() {
     const btn = document.getElementById('epSave');
     const amount = parseFloat(document.getElementById('epAmount').value);
     if (!(amount > 0)) { toast('error', 'بڕی قەبز دەبێت لە سفر زیاتر بێت'); return; }
+    const date = document.getElementById('epDate').value;
+    if (!date) { toast('error', 'ڕێکەوت و کاتی قەبز بنووسە'); return; }
+    const discount = parseFloat(document.getElementById('epDiscountValue').value) || 0;
+    const reason = document.getElementById('epDiscountReason').value.trim();
+    if (discount < 0) { toast('error', 'داشکاندن نادروستە'); return; }
+    if (discount > 0 && !reason) { toast('error', 'هۆکاری داشکاندن بنووسە'); document.getElementById('epDiscountReason').focus(); return; }
     if (btn.disabled) return;
     btn.disabled = true;
     const fd = new FormData();
     fd.set('csrf_token', window.CSRF_TOKEN || CSRF_TOKEN);
-    fd.set('action', 'edit_approved_payment');
+    fd.set('action', 'edit_approved_payment_details');
     fd.set('payment_id', editPaymentId);
     fd.set('amount', amount);
+    fd.set('payment_date', date);
+    fd.set('payment_method', document.getElementById('epMethod').value);
+    fd.set('discount_mode', document.getElementById('epDiscountMode').value);
+    fd.set('discount_value', discount > 0 ? String(discount) : '');
+    fd.set('discount_reason', discount > 0 ? reason : '');
     fd.set('note', document.getElementById('epNote').value.trim());
     fetch('<?= APP_URL ?>/api/finance-actions.php', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(r => r.json())
         .then(d => {
             if (!d.ok) { btn.disabled = false; toast('error', d.error || 'قەبزەکە نەگۆڕدرا'); return; }
+            if (d.unchanged) { btn.disabled = false; closeDialog('editPaymentDialog'); toast('info', 'هیچ گۆڕانکارییەک نەکرا'); return; }
             toast('success', 'قەبزەکە تەعدیل کرا');
             const url = new URL(window.location.href);
             url.searchParams.set('tab', 'payments');
@@ -15181,6 +15266,7 @@ function saveEditPayment() {
 }
 window.openEditPaymentDialog = openEditPaymentDialog;
 window.saveEditPayment = saveEditPayment;
+window.epDiscountReasonToggle = epDiscountReasonToggle;
 
 // Whose work a receipt is — the header's دکتۆر box (admin/accountant only).
 function setInvoiceDoctor(invoiceId, doctorId, select) {

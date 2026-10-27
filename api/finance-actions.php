@@ -369,6 +369,25 @@ try {
             break;
         }
 
+        // The case's پارەدان tab: amount, date and time, method and discount
+        // of an approved receipt together (Payment::editApprovedDetails).
+        case 'edit_approved_payment_details': {
+            $paymentId = (int)($_POST['payment_id'] ?? 0);
+            $fields = [];
+            foreach (['amount', 'payment_date', 'payment_method', 'discount_mode', 'discount_value', 'discount_reason'] as $key) {
+                if (isset($_POST[$key]) && is_string($_POST[$key])) {
+                    $fields[$key] = $_POST[$key];
+                }
+            }
+            $result = $paymentManager->editApprovedDetails($paymentId, $fields, $actorId, trim((string)($_POST['note'] ?? '')));
+            if (empty($result['success'])) {
+                echo json_encode(['ok' => false, 'error' => $result['message'] ?? 'قەبزەکە نەگۆڕدرا'], JSON_UNESCAPED_UNICODE);
+                break;
+            }
+            echo json_encode(['ok' => true, 'payment_id' => $paymentId, 'unchanged' => !empty($result['unchanged'])], JSON_UNESCAPED_UNICODE);
+            break;
+        }
+
         // ----------------------------------------------------- installments
 
         case 'activate_installment': {
