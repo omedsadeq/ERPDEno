@@ -3197,42 +3197,6 @@ $doctorCap = max(0, $unrequestedBalance);
 }
 
 /* Tooltip - Compact */
-/* display:none rather than visibility:hidden on purpose. A hidden-but-laid-out
-   tooltip is ~250px of nowrap text inside a ~40px tooth, and that counts toward
-   every ancestor's scrollable overflow — it alone made the chart card, the panel
-   and the page report hundreds of pixels of phantom horizontal scroll. */
-.tooth-tooltip {
-    display: none;
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #333;
-    color: white;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 10px;
-    white-space: nowrap;
-    pointer-events: none;
-    z-index: 1000;
-    margin-bottom: 4px;
-    direction: rtl; /* quadrant is LTR — keep Kurdish tooth names right-to-left */
-}
-.tooth-tooltip::after {
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 4px solid transparent;
-    border-top-color: #333;
-}
-.tooth:hover .tooth-tooltip { display: block; }
-/* Hover tooltips are dead weight on touch — and 52 of them is a lot of nowrap
-   text for a phone to lay out. */
-@media (hover: none), (max-width: 767px) {
-    .tooth:hover .tooth-tooltip { display: none; }
-}
 
 /* Chart Legend */
 .chart-legend {
@@ -5356,7 +5320,6 @@ button.rx-card-print { cursor:pointer; padding:0; }
                                              onclick="showToothDetail(<?= $num ?>)">
                                             <span class="tooth-number"><?= $palmerNumbers[$num] ?></span>
                                             <span class="tooth-svg"></span>
-                                            <div class="tooth-tooltip"><?= htmlspecialchars($toothNames[$num] ?? "ددان $num") ?></div>
                                         </div>
                                         <?php endforeach; ?>
                                     </div>
@@ -11119,16 +11082,6 @@ function renderSmartChart() {
             badge.textContent = st.count;
         } else if (badge) {
             badge.remove();
-        }
-
-        // tooltip: tooth name + first treatment
-        const tip = el.querySelector('.tooth-tooltip');
-        if (tip) {
-            let txt = toothNames[fdi] || ('ددان ' + fdi);
-            if (st.count > 0) {
-                txt += ' — ' + st.treatments[0].treatment_name + (st.count > 1 ? ' +' + (st.count - 1) : '');
-            }
-            tip.textContent = txt;
         }
     });
     renderChartLegend();
