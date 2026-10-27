@@ -4754,6 +4754,7 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
                 <?php endif; ?>
             </div>
         </div>
+        <div class="ch-side">
         <div class="ch-actions">
             <?php if ($canRequestPayment): ?>
             <button class="btn ch-btn ch-btn--gold" onclick="openDialog('paymentDialog')" title="<?= $canReceiveMoney ? 'وەرگرتنی پارە (Alt+P)' : 'داواکاری پارەدان (Alt+P)' ?>">
@@ -4817,50 +4818,25 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
                 <i class="fas fa-user"></i> گەڕانەوە بۆ نەخۆش
             </a>
         </div>
-    </div>
-
-    <div class="ch-bottom">
-        <?php // The case-wide figures, updated live through data-case-bind.
-              // Discounts are negotiated per receipt (invoice پەنجەری داشکاندن). ?>
-        <div class="ch-money">
-            <div class="ch-stat">
-                <span class="ch-stat-label"><i class="fas fa-calculator"></i> کۆی گشتی</span>
-                <span class="ch-stat-value" data-case-bind="total_amount"><?= number_format($doctorFinancialSummary['total_invoiced']) ?></span>
-            </div>
-            <div class="ch-stat ch-stat--paid">
-                <span class="ch-stat-label"><i class="fas fa-check-circle"></i> پارەی دراو</span>
-                <span class="ch-stat-value" data-case-bind="paid_amount"><?= number_format($doctorFinancialSummary['paid']) ?></span>
-            </div>
-            <div class="ch-stat ch-stat--due<?= $remaining > 0.009 ? ' is-due' : '' ?>">
-                <span class="ch-stat-label"><i class="fas fa-hourglass-half"></i> ماوە</span>
-                <span class="ch-stat-value" data-case-bind="remaining"><?= number_format($remaining) ?></span>
-            </div>
-        </div>
-
-        <?php if (!empty($invoiceTabs)): ?>
-        <?php // Visit invoices (وەسڵی سەردان) — one receipt per work day ?>
-        <div class="ch-receipts">
-            <div class="ch-receipts-label"><i class="fas fa-receipt"></i> وەسڵەکان <span class="ch-count"><?= count($invoiceTabs) ?></span></div>
-            <div class="ch-receipts-list">
-                <?php foreach ($invoiceTabs as $inv): ?>
-                <div class="ci-card<?= $inv['status'] === 'processed' ? ' ci-card--done' : ($inv['status'] === 'draft' ? ' ci-card--draft' : '') ?>">
-                    <?php // No state badge (نێردراو / نەنێردراو …): the receipt itself shows it. ?>
-                    <div class="ci-card-top">
-                        <span class="ci-no"><?= htmlspecialchars($inv['invoice_no']) ?></span>
-                    </div>
-                    <div class="ci-card-bottom">
-                        <span class="ci-amount" data-invoice-amount="<?= (int)$inv['id'] ?>"><?= number_format($inv['total_amount']) ?></span>
-                        <span class="ci-date"><?= htmlspecialchars($inv['work_date']) ?> · <span data-invoice-count="<?= (int)$inv['id'] ?>"><?= (int)$inv['treatment_count'] ?> چارەسەر</span></span>
-                        <button type="button" class="ci-print" onclick="openReceiptDialog(<?= (int)$inv['id'] ?>)" title="چاپکردنی ئەم وەسڵە">
-                            <i class="fas fa-print"></i>
-                        </button>
-                    </div>
+            <?php // The case-wide figures, updated live through data-case-bind.
+                  // Discounts are negotiated per receipt (invoice پەنجەری داشکاندن). ?>
+            <div class="ch-money">
+                <div class="ch-stat">
+                    <span class="ch-stat-label"><i class="fas fa-calculator"></i> کۆی گشتی</span>
+                    <span class="ch-stat-value" data-case-bind="total_amount"><?= number_format($doctorFinancialSummary['total_invoiced']) ?></span>
                 </div>
-                <?php endforeach; ?>
+                <div class="ch-stat ch-stat--paid">
+                    <span class="ch-stat-label"><i class="fas fa-check-circle"></i> پارەی دراو</span>
+                    <span class="ch-stat-value" data-case-bind="paid_amount"><?= number_format($doctorFinancialSummary['paid']) ?></span>
+                </div>
+                <div class="ch-stat ch-stat--due<?= $remaining > 0.009 ? ' is-due' : '' ?>">
+                    <span class="ch-stat-label"><i class="fas fa-hourglass-half"></i> ماوە</span>
+                    <span class="ch-stat-value" data-case-bind="remaining"><?= number_format($remaining) ?></span>
+                </div>
             </div>
         </div>
-        <?php endif; ?>
     </div>
+
 </div>
 
 <style>
@@ -4918,7 +4894,9 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
 .ch-patient { color: #fff !important; font-weight: 700; text-decoration: none; }
 .ch-patient:hover { text-decoration: underline; }
 .ch-appt { padding: 1px 10px; border-radius: 999px; background: rgba(96, 165, 250, .16); color: #bfdbfe; font-weight: 700; }
-.ch-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; max-width: 62%; }
+/* the left column: the actions, and the case's totals under them */
+.ch-side { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; max-width: 62%; }
+.ch-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .ch-inline-form { display: contents; }
 .ch-note {
     margin-top: 8px; max-width: 720px; font-size: 12.5px; color: var(--ch-soft);
@@ -4947,11 +4925,6 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
 .case-hero .ch-btn--white:hover { background: #eef0ff; }
 .case-hero .ch-btn--amber { background: #f59e0b; border-color: #f59e0b; color: #1f1300; }
 
-/* money and receipts, side by side under a hairline */
-.ch-bottom {
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--ch-line);
-}
 .ch-money { display: flex; gap: 6px; flex: 0 0 auto; }
 .ch-stat {
     display: flex; flex-direction: column; justify-content: center; gap: 1px;
@@ -4966,29 +4939,6 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
 .ch-stat--due.is-due .ch-stat-value { color: #fca5a5; }
 
 /* the label sits beside the cards, not above them */
-.ch-receipts { flex: 1 1 320px; min-width: 0; display: flex; align-items: center; gap: 8px; }
-.ch-receipts-label { flex: 0 0 auto; font-size: 11.5px; font-weight: 700; color: var(--ch-soft); display: flex; align-items: center; gap: 5px; white-space: nowrap; }
-.ch-count { padding: 0 7px; border-radius: 999px; background: rgba(255, 255, 255, .14); color: #fff; font-size: 11px; }
-.ch-receipts-list { flex: 1 1 auto; min-width: 0; display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .25) transparent; }
-/* more receipts than fit: they scroll, and the far (left) edge fades out to say so */
-.ch-receipts-list.is-overflowing { -webkit-mask-image: linear-gradient(to right, transparent 0, #000 36px); mask-image: linear-gradient(to right, transparent 0, #000 36px); }
-.ci-card {
-    flex: 0 0 auto; min-width: 186px; display: flex; flex-direction: column; gap: 2px;
-    padding: 5px 9px; border-radius: 10px; background: var(--ch-glass); border: 1px solid var(--ch-line);
-}
-.ci-card--draft { border-style: dashed; }
-.ci-card-top, .ci-card-bottom { display: flex; align-items: center; gap: 6px; }
-.ci-card-top { justify-content: space-between; }
-.ci-no { font-weight: 800; font-size: 12px; color: #fff; direction: ltr; }
-.ci-amount { font-weight: 800; font-size: 13.5px; color: #93c5fd; white-space: nowrap; direction: ltr; }
-.ci-card--done .ci-amount { color: #6ee7b7; }
-.ci-date { flex: 1 1 auto; font-size: 10.5px; color: var(--ch-soft); white-space: nowrap; }
-.ci-print {
-    flex: 0 0 auto; width: 23px; height: 23px; display: inline-grid; place-items: center;
-    border: 1px solid rgba(255, 255, 255, .22); border-radius: 7px; background: rgba(255, 255, 255, .08);
-    color: #fff; cursor: pointer; font-size: 10.5px;
-}
-.ci-print:hover { background: rgba(255, 255, 255, .2); }
 @media (max-width: 767px) {
     .case-hero { padding: 14px 14px 12px; border-radius: 14px; }
     .ch-icon { width: 44px; height: 44px; font-size: 18px; }
@@ -4996,8 +4946,8 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
     .ch-money { width: 100%; }
     .ch-stat { flex: 1 1 0; min-width: 0; padding: 5px 9px; }
     .ch-stat-value { font-size: 15px; }
-    .ch-receipts { flex-wrap: wrap; }
-    .ch-actions { width: 100%; max-width: none; justify-content: flex-start; }
+    .ch-side { width: 100%; max-width: none; align-items: stretch; }
+    .ch-actions { justify-content: flex-start; }
     .ch-note { white-space: normal; }
 }
 /* ── کەشف حیساب beside the receipt: only where the screen has room ── */
@@ -12336,18 +12286,6 @@ function updateCaseTotalsUI(t) {
     });
 }
 
-// The header's receipts strip fades its far edge only when it really scrolls.
-function markReceiptsOverflow() {
-    document.querySelectorAll('.ch-receipts-list').forEach(list =>
-        list.classList.toggle('is-overflowing', list.scrollWidth > list.clientWidth + 1));
-}
-document.addEventListener('DOMContentLoaded', markReceiptsOverflow);
-window.addEventListener('resize', markReceiptsOverflow);
-
-function fmt2(n) {
-    return new Intl.NumberFormat('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}).format(n || 0);
-}
-
 // Count visit invoices, including empty drafts, rather than treatment rows.
 function updateInvoiceCount(count) {
     if (!Number.isInteger(count) || count < 0) return;
@@ -14943,7 +14881,7 @@ function applyInvoiceSnapshot(d, invoiceId) {
     if (d.invoice) {
         const total = Number(d.invoice.total_amount) || 0;
         const fmt = new Intl.NumberFormat('en-US').format(total);
-        // The header's «وەسڵەکان» card for this invoice
+        // Any [data-invoice-amount]/[data-invoice-count] for this invoice
         document.querySelectorAll('[data-invoice-amount="' + invoiceId + '"]').forEach(el => { el.textContent = fmt; });
         document.querySelectorAll('[data-invoice-count="' + invoiceId + '"]').forEach(el => {
             el.textContent = (d.invoice.treatment_count || 0) + ' چارەسەر';
