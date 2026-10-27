@@ -3636,21 +3636,6 @@ $doctorCap = max(0, $unrequestedBalance);
 .smart-dental-chart .chart-legend { margin-top: 6px; padding: 6px 8px; gap: 2px 6px; }
 .smart-dental-chart .smart-chart-legend-item { padding: 2px 5px; }
 
-/* Quick selection above the chart (open cases) */
-.sel-tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; width: 100%; box-sizing: border-box;
-             margin: 0 0 6px; padding: 6px 8px; background: #f6fafd; border: 1px solid #e3ecf4; border-radius: 10px; }
-.sel-tools-l { font-size: 11.5px !important; font-weight: 800; color: #0f766e; white-space: nowrap; }
-.sel-chip { border: 1px solid #cfe1ee; background: #fff; color: #25354a; border-radius: 999px; padding: 3px 10px;
-            font-family: inherit; font-size: 11.5px !important; font-weight: 700; cursor: pointer; white-space: nowrap; line-height: 1.4; }
-.sel-chip b { display: inline-grid; place-items: center; min-width: 16px; height: 16px; margin-inline-start: 3px; border-radius: 999px;
-              background: #e0f2fe; color: #0369a1; font-size: 10px !important; }
-.sel-chip:hover, .sel-q:hover { border-color: #0d9488; color: #0f766e; }
-.sel-quads { display: inline-grid; grid-template-columns: auto auto; gap: 2px; direction: ltr; padding: 2px;
-             border: 1px solid #cfe1ee; border-radius: 8px; background: #fff; }
-.sel-q { border: 1px solid transparent; background: #f1f5f9; color: #25354a; border-radius: 5px; padding: 0 6px; height: 18px;
-         font-family: 'Segoe UI', Arial, sans-serif; font-size: 10.5px !important; font-weight: 700; line-height: 16px; cursor: pointer; }
-.sel-chip.on, .sel-q.on { background: #0d9488; border-color: #0d9488; color: #fff; }
-.sel-chip.on b { background: rgba(255,255,255,.25); color: #fff; }
 
 
 @media (max-width: 1180px) {
@@ -5305,25 +5290,6 @@ button.rx-card-print { cursor:pointer; padding:0; }
                     <?php else: ?>
                     <!-- Standard Tooth Chart -->
                     <div class="dental-chart-container smart-dental-chart" id="smartDentalChart">
-                        <?php if ($case['status'] === 'open'): ?>
-                        <!-- Quick selection: the groups one work often covers (six front
-                             teeth, a quadrant, a jaw) in one click; a second click on a
-                             chip takes them out again. Teeth can also be clicked one by
-                             one or swept over with the mouse/finger (initChartSelection). -->
-                        <div class="sel-tools" id="selTools">
-                            <span class="sel-tools-l" title="هەڵبژاردنی خێرا — یان کلیک لەسەر ددانەکان بکە، یان مشک (پەنجە) بەسەریاندا ڕابکێشە"><i class="fas fa-hand-pointer"></i></span>
-                            <button type="button" class="sel-chip" data-sel="upper-front" title="١٣ تا ٢٣ — ٦ ددانی پێشەوەی سەرەوە">پێشەوەی سەرەوە <b>6</b></button>
-                            <button type="button" class="sel-chip" data-sel="lower-front" title="٤٣ تا ٣٣ — ٦ ددانی پێشەوەی خوارەوە">پێشەوەی خوارەوە <b>6</b></button>
-                            <span class="sel-quads" role="group" aria-label="چارەکەکان">
-                                <button type="button" class="sel-q" data-sel="UR" title="سەرەوەی ڕاستی نەخۆش (١٨–١١)">8┘</button>
-                                <button type="button" class="sel-q" data-sel="UL" title="سەرەوەی چەپی نەخۆش (٢١–٢٨)">└8</button>
-                                <button type="button" class="sel-q" data-sel="LR" title="خوارەوەی ڕاستی نەخۆش (٤٨–٤١)">8┐</button>
-                                <button type="button" class="sel-q" data-sel="LL" title="خوارەوەی چەپی نەخۆش (٣١–٣٨)">┌8</button>
-                            </span>
-                            <button type="button" class="sel-chip" data-sel="upper" title="هەموو ددانەکانی سەرەوە (١٦)">هەموو سەرەوە</button>
-                            <button type="button" class="sel-chip" data-sel="lower" title="هەموو ددانەکانی خوارەوە (١٦)">هەموو خوارەوە</button>
-                        </div>
-                        <?php endif; ?>
                         <?php
                         // Both tooth sets are drawn together — a patient may be in mixed
                         // dentition, so adult and child teeth are treatable in the same case.
@@ -13291,40 +13257,9 @@ function ctxViewDetail() {
 }
 
 // Wire modifier-click selection + right-click menu onto the chart
-// The groups one work often covers — permanent teeth, in chart order.
-const SEL_GROUPS = (function () {
-    const P = DENTITION_TEETH.permanent;
-    return {
-        'upper-front': [13, 12, 11, 21, 22, 23],
-        'lower-front': [43, 42, 41, 31, 32, 33],
-        UR: P.UR.slice(), UL: P.UL.slice(), LR: P.LR.slice(), LL: P.LL.slice(),
-        upper: P.UR.concat(P.UL),
-        lower: P.LR.concat(P.LL)
-    };
-})();
-
-/** A quick-selection chip: the whole group in; clicked again, the whole group out. */
-function selectToothGroup(key) {
-    const g = SEL_GROUPS[key];
-    if (!g || !CASE_IS_OPEN) return;
-    // the adult chart must be in view for its teeth to be picked
-    if (dentitionPaneVisibility().permanent === false) toggleDentitionPane('permanent');
-    if (g.every(n => bulkSelected.includes(n))) {
-        bulkSelected = bulkSelected.filter(n => !g.includes(n));
-    } else {
-        g.forEach(n => { if (!bulkSelected.includes(n)) bulkSelected.push(n); });
-    }
-    renderBulkSelection();
-}
-
 function initChartSelection() {
     const chart = document.getElementById('smartDentalChart');
     if (!chart) return;
-
-    document.getElementById('selTools')?.addEventListener('click', function (e) {
-        const b = e.target.closest('[data-sel]');
-        if (b) selectToothGroup(b.dataset.sel);
-    });
 
     // Sweep to select: press on a tooth and move across others. Starting on an
     // unselected tooth adds every tooth passed over, starting on a selected one
@@ -13703,11 +13638,6 @@ function renderBulkSelection() {
     bulkSelected.forEach(num => {
         document.querySelectorAll('.smart-dental-chart .tooth[data-tooth="' + num + '"], .arch-tooth[data-tooth="' + num + '"]')
             .forEach(el => el.classList.add('bulk-selected'));
-    });
-    // A quick-selection chip is lit while its whole group is selected
-    document.querySelectorAll('#selTools [data-sel]').forEach(b => {
-        const g = SEL_GROUPS[b.dataset.sel] || [];
-        b.classList.toggle('on', g.length > 0 && g.every(n => bulkSelected.includes(n)));
     });
 
     const bar = document.getElementById('bulkActionBar');
