@@ -382,7 +382,8 @@ $realtimeNotifCount = $notificationObj->getUnreadCount(
                 <!-- Mobile Navigation Overlay -->
                 <div class="mobile-nav-overlay" id="mobileNavOverlay" onclick="toggleMobileNav()"></div>
 
-                <!-- Page Header -->
+                <!-- Page Header (a page with its own header sets $hidePageHeader) -->
+                <?php if (empty($hidePageHeader)): ?>
                 <div class="page-header">
                     <div class="page-header-top">
                         <h1 class="page-title"><?= $pageTitle ?></h1>
@@ -406,6 +407,7 @@ $realtimeNotifCount = $notificationObj->getUnreadCount(
                     </nav>
                     <?php endif; ?>
                 </div>
+                <?php endif; ?>
 
                 <!-- Page Content -->
                 <div class="page-content">

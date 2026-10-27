@@ -212,6 +212,9 @@ foreach ($dentalChart->getAllToothNumbers() as $num) {
 }
 
 $pageTitle = $case['case_number'];
+// The case header (the indigo band) carries the case number and the way back
+// to the patient, so the page's own title and breadcrumb bar is not shown.
+$hidePageHeader = true;
 // Auto-Folder: navigation goes Patient → Case (the folder level is hidden)
 $breadcrumb = [
     ['title' => 'نەخۆشەکان', 'url' => APP_URL . '/patients/index.php'],
@@ -4724,11 +4727,24 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
                     </span>
                     <?php endif; ?>
                 </div>
+                <?php if (!empty($case['chief_complaint'])): ?>
+                <div class="ch-note" title="<?= htmlspecialchars($case['chief_complaint']) ?>">
+                    <i class="fas fa-notes-medical"></i> <b>سکاڵا:</b> <?= htmlspecialchars($case['chief_complaint']) ?>
+                </div>
+                <?php endif; ?>
+                <?php if ($case['status'] === 'closed' && !empty($case['closing_comment'])): ?>
+                <div class="ch-note ch-note--closed" title="<?= htmlspecialchars($case['closing_comment']) ?>">
+                    <i class="fas fa-comment-dots"></i> <b>تێبینی کۆتایی:</b> <?= htmlspecialchars($case['closing_comment']) ?>
+                    <?php if (!empty($case['closed_at'])): ?>
+                    <span class="ch-note-when"><i class="fas fa-clock"></i> <?= date('Y/m/d H:i', strtotime($case['closed_at'])) ?></span>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
         <div class="ch-actions">
             <?php if ($canRequestPayment): ?>
-            <button class="btn ch-btn ch-btn--green" onclick="openDialog('paymentDialog')" title="<?= $canReceiveMoney ? 'وەرگرتنی پارە (Alt+P)' : 'داواکاری پارەدان (Alt+P)' ?>">
+            <button class="btn ch-btn ch-btn--gold" onclick="openDialog('paymentDialog')" title="<?= $canReceiveMoney ? 'وەرگرتنی پارە (Alt+P)' : 'داواکاری پارەدان (Alt+P)' ?>">
                 <i class="fas fa-money-bill"></i> <?= $canReceiveMoney ? 'پارەدان' : ($doctorPaymentDraft ? 'دەستکاری / ناردنی قەبز' : 'داواکاری پارەدانی نوێ') ?>
             </button>
             <?php elseif ($case['status'] === 'open' && $pendingPaymentsTotal > 0 && $remaining > 0): ?>
@@ -4757,11 +4773,37 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
                 </button>
                 <?php endif; ?>
             <?php endif; ?>
+            <?php // what used to be the sidebar's «کردارەکان» panel ?>
+            <?php if (($isDoctor || $isAdmin) && $case['status'] === 'open'): ?>
+            <button class="btn ch-btn ch-btn--white" onclick="openAppointmentDialog()" title="دانانی مەوعید (Alt+A)">
+                <i class="fas fa-calendar-plus"></i> دانانی مەوعید
+            </button>
+            <?php endif; ?>
+            <?php if ($case['status'] === 'open' && $remaining > 0 && !$installmentPlan): ?>
+            <button class="btn ch-btn ch-btn--gold-line" onclick="openDialog('installmentDialog')">
+                <i class="fas fa-credit-card"></i> پلانی قیست
+            </button>
+            <?php endif; ?>
             <?php if ($auth->canRequestXray()): ?>
             <a href="<?= APP_URL ?>/xray/request.php?patient_id=<?= $case['patient_id'] ?>&case_id=<?= $caseId ?>" class="btn ch-btn ch-btn--glass" title="داواکاری ئێکسڕەی">
                 <i class="fas fa-x-ray"></i> ئێکسڕەی
             </a>
             <?php endif; ?>
+            <?php if ($case['status'] === 'open'): ?>
+            <button type="button" class="btn ch-btn ch-btn--glass" onclick="openDialog('closeCaseDialog')">
+                <i class="fas fa-check-circle"></i> داخستنی کەیس
+            </button>
+            <?php else: ?>
+            <form method="POST" action="" class="ch-inline-form">
+                <input type="hidden" name="action" value="reopen_case">
+                <button type="submit" class="btn ch-btn ch-btn--gold">
+                    <i class="fas fa-folder-open"></i> کردنەوە
+                </button>
+            </form>
+            <?php endif; ?>
+            <a href="<?= APP_URL ?>/patients/view.php?id=<?= $case['patient_id'] ?>" class="btn ch-btn ch-btn--glass" title="گەڕانەوە بۆ پەڕەی نەخۆش">
+                <i class="fas fa-user"></i> گەڕانەوە بۆ نەخۆش
+            </a>
         </div>
     </div>
 
@@ -4872,7 +4914,16 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
 .ch-patient { color: #fff !important; font-weight: 700; text-decoration: none; }
 .ch-patient:hover { text-decoration: underline; }
 .ch-appt { padding: 1px 10px; border-radius: 999px; background: rgba(96, 165, 250, .16); color: #bfdbfe; font-weight: 700; }
-.ch-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ch-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; max-width: 62%; }
+.ch-inline-form { display: contents; }
+.ch-note {
+    margin-top: 8px; max-width: 720px; font-size: 12.5px; color: var(--ch-soft);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ch-note b { color: #fde68a; font-weight: 700; }
+.ch-note i { color: #fcd34d; margin-inline-end: 3px; }
+.ch-note--closed b, .ch-note--closed i { color: #e2e8f0; }
+.ch-note-when { margin-inline-start: 8px; font-size: 11.5px; opacity: .8; }
 .case-hero .ch-btn {
     display: inline-flex; align-items: center; gap: 7px;
     padding: 9px 16px; border-radius: 11px; font-weight: 700; font-size: 13px;
@@ -4882,6 +4933,14 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
 .case-hero .ch-btn--glass:hover { background: rgba(255, 255, 255, .18); }
 .case-hero .ch-btn--green { background: #16a34a; border-color: #16a34a; color: #fff; }
 .case-hero .ch-btn--green:hover { background: #15803d; }
+/* the header's own colours: gold and white */
+.case-hero .ch-btn--gold { background: linear-gradient(180deg, #fcd34d 0%, #f5b301 100%); border-color: #f5b301; color: #1f1600;
+                           box-shadow: 0 4px 14px rgba(245, 179, 1, .25); }
+.case-hero .ch-btn--gold:hover { background: #f5b301; }
+.case-hero .ch-btn--gold-line { background: rgba(252, 211, 77, .08); border-color: rgba(252, 211, 77, .6); color: #fcd34d; }
+.case-hero .ch-btn--gold-line:hover { background: rgba(252, 211, 77, .16); }
+.case-hero .ch-btn--white { background: #fff; border-color: #fff; color: #181a5c; }
+.case-hero .ch-btn--white:hover { background: #eef0ff; }
 .case-hero .ch-btn--amber { background: #f59e0b; border-color: #f59e0b; color: #1f1300; }
 
 /* money and receipts, side by side under a hairline */
@@ -4940,7 +4999,8 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
     .ch-money { width: 100%; }
     .ch-stat { flex: 1 1 0; min-width: 0; padding: 8px 10px; }
     .ch-stat-value { font-size: 16px; }
-    .ch-actions { width: 100%; }
+    .ch-actions { width: 100%; max-width: none; justify-content: flex-start; }
+    .ch-note { white-space: normal; }
 }
 /* Visit-tab + receipt-pane rules live in assets/css/invoice-pane.css,
    shared with the accountant screen. Page-specific rules only below. */
@@ -5184,7 +5244,9 @@ button.rx-card-print { cursor:pointer; padding:0; }
 }
 </style>
 
-<div class="collapsible-sidebar-grid" style="display: grid; grid-template-columns: 1fr 320px; gap: 24px;">
+<?php // One column: the old sidebar (وەسڵەکان, کردارەکان, سکاڵا, تێبینی کۆتایی)
+      // all lives in the case header now. ?>
+<div class="collapsible-sidebar-grid" style="display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px;">
     <div>
         <!-- Tabs -->
         <div class="panel">
@@ -6285,74 +6347,6 @@ button.rx-card-print { cursor:pointer; padding:0; }
         </div>
     </div>
 
-    <!-- Sidebar -->
-    <div>
-        <!-- Actions -->
-        <div class="panel">
-            <div class="panel-header">
-                <h4 class="panel-title"><i class="fas fa-cogs"></i> کردارەکان</h4>
-            </div>
-            <div class="panel-body">
-                <?php if (($isDoctor || $isAdmin) && $case['status'] === 'open'): ?>
-                <button class="btn btn-primary w-100 mb-2" onclick="openAppointmentDialog()">
-                    <i class="fas fa-calendar-plus"></i> دانانی مەوعید
-                </button>
-                <?php endif; ?>
-
-                <?php if ($case['status'] === 'open' && $remaining > 0 && !$installmentPlan): ?>
-                <button class="btn btn-warning w-100 mb-2" onclick="openDialog('installmentDialog')">
-                    <i class="fas fa-credit-card"></i> پلانی قیست
-                </button>
-                <?php endif; ?>
-
-                <?php if ($case['status'] === 'open'): ?>
-                <button type="button" class="btn btn-secondary w-100 mb-2" onclick="openDialog('closeCaseDialog')">
-                    <i class="fas fa-check-circle"></i> داخستنی کەیس
-                </button>
-                <?php else: ?>
-                <form method="POST" action="">
-                    <input type="hidden" name="action" value="reopen_case">
-                    <button type="submit" class="btn btn-success w-100 mb-2">
-                        <i class="fas fa-folder-open"></i> کردنەوە
-                    </button>
-                </form>
-                <?php endif; ?>
-
-                <a href="<?= APP_URL ?>/patients/view.php?id=<?= $case['patient_id'] ?>" class="btn btn-outline w-100">
-                    <i class="fas fa-user"></i> گەڕانەوە بۆ نەخۆش
-                </a>
-            </div>
-        </div>
-
-        <!-- Chief Complaint -->
-        <?php if (!empty($case['chief_complaint'])): ?>
-        <div class="panel">
-            <div class="panel-header">
-                <h4 class="panel-title"><i class="fas fa-notes-medical"></i> سکاڵا</h4>
-            </div>
-            <div class="panel-body">
-                <p><?= nl2br(htmlspecialchars($case['chief_complaint'])) ?></p>
-            </div>
-        </div>
-        <?php endif; ?>
-
-        <!-- Closing Comment (for closed cases) -->
-        <?php if ($case['status'] === 'closed' && !empty($case['closing_comment'])): ?>
-        <div class="panel">
-            <div class="panel-header" style="background: var(--secondary-light);">
-                <h4 class="panel-title"><i class="fas fa-comment-dots"></i> تێبینی کۆتایی</h4>
-            </div>
-            <div class="panel-body">
-                <p style="color: var(--text-secondary);"><?= nl2br(htmlspecialchars($case['closing_comment'])) ?></p>
-                <?php if (!empty($case['closed_at'])): ?>
-                <small style="color: var(--text-muted); display: block; margin-top: 8px;">
-                    <i class="fas fa-clock"></i> داخرا لە: <?= date('Y/m/d H:i', strtotime($case['closed_at'])) ?>
-                </small>
-                <?php endif; ?>
-            </div>
-        </div>
-        <?php endif; ?>
-    </div>
 </div>
 
 <!-- Send to Accounting Dialog -->
