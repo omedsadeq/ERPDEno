@@ -4945,51 +4945,52 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
 
 /* money and receipts, side by side under a hairline */
 .ch-bottom {
-    display: flex; align-items: stretch; gap: 14px; flex-wrap: wrap;
-    margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--ch-line);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--ch-line);
 }
-.ch-money { display: flex; gap: 8px; flex: 0 0 auto; }
+.ch-money { display: flex; gap: 6px; flex: 0 0 auto; }
 .ch-stat {
-    display: flex; flex-direction: column; justify-content: center; gap: 3px;
-    min-width: 116px; padding: 9px 14px; border-radius: 12px;
+    display: flex; flex-direction: column; justify-content: center; gap: 1px;
+    min-width: 92px; padding: 5px 11px; border-radius: 10px;
     background: var(--ch-glass); border: 1px solid var(--ch-line);
 }
-.ch-stat-label { font-size: 11.5px; color: var(--ch-soft); white-space: nowrap; }
+.ch-stat-label { font-size: 11px; color: var(--ch-soft); white-space: nowrap; }
 .ch-stat-label i { font-size: 10.5px; margin-inline-end: 3px; opacity: .8; }
-.ch-stat-value { font-size: 19px; font-weight: 800; color: #fff; direction: ltr; text-align: right; }
+.ch-stat-value { font-size: 16px; font-weight: 800; color: #fff; direction: ltr; text-align: right; }
 .ch-stat--paid .ch-stat-value { color: #6ee7b7; }
 .ch-stat--due.is-due { background: rgba(248, 113, 113, .1); border-color: rgba(252, 165, 165, .3); }
 .ch-stat--due.is-due .ch-stat-value { color: #fca5a5; }
 
-.ch-receipts { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
-.ch-receipts-label { font-size: 12px; font-weight: 700; color: var(--ch-soft); display: flex; align-items: center; gap: 6px; }
+/* the label sits beside the cards, not above them */
+.ch-receipts { flex: 1 1 320px; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.ch-receipts-label { flex: 0 0 auto; font-size: 11.5px; font-weight: 700; color: var(--ch-soft); display: flex; align-items: center; gap: 5px; white-space: nowrap; }
 .ch-count { padding: 0 7px; border-radius: 999px; background: rgba(255, 255, 255, .14); color: #fff; font-size: 11px; }
-.ch-receipts-list { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .25) transparent; }
+.ch-receipts-list { flex: 1 1 auto; min-width: 0; display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .25) transparent; }
 /* more receipts than fit: they scroll, and the far (left) edge fades out to say so */
 .ch-receipts-list.is-overflowing { -webkit-mask-image: linear-gradient(to right, transparent 0, #000 36px); mask-image: linear-gradient(to right, transparent 0, #000 36px); }
 .ci-card {
-    flex: 0 0 auto; min-width: 210px; display: flex; flex-direction: column; gap: 6px;
-    padding: 8px 10px; border-radius: 12px; background: var(--ch-glass); border: 1px solid var(--ch-line);
+    flex: 0 0 auto; min-width: 186px; display: flex; flex-direction: column; gap: 2px;
+    padding: 5px 9px; border-radius: 10px; background: var(--ch-glass); border: 1px solid var(--ch-line);
 }
 .ci-card--draft { border-style: dashed; }
-.ci-card-top, .ci-card-bottom { display: flex; align-items: center; gap: 8px; }
+.ci-card-top, .ci-card-bottom { display: flex; align-items: center; gap: 6px; }
 .ci-card-top { justify-content: space-between; }
-.ci-no { font-weight: 800; font-size: 12.5px; color: #fff; direction: ltr; }
-.ci-amount { font-weight: 800; font-size: 15px; color: #93c5fd; white-space: nowrap; direction: ltr; }
+.ci-no { font-weight: 800; font-size: 12px; color: #fff; direction: ltr; }
+.ci-amount { font-weight: 800; font-size: 13.5px; color: #93c5fd; white-space: nowrap; direction: ltr; }
 .ci-card--done .ci-amount { color: #6ee7b7; }
-.ci-date { flex: 1 1 auto; font-size: 11px; color: var(--ch-soft); white-space: nowrap; }
+.ci-date { flex: 1 1 auto; font-size: 10.5px; color: var(--ch-soft); white-space: nowrap; }
 .ci-badge {
     display: inline-flex; align-items: center; gap: 4px;
-    padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700; white-space: nowrap;
+    padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap;
 }
 .ci-badge--sent    { background: rgba(245, 158, 11, .18); color: #fcd34d; }
 .ci-badge--drafted { background: rgba(255, 255, 255, .12); color: #e2e8f0; }
 .ci-badge--part    { background: rgba(96, 165, 250, .2);  color: #bfdbfe; }
 .ci-badge--done    { background: rgba(34, 197, 94, .2);   color: #86efac; }
 .ci-print {
-    flex: 0 0 auto; width: 28px; height: 28px; display: inline-grid; place-items: center;
-    border: 1px solid rgba(255, 255, 255, .22); border-radius: 8px; background: rgba(255, 255, 255, .08);
-    color: #fff; cursor: pointer; font-size: 11.5px;
+    flex: 0 0 auto; width: 23px; height: 23px; display: inline-grid; place-items: center;
+    border: 1px solid rgba(255, 255, 255, .22); border-radius: 7px; background: rgba(255, 255, 255, .08);
+    color: #fff; cursor: pointer; font-size: 10.5px;
 }
 .ci-print:hover { background: rgba(255, 255, 255, .2); }
 @media (max-width: 767px) {
@@ -4997,8 +4998,9 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
     .ch-icon { width: 44px; height: 44px; font-size: 18px; }
     .ch-number { font-size: 20px; }
     .ch-money { width: 100%; }
-    .ch-stat { flex: 1 1 0; min-width: 0; padding: 8px 10px; }
-    .ch-stat-value { font-size: 16px; }
+    .ch-stat { flex: 1 1 0; min-width: 0; padding: 5px 9px; }
+    .ch-stat-value { font-size: 15px; }
+    .ch-receipts { flex-wrap: wrap; }
     .ch-actions { width: 100%; max-width: none; justify-content: flex-start; }
     .ch-note { white-space: normal; }
 }
