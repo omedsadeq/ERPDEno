@@ -152,9 +152,8 @@ $paneHidden = !empty($paneAlwaysVisible) ? false : ($tid !== $activeInvoiceId);
             <?php elseif (!$sentEditable): ?>
             <span class="vt-head-badge is-locked" title="دوای ناردن ناتوانرێت بگۆڕدرێت"><i class="fas fa-lock"></i> قوفڵدراو</span>
             <?php endif; ?>
-            <?php if (($tab['fifo_remaining'] ?? 0) > 0.009): ?>
-            <span class="vt-head-badge is-part">ماوە <?= $ipMoney($tab['fifo_remaining']) ?></span>
-            <?php endif; ?>
+            <?php // No «ماوە», «قەرزی تەواو» or «وەرگیراوی ناو وەسڵ» badges here: the
+                  // receipt's money is in its totals below and in the case header. ?>
             <?php if (($tab['pending_amount'] ?? 0) > 0.009): ?>
             <span class="vt-head-badge is-pending" title="داواکاری پارەدانی دکتۆر — چاوەڕوانی پەسەندکردن">
                 <i class="fas fa-hourglass-half"></i> چاوەڕوانی ژمێریار <?= $ipMoney($tab['pending_amount']) ?>
@@ -167,12 +166,7 @@ $paneHidden = !empty($paneAlwaysVisible) ? false : ($tid !== $activeInvoiceId);
                     · پێشەکی <?= $ipMoney($panePendingPlan['proposed_down_payment']) ?>
                 <?php endif; ?>
             </span>
-            <?php elseif (($tab['payment_intent'] ?? '') === 'debt'): ?>
-            <span class="vt-head-badge is-part"><i class="fas fa-hand-holding-usd"></i> قەرزی تەواو</span>
             <?php endif; ?>
-            <?php endif; ?>
-            <?php if ((float)($tab['draft_received_amount'] ?? 0) > 0.009): ?>
-            <span class="vt-head-badge is-part"><i class="fas fa-file-invoice-dollar"></i> وەرگیراوی ناو وەسڵ <?= $ipMoney($tab['draft_received_amount']) ?></span>
             <?php endif; ?>
         </div>
         <div class="vt-head-actions">
