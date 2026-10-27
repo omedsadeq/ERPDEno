@@ -2842,107 +2842,119 @@ $doctorCap = max(0, $unrequestedBalance);
 }
 
 /* ── Case tabs ────────────────────────────────────────────────────────
-   The tab row is not a control panel bolted onto the case — it is the
-   top edge of the chart itself. So: no grey trough, no raised pill, no
-   shadow. One hairline runs the width of the panel and the open tab
-   breaks it with an accent rule.
-
-   Hierarchy is carried by colour and that rule rather than by weight:
-   NRT ships Regular only (see assets/css/fonts.css), so a 600 here just
-   asks the browser to smear the Kurdish letterforms. */
+   A soft track under the indigo case header. Every tab has its own colour
+   (--c, tint --c-soft) shown as an icon tile; the open tab rises as a
+   white card, its tile turns solid and a bar of its colour sits under it,
+   so the doctor finds a tab by colour as much as by name. */
 .tabs-container {
-    --tab-accent: var(--win-accent, #0078D4);
-    --tab-ink: #1F2A37;
-    --tab-ink-quiet: #6B7684;
-    --tab-rule: #E8ECF1;
-    --tab-icon: #9AA5B1;
-    --tab-chip: #F0F3F7;
-    --tab-chip-ink: #6B7684;
-    --tab-chip-on: #E4F0FB;
-
+    --tab-accent: #181a5c;
     display: flex;
     align-items: stretch;
-    gap: 2px;
-    padding: 0 8px;
-    background: transparent;
+    gap: 6px;
+    padding: 8px;
+    background: linear-gradient(180deg, #f4f6fc 0%, #eef1f9 100%);
+    border-bottom: 1px solid #e3e7f2;
     border-radius: 0;
-    border-bottom: 1px solid var(--tab-rule);
     overflow-x: auto;
     scrollbar-width: none;
 }
 .tabs-container::-webkit-scrollbar { display: none; }
 
 .tab {
+    --c: #4f46e5; --c-soft: #eef2ff;
     position: relative;
-    /* Share the whole strip between the available tabs. min-width keeps
-       longer Kurdish labels readable and lets the existing horizontal
-       scroller take over only when the viewport is genuinely too narrow. */
+    /* Share the strip; min-width keeps the Kurdish labels whole and lets the
+       strip scroll sideways only when the screen is genuinely too narrow. */
     flex: 1 1 0;
     min-width: max-content;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
-    padding: 13px 14px 12px;
-    background: #fff;
-    border: none;
-    border-radius: 0;
+    gap: 9px;
+    padding: 8px 14px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 12px;
     font-family: inherit;
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.35;
     white-space: nowrap;
-    color: #000;
+    color: #334155;
     cursor: pointer;
-    transition: color 0.16s ease, background-color 0.16s ease;
+    transition: background-color .18s ease, box-shadow .18s ease, transform .18s ease, color .18s ease, border-color .18s ease;
 }
-/* The open tab's marker: a short accent capsule resting on the hairline. */
+.tab--chart { --c: #4f46e5; --c-soft: #e0e7ff; }
+.tab--treat { --c: #0d9488; --c-soft: #ccfbf1; }
+.tab--pay   { --c: #16a34a; --c-soft: #dcfce7; }
+.tab--img   { --c: #0284c7; --c-soft: #e0f2fe; }
+.tab--rx    { --c: #e11d48; --c-soft: #ffe4e6; }
+.tab--mat   { --c: #d97706; --c-soft: #fef3c7; }
+.tab--logs  { --c: #7c3aed; --c-soft: #ede9fe; }
+
+/* the icon tile */
+.tab i {
+    display: inline-grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: var(--c-soft);
+    color: var(--c);
+    font-size: 13.5px;
+    transition: background-color .18s ease, color .18s ease, transform .18s ease;
+}
+.tab:hover { background: rgba(255, 255, 255, .75); color: #0f172a; }
+.tab:hover i { transform: scale(1.06); }
+
+/* the open tab: a raised white card in its colour */
+.tab.active {
+    background: #fff;
+    border-color: #e1e5f2;
+    color: var(--tab-accent);
+    font-weight: 700;
+    box-shadow: 0 6px 16px rgba(24, 26, 92, .10), 0 1px 2px rgba(24, 26, 92, .06);
+}
+.tab.active i { background: var(--c); color: #fff; box-shadow: 0 4px 10px color-mix(in srgb, var(--c) 35%, transparent); }
 .tab::after {
     content: "";
     position: absolute;
-    left: 10px;
-    right: 10px;
-    bottom: 0;
-    height: 2.5px;
-    border-radius: 3px;
-    background: var(--tab-accent);
+    left: 22%;
+    right: 22%;
+    bottom: -1px;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+    background: var(--c);
     transform: scaleX(0);
     transform-origin: center;
-    transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform .2s cubic-bezier(.4, 0, .2, 1);
 }
 .tab.active::after { transform: scaleX(1); }
-.tab:hover { color: #000; background: #f7fafc; }
-.tab.active { color: #000; background: #eef6fc; font-weight: 700; }
-.tab i {
-    font-size: 13px;
-    color: var(--tab-icon);
-    transition: color 0.16s ease;
-}
-.tab:hover i { color: var(--tab-ink); }
-.tab.active i { color: var(--tab-accent); }
 .tab:focus-visible {
-    outline: 2px solid var(--tab-accent);
-    outline-offset: -4px;
-    border-radius: 6px;
+    outline: 2px solid var(--c);
+    outline-offset: 2px;
 }
 
-/* A count is a reading, not a parenthetical. Tabular figures in a quiet
-   chip, LTR-isolated so RTL never flips "0/6" round into "6/0". */
+/* A count is a reading, not a parenthetical: a small pill, LTR-isolated so
+   RTL never flips "0/6" round into "6/0". */
 .tab-count {
     direction: ltr;
     unicode-bidi: isolate;
-    padding: 1px 6px;
-    border-radius: 5px;
-    background: var(--tab-chip);
-    color: #000;
-    font-size: 11px;
+    min-width: 22px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: #e6e9f3;
+    color: #475569;
+    font-size: 11.5px;
+    font-weight: 700;
     line-height: 1.6;
+    text-align: center;
     font-variant-numeric: tabular-nums;
-    transition: background 0.16s ease, color 0.16s ease;
+    transition: background-color .18s ease, color .18s ease;
 }
-.tab.active .tab-count { background: var(--tab-chip-on); color: #000; }
+.tab.active .tab-count { background: var(--c-soft); color: var(--c); }
 /* Images are six fixed slots, not an open list — read it as a capacity. */
-.tab-count .cap-max { opacity: 1; }
+.tab-count .cap-max { opacity: .7; }
 
 @media (prefers-reduced-motion: reduce) {
     .tab,
@@ -5016,7 +5028,8 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
 }
 @media (max-width: 767px) {
     .tabs-container { -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; }
-    .tabs-container .tab { scroll-snap-align: center; padding: 14px 12px 13px; }
+    .tabs-container .tab { scroll-snap-align: center; padding: 7px 11px; gap: 7px; font-size: 13px; }
+    .tabs-container .tab i { width: 26px; height: 26px; font-size: 12px; }
     /* Chart toolbar: title, dentition filters and action buttons on their own
        lines instead of one row that runs off the screen. */
     #tab-chart .panel-body > .d-flex.justify-between { flex-direction: column; align-items: stretch; gap: 10px; }
@@ -5255,28 +5268,28 @@ button.rx-card-print { cursor:pointer; padding:0; }
             <div class="tabs-container">
                 <?php // The chart is where work is picked (teeth → treatment), so it is the
                       // first tab and open by default; the treatments come second. ?>
-                <button type="button" class="tab active" onclick="showTab('chart', this)">
+                <button type="button" class="tab tab--chart active" onclick="showTab('chart', this)">
                     <i class="fas fa-tooth" aria-hidden="true"></i>
                     <span class="tab-label">چارتی ددان</span>
                 </button>
-                <button type="button" class="tab" data-case-tab="treatments" onclick="showTab('treatments', this)">
+                <button type="button" class="tab tab--treat" data-case-tab="treatments" onclick="showTab('treatments', this)">
                     <i class="fas fa-tasks" aria-hidden="true"></i>
                     <span class="tab-label">چارەسەرەکان</span>
                     <span class="tab-count" data-invoice-count><?= count($invoiceTabs) ?></span>
                 </button>
-                <button type="button" class="tab" data-case-tab="payments" onclick="showTab('payments', this, true)">
+                <button type="button" class="tab tab--pay" data-case-tab="payments" onclick="showTab('payments', this, true)">
                     <i class="fas fa-money-bill" aria-hidden="true"></i>
                     <span class="tab-label">پارەدان</span>
                     <span class="tab-count"><?= count($payments) + count($chairSideReceipts) ?></span>
                 </button>
-                <button type="button" class="tab" onclick="showTab('images', this)">
+                <button type="button" class="tab tab--img" onclick="showTab('images', this)">
                     <i class="fas fa-images" aria-hidden="true"></i>
                     <span class="tab-label">وێنەکان</span>
                     <span class="tab-count"><?= count($caseImages) ?><span class="cap-max">/6</span></span>
                 </button>
                 <?php if ($canPrescribe || $canSeePrescriptions): ?>
                 <?php // دەرمان opens as a large dialog, not a tab: the sheet is too big to share the page. ?>
-                <button type="button" class="tab" onclick="openMedicineDialog()">
+                <button type="button" class="tab tab--rx" onclick="openMedicineDialog()">
                     <i class="fas fa-pills" aria-hidden="true"></i>
                     <span class="tab-label">دەرمان</span>
                     <span class="tab-count" id="rxTabCount">0</span>
@@ -5284,14 +5297,14 @@ button.rx-card-print { cursor:pointer; padding:0; }
                 <?php endif; ?>
                 <?php if ($canRequestMaterial): ?>
                 <?php // داواکاری مەواد لە کۆگا — a dialog, like دەرمان. ?>
-                <button type="button" class="tab" onclick="openMaterialDialog()">
+                <button type="button" class="tab tab--mat" onclick="openMaterialDialog()">
                     <i class="fas fa-boxes-stacked" aria-hidden="true"></i>
                     <span class="tab-label">مەواد</span>
                     <span class="tab-count" id="mrTabCount">0</span>
                 </button>
                 <?php endif; ?>
                 <?php if ($isArchCase): ?>
-                <button type="button" class="tab" onclick="showTab('logs', this)">
+                <button type="button" class="tab tab--logs" onclick="showTab('logs', this)">
                     <i class="fas fa-clipboard-list" aria-hidden="true"></i>
                     <span class="tab-label">کارە ئەنجامدراوەکان</span>
                     <span class="tab-count"><?= count($procedureLogs) ?></span>
