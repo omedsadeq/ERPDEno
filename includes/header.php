@@ -56,6 +56,12 @@ $bodyClasses = [];
 if ($appFontScale > 1.0) {
     $bodyClasses[] = 'app-font-scaled';
 }
+// A page shown inside another page's dialog sets $embedLayout (from ?embed=1):
+// no title bar, sidebar, page header or status bar — only its content.
+if (!empty($embedLayout)) {
+    $bodyClasses[] = 'is-embedded';
+    $hidePageHeader = true;
+}
 // Badge block: header and sidebar render the same counters. Memoise identical
 // COUNT(*) queries for the duration so each one runs once per page instead of
 // two or three times. Closed right after the sidebar include below.
@@ -217,6 +223,15 @@ $realtimeNotifCount = $notificationObj->getUnreadCount(
     <!-- Custom Page CSS -->
     <?php if (isset($customCSS)): ?>
     <style><?= $customCSS ?></style>
+    <?php endif; ?>
+
+    <?php if (!empty($embedLayout)): ?>
+    <!-- Inside another page's dialog: only the page content (inline, so a cached style.css cannot miss it) -->
+    <style id="embed-layout">
+        body.is-embedded .titlebar, body.is-embedded .nav-pane, body.is-embedded .mobile-header,
+        body.is-embedded .mobile-nav-overlay, body.is-embedded .statusbar { display: none !important; }
+        body.is-embedded .page-content { padding: 14px 18px 0; }
+    </style>
     <?php endif; ?>
 
     <?php if ($appFontScale > 1.0): ?>

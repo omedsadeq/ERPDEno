@@ -1858,7 +1858,7 @@ function buildPaginationUrl($pageNum) {
                 ڕاپۆرت
             </a>
             <?php if ($permission->can('page.new_visit')): ?>
-            <a href="<?= APP_URL ?>/new_visit.php" class="btn-add">
+            <a href="<?= APP_URL ?>/new_visit.php" data-new-visit-dialog class="btn-add">
                 <i class="fas fa-plus"></i>
                 سەردانی نوێ
             </a>
@@ -3327,4 +3327,5 @@ document.getElementById('syncPatientModal').addEventListener('click', function(e
 })();
 </script>
 
+<?php if ($permission->can('page.new_visit')) require __DIR__ . '/includes/new_visit_dialog.php'; ?>
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

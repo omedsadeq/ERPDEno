@@ -987,7 +987,7 @@ $waitingPatients = $db->fetchAll(
     <div class="form-card-body">
         <div class="quick-actions-grid">
             <?php if ($permission->can('page.new_visit')): ?>
-            <a href="<?= APP_URL ?>/new_visit.php" class="quick-action-card">
+            <a href="<?= APP_URL ?>/new_visit.php" data-new-visit-dialog class="quick-action-card">
                 <div class="action-icon icon-purple">
                     <i class="fas fa-plus-circle"></i>
                 </div>
@@ -1537,4 +1537,5 @@ $waitingPatients = $db->fetchAll(
 
 </div>
 
+<?php if ($permission->can('page.new_visit')) require __DIR__ . '/includes/new_visit_dialog.php'; ?>
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

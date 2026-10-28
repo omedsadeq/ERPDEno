@@ -2701,7 +2701,7 @@ $wrErrorMessage = $wrErrorMessages[$_GET['error'] ?? ''] ?? null;
             </button>
             <?php endif; ?>
             <?php if ($permission->can('page.new_visit')): ?>
-            <a href="<?= APP_URL ?>/new_visit.php" class="wr-quick-btn wr-quick-btn-primary" style="text-decoration: none;">
+            <a href="<?= APP_URL ?>/new_visit.php" data-new-visit-dialog class="wr-quick-btn wr-quick-btn-primary" style="text-decoration: none;">
                 <i class="fas fa-user-plus"></i> نەخۆشی تازە
             </a>
             <?php endif; ?>
@@ -5431,4 +5431,5 @@ document.addEventListener('submit', function(e) {
 }, true);
 </script>
 
+<?php if ($permission->can('page.new_visit')) require __DIR__ . '/includes/new_visit_dialog.php'; ?>
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

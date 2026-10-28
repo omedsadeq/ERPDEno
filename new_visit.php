@@ -28,6 +28,10 @@ $breadcrumb = [
     ['title' => 'سەردانەکان', 'url' => APP_URL . '/visits.php'],
     ['title' => 'سەردانی نوێ']
 ];
+// ?embed=1: opened in the «سەردانی نوێ» dialog (includes/new_visit_dialog.php)
+// of visits.php, waiting-room.php or the dashboard — only the form, and the
+// page tells its parent when the visit is saved or the dialog should close.
+$embedLayout = ($_GET['embed'] ?? '') === '1';
 
 require_once __DIR__ . '/includes/header.php';
 
@@ -914,6 +918,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if ($send_to_waiting) {
                 $redirect_qs['open_waiting'] = 1;
+            }
+            if ($embedLayout) {
+                $redirect_qs['embed'] = 1;   // the choice dialog opens inside the same dialog
             }
             $redirect_url = APP_URL . "/new_visit.php?" . http_build_query($redirect_qs);
         } catch (Exception $e) {
@@ -2458,6 +2465,44 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
 .form-card-body { padding: 12px 16px 14px; }
 .green-separator { margin: 14px 0 12px; }
 
+/* Two-line buttons (label + shortcut) need their height, not the app's fixed one. */
+.form-actions .btn { height: auto; min-height: 46px; line-height: 1.35; }
+
+/* ── Two columns: the patient (right) and the visit (left) ── */
+.nv-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.nv-col { min-width: 0; }
+.nv-layout .form-grid,
+.nv-layout .form-grid-3 { grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); }
+.nv-layout .form-group.span-4,
+.nv-layout .form-group.span-2,
+.nv-layout .form-group.span-3 { grid-column: 1 / -1; }
+.nv-layout .form-group.nv-photo { grid-column: auto; }
+.nv-layout .form-group.nv-address { order: 1; }   /* the full-width line last, so the photo fills the row beside «پیشە» */
+/* Choices side by side as one segmented row (the page's .form-group label
+   rule made each one a block of its own). */
+.nv-layout .radio-group { flex-wrap: nowrap; gap: 6px; }
+.nv-layout .form-group .radio-label { display: inline-flex; flex: 1 1 0; justify-content: center; margin: 0; padding: 9px 12px; }
+/* «جۆری سەردان»: type and new/old first, then the work type and its doctor */
+.nv-layout #patientStatusGroup { order: 1; }
+.nv-layout .nv-worktype, .nv-layout #treatmentDoctorGroup { order: 2; }
+.nv-card-hint { margin-inline-start: auto; font-size: 11.5px; color: #90a4ae; font-weight: 400; }
+.nv-patient-notes { margin-top: 12px; }
+/* Folding sections: health alerts, and the visit's rarely used part */
+.nv-more { margin-top: 12px; border: 1px solid #e3e8ee; border-radius: 10px; padding: 0 12px; background: #fbfcfd; }
+.nv-more > summary { cursor: pointer; padding: 10px 0; font-size: 13px; font-weight: 700; color: #37474f; list-style: none; display: flex; align-items: center; gap: 7px; }
+.nv-more > summary::-webkit-details-marker { display: none; }
+.nv-more > summary::after { content: ''; width: 7px; height: 7px; border: solid #90a4ae; border-width: 0 2px 2px 0; transform: rotate(45deg); margin-inline-start: auto; transition: transform .2s; }
+.nv-more[open] > summary::after { transform: rotate(-135deg); }
+.nv-more[open] { padding-bottom: 12px; }
+.nv-more[open] > summary { border-bottom: 1px dashed #e0e0e0; margin-bottom: 12px; }
+.nv-more-count { background: #fce4ec; color: #c2185b; border-radius: 9px; padding: 0 8px; font-size: 11px; }
+.nv-more-count:empty { display: none; }
+@media (max-width: 1100px) { .nv-layout { grid-template-columns: 1fr; } }
+
+/* In the dialog: full width, and the save bar flush with its bottom edge */
+body.is-embedded .report-container { max-width: none; }
+body.is-embedded .form-actions { bottom: 0; margin: 12px -18px 0; border-radius: 0; border-width: 1px 0 0; }
+
 @media (max-width: 600px) {
     .form-actions { bottom: 0; border-radius: 10px 10px 0 0; }
     .form-actions .btn { flex: 1; justify-content: center; }
@@ -2470,13 +2515,15 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
     <input type="hidden" id="patient_dirty" name="patient_dirty" value="<?php echo htmlspecialchars($_POST['patient_dirty'] ?? '0'); ?>">
     <input type="hidden" id="patient_conditions_loaded" name="patient_conditions_loaded" value="<?php echo htmlspecialchars($_POST['patient_conditions_loaded'] ?? '0'); ?>">
 
-    <!-- Page Header -->
+    <?php if (!$embedLayout): ?>
+    <!-- Page Header (the dialog has its own title) -->
     <div class="report-header">
         <div class="report-title">
             <div class="icon"><i class="fas fa-user-plus"></i></div>
             <h2>سەردانی نوێ</h2>
         </div>
     </div>
+    <?php endif; ?>
 
     <!-- Patient Search Card -->
     <div class="search-card">
@@ -2492,11 +2539,16 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
         </div>
     </div>
 
-    <!-- Patient Personal Info Card (merged: basic + contact + medical conditions) -->
+    <!-- Two columns on a wide screen: the patient (right), the visit (left). -->
+    <div class="nv-layout">
+    <div class="nv-col">
+
+    <!-- Patient Personal Info Card (merged: basic + contact + notes + medical conditions) -->
     <div class="form-card">
         <div class="form-card-header">
             <div class="card-icon icon-blue"><i class="fas fa-id-card"></i></div>
-            <h3>زانیاری تایبەتی نەخۆش</h3>
+            <h3>نەخۆش</h3>
+            <span class="nv-card-hint">کۆن: لە گەڕانەکەوە · نوێ: لێرە بنووسە</span>
         </div>
         <div class="form-card-body">
             <div class="form-grid">
@@ -2562,11 +2614,11 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
                     <label>پیشە</label>
                     <input type="text" id="occupation" name="occupation" value="<?php echo htmlspecialchars($_POST['occupation'] ?? ''); ?>" placeholder="کارمەند">
                 </div>
-                <div class="form-group span-2">
+                <div class="form-group span-2 nv-address">
                     <label>ناونیشان</label>
                     <input type="text" id="address" name="address" value="<?php echo htmlspecialchars($_POST['address'] ?? ''); ?>" placeholder="ناونیشانی وردی ماڵەوە...">
                 </div>
-                <div class="form-group span-2">
+                <div class="form-group span-2 nv-photo">
                     <label>وێنەی نەخۆش</label>
                     <input type="file" id="profile_image" name="profile_image" accept="image/*">
                     <div id="profile_image_preview" class="profile-preview" style="display:none;">
@@ -2575,10 +2627,15 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
                 </div>
             </div>
 
-            <div style="margin-top: 16px; padding-top: 12px; border-top: 1px dashed #e0e0e0;">
-                <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:#37474f; font-weight:600; margin-bottom:8px;">
-                    <i class="fas fa-heartbeat" style="color:#e91e63;"></i> ئاگاداری تەندروستی
-                </label>
+            <div class="form-group nv-patient-notes">
+                <label><i class="fas fa-sticky-note"></i> تێبینی نەخۆش</label>
+                <textarea id="patient_notes" name="patient_notes" rows="2" placeholder="تێبینی تایبەت بۆ نەخۆش..."><?php echo htmlspecialchars($_POST['patient_notes'] ?? ''); ?></textarea>
+            </div>
+
+            <?php $nvHealthOpen = !empty($_POST['medical_conditions']); ?>
+            <details class="nv-more" id="nvHealth" <?= $nvHealthOpen ? 'open' : '' ?>>
+                <summary><i class="fas fa-heartbeat" style="color:#e91e63;"></i> ئاگاداری تەندروستی
+                    <span class="nv-more-count" id="nvHealthCount"></span></summary>
                 <div class="conditions-grid">
                     <?php foreach ($MEDICAL_CONDITIONS as $key => $label): ?>
                         <div class="condition-card <?php echo in_array($key, $_POST['medical_conditions'] ?? []) ? 'active' : ''; ?>" id="card_<?php echo $key; ?>" onclick="toggleConditionCard('<?php echo $key; ?>')">
@@ -2600,15 +2657,18 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
                         </div>
                     <?php endforeach; ?>
                 </div>
-            </div>
+            </details>
         </div>
     </div>
 
-    <!-- Patient Notes Card -->
+    </div><!-- /.nv-col (patient) -->
+    <div class="nv-col">
+
+    <!-- Visit type: checkup or work, new or returning patient -->
     <div class="form-card">
         <div class="form-card-header">
-            <div class="card-icon icon-orange"><i class="fas fa-sticky-note"></i></div>
-            <h3>تێبینی نەخۆش</h3>
+            <div class="card-icon icon-orange"><i class="fas fa-clipboard-check"></i></div>
+            <h3>جۆری سەردان</h3>
         </div>
         <div class="form-card-body">
             <div class="form-grid">
@@ -2625,7 +2685,7 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
                         </label>
                     </div>
                 </div>
-                <div class="form-group span-2">
+                <div class="form-group span-2 nv-worktype">
                     <label>جۆری ئیش</label>
                     <?php
                     // Build the list once for the searchable combo (value = id, label = name)
@@ -2689,10 +2749,6 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
                         </label>
                     </div>
                 </div>
-                <div class="form-group span-4">
-                    <label><i class="fas fa-sticky-note"></i> تێبینی</label>
-                    <textarea id="patient_notes" name="patient_notes" rows="2" placeholder="تێبینی تایبەت بۆ نەخۆش..."><?php echo htmlspecialchars($_POST['patient_notes'] ?? ''); ?></textarea>
-                </div>
             </div>
         </div>
     </div>
@@ -2701,7 +2757,7 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
     <div class="form-card" id="checkupSection">
         <div class="form-card-header">
             <div class="card-icon icon-green"><i class="fas fa-clipboard-list"></i></div>
-            <h3>زانیاری سەردان بۆ پشکنین</h3>
+            <h3>وردەکاری پشکنین</h3>
         </div>
         <div class="form-card-body">
 
@@ -2818,6 +2874,23 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
                         <?php endwhile; ?>
                     </datalist>
                 </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 12px;">
+                <label><i class="fas fa-comment-alt"></i> تێبینی سەردان</label>
+                <textarea id="notes" name="notes" rows="2" placeholder="تێبینی زیادە..."></textarea>
+            </div>
+
+            <?php
+            // The rarely used part folds away; it opens by itself when it was
+            // filled in before a failed save, so nothing typed is hidden.
+            $nvMoreOpen = !empty($_POST['appointment_date']) || !empty($_POST['referring_doctor_id'])
+                || !empty($_POST['referring_doctor_designation']) || !empty($errors['patient_referral'])
+                || ($_POST['treated'] ?? '') === 'yes';
+            ?>
+            <details class="nv-more" id="nvVisitMore" <?= $nvMoreOpen ? 'open' : '' ?>>
+                <summary><i class="fas fa-sliders-h"></i> زیاتر: ئیش بۆ کرا؟ · چاوپێکەوتن و دەستنیشانکردن · پلانی چارەسەر</summary>
+            <div class="form-grid">
                 <div class="form-group">
                     <label>بۆ ئیش بۆ کرا</label>
                     <div class="radio-group">
@@ -2831,9 +2904,7 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
                         </label>
                     </div>
                 </div>
-            </div>
-            <div id="treated_reason_container" style="margin-top: 10px;">
-                <div class="form-group">
+                <div class="form-group span-3" id="treated_reason_container">
                     <label>هۆکاری چارەسەر نەکردن</label>
                     <input type="text" id="treated_reason" name="treated_reason" placeholder="بۆچی چارەسەر نەکرا؟" autocomplete="off">
                 </div>
@@ -2910,22 +2981,24 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
                 </div>
             </div>
             <?php if (!empty($errors['patient_referral'])): ?><div role="alert" style="color:#c62828;"><?= htmlspecialchars($errors['patient_referral']) ?></div><?php endif; ?>
-
-            <hr class="green-separator">
-
-            <!-- Sub-section 4: Visit Notes -->
-            <div class="subsection-label"><i class="fas fa-comment-alt"></i> تێبینی سەردان</div>
-            <div class="form-group">
-                <textarea id="notes" name="notes" rows="2" placeholder="تێبینی زیادە..."></textarea>
-            </div>
+            </details>
         </div>
     </div>
 
+    </div><!-- /.nv-col (visit) -->
+    </div><!-- /.nv-layout -->
+
     <!-- Form Actions (sticky — always visible) -->
     <div class="form-actions">
+        <?php if ($embedLayout): ?>
+        <button type="button" class="btn btn-secondary" onclick="nvEmbedClose()">
+            <i class="fas fa-times"></i> هەڵوەشاندنەوە
+        </button>
+        <?php else: ?>
         <a href="<?= APP_URL ?>/visits.php" class="btn btn-secondary">
             <i class="fas fa-times"></i> هەڵوەشاندنەوە
         </a>
+        <?php endif; ?>
         <button type="submit" id="nvBtnSave" class="btn btn-primary">
             <i class="fas fa-save"></i>
             <span>تۆمارکردن<small><kbd>Ctrl</kbd> + <kbd>Enter</kbd></small></span>
@@ -2939,6 +3012,36 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
 </div>
 
 <script>
+// ── Inside the «سەردانی نوێ» dialog (?embed=1, includes/new_visit_dialog.php) ──
+// The parent page owns the dialog: it is told to close (and reload its list
+// once a visit was saved), and links to other pages open there, not in here.
+var NV_EMBED = <?= $embedLayout ? 'true' : 'false' ?>;
+function nvParent(msg) {
+    try { if (window.parent !== window) window.parent.postMessage(Object.assign({ source: 'new-visit' }, msg), window.location.origin); } catch (e) {}
+}
+function nvEmbedClose() { nvParent({ action: 'close' }); }
+function nvGo(url) {
+    if (NV_EMBED) { nvParent({ action: 'navigate', url: url }); return; }
+    window.location.href = url;
+}
+
+// «ئاگاداری تەندروستی» folds away; its title says how many are ticked.
+document.addEventListener('DOMContentLoaded', function () {
+    var box = document.getElementById('nvHealth');
+    if (!box) return;
+    var count = function () {
+        var n = box.querySelectorAll('.condition-checkbox:checked').length;
+        var el = document.getElementById('nvHealthCount');
+        if (el) el.textContent = n ? n + ' دیاریکراو' : '';
+        if (n) box.open = true;
+    };
+    box.addEventListener('change', count);
+    box.addEventListener('click', function () { setTimeout(count, 0); });
+    count();
+    // A returning patient's conditions are filled in by the search: show them.
+    new MutationObserver(count).observe(box, { subtree: true, attributes: true, attributeFilter: ['class'] });
+});
+
 // Set current time as default for arrival time
 document.addEventListener('DOMContentLoaded', function() {
     const now = new Date();
@@ -3459,7 +3562,10 @@ var aptExistingBookings = [];
 var aptSelectedTime = '';
 
 function clearNewVisitSuccessUrl() {
-    window.history.replaceState({}, document.title, '<?= APP_URL ?>/new_visit.php');
+    window.history.replaceState({}, document.title, '<?= APP_URL ?>/new_visit.php' + (NV_EMBED ? '?embed=1' : ''));
+    // In the dialog, closing the after-save choice ends the job: the parent
+    // closes the dialog and reloads, so the new visit shows in its list.
+    if (NV_EMBED && savedPatientId) nvParent({ action: 'saved' });
 }
 
 function showPostVisitChoiceModal() {
@@ -3580,7 +3686,7 @@ function submitNewVisitWaitingRoom() {
                     showConfirmButton: false,
                     timer: 1400
                 }).then(function() {
-                    window.location.href = '<?= APP_URL ?>/waiting-room.php?added=1';
+                    nvGo('<?= APP_URL ?>/waiting-room.php?added=1');
                 });
                 return;
             }
@@ -3986,7 +4092,7 @@ function submitAppointment() {
                 showConfirmButton: false,
                 timer: 1500
             }).then(function() {
-                window.location.href = '<?= APP_URL ?>/appointments.php?date=' + date + '&created=1';
+                nvGo('<?= APP_URL ?>/appointments.php?date=' + date + '&created=1');
             });
         } else {
             Swal.fire({ icon: 'error', title: 'هەڵە!', text: d.message || 'هەڵەیەک ڕوویدا', confirmButtonText: 'باشە' });
