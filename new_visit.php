@@ -2503,14 +2503,48 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
 body.is-embedded .report-container { max-width: none; }
 body.is-embedded .form-actions { bottom: 0; margin: 12px -18px 0; border-radius: 0; border-width: 1px 0 0; }
 
+/* ── Three steps, one at a time ── */
+.nv-wizard .nv-layout { display: block; }
+.nv-wizard [data-step]:not(.is-step-on) { display: none !important; }
+.nv-wizard .form-card > .form-card-header { display: none; }   /* the step bar names each step */
+.nv-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 12px; }
+.nv-step { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border: 1.5px solid #e2e8e4; border-radius: 12px;
+           background: #fff; font: inherit; text-align: right; cursor: pointer; color: #546e63; transition: border-color .15s, background-color .15s, box-shadow .15s; }
+.nv-step b { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: #eef3ef; color: #607d6b; font-size: 14px; }
+.nv-step span { display: flex; flex-direction: column; font-size: 14px; font-weight: 800; }
+.nv-step small { font-size: 11px; font-weight: 400; color: #90a4ae; }
+.nv-step.is-on { border-color: #2e7d32; background: #f1f8f4; color: #1b5e20; box-shadow: 0 4px 14px rgba(46, 125, 50, .14); }
+.nv-step.is-on b { background: #2e7d32; color: #fff; }
+.nv-step.is-done b { background: #c8e6c9; color: #1b5e20; font-size: 0; }
+.nv-step.is-done b::after { content: '\2713'; font-size: 14px; }
+.nv-step.is-locked { cursor: not-allowed; opacity: .55; }
+.nv-step.is-off { cursor: default; opacity: .45; background: #f6f7f8; }
+.nv-step.is-off span { text-decoration: line-through; text-decoration-color: rgba(0, 0, 0, .25); }
+.nv-need { margin-inline-start: auto; font-size: 12.5px; color: #c62828; font-weight: 600; }
+.nv-need:empty { display: none; }
+.form-actions .nv-next { background: #2e7d32; border-color: #2e7d32; }
+.form-actions .nv-next:disabled { opacity: .45; cursor: not-allowed; }
+.form-actions [hidden] { display: none !important; }
+
 @media (max-width: 600px) {
+    .nv-steps { gap: 4px; }
+    .nv-step { padding: 8px; gap: 6px; }
+    .nv-step small { display: none; }
     .form-actions { bottom: 0; border-radius: 10px 10px 0 0; }
     .form-actions .btn { flex: 1; justify-content: center; }
     .nv-search-hint { display: none; }
 }
 </style>
 
-<form method="POST" action="" enctype="multipart/form-data">
+<?php
+// Three steps, one at a time: a failed save opens on the step it failed in.
+$nvErr = $errors ?? [];
+$nvStartStep = 1;
+if (!empty($nvErr) && !isset($nvErr['full_name']) && !isset($nvErr['phone']) && !isset($nvErr['gender'])) {
+    $nvStartStep = isset($nvErr['visit_type']) ? 2 : 3;
+}
+?>
+<form method="POST" action="" enctype="multipart/form-data" id="nvForm" class="nv-wizard" novalidate data-start-step="<?= (int)$nvStartStep ?>">
     <input type="hidden" id="patient_id" name="patient_id" value="<?php echo htmlspecialchars($_POST['patient_id'] ?? ''); ?>">
     <input type="hidden" id="patient_dirty" name="patient_dirty" value="<?php echo htmlspecialchars($_POST['patient_dirty'] ?? '0'); ?>">
     <input type="hidden" id="patient_conditions_loaded" name="patient_conditions_loaded" value="<?php echo htmlspecialchars($_POST['patient_conditions_loaded'] ?? '0'); ?>">
@@ -2525,8 +2559,15 @@ body.is-embedded .form-actions { bottom: 0; margin: 12px -18px 0; border-radius:
     </div>
     <?php endif; ?>
 
+    <!-- The three steps: each opens once the one before it is filled in -->
+    <nav class="nv-steps" id="nvSteps" aria-label="هەنگاوەکان">
+        <button type="button" class="nv-step" data-go="1"><b>١</b><span>نەخۆش<small>کۆن: گەڕان · نوێ: بنووسە</small></span></button>
+        <button type="button" class="nv-step" data-go="2"><b>٢</b><span>جۆری سەردان<small>پشکنین یان ئیش</small></span></button>
+        <button type="button" class="nv-step" data-go="3"><b>٣</b><span>وردەکاری پشکنین<small id="nvStep3Note">تەنها بۆ پشکنین</small></span></button>
+    </nav>
+
     <!-- Patient Search Card -->
-    <div class="search-card">
+    <div class="search-card" data-step="1">
         <div class="search-row">
             <div class="search-input-wrapper">
                 <input type="text" id="patient_search" placeholder="نەخۆسی کۆن؟ گەڕان بە ناو یان ژمارەی مۆبایل — نەخۆشی نوێ؟ ڕاستەوخۆ لە خوارەوە بنووسە" autocomplete="off" autofocus>
@@ -2544,7 +2585,7 @@ body.is-embedded .form-actions { bottom: 0; margin: 12px -18px 0; border-radius:
     <div class="nv-col">
 
     <!-- Patient Personal Info Card (merged: basic + contact + notes + medical conditions) -->
-    <div class="form-card">
+    <div class="form-card" data-step="1">
         <div class="form-card-header">
             <div class="card-icon icon-blue"><i class="fas fa-id-card"></i></div>
             <h3>نەخۆش</h3>
@@ -2665,7 +2706,7 @@ body.is-embedded .form-actions { bottom: 0; margin: 12px -18px 0; border-radius:
     <div class="nv-col">
 
     <!-- Visit type: checkup or work, new or returning patient -->
-    <div class="form-card">
+    <div class="form-card" data-step="2">
         <div class="form-card-header">
             <div class="card-icon icon-orange"><i class="fas fa-clipboard-check"></i></div>
             <h3>جۆری سەردان</h3>
@@ -2754,7 +2795,7 @@ body.is-embedded .form-actions { bottom: 0; margin: 12px -18px 0; border-radius:
     </div>
 
     <!-- Visit Info for Checkup (merged: doctor + time/details + admin + appointment + notes) -->
-    <div class="form-card" id="checkupSection">
+    <div class="form-card" id="checkupSection" data-step="3">
         <div class="form-card-header">
             <div class="card-icon icon-green"><i class="fas fa-clipboard-list"></i></div>
             <h3>وردەکاری پشکنین</h3>
@@ -2999,6 +3040,13 @@ body.is-embedded .form-actions { bottom: 0; margin: 12px -18px 0; border-radius:
             <i class="fas fa-times"></i> هەڵوەشاندنەوە
         </a>
         <?php endif; ?>
+        <button type="button" class="btn btn-secondary nv-back" id="nvBack" hidden>
+            <i class="fas fa-arrow-right"></i> پێشوو
+        </button>
+        <span class="nv-need" id="nvNeed"></span>
+        <button type="button" class="btn btn-primary nv-next" id="nvNext">
+            <span>دواتر<small><kbd>Enter</kbd></small></span> <i class="fas fa-arrow-left"></i>
+        </button>
         <button type="submit" id="nvBtnSave" class="btn btn-primary">
             <i class="fas fa-save"></i>
             <span>تۆمارکردن<small><kbd>Ctrl</kbd> + <kbd>Enter</kbd></small></span>
@@ -3084,12 +3132,121 @@ document.addEventListener('keydown', function(e) {
     }
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
+        // saves from any step once everything needed is in; else shows what is missing
+        if (window.nvWizard && !window.nvWizard.readyToSave()) return;
         const btn = e.shiftKey
             ? document.getElementById('nvBtnSaveSend')
             : document.getElementById('nvBtnSave');
-        if (btn) btn.click();
+        if (btn) { window.nvWizard && window.nvWizard.saving(); btn.click(); }
     }
 });
+
+// ── Three steps: ١ نەخۆش → ٢ جۆری سەردان → ٣ وردەکاری پشکنین ──
+// «دواتر» opens once the step's required fields are in. A work (ئیش) visit has
+// no step three: it is saved from step two. Enter in a field goes on; the save
+// buttons (or Ctrl+Enter) save. The form is novalidate — the steps check what
+// the server requires, and the server checks again.
+window.nvWizard = (function () {
+    const form = document.getElementById('nvForm');
+    if (!form) return null;
+    let step = Number(form.dataset.startStep) || 1;
+    let saveClicked = false;
+    const $ = id => document.getElementById(id);
+    const val = id => (($(id) || {}).value || '').trim();
+    const visitType = () => (form.querySelector('input[name="visit_type"]:checked') || {}).value || '';
+    const lastStep = () => visitType() === 'treatment' ? 2 : 3;
+
+    // what a step still needs: [field to focus, its name]
+    function missing(n) {
+        const m = [];
+        if (n === 1) {
+            if (!val('full_name')) m.push(['full_name', 'ناو']);
+            if (!val('gender')) m.push(['gender', 'ڕەگەز']);
+            if (!val('phone')) m.push(['phone', 'ژمارەی مۆبایل']);
+        } else if (n === 2) {
+            if (!visitType()) m.push(['visit_type', 'جۆری نەخۆش (پشکنین یان ئیش)']);
+            else if (visitType() === 'checkup' && !form.querySelector('input[name="patient_status"]:checked')) m.push(['patient_status', 'دۆخی نەخۆش (نوێ یان کۆن)']);
+        } else if (n === 3 && visitType() === 'checkup') {
+            if (!val('arrival_time')) m.push(['arrival_time', 'کاتی هاتن']);
+        }
+        return m;
+    }
+    const firstInvalid = upTo => { for (let n = 1; n <= upTo; n++) if (missing(n).length) return n; return 0; };
+
+    function focusIn(n) {
+        const need = missing(n)[0];
+        let el = need ? ($(need[0]) || form.querySelector('[name="' + need[0] + '"]')) : null;
+        if (!el) el = form.querySelector('[data-step="' + n + '"] input:not([type="hidden"]):not([type="file"]), [data-step="' + n + '"] select');
+        if (el) try { el.focus({ preventScroll: true }); } catch (e) {}
+    }
+
+    function render() {
+        const last = lastStep();
+        if (step > last) step = last;
+        form.querySelectorAll('[data-step]').forEach(el => el.classList.toggle('is-step-on', Number(el.dataset.step) === step));
+        document.querySelectorAll('#nvSteps .nv-step').forEach(b => {
+            const n = Number(b.dataset.go);
+            const off = n > last;
+            b.classList.toggle('is-on', n === step);
+            b.classList.toggle('is-off', off);
+            b.classList.toggle('is-done', !off && n !== step && !missing(n).length && n < step);
+            b.classList.toggle('is-locked', !off && n > step && firstInvalid(n - 1) !== 0);
+        });
+        const note = $('nvStep3Note');
+        if (note) note.textContent = visitType() === 'treatment' ? 'بۆ ئیش پێویست نییە' : 'تەنها بۆ پشکنین';
+        const need = missing(step);
+        const next = $('nvNext');
+        if (next) { next.hidden = step >= last; next.disabled = need.length > 0; }
+        if ($('nvBack')) $('nvBack').hidden = step === 1;
+        ['nvBtnSave', 'nvBtnSaveSend'].forEach(id => { if ($(id)) $(id).hidden = step !== last; });
+        if ($('nvNeed')) $('nvNeed').textContent = need.length ? 'پێویستە: ' + need.map(x => x[1]).join('، ') : '';
+    }
+
+    function go(n, focus) {
+        const last = lastStep();
+        if (n < 1 || n > last) return;
+        if (n > step) { const bad = firstInvalid(n - 1); if (bad) { step = bad; render(); focusIn(bad); return; } }
+        step = n;
+        render();
+        window.scrollTo({ top: 0 });
+        if (focus !== false) focusIn(n);
+    }
+
+    document.addEventListener('click', e => {
+        const b = e.target.closest('#nvSteps .nv-step');
+        if (b && !b.classList.contains('is-off')) go(Number(b.dataset.go));
+    });
+    $('nvNext') && $('nvNext').addEventListener('click', () => go(step + 1));
+    $('nvBack') && $('nvBack').addEventListener('click', () => go(step - 1));
+    ['nvBtnSave', 'nvBtnSaveSend'].forEach(id => $(id) && $(id).addEventListener('click', () => { saveClicked = true; }));
+
+    form.addEventListener('submit', e => {
+        const wantsSave = saveClicked;
+        saveClicked = false;
+        if (!wantsSave) {           // Enter in a field: on to the next step
+            e.preventDefault();
+            if (step < lastStep() && !missing(step).length) go(step + 1);
+            else if (step === lastStep() && !firstInvalid(lastStep())) { saveClicked = true; $('nvBtnSave').click(); }
+            else focusIn(step);
+            return;
+        }
+        const bad = firstInvalid(lastStep());
+        if (bad) { e.preventDefault(); go(bad); }
+    });
+
+    // a patient picked from the search fills the fields without input events
+    form.addEventListener('input', render);
+    form.addEventListener('change', render);
+    setInterval(render, 800);
+    document.addEventListener('DOMContentLoaded', render);
+    render();
+
+    return {
+        readyToSave() { const bad = firstInvalid(lastStep()); if (bad) { go(bad); return false; } return true; },
+        saving() { saveClicked = true; },
+        go: go
+    };
+})();
 
 // Reception and patient choices both name the receiving treatment doctor.
 function toggleReferringDoctorChoice() {

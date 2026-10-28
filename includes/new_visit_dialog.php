@@ -37,9 +37,9 @@ $newVisitDialogIncluded = true;
 </div>
 
 <style>
-.nvd-overlay { position: fixed; inset: 0; z-index: 2500; background: rgba(15, 23, 42, .45); display: flex; align-items: center; justify-content: center; padding: 2vh 2vw; }
+.nvd-overlay { position: fixed; inset: 0; z-index: 2500; background: rgba(15, 23, 42, .45); display: flex; align-items: center; justify-content: center; padding: 1.2vh 1vw; }
 .nvd-overlay[hidden] { display: none; }
-.nvd-box { width: min(1440px, 100%); height: 100%; background: var(--bg-solid-base, #f3f3f3); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 24px 60px rgba(15, 23, 42, .35); }
+.nvd-box { width: min(1760px, 100%); height: 100%; background: var(--bg-solid-base, #f3f3f3); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 24px 60px rgba(15, 23, 42, .35); }
 .nvd-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #fff; border-bottom: 1px solid #e5e7eb; }
 .nvd-ico { width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; color: #fff; background: linear-gradient(135deg, #4caf50, #2e7d32); }
 .nvd-head h3 { margin: 0; font-size: 16px; font-weight: 800; color: #1f2937; }
