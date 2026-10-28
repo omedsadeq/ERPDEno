@@ -13,6 +13,10 @@
  *   TreatmentIcons.svg(key)            → '<svg class="ti">…</svg>'
  *   TreatmentIcons.keyFor(treatment)   → its icon, or a guess ({name, category, icon})
  *   TreatmentIcons.chooser(el, opts)   → icon grid; {get, set, suggest}
+ *
+ * A work type (work_types.icon, the new-visit form's «جۆری ئیش» cards) takes
+ * these and the complaint icons in VISIT_ICONS — pain, a broken tooth … —
+ * with guessWork() for a type saved without one.
  */
 (function () {
     'use strict';
@@ -183,8 +187,67 @@
             `<circle cx="32" cy="32" r="22" fill="#eef2f7"/>` +
             `<circle cx="22.5" cy="32" r="3.8" fill="#475569"/><circle cx="32" cy="32" r="3.8" fill="#475569"/><circle cx="41.5" cy="32" r="3.8" fill="#475569"/>` }
     ];
+
+    // ── what a patient comes in with: a work type (جۆری ئیش) may also be a complaint ──
+    const bolt = transform => `<path transform="${transform}" d="M3,0 L10,0 L6.5,7.5 L11,7.5 L2,21 L4.5,11 L0,11 Z" fill="url(#ti-bolt)" stroke="#be123c" stroke-width=".6" stroke-linejoin="round"/>`;
+    const drop = (cx, cy, s) => `<g transform="translate(${cx} ${cy}) scale(${s})"><path d="M0,-6.5 C2.6,-2.8 4.2,-.4 4.2,2.2 A4.2,4.2 0 0 1 -4.2,2.2 C-4.2,-.4 -2.6,-2.8 0,-6.5 Z" fill="url(#ti-blood)"/>` +
+        `<ellipse cx="-1.5" cy="1" rx="1" ry="1.6" fill="#fff" opacity=".55"/></g>`;
+    /** A horseshoe (an arch seen from above) between two half-ellipses round (32, cy). */
+    const arch = (cy, rx, ry, rx2, ry2) => `M${32 - rx},${cy} A${rx},${ry} 0 0 1 ${32 + rx},${cy} L${32 + rx2},${cy} A${rx2},${ry2} 0 0 0 ${32 - rx2},${cy} Z`;
+    const VISIT_ICONS = [
+        { key: 'pain', label: 'ئازار', body: () => `<circle cx="32" cy="27" r="29" fill="url(#ti-ache)"/>` +
+            molar('translate(32 36) scale(.9) translate(-32 -36)') + bolt('translate(1.5 5)') + bolt('translate(62.5 5) scale(-1 1)') },
+        { key: 'broken', label: 'شکاو', body: () => `<g clip-path="url(#ti-chipped)">${molar()}</g>` +
+            `<path d="M41.4,7.9 L44.5,14 L48.5,15.5 L50.7,21" fill="none" stroke="#9aa5b1" stroke-width="1" stroke-linejoin="round"/>` +
+            `<path d="M31,12.5 L34,18 L30.4,23.5 L33.6,30" fill="none" stroke="#7b8794" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>` +
+            `<path transform="translate(50 1.5) rotate(22)" d="M0,0 L8.4,1 L9.4,7.6 L4,9.4 Z" fill="url(#ti-enamel)" stroke="#a9b3bf" stroke-width=".9" stroke-linejoin="round"/>` },
+        { key: 'loose', label: 'شل بوون', body: () => molar('translate(32 47) rotate(-10) scale(.82) translate(-32 -47)') + gum() +
+            `<path d="M7.5,12 Q2.5,21 7.5,30 M11,15.5 Q8.6,21 11,26.5 M53,8 Q58,17 53,26 M49,11.5 Q51.4,17 49,22.5" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round"/>` },
+        { key: 'bleeding', label: 'خوێن', body: () => molar() + gum() +
+            `<path d="M20.5,42.6 Q32,47 43.5,42.6" fill="none" stroke="#b91c1c" stroke-width="2.2" stroke-linecap="round"/>` +
+            drop(52, 13, 1.3) + drop(58.5, 28, .8) },
+        { key: 'swelling', label: 'هەوکردن / ئاوسان', body: () => molar() + gum() +
+            `<ellipse cx="49.5" cy="47.5" rx="9" ry="7.6" fill="url(#ti-abscess)" stroke="#b91c1c" stroke-opacity=".45" stroke-width=".8"/>` +
+            `<ellipse cx="47" cy="44.6" rx="2.8" ry="1.6" fill="#fff" opacity=".6"/>` +
+            `<path d="M49.5,36.4 V33 M57.8,40 L60.6,37.6 M41.2,40 L38.4,37.6" stroke="#ef4444" stroke-width="1.7" stroke-linecap="round"/>` },
+        { key: 'sensitive', label: 'هەستیاری (سارد و گەرم)', body: () => molar('translate(32 40) scale(.84) translate(-32 -40)') +
+            `<g transform="translate(10.5 11)" fill="none" stroke="#38bdf8" stroke-linecap="round"><path d="M0,-8 V8 M-6.9,-4 L6.9,4 M-6.9,4 L6.9,-4" stroke-width="2"/>` +
+            `<path d="M-2.4,-6.6 L0,-4.4 L2.4,-6.6 M-2.4,6.6 L0,4.4 L2.4,6.6" stroke-width="1.4" stroke-linejoin="round"/></g>` +
+            `<path d="M53,1.5 C57.5,6.5 61,10.5 60.2,15.5 A7.2,7.2 0 0 1 45.8,15.8 C45.6,12 48,9.6 49.6,7 C50.4,9.2 51.4,10.4 52.6,11.2 C53.6,8.4 54,5 53,1.5 Z" fill="url(#ti-flame)"/>` +
+            `<path d="M53,10.5 C55.4,13 56.6,15 56,17 A3.2,3.2 0 0 1 49.8,17 C49.8,15 51.4,13.4 53,10.5 Z" fill="#ffe08a"/>` },
+        { key: 'wisdom', label: 'ددانی ئەقڵ', body: () => molar('translate(35 31) rotate(28) scale(.9) translate(-32 -32)') + gum() +
+            `<circle cx="12" cy="12" r="8.5" fill="url(#ti-blue)"/><text x="12" y="15.8" font-size="11" font-weight="700" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif">8</text>` },
+        { key: 'followup', label: 'مراجعە', body: () =>
+            `<rect x="19" y="5" width="4" height="10" rx="2" fill="#64748b"/><rect x="41" y="5" width="4" height="10" rx="2" fill="#64748b"/>` +
+            `<rect x="8" y="10" width="48" height="47" rx="6" fill="#fff" stroke="#cbd5e1" stroke-width="1.2"/>` +
+            `<path d="M8,23 V16 Q8,10 14,10 H50 Q56,10 56,16 V23 Z" fill="url(#ti-blue)"/>` +
+            `<circle cx="21" cy="16.5" r="1.6" fill="#fff" opacity=".8"/><circle cx="43" cy="16.5" r="1.6" fill="#fff" opacity=".8"/>` +
+            molar('translate(30 40) scale(.46) translate(-32 -33)') +
+            `<circle cx="49" cy="50" r="9" fill="#22c55e" stroke="#fff" stroke-width="2"/><path d="M44.6,50 L47.8,53.2 L53.4,46.8" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>` },
+        { key: 'impression', label: 'قاڵب گرتن', body: () => {
+            let marks = '';
+            for (let i = 0; i < 7; i++) {
+                const t = (160 - i * (140 / 6)) * Math.PI / 180;
+                marks += `<ellipse cx="${(32 + 20.25 * Math.cos(t)).toFixed(1)}" cy="${(55 - 28.5 * Math.sin(t)).toFixed(1)}" rx="2.3" ry="1.7" fill="#6d28d9" opacity=".35"/>`;
+            }
+            return `<rect x="27.5" y="3" width="9" height="18" rx="2.5" fill="url(#ti-metal)" stroke="#8d97a3" stroke-width=".7"/>` +
+                `<path d="${arch(55, 27, 36, 13.5, 21)}" fill="url(#ti-metal)" stroke="#8d97a3" stroke-width=".7"/>` +
+                `<path d="${arch(55, 23.5, 32.5, 17, 24.5)}" fill="url(#ti-alginate)"/>` + marks; } },
+        { key: 'retainer', label: 'ریتێنەر', body: () => {
+            let teeth = '';
+            for (let i = 0; i < 8; i++) {
+                const deg = 160 - i * (140 / 7), t = deg * Math.PI / 180;
+                teeth += `<rect x="-3.7" y="-4.4" width="7.4" height="8.8" rx="2.6" transform="translate(${(32 + 20.5 * Math.cos(t)).toFixed(1)} ${(52 - 31 * Math.sin(t)).toFixed(1)}) rotate(${(90 - deg).toFixed(1)})" fill="url(#ti-enamel)" stroke="#aeb8c4" stroke-width=".7"/>`;
+            }
+            return teeth + `<path d="${arch(52, 25.5, 36.5, 15.5, 25.5)}" fill="#bae6fd" fill-opacity=".5" stroke="#38bdf8" stroke-width="1.2"/>` +
+                sparkle(54, 10, 5, 'url(#ti-blue)'); } },
+        { key: 'consult', label: 'پرسیار / ڕاوێژ', body: () =>
+            `<path d="M11,7 H53 Q59,7 59,13 V37 Q59,43 53,43 H31 L19,54 L21,43 H11 Q5,43 5,37 V13 Q5,7 11,7 Z" fill="url(#ti-blue)"/>` +
+            `<path d="M11,9.5 H40" stroke="#fff" stroke-opacity=".35" stroke-width="2" stroke-linecap="round"/>` +
+            `<text x="32" y="35" font-size="28" font-weight="700" text-anchor="middle" fill="#fff" font-family="Tahoma, Arial, sans-serif">؟</text>` }
+    ];
     const BY_KEY = {};
-    ICONS.forEach(i => { BY_KEY[i.key] = i; });
+    ICONS.concat(VISIT_ICONS).forEach(i => { BY_KEY[i.key] = i; });
     const bodies = {};                       // drawn once, on first use
     const bodyOf = key => bodies[key] || (bodies[key] = (BY_KEY[key] || BY_KEY.other).body());
 
@@ -205,7 +268,14 @@
         <linearGradient id="ti-blue" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cc0ff"/><stop offset="1" stop-color="#2f7fe0"/></linearGradient>
         <linearGradient id="ti-diamond" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#bff0ff"/><stop offset=".5" stop-color="#3fb6f2"/><stop offset="1" stop-color="#1767c7"/></linearGradient>
         <linearGradient id="ti-film" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#455a64"/><stop offset="1" stop-color="#1f2a30"/></linearGradient>
-        <radialGradient id="ti-glow"><stop offset="0" stop-color="#cfe9ff" stop-opacity=".95"/><stop offset="1" stop-color="#cfe9ff" stop-opacity="0"/></radialGradient>`;
+        <radialGradient id="ti-glow"><stop offset="0" stop-color="#cfe9ff" stop-opacity=".95"/><stop offset="1" stop-color="#cfe9ff" stop-opacity="0"/></radialGradient>
+        <radialGradient id="ti-ache"><stop offset="0" stop-color="#ffc2c2" stop-opacity=".95"/><stop offset=".6" stop-color="#ffd6d6" stop-opacity=".5"/><stop offset="1" stop-color="#ffe4e4" stop-opacity="0"/></radialGradient>
+        <linearGradient id="ti-bolt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fb7185"/><stop offset="1" stop-color="#e11d48"/></linearGradient>
+        <linearGradient id="ti-blood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f87171"/><stop offset="1" stop-color="#b91c1c"/></linearGradient>
+        <radialGradient id="ti-abscess" cx=".42" cy=".38" r=".7"><stop offset="0" stop-color="#fff3b0"/><stop offset=".45" stop-color="#fdba74"/><stop offset="1" stop-color="#dc2626"/></radialGradient>
+        <linearGradient id="ti-flame" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbbf24"/><stop offset=".55" stop-color="#f97316"/><stop offset="1" stop-color="#ef4444"/></linearGradient>
+        <linearGradient id="ti-alginate" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ede9fe"/><stop offset="1" stop-color="#a78bfa"/></linearGradient>
+        <clipPath id="ti-chipped" clipPathUnits="userSpaceOnUse"><path clip-rule="evenodd" d="M-8,-8 H72 V72 H-8 Z M40,1 L62,1 L62,26 L50.7,21 L48.5,15.5 L44.5,14 L41.4,7.9 Z"/></clipPath>`;
 
     const CSS = `
         svg.ti { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 3px 4px rgba(40, 60, 90, .16)); }
@@ -281,16 +351,45 @@
         return t && BY_KEY[t.icon] ? t.icon : guess(t && t.name, t && t.category);
     }
 
+    // A work type is often what the patient says («ئازاری هەیە», «ددانی شکاوە»):
+    // complaints first, then the treatment words, then the vague ones.
+    const WORK_RULES = [
+        [/ئەقلی|عەقلی|wisdom/, 'wisdom'],
+        [/ریتینەر|retainer/, 'retainer'],
+        [/قالب|impression/, 'impression'],
+        [/خوین|bleed/, 'bleeding'],
+        [/ئیلتهاب|هەوکردن|کیسە|ئاوسا|swell|abscess/, 'swelling'],
+        [/هەستیار|سارد|گەرم|دەتەزی|sensitiv/, 'sensitive'],
+        [/شکا|broke|fractur/, 'broken'],
+        [/شل ?بو|loose/, 'loose'],
+        [/ئیشاعە/, 'xray'],
+        [/داو ?دەر|stitch|suture|عەمەلیات/, 'surgery']
+    ];
+    const WORK_LATE = [
+        [/ئازار|کیشەی|مشکیلە|طەواری|تەواری|pain|ache|emergency/, 'pain'],
+        [/مراجعە|follow|چیک/, 'followup'],
+        [/پسیار|پرسیار|راویژ|consult/, 'consult']
+    ];
+    function guessWork(name) {
+        const n = fold(name);
+        for (const [re, key] of WORK_RULES) if (re.test(n)) return key;
+        const k = guess(name);
+        if (k !== 'other') return k;
+        for (const [re, key] of WORK_LATE) if (re.test(n)) return key;
+        return 'other';
+    }
+
     /**
      * The icon grid for a treatment-type form. opts: {value, onChange(key)}.
      * suggest(key) rings the icon the name points at, without choosing it
      * («other» — the name matched nothing — rings nothing).
+     * opts.set 'work' offers the complaint icons too, before the treatments.
      */
     function chooser(el, opts) {
         opts = opts || {};
         let value = BY_KEY[opts.value] ? opts.value : '';
         el.classList.add('ti-chooser');
-        el.innerHTML = ICONS.map(i =>
+        el.innerHTML = (opts.set === 'work' ? VISIT_ICONS.concat(ICONS) : ICONS).map(i =>
             `<button type="button" class="ti-tile" data-icon="${i.key}" title="${i.label}" aria-label="${i.label}">${svg(i.key)}</button>`).join('');
         const paint = () => el.querySelectorAll('.ti-tile').forEach(b => b.classList.toggle('on', b.dataset.icon === value));
         el.addEventListener('click', e => {
@@ -316,7 +415,9 @@
         label: key => (BY_KEY[key] || BY_KEY.other).label,
         has: key => !!BY_KEY[key],
         svg: svg,
+        fold: fold,
         guess: guess,
+        guessWork: guessWork,
         keyFor: keyFor,
         chooser: chooser,
         ensureDefs: ensureDefs

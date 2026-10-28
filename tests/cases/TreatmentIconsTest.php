@@ -6,7 +6,9 @@ require_once __DIR__ . '/../../classes/Treatment.php';
 
 $db = Database::getInstance();
 
-preg_match_all("/\\{ key: '([a-z_]+)'/", file_get_contents(__DIR__ . '/../../assets/js/treatment-icons.js'), $m);
+// (the treatment set only — the complaint icons after it are for work types)
+$iconsJs = explode('const VISIT_ICONS', file_get_contents(__DIR__ . '/../../assets/js/treatment-icons.js'))[0];
+preg_match_all("/\\{ key: '([a-z_]+)'/", $iconsJs, $m);
 $t->assertSame(Treatment::ICONS, $m[1], 'the server accepts exactly the icons the picker draws, in the same order');
 
 $t->assertSame('crown', Treatment::cleanIcon('crown'), 'a known icon is kept');

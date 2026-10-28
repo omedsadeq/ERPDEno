@@ -988,10 +988,14 @@ $doctors_for_modal = $conn->query("SELECT id, full_name AS name FROM users WHERE
 $xray_accounts_for_modal = $conn->query("SELECT id, full_name AS name FROM users WHERE role = 'xray_department' AND is_active = 1 ORDER BY full_name");
 
 // Get work types for appointment modal (from work_types lookup table)
+// (with each one's icon, and how many visits used it — the «جۆری ئیش» cards
+// put the most used first)
 $work_types_for_modal = $conn->query(
-    "SELECT id, work_name FROM work_types
-     WHERE is_active = 1 AND " . work_type_scope_sql('new_visit') . "
-     ORDER BY sort_order, id"
+    "SELECT wt.id, wt.work_name, wt.icon, COALESCE(u.n, 0) AS uses FROM work_types wt
+     LEFT JOIN (SELECT work_type_id, COUNT(*) AS n FROM visits WHERE work_type_id IS NOT NULL GROUP BY work_type_id) u
+            ON u.work_type_id = wt.id
+     WHERE wt.is_active = 1 AND " . work_type_scope_sql('new_visit', [], 'wt') . "
+     ORDER BY wt.sort_order, wt.id"
 );
 
 // شوێن — پارێزگا → ئیدارە → شار → گەڕەک (api/locations.php, 2026_10_28_locations.sql)
@@ -1716,7 +1720,7 @@ textarea {
 
 <!-- Add Work Type Dialog -->
 <div id="addWorkTypeDialogNv" class="dialog-overlay">
-    <div class="dialog apt-dialog-modern" style="max-width: 400px;">
+    <div class="dialog apt-dialog-modern" style="max-width: 540px;">
         <div class="apt-dialog-header" style="background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);">
             <h4><i class="fas fa-briefcase-medical"></i> زیادکردنی ئیشی نوێ</h4>
             <button type="button" class="apt-dialog-close" onclick="closeAddWorkTypeNv()"><i class="fas fa-times"></i></button>
@@ -1724,7 +1728,13 @@ textarea {
         <div class="apt-dialog-body">
             <div class="apt-form-field">
                 <label><i class="fas fa-tag"></i> ناوی ئیش <span class="required">*</span></label>
-                <input type="text" id="newWorkTypeNameNv" placeholder="بۆ نموونە: تیشکی ددان">
+                <input type="text" id="newWorkTypeNameNv" placeholder="بۆ نموونە: ددانی شکاوە" autocomplete="off">
+            </div>
+            <!-- one click fills the name and the icon -->
+            <div class="wt-examples" id="wtExamples"><span>نموونە:</span></div>
+            <div class="apt-form-field" style="margin-top:10px;">
+                <label><i class="fas fa-icons"></i> ئایکۆن <span class="required">*</span></label>
+                <div id="newWorkTypeIconsNv"></div>
             </div>
             <div id="addWorkTypeErrNv" style="color:#f44336;font-size:12px;margin-top:6px;display:none;"></div>
         </div>
@@ -2546,15 +2556,67 @@ body.is-embedded .form-actions { bottom: 0; margin: 12px -18px 0; border-radius:
 .nv-wizard .nv-layout .radio-label:has(input[name="patient_status"]) span {
     display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 16px; font-weight: 800; color: #37474f;
 }
+/* each choice its own colour — پشکنین blue, ئیش orange, نوێ green, کۆن purple */
+.nv-wizard .nv-layout .radio-label { --c: #2e7d32; --c-soft: #f1f8f4; }
+.nv-wizard .nv-layout .radio-label:has(input[name="visit_type"][value="checkup"]) { --c: #1e88e5; --c-soft: #eef6fe; }
+.nv-wizard .nv-layout .radio-label:has(input[name="visit_type"][value="treatment"]) { --c: #ef6c00; --c-soft: #fff4e8; }
+.nv-wizard .nv-layout .radio-label:has(input[name="patient_status"][value="new"]) { --c: #2e7d32; --c-soft: #eef8ef; }
+.nv-wizard .nv-layout .radio-label:has(input[name="patient_status"][value="old"]) { --c: #8e24aa; --c-soft: #f7eefa; }
 .nv-wizard .nv-layout .radio-label span i {
     width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-size: 20px;
-    background: #eef3ef; color: #607d6b; transition: background-color .15s, color .15s;
+    background: var(--c-soft); color: var(--c); transition: background-color .15s, color .15s;
 }
 .nv-wizard .nv-layout .radio-label:has(input[name="visit_type"]):hover,
-.nv-wizard .nv-layout .radio-label:has(input[name="patient_status"]):hover { border-color: #9ccc9f; transform: translateY(-1px); }
-.nv-wizard .nv-layout .radio-label:has(input:checked) { border-color: #2e7d32; background: #f1f8f4; box-shadow: 0 6px 16px rgba(46, 125, 50, .16); }
-.nv-wizard .nv-layout .radio-label:has(input:checked) span i { background: #2e7d32; color: #fff; }
-.nv-wizard .nv-layout .radio-label:has(input:focus-visible) { outline: 2px solid #2e7d32; outline-offset: 2px; }
+.nv-wizard .nv-layout .radio-label:has(input[name="patient_status"]):hover { border-color: color-mix(in srgb, var(--c) 45%, #fff); transform: translateY(-1px); }
+.nv-wizard .nv-layout .radio-label:has(input:checked) {
+    border-color: var(--c); background: var(--c-soft); box-shadow: 0 6px 16px color-mix(in srgb, var(--c) 18%, transparent);
+}
+.nv-wizard .nv-layout .radio-label:has(input:checked) span { color: var(--c); }
+.nv-wizard .nv-layout .radio-label:has(input:checked) span i { background: var(--c); color: #fff; }
+.nv-wizard .nv-layout .radio-label:has(input:focus-visible) { outline: 2px solid var(--c); outline-offset: 2px; }
+
+/* «جۆری ئیش»: cards with icons (orange, like «ئیش»), the search beside the label */
+.nv-layout .nv-worktype .wt-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.nv-layout .nv-worktype .wt-head label { margin: 0; }
+.wt-search { position: relative; margin-inline-start: auto; width: min(260px, 60%); }
+.wt-search i { position: absolute; inset-inline-start: 11px; top: 50%; transform: translateY(-50%); color: #90a4ae; font-size: 12px; pointer-events: none; }
+.nv-layout .wt-search input { width: 100%; padding: 7px 10px; padding-inline-start: 31px; border: 1.5px solid #e2e8e4; border-radius: 9px; font-size: 13px; background: #fafbfa; }
+.nv-layout .wt-search input:focus { border-color: #ef6c00; background: #fff; outline: none; box-shadow: 0 0 0 3px rgba(239, 108, 0, .12); }
+.wt-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
+.wt-card {
+    position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; min-height: 102px;
+    padding: 10px 6px 8px; border: 2px solid #e2e8e4; border-radius: 12px; background: #fff; cursor: pointer; font: inherit;
+    transition: border-color .15s, background-color .15s, box-shadow .15s, transform .15s;
+}
+.wt-card:hover { border-color: #ffc28a; transform: translateY(-1px); }
+.wt-card:focus-visible { outline: 2px solid #ef6c00; outline-offset: 2px; }
+.wt-ico { width: 44px; height: 44px; flex-shrink: 0; display: grid; place-items: center; }
+.wt-name {
+    font-size: 12.5px; font-weight: 700; color: #37474f; line-height: 1.35; text-align: center;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.wt-card.is-on { border-color: #ef6c00; background: #fff4e8; box-shadow: 0 6px 16px rgba(239, 108, 0, .16); }
+.wt-card.is-on .wt-name { color: #c25400; }
+.wt-card.is-on::after {
+    content: '\2713'; position: absolute; top: 6px; inset-inline-start: 6px; width: 18px; height: 18px; border-radius: 50%;
+    background: #ef6c00; color: #fff; font-size: 11px; line-height: 18px; text-align: center;
+}
+.wt-card--add { border-style: dashed; background: #fbfcfd; }
+.wt-card--add .wt-ico i { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: #eef2f6; color: #607d8b; font-size: 16px; }
+.wt-card--add .wt-name { color: #607d8b; }
+.wt-card--add:hover { border-color: #90a4ae; }
+.wt-more { display: block; margin: 8px auto 0; padding: 5px 14px; border: none; border-radius: 8px; background: none; color: #ef6c00; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.wt-more:hover { background: #fff4e8; }
+/* the add dialog: examples to click, and the icon to choose */
+.wt-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.wt-examples > span { font-size: 12px; color: #78909c; margin-inline-end: 2px; }
+.wt-ex {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px; padding-inline: 5px 10px; border: 1px solid #e2e8f0;
+    border-radius: 999px; background: #fff; font: inherit; font-size: 12px; color: #37474f; cursor: pointer;
+}
+.wt-ex:hover { border-color: #93c5fd; background: #f5f9ff; }
+.wt-ex-ico { width: 20px; height: 20px; flex-shrink: 0; }
+#newWorkTypeIconsNv { max-height: 236px; overflow-y: auto; padding: 7px 7px 4px; }
 
 /* ── Three steps, one at a time ── */
 .nv-wizard .nv-layout { display: block; }
@@ -2791,35 +2853,27 @@ if (!empty($nvErr) && !isset($nvErr['full_name']) && !isset($nvErr['phone']) && 
                     </div>
                 </div>
                 <div class="form-group span-2 nv-worktype">
-                    <label>جۆری ئیش</label>
                     <?php
-                    // Build the list once for the searchable combo (value = id, label = name)
+                    // The list once, for the cards (value = id)
                     $selected_work_type = $_POST['work_type_id'] ?? '';
                     $work_types_list = [];
-                    $selected_work_type_name = '';
                     if ($work_types_for_modal) {
                         $work_types_for_modal->data_seek(0);
                         while ($wt = $work_types_for_modal->fetch_assoc()) {
-                            $work_types_list[] = ['id' => (int)$wt['id'], 'name' => $wt['work_name']];
-                            if ((string)$wt['id'] === (string)$selected_work_type) {
-                                $selected_work_type_name = $wt['work_name'];
-                            }
+                            $work_types_list[] = ['id' => (int)$wt['id'], 'name' => $wt['work_name'], 'icon' => $wt['icon'], 'uses' => (int)$wt['uses']];
                         }
                     }
                     ?>
-                    <div style="display: flex; gap: 4px;">
-                        <div class="city-combo">
-                            <input type="text" id="wtComboInput" placeholder="گەڕان بۆ جۆری ئیش..." autocomplete="off"
-                                   value="<?php echo htmlspecialchars($selected_work_type_name); ?>"
-                                   oninput="wtComboFilter()" onfocus="wtComboOpen()">
-                            <input type="hidden" id="work_type_id" name="work_type_id" value="<?php echo htmlspecialchars((string)$selected_work_type); ?>">
-                            <div id="wtComboDropdown" class="city-combo-dropdown"></div>
+                    <div class="wt-head">
+                        <label>جۆری ئیش</label>
+                        <div class="wt-search">
+                            <i class="fas fa-search"></i>
+                            <input type="search" id="wtSearch" placeholder="گەڕان بۆ ئیش…" autocomplete="off" aria-label="گەڕان بۆ جۆری ئیش">
                         </div>
-                        <button type="button" onclick="openAddWorkTypeNv()" title="زیادکردنی ئیشی نوێ"
-                                style="padding: 0 10px; background: var(--win-accent, #0078d4); color: #fff; border: 1px solid var(--win-accent, #0078d4); border-radius: 4px; cursor: pointer;">
-                            <i class="fas fa-plus"></i>
-                        </button>
                     </div>
+                    <input type="hidden" id="work_type_id" name="work_type_id" value="<?php echo htmlspecialchars((string)$selected_work_type); ?>">
+                    <div id="wtCards" class="wt-cards" role="radiogroup" aria-label="جۆری ئیش"></div>
+                    <button type="button" id="wtMore" class="wt-more" hidden></button>
                 </div>
                 <?php
                 // Materialise the doctor list once — the mysqli result is walked
@@ -3123,6 +3177,7 @@ if (!empty($nvErr) && !isset($nvErr['full_name']) && !isset($nvErr['phone']) && 
 </form>
 </div>
 
+<script src="<?= asset_url('assets/js/treatment-icons.js') ?>"></script>
 <script>
 // ── Inside the «سەردانی نوێ» dialog (?embed=1, includes/new_visit_dialog.php) ──
 // The parent page owns the dialog: it is told to close (and reload its list
@@ -4054,13 +4109,162 @@ function toggleAptNotes() {
     section.classList.toggle('open');
 }
 
-// ── Add work type dialog ──
-function openAddWorkTypeNv() {
+// ── «جۆری ئیش» as cards, each with its icon (assets/js/treatment-icons.js) ──
+// The most used come first; the rest are behind «هەموو جۆرەکان» or the search.
+// A name typed twice («ددانی شكایه‌» ×2, «کێشەی هەیە» / «كیشه‌ی هه‌یه‌») is one
+// card, its more used twin.
+var WORK_TYPES = <?php echo json_encode($work_types_list ?? [], JSON_UNESCAPED_UNICODE); ?>;
+var WT_FIRST = 12;            // cards before «هەموو جۆرەکان»
+var wtAll = false;
+
+function wtFold(s) {
+    s = String(s || '').replace(/\s+/g, ' ').trim();
+    return window.TreatmentIcons ? TreatmentIcons.fold(s) : s.toLowerCase();
+}
+function wtIconKey(w) {
+    if (!window.TreatmentIcons) return '';
+    return TreatmentIcons.has(w.icon) ? w.icon : TreatmentIcons.guessWork(w.name);
+}
+/** One card per name, most used first: {id, name, icon, uses, ids}. */
+function wtCardList() {
+    var byName = {}, out = [];
+    WORK_TYPES.forEach(function (w) {
+        var k = wtFold(w.name), c = byName[k], n = Number(w.uses) || 0;
+        if (!c) { c = byName[k] = { uses: 0, best: -1, ids: [], at: out.length }; out.push(c); }
+        c.ids.push(Number(w.id));
+        c.uses += n;
+        if (n > c.best) { c.best = n; c.id = Number(w.id); c.name = w.name; c.icon = w.icon; }
+    });
+    return out.sort(function (a, b) { return b.uses - a.uses || a.at - b.at; });
+}
+
+function wtRender() {
+    var box = document.getElementById('wtCards'), more = document.getElementById('wtMore');
+    if (!box) return;
+    var typed = (document.getElementById('wtSearch').value || '').trim(), q = wtFold(typed);
+    var sel = Number(document.getElementById('work_type_id').value) || 0;
+    var list = wtCardList(), shown;
+    if (q) {
+        shown = list.filter(function (c) { return wtFold(c.name).indexOf(q) !== -1; });
+    } else if (wtAll) {
+        shown = list;
+    } else {
+        shown = list.slice(0, WT_FIRST);
+        var picked = list.filter(function (c) { return c.ids.indexOf(sel) !== -1; })[0];
+        if (picked && shown.indexOf(picked) === -1) shown.push(picked);   // the chosen one stays in sight
+    }
+    box.innerHTML = '';
+    shown.forEach(function (c) {
+        var on = c.ids.indexOf(sel) !== -1;
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'wt-card' + (on ? ' is-on' : '');
+        b.setAttribute('role', 'radio');
+        b.setAttribute('aria-checked', on ? 'true' : 'false');
+        b.title = c.name;
+        b.innerHTML = '<span class="wt-ico">' + (window.TreatmentIcons ? TreatmentIcons.svg(wtIconKey(c)) : '') + '</span><span class="wt-name"></span>';
+        b.querySelector('.wt-name').textContent = c.name;
+        b.addEventListener('click', function () { wtPick(on ? 0 : c.id); });   // a second click lets it go
+        box.appendChild(b);
+    });
+    // the last card adds one — what was searched for, when nothing has that name
+    var add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'wt-card wt-card--add';
+    add.innerHTML = '<span class="wt-ico"><i class="fas fa-plus"></i></span><span class="wt-name"></span>';
+    add.querySelector('.wt-name').textContent = typed && !shown.length ? '«' + typed + '» زیاد بکە' : 'ئیشی نوێ';
+    add.addEventListener('click', function () { openAddWorkTypeNv(shown.length ? '' : typed); });
+    box.appendChild(add);
+    if (more) {
+        more.hidden = !!q || list.length <= WT_FIRST;
+        more.innerHTML = wtAll ? '<i class="fas fa-chevron-up"></i> کەمتر' : '<i class="fas fa-chevron-down"></i> هەموو جۆرەکان (' + list.length + ')';
+    }
+}
+
+function wtPick(id) {
+    document.getElementById('work_type_id').value = id ? id : '';
+    wtRender();
+}
+
+(function () {
+    var search = document.getElementById('wtSearch'), more = document.getElementById('wtMore');
+    if (!search) return;
+    search.addEventListener('input', wtRender);
+    search.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') {            // the first card found, not the next step
+            ev.preventDefault();
+            var first = document.querySelector('#wtCards .wt-card:not(.wt-card--add)');
+            if (first && search.value.trim()) { first.click(); search.value = ''; wtRender(); }
+        } else if (ev.key === 'Escape' && search.value) {
+            ev.preventDefault();
+            search.value = '';
+            wtRender();
+        }
+    });
+    if (more) more.addEventListener('click', function () { wtAll = !wtAll; wtRender(); });
+    wtRender();
+})();
+
+// ── Add a work type: its name and its icon — the examples fill both ──
+// (spelled as the clinic's own types are, so one that is there is chosen, not made twice)
+var WT_EXAMPLES = [
+    ['ئازاری هەیە', 'pain'], ['ددانی شکایە', 'broken'], ['ددانی شل بووە', 'loose'], ['خوێنی ڕاناوەستێ', 'bleeding'],
+    ['هەوکردنی پدو', 'swelling'], ['هەستیارە بەسارد و گەرمی', 'sensitive'], ['ددانی عەقلی', 'wisdom'], ['کیفی شل بووە', 'crown'],
+    ['قالب گرتن', 'impression'], ['ریتێنەر', 'retainer'], ['مراجعە', 'followup'], ['پسیارکردن', 'consult']
+];
+var wtIcons = null;           // the dialog's icon chooser, made on first open
+var wtIconChosen = false;     // picked by hand: the name no longer moves it
+
+function wtDlgErr(msg) {
+    var e = document.getElementById('addWorkTypeErrNv');
+    e.textContent = msg || '';
+    e.style.display = msg ? 'block' : 'none';
+    if (!msg) document.getElementById('newWorkTypeIconsNv').classList.remove('ti-missing');
+}
+
+function wtIconsInit() {
+    if (wtIcons || !window.TreatmentIcons) return;
+    wtIcons = TreatmentIcons.chooser(document.getElementById('newWorkTypeIconsNv'), {
+        set: 'work',
+        onChange: function () { wtIconChosen = true; wtDlgErr(''); }
+    });
+    var ex = document.getElementById('wtExamples');
+    WT_EXAMPLES.forEach(function (e) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'wt-ex';
+        b.innerHTML = '<span class="wt-ex-ico">' + TreatmentIcons.svg(e[1]) + '</span><span></span>';
+        b.lastChild.textContent = e[0];
+        b.addEventListener('click', function () {
+            var i = document.getElementById('newWorkTypeNameNv');
+            i.value = e[0];
+            wtIcons.set(e[1]);
+            wtIconChosen = true;
+            wtDlgErr('');
+            i.focus();
+        });
+        ex.appendChild(b);
+    });
+    // until an icon is picked by hand, the name picks one
+    document.getElementById('newWorkTypeNameNv').addEventListener('input', function () {
+        wtDlgErr('');
+        if (wtIconChosen) return;
+        var k = TreatmentIcons.guessWork(this.value);
+        wtIcons.set(this.value.trim() && k !== 'other' ? k : '');
+    });
+}
+
+function openAddWorkTypeNv(name) {
     var d = document.getElementById('addWorkTypeDialogNv');
     var i = document.getElementById('newWorkTypeNameNv');
-    var e = document.getElementById('addWorkTypeErrNv');
-    if (i) i.value = '';
-    if (e) { e.style.display = 'none'; e.textContent = ''; }
+    wtIconsInit();
+    wtIconChosen = false;
+    if (i) i.value = typeof name === 'string' ? name : '';
+    if (wtIcons) {
+        var k = i && i.value ? TreatmentIcons.guessWork(i.value) : '';
+        wtIcons.set(k && k !== 'other' ? k : '');
+    }
+    wtDlgErr('');
     if (d) d.classList.add('open');
     setTimeout(function() { i && i.focus(); }, 50);
 }
@@ -4072,11 +4276,21 @@ function submitNewWorkTypeNv() {
     var i = document.getElementById('newWorkTypeNameNv');
     var e = document.getElementById('addWorkTypeErrNv');
     var name = (i.value || '').trim();
-    if (!name) { e.textContent = 'تکایە ناوی ئیش بنووسە'; e.style.display = 'block'; return; }
+    var icon = wtIcons ? wtIcons.get() : '';
+    if (!name) { wtDlgErr('تکایە ناوی ئیش بنووسە'); return; }
+    if (wtIcons && !icon) { wtIcons.missing(); wtDlgErr('تکایە ئایکۆنێک هەڵبژێرە'); return; }
+    // a name that is there already is chosen, not made twice
+    var same = wtCardList().filter(function (c) { return wtFold(c.name) === wtFold(name); })[0];
+    if (same) {
+        document.getElementById('wtSearch').value = '';
+        wtPick(same.id);
+        closeAddWorkTypeNv();
+        return;
+    }
     fetch('<?= APP_URL ?>/api/work-types.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'add', work_name: name, scope: 'new_visit' })
+        body: JSON.stringify({ action: 'add', work_name: name, icon: icon, scope: 'new_visit' })
     })
     .then(function(r) { return r.json(); })
     .then(function(d) {
@@ -4089,80 +4303,16 @@ function submitNewWorkTypeNv() {
             opt.value = d.id; opt.textContent = d.work_name; opt.selected = true;
             sel.appendChild(opt);
         });
-        // The main form uses the searchable combo
+        // The main form's cards
         if (!WORK_TYPES.some(function(w) { return String(w.id) === String(d.id); })) {
-            WORK_TYPES.push({ id: d.id, name: d.work_name });
+            WORK_TYPES.push({ id: Number(d.id), name: d.work_name, icon: d.icon, uses: 0 });
         }
-        wtComboPick(d.id, d.work_name);
+        document.getElementById('wtSearch').value = '';
+        wtPick(d.id);
         closeAddWorkTypeNv();
     })
     .catch(function(err) { e.textContent = 'کێشەی پەیوەندی: ' + err.message; e.style.display = 'block'; });
 }
-
-// ── Work type searchable combo (main form) ──
-var WORK_TYPES = <?php echo json_encode($work_types_list ?? [], JSON_UNESCAPED_UNICODE); ?>;
-
-function wtComboRender(filter) {
-    var dd = document.getElementById('wtComboDropdown');
-    if (!dd) return;
-    dd.innerHTML = '';
-    var f = String(filter || '').trim().toLowerCase();
-    var items = WORK_TYPES.filter(function(w) {
-        return !f || String(w.name).toLowerCase().indexOf(f) !== -1;
-    });
-    if (!items.length) {
-        var em = document.createElement('div');
-        em.className = 'city-combo-empty';
-        em.textContent = 'هیچ جۆرێک نەدۆزرایەوە — دەتوانیت بە دوگمەی + زیادی بکەیت';
-        dd.appendChild(em);
-        return;
-    }
-    items.forEach(function(w) {
-        var it = document.createElement('div');
-        it.className = 'city-combo-item';
-        it.textContent = w.name;
-        // mousedown (not click) so the input doesn't lose focus first
-        it.addEventListener('mousedown', function(ev) { ev.preventDefault(); wtComboPick(w.id, w.name); });
-        dd.appendChild(it);
-    });
-}
-
-function wtComboOpen() {
-    var cityDd = document.getElementById('cityComboDropdown');
-    if (cityDd) cityDd.style.display = 'none';
-    var inp = document.getElementById('wtComboInput');
-    wtComboRender(inp ? inp.value : '');
-    var dd = document.getElementById('wtComboDropdown');
-    if (dd) dd.style.display = 'block';
-}
-
-function wtComboFilter() {
-    var inp = document.getElementById('wtComboInput');
-    var v = inp ? inp.value.trim() : '';
-    // work_type_id must be a real id: keep it only on an exact name match
-    var match = WORK_TYPES.filter(function(w) {
-        return String(w.name).toLowerCase() === v.toLowerCase();
-    })[0];
-    document.getElementById('work_type_id').value = match ? match.id : '';
-    wtComboRender(v);
-    var dd = document.getElementById('wtComboDropdown');
-    if (dd) dd.style.display = 'block';
-}
-
-function wtComboPick(id, name) {
-    var inp = document.getElementById('wtComboInput');
-    if (inp) inp.value = name;
-    document.getElementById('work_type_id').value = id;
-    var dd = document.getElementById('wtComboDropdown');
-    if (dd) dd.style.display = 'none';
-}
-
-document.addEventListener('click', function(ev) {
-    if (!(ev.target.closest && ev.target.closest('.city-combo'))) {
-        var dd = document.getElementById('wtComboDropdown');
-        if (dd) dd.style.display = 'none';
-    }
-});
 
 // ── شوێن: پارێزگا → ئیدارە → شار → گەڕەک ──
 var LOCATIONS = <?php echo json_encode($locations_all, JSON_UNESCAPED_UNICODE); ?>;
@@ -4302,8 +4452,6 @@ function cityComboRender(filter) {
 }
 
 function cityComboOpen() {
-    var wtDd = document.getElementById('wtComboDropdown');
-    if (wtDd) wtDd.style.display = 'none';
     var inp = document.getElementById('cityComboInput');
     cityComboRender(document.getElementById('location_id').value ? '' : (inp ? inp.value : ''));
     var dd = document.getElementById('cityComboDropdown');

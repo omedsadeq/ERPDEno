@@ -27,7 +27,7 @@ if (!in_array($action, ['list', 'lookup', 'compute', 'get', 'search', 'view', 'f
 
 if ($action === 'list') {
     $rows = $db->fetchAll(
-        "SELECT id, work_key, work_name FROM work_types
+        "SELECT id, work_key, work_name, icon FROM work_types
          WHERE is_active = 1 AND " . work_type_scope_sql($_GET['scope'] ?? 'all') . "
          ORDER BY sort_order, id"
     );
@@ -43,6 +43,7 @@ if ($action === 'add') {
     }
     // A type added from a page belongs to that page only ('all' = every page)
     $scope = work_type_scope($input['scope'] ?? $_POST['scope'] ?? 'all');
+    $icon  = work_type_icon($input['icon'] ?? $_POST['icon'] ?? '');
 
     $workKey = 'custom_' . time() . '_' . rand(100, 999);
     $max = $db->fetch("SELECT MAX(sort_order) as m FROM work_types");
@@ -52,6 +53,7 @@ if ($action === 'add') {
         $id = $db->insert('work_types', [
             'work_key'   => $workKey,
             'work_name'  => $name,
+            'icon'       => $icon,
             'sort_order' => $order,
             'is_active'  => 1,
             'scope'      => $scope,
@@ -61,6 +63,7 @@ if ($action === 'add') {
             'id'        => $id,
             'work_key'  => $workKey,
             'work_name' => $name,
+            'icon'      => $icon,
             'scope'     => $scope,
         ]);
     } catch (Exception $e) {

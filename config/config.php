@@ -364,6 +364,22 @@ define('WORK_TYPE_SCOPES', [
     'all', 'new_visit', 'edit_visit', 'visits', 'appointments', 'patients', 'waiting_room'
 ]);
 
+// A work type's icon (work_types.icon) — a treatment icon or a complaint one,
+// all drawn by assets/js/treatment-icons.js (tests/cases/WorkTypeIconsTest.php
+// keeps the two lists the same).
+define('WORK_TYPE_ICONS', [
+    'exam', 'filling', 'filling_cosmetic', 'temporary', 'cleaning', 'extraction', 'surgical_extraction',
+    'root_canal', 'retreatment', 'post', 'crown', 'crown_metal', 'cementation', 'bridge', 'implant',
+    'orthodontic', 'whitening', 'veneer', 'gem', 'pediatric', 'surgery', 'denture', 'xray', 'other',
+    'pain', 'broken', 'loose', 'bleeding', 'swelling', 'sensitive', 'wisdom', 'followup', 'impression', 'retainer', 'consult',
+]);
+
+/** A known work-type icon key, or null (the form then guesses one from the name). */
+function work_type_icon($key) {
+    $key = is_string($key) ? trim($key) : '';
+    return in_array($key, WORK_TYPE_ICONS, true) ? $key : null;
+}
+
 /** Whitelist a scope key — anything unknown falls back to the global 'all'. */
 function work_type_scope($scope) {
     $scope = is_string($scope) ? trim($scope) : '';
