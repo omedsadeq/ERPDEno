@@ -2506,6 +2506,32 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
 body.is-embedded .report-container { max-width: none; }
 body.is-embedded .form-actions { bottom: 0; margin: 12px -18px 0; border-radius: 0; border-width: 1px 0 0; }
 
+/* The step-two choices as big cards with icons: the dot is hidden, the card is the choice */
+.nv-wizard .nv-layout .form-group:has(> .radio-group input[name="visit_type"]),
+.nv-wizard .nv-layout #patientStatusGroup { grid-column: span 2; }
+.nv-wizard .nv-layout .radio-group:has(input[name="visit_type"]),
+.nv-wizard .nv-layout .radio-group:has(input[name="patient_status"]) { gap: 10px; }
+.nv-wizard .nv-layout .radio-label:has(input[name="visit_type"]),
+.nv-wizard .nv-layout .radio-label:has(input[name="patient_status"]) {
+    position: relative; min-width: 0; min-height: 92px; padding: 12px 18px; border: 2px solid #e2e8e4; border-radius: 14px;
+    background: #fff; cursor: pointer; transition: border-color .15s, background-color .15s, box-shadow .15s, transform .15s;
+}
+.nv-wizard .nv-layout .radio-label:has(input[name="visit_type"]) input,
+.nv-wizard .nv-layout .radio-label:has(input[name="patient_status"]) input { position: absolute; opacity: 0; pointer-events: none; }
+.nv-wizard .nv-layout .radio-label:has(input[name="visit_type"]) span,
+.nv-wizard .nv-layout .radio-label:has(input[name="patient_status"]) span {
+    display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 16px; font-weight: 800; color: #37474f;
+}
+.nv-wizard .nv-layout .radio-label span i {
+    width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-size: 20px;
+    background: #eef3ef; color: #607d6b; transition: background-color .15s, color .15s;
+}
+.nv-wizard .nv-layout .radio-label:has(input[name="visit_type"]):hover,
+.nv-wizard .nv-layout .radio-label:has(input[name="patient_status"]):hover { border-color: #9ccc9f; transform: translateY(-1px); }
+.nv-wizard .nv-layout .radio-label:has(input:checked) { border-color: #2e7d32; background: #f1f8f4; box-shadow: 0 6px 16px rgba(46, 125, 50, .16); }
+.nv-wizard .nv-layout .radio-label:has(input:checked) span i { background: #2e7d32; color: #fff; }
+.nv-wizard .nv-layout .radio-label:has(input:focus-visible) { outline: 2px solid #2e7d32; outline-offset: 2px; }
+
 /* ── Three steps, one at a time ── */
 .nv-wizard .nv-layout { display: block; }
 .nv-wizard [data-step]:not(.is-step-on) { display: none !important; }
@@ -2723,11 +2749,11 @@ if (!empty($nvErr) && !isset($nvErr['full_name']) && !isset($nvErr['phone']) && 
                     <div class="radio-group">
                         <label class="radio-label">
                             <input type="radio" name="visit_type" value="checkup" required onchange="toggleCheckupSection()" <?php echo (($_POST['visit_type'] ?? '') === 'checkup') ? 'checked' : ''; ?>>
-                            <span>پشکنین</span>
+                            <span><i class="fas fa-stethoscope"></i>پشکنین</span>
                         </label>
                         <label class="radio-label">
                             <input type="radio" name="visit_type" value="treatment" required onchange="toggleCheckupSection()" <?php echo (($_POST['visit_type'] ?? '') === 'treatment') ? 'checked' : ''; ?>>
-                            <span>ئیش</span>
+                            <span><i class="fas fa-tooth"></i>ئیش</span>
                         </label>
                     </div>
                 </div>
@@ -2787,11 +2813,11 @@ if (!empty($nvErr) && !isset($nvErr['full_name']) && !isset($nvErr['phone']) && 
                     <div class="radio-group">
                         <label class="radio-label">
                             <input type="radio" name="patient_status" value="new" required <?php echo (($_POST['patient_status'] ?? '') === 'new') ? 'checked' : ''; ?>>
-                            <span>نوێ</span>
+                            <span><i class="fas fa-user-plus"></i>نوێ</span>
                         </label>
                         <label class="radio-label">
                             <input type="radio" name="patient_status" value="old" required <?php echo (($_POST['patient_status'] ?? '') === 'old') ? 'checked' : ''; ?>>
-                            <span>کۆن</span>
+                            <span><i class="fas fa-user-clock"></i>کۆن</span>
                         </label>
                     </div>
                 </div>
