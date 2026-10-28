@@ -14,8 +14,10 @@ const CAN_WRITE = <?= $canWrite ? 'true' : 'false' ?>;
 const CAN_TRANSFER = <?= $canTransfer ? 'true' : 'false' ?>;
 let planData = <?= json_encode($plan, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
 let planItems = <?= json_encode($items, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
-let treatmentCatalog = <?= json_encode(array_map(function ($t) {
-    return ['id' => (int)$t['id'], 'name' => $t['treatment_name'], 'category' => $t['category'] ?? 'other', 'price' => (float)$t['default_price']];
+<?php $favoriteTreatmentIds = $treatmentManager->favoriteIds((int)($_SESSION['user_id'] ?? 0)); ?>
+let treatmentCatalog = <?= json_encode(array_map(function ($t) use ($favoriteTreatmentIds) {
+    return ['id' => (int)$t['id'], 'name' => $t['treatment_name'], 'category' => $t['category'] ?? 'other', 'price' => (float)$t['default_price'],
+        'icon' => $t['icon'] ?? null, 'fav' => in_array((int)$t['id'], $favoriteTreatmentIds, true)];
 }, $toothTreatments), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
 const STATUS_META = {
     open: ['چاوەڕوانی بڕیاری نەخۆش', 'badge-blue'], partial: ['بەشێکی گوازراوەتەوە', 'badge-orange'],
@@ -753,53 +755,325 @@ window.pvRemoveItem = function (itemId) {
     });
 };
 
-// ── Treatment picker ────────────────────────────────────────────────
+// ── Treatment picker — the case page's (cases/view.php) ─────────────
+// One card a treatment type, with its icon, ★ favourites first. A click
+// picks a card; «دیارکردن» (or a double click, or Enter) uses it — for the
+// item dialog, or straight onto the teeth selected on the chart.
 let tpActiveCat = 'all';
-function categoryIconFor(t) {
-    switch (t.category) {
-        case 'filling': return legendSample('chip', /کۆمپۆزیت|كۆمپۆزیت|composite/i.test(t.name) ? CHART_COLORS.composite : CHART_COLORS.amalgam);
-        case 'root_canal': return legendSample('canal');
-        case 'crown': case 'bridge': return legendSample('crown');
-        case 'implant': return legendSample('implant');
-        case 'extraction': case 'surgery': return legendSample('extract');
-        case 'cleaning': return legendSample('sparkle', CHART_COLORS.cleaning);
-        case 'whitening': return legendSample('sparkle', CHART_COLORS.whitening);
-        case 'cosmetic': return legendSample('chip', CHART_COLORS.cosmetic);
-        default: return legendSample('chip', CHART_COLORS.other);
-    }
+/** A treatment type's illustrated icon (assets/js/treatment-icons.js). */
+function treatmentIconSvg(t) {
+    return window.TreatmentIcons ? TreatmentIcons.svg(TreatmentIcons.keyFor(t)) : '';
 }
+function categoryIconFor(t) { return treatmentIconSvg(t); }
+
+// ★ on a card: the user's own favourites, shown first (saved per user,
+// api/treatments.php?action=favorite).
+const TP_STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.5l-5.9 3.1 1.2-6.5-4.8-4.6 6.6-.9z" fill="currentColor"/></svg>';
+function tpToggleFavorite(id) {
+    const t = treatmentCatalog.find(x => Number(x.id) === id);
+    if (!t) return;
+    t.fav = !t.fav;
+    renderTreatmentPicker();
+    fetch('<?= APP_URL ?>/api/treatments.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN },
+        body: JSON.stringify({ action: 'favorite', id: id, on: t.fav })
+    }).then(r => r.json())
+        .then(d => { if (!d.success) throw new Error(d.message || ''); })
+        .catch(() => {
+            t.fav = !t.fav;
+            renderTreatmentPicker();
+            toast('error', 'نەتوانرا ئەستێرەکە پاشەکەوت بکرێت');
+        });
+}
+
+let tpSelectedId = null;
+function tpPaintSelection() {
+    document.querySelectorAll('#tpList .tp-card').forEach(c =>
+        c.classList.toggle('on', Number(c.dataset.id) === tpSelectedId));
+    const ok = document.getElementById('tpConfirm');
+    if (ok) ok.disabled = tpSelectedId === null || quickAddBusy;
+}
+window.tpConfirmPick = function () {
+    if (tpSelectedId === null || quickAddBusy) return;
+    if (tpQuickTeeth !== null) quickAddTreatment(tpSelectedId); else chooseTreatment(tpSelectedId);
+};
 window.openTreatmentPicker = function () {
-    document.getElementById('treatmentPicker').classList.add('open');
+    const ov = document.getElementById('treatmentPicker');
+    if (!ov) return;
+    // from the item dialog: the treatment already chosen there starts picked
+    const sel = document.getElementById('itTreatmentSelect');
+    tpSelectedId = sel && sel.value ? parseInt(sel.value, 10) : null;
+    ov.classList.add('open');
     renderTreatmentPicker();
     setTimeout(() => document.getElementById('tpSearch')?.focus(), 60);
 };
-window.closeTreatmentPicker = function () { document.getElementById('treatmentPicker').classList.remove('open'); };
+window.closeTreatmentPicker = function () {
+    document.getElementById('treatmentPicker')?.classList.remove('open');
+    setQuickToothMode(null);
+};
+function chooseTreatment(id) {
+    document.getElementById('itTreatmentSelect').value = String(id);
+    itTreatmentChanged();
+    closeTreatmentPicker();
+}
+
+// ── Quick add from the chart: teeth → treatment → planned ──
+// The catalog's price, quantity 1 a tooth, no discount — corrected
+// afterwards in the items table, as on the case page.
+let tpQuickTeeth = null;            // FDI numbers the picked work goes to, or null
+let quickAddBusy = false;
+const palmerOf = num => palmerNumbers[num] || (num % 10);
+/** A tooth as dentists write it (Palmer): 3┘ upper right, └3 upper left, 3┐ lower right, ┌3 lower left. */
+function toothTag(num) {
+    const q = Math.floor(num / 10), p = escapeHtml(String(palmerOf(num)));
+    const t = (q === 1 || q === 5) ? p + '┘' : (q === 2 || q === 6) ? '└' + p : (q === 4 || q === 8) ? p + '┐' : '┌' + p;
+    return '<bdi dir="ltr" class="tooth-tag">' + t + '</bdi>';
+}
+function setQuickToothMode(nums) {
+    tpQuickTeeth = nums === null ? null : [].concat(nums);
+    const title = document.getElementById('tpTitle');
+    if (!title) return;
+    const history = document.getElementById('tpHistory');
+    if (tpQuickTeeth === null) {
+        title.innerHTML = '<i class="fas fa-briefcase-medical"></i> هەڵبژاردنی چارەسەر';
+        if (history) history.hidden = true;
+        return;
+    }
+    tpSelectedId = null;
+    tpPaintSelection();
+    if (tpQuickTeeth.length === 1) {
+        const num = tpQuickTeeth[0];
+        title.innerHTML = '<i class="fas fa-tooth"></i> ددان ' + escapeHtml(String(palmerOf(num)))
+            + ' <small>' + escapeHtml(toothNames[num] || '') + '</small>';
+        const count = (toothTreatmentMap[num] && toothTreatmentMap[num].treatments || []).length;
+        if (history) {
+            history.hidden = count === 0;
+            history.innerHTML = '<i class="fas fa-history"></i> ' + count + ' ئیشی پلانکراو';
+        }
+    } else {
+        title.innerHTML = '<i class="fas fa-tooth"></i> ' + tpQuickTeeth.length + ' ددان'
+            + ' <small>' + tpQuickTeeth.map(toothTag).join(' ') + ' — هەر ددانێک بە نرخی خۆی</small>';
+        if (history) history.hidden = true;
+    }
+}
+/** Right click, or «زیادکردنی ئیش» on the bar: the cards for every selected tooth. */
+window.openQuickTeethAdd = function () {
+    if (!bulkSelected.length || !isEditable()) return;
+    openTreatmentPicker();
+    setQuickToothMode(bulkSelected.slice());
+};
+function quickAddTreatment(id) {
+    const t = treatmentCatalog.find(x => x.id === id);
+    if (!t || quickAddBusy || !tpQuickTeeth || !tpQuickTeeth.length) return;
+    quickAddBusy = true;
+    tpPaintSelection();
+    const teeth = tpQuickTeeth.slice();
+    const base = { plan_id: PLAN_ID, treatment_id: t.id, treatment_name: t.name, unit_price: t.price, discount: 0, quantity: 1 };
+    // several teeth: one request, all of them or none (ajax/treatment_plan.php add_items)
+    const req = teeth.length === 1
+        ? post('add_item', Object.assign({ tooth_number: teeth[0] }, base))
+        : post('add_items', Object.assign({ tooth_numbers: teeth }, base));
+    document.getElementById('tpList')?.classList.add('is-busy');
+    req.then(res => {
+        if (!res || !res.success) { toast('error', (res && (res.error || res.message)) || 'هەڵەیەک ڕوویدا'); return; }
+        closeTreatmentPicker();
+        clearBulkSelection();
+        applyResponse(res);
+        toast('success', teeth.length === 1
+            ? t.name + ' بۆ ددان ' + palmerOf(teeth[0]) + ' زیادکرا'
+            : t.name + ' بۆ ' + teeth.length + ' ددان زیادکرا');
+    })
+        .catch(() => toast('error', 'هەڵەیەک ڕوویدا لە پەیوەندیکردن'))
+        .finally(() => {
+            quickAddBusy = false;
+            document.getElementById('tpList')?.classList.remove('is-busy');
+            tpPaintSelection();
+        });
+}
+window.openQuickToothHistory = function () {
+    const num = tpQuickTeeth && tpQuickTeeth.length === 1 ? tpQuickTeeth[0] : null;
+    closeTreatmentPicker();
+    if (num !== null) { clearBulkSelection(); showToothDetail(num); }
+};
+
 function renderTreatmentPicker() {
     const listEl = document.getElementById('tpList');
     const catsEl = document.getElementById('tpCats');
-    const q = (document.getElementById('tpSearch').value || '').trim().toLowerCase();
+    if (!listEl || !catsEl) return;
+    const q = (document.getElementById('tpSearch')?.value || '').trim().toLowerCase();
     const present = [];
     treatmentCatalog.forEach(t => { const c = t.category || 'other'; if (!present.includes(c)) present.push(c); });
     const cats = ['all'].concat(present);
     if (!cats.includes(tpActiveCat)) tpActiveCat = 'all';
-    catsEl.innerHTML = cats.map(c => `<button type="button" class="tp-cat ${tpActiveCat === c ? 'on' : ''}" data-cat="${c}">${c === 'all' ? 'هەموو' : (CATEGORY_LABELS[c] || c)}</button>`).join('');
-    const rows = treatmentCatalog.filter(t => (tpActiveCat === 'all' || (t.category || 'other') === tpActiveCat) && (!q || t.name.toLowerCase().includes(q)));
-    listEl.innerHTML = rows.length ? rows.map(t => `<button type="button" class="tp-item" data-id="${t.id}">
-        <span class="tp-item-icon">${categoryIconFor(t)}</span><span class="tp-item-name">${escapeHtml(t.name)}</span><span class="tp-item-price">${numberFormat(t.price)}</span></button>`).join('')
-        : '<div class="tp-empty">هیچ چارەسەرێک نەدۆزرایەوە</div>';
+    catsEl.innerHTML = cats.map(c =>
+        `<button type="button" class="tp-cat ${tpActiveCat === c ? 'on' : ''}" data-cat="${c}">${c === 'all' ? 'هەموو' : (CATEGORY_LABELS[c] || c)}</button>`
+    ).join('');
+    const rows = treatmentCatalog.filter(t =>
+        (tpActiveCat === 'all' || (t.category || 'other') === tpActiveCat) &&
+        (!q || t.name.toLowerCase().includes(q))
+    ).sort((a, b) => (b.fav ? 1 : 0) - (a.fav ? 1 : 0));   // stable: ★ first, else as listed
+    const card = t => `<button type="button" class="tp-card${t.fav ? ' is-fav' : ''}" data-id="${t.id}">
+            <span class="tp-card-check"><i class="fas fa-check"></i></span>
+            <span class="tp-card-star" data-star="${t.id}" role="button"
+                  title="${t.fav ? 'لابردن لە دڵخوازەکان' : 'دڵخواز — لە سەرەتای لیستەکە پیشان بدرێت'}">${TP_STAR}</span>
+            <span class="tp-card-art">${treatmentIconSvg(t)}</span>
+            <span class="tp-card-name">${escapeHtml(t.name)}</span>
+            <span class="tp-card-price">${numberFormat(t.price)}</span>
+        </button>`;
+    const favs = rows.filter(t => t.fav), rest = rows.filter(t => !t.fav);
+    listEl.innerHTML = !rows.length ? '<div class="tp-empty">هیچ چارەسەرێک نەدۆزرایەوە</div>'
+        : favs.length && rest.length
+            ? '<div class="tp-section"><i class="fas fa-star"></i> دڵخوازەکانم</div>' + favs.map(card).join('')
+              + '<div class="tp-section">هەموو چارەسەرەکان</div>' + rest.map(card).join('')
+            : rows.map(card).join('');
+    tpPaintSelection();
 }
 document.addEventListener('click', function (e) {
     const cat = e.target.closest('#tpCats .tp-cat');
     if (cat) { tpActiveCat = cat.dataset.cat; renderTreatmentPicker(); return; }
-    const item = e.target.closest('#tpList .tp-item');
-    if (item) { document.getElementById('itTreatmentSelect').value = String(item.dataset.id); itTreatmentChanged(); closeTreatmentPicker(); return; }
+    const star = e.target.closest('#tpList .tp-card-star');
+    if (star) { tpToggleFavorite(parseInt(star.dataset.star, 10)); return; }
+    const card = e.target.closest('#tpList .tp-card');
+    if (card) { tpSelectedId = parseInt(card.dataset.id, 10); tpPaintSelection(); return; }
     const ov = document.getElementById('treatmentPicker');
     if (ov && e.target === ov) closeTreatmentPicker();
 });
+document.addEventListener('dblclick', function (e) {
+    const card = e.target.closest('#tpList .tp-card');
+    if (!card || e.target.closest('.tp-card-star')) return;
+    tpSelectedId = parseInt(card.dataset.id, 10);
+    tpConfirmPick();
+});
 document.addEventListener('input', function (e) { if (e.target && e.target.id === 'tpSearch') renderTreatmentPicker(); });
+// Enter in the search: uses the picked card, or picks the first one shown
+document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || !e.target || e.target.id !== 'tpSearch') return;
+    e.preventDefault();
+    const shown = Array.from(document.querySelectorAll('#tpList .tp-card')).map(c => Number(c.dataset.id));
+    if (tpSelectedId !== null && shown.includes(tpSelectedId)) tpConfirmPick();
+    else if (shown.length) { tpSelectedId = shown[0]; tpPaintSelection(); }
+});
 document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && document.getElementById('treatmentPicker')?.classList.contains('open')) { e.stopPropagation(); closeTreatmentPicker(); }
 }, true);
+
+// ── Teeth picked on the chart, as on the case page ──────────────────
+// A click picks a tooth (a second click lets it go); press and sweep across
+// the teeth to pick them all; Ctrl+click adds one, Shift+click a range. A
+// right click opens the cards for the selection — or that tooth alone. The
+// bar at the bottom does the same on a touch screen. On a plan that can no
+// longer change, a click or right click shows the tooth's planned work.
+let bulkSelected = [];               // FDI tooth numbers, in click order
+let lastBulkClicked = null;
+function toggleBulkTooth(num) {
+    num = parseInt(num, 10);
+    const i = bulkSelected.indexOf(num);
+    if (i === -1) bulkSelected.push(num); else bulkSelected.splice(i, 1);
+    lastBulkClicked = num;
+    renderBulkSelection();
+}
+function selectBulkRange(num) {
+    num = parseInt(num, 10);
+    const order = [...document.querySelectorAll('#smartDentalChart .dentition-pane:not([hidden]) .tooth')]
+        .map(t => parseInt(t.dataset.tooth, 10));
+    if (lastBulkClicked == null || order.indexOf(lastBulkClicked) === -1) { toggleBulkTooth(num); return; }
+    let a = order.indexOf(lastBulkClicked), b = order.indexOf(num);
+    if (a > b) { const t = a; a = b; b = t; }
+    for (let i = a; i <= b; i++) if (!bulkSelected.includes(order[i])) bulkSelected.push(order[i]);
+    renderBulkSelection();
+}
+function renderBulkSelection() {
+    document.querySelectorAll('.smart-dental-chart .tooth.bulk-selected').forEach(t => t.classList.remove('bulk-selected'));
+    bulkSelected.forEach(num => {
+        document.querySelectorAll('.smart-dental-chart .tooth[data-tooth="' + num + '"]').forEach(el => el.classList.add('bulk-selected'));
+    });
+    const bar = document.getElementById('bulkActionBar');
+    if (!bar) return;
+    if (!bulkSelected.length) { bar.style.display = 'none'; return; }
+    bar.style.display = 'block';
+    const hist = document.getElementById('bulkHistBtn');
+    if (hist) hist.style.display = bulkSelected.length === 1 ? '' : 'none';
+    document.getElementById('bulkCount').textContent = bulkSelected.length;
+    document.getElementById('bulkTeethList').innerHTML = bulkSelected.map(num =>
+        '<span class="bt-chip" title="' + escapeHtml(toothNames[num] || ('ددان ' + num)) + '">' + toothTag(num) +
+        ' <span class="bt-x" onclick="toggleBulkTooth(' + num + ')">&times;</span></span>'
+    ).join('');
+}
+function clearBulkSelection() {
+    bulkSelected = [];
+    renderBulkSelection();
+}
+/** «مێژوو» on the bar: the one selected tooth's planned work. */
+function bulkShowHistory() {
+    if (bulkSelected.length !== 1) return;
+    const num = bulkSelected[0];
+    clearBulkSelection();
+    showToothDetail(num);
+}
+document.addEventListener('DOMContentLoaded', function () {
+    const chart = document.getElementById('smartDentalChart');
+    if (!chart) return;
+    // Sweep: starting on an unpicked tooth picks every tooth passed over,
+    // starting on a picked one lets them go. A press without moving is the
+    // click. elementFromPoint, not pointerenter: a finger's pointer stays
+    // captured by the tooth it started on.
+    let sweep = null, sweptClick = false;
+    const sweepApply = function (num) {
+        if (!sweep || num === sweep.last) return;
+        sweep.last = num;
+        const i = bulkSelected.indexOf(num);
+        if (sweep.add && i === -1) bulkSelected.push(num);
+        if (!sweep.add && i !== -1) bulkSelected.splice(i, 1);
+        lastBulkClicked = num;
+        renderBulkSelection();
+    };
+    chart.addEventListener('pointerdown', function (e) {
+        if (!isEditable() || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+        const toothEl = e.target.closest('.tooth');
+        if (!toothEl) return;
+        const num = parseInt(toothEl.dataset.tooth, 10);
+        sweep = { add: !bulkSelected.includes(num), last: null };
+        sweepApply(num);
+        sweptClick = true;      // the click that follows is already handled here
+    });
+    chart.addEventListener('pointermove', function (e) {
+        if (!sweep) return;
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        const toothEl = el && el.closest('.smart-dental-chart .tooth');
+        if (toothEl) sweepApply(parseInt(toothEl.dataset.tooth, 10));
+    });
+    const sweepEnd = function () { sweep = null; setTimeout(() => { sweptClick = false; }, 0); };
+    document.addEventListener('pointerup', sweepEnd);
+    document.addEventListener('pointercancel', sweepEnd);
+
+    // Capture phase, so this beats the tooth's own onclick="showToothDetail(...)"
+    chart.addEventListener('click', function (e) {
+        const toothEl = e.target.closest('.tooth');
+        if (!toothEl || !isEditable()) return;
+        const num = parseInt(toothEl.dataset.tooth, 10);
+        if (e.ctrlKey || e.metaKey) { e.stopPropagation(); e.preventDefault(); toggleBulkTooth(num); }
+        else if (e.shiftKey) { e.stopPropagation(); e.preventDefault(); selectBulkRange(num); }
+        else if (sweptClick) { e.stopPropagation(); e.preventDefault(); }
+    }, true);
+
+    chart.addEventListener('contextmenu', function (e) {
+        const toothEl = e.target.closest('.tooth');
+        if (!toothEl) return;
+        e.preventDefault();
+        const num = parseInt(toothEl.dataset.tooth, 10);
+        if (!isEditable()) { showToothDetail(num); return; }
+        if (!bulkSelected.includes(num)) {
+            bulkSelected = [num];
+            lastBulkClicked = num;
+            renderBulkSelection();
+        }
+        openQuickTeethAdd();
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !document.querySelector('.dialog-overlay.open, .tp-overlay.open')) clearBulkSelection();
+    });
+});
 
 // ── Arch dialog ─────────────────────────────────────────────────────
 let selectedArches = [];

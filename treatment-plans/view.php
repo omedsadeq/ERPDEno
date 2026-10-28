@@ -306,6 +306,7 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
         <div class="panel-body" style="padding: 12px;">
             <div class="ph-bar" id="pvChartToolbar">
                 <?php if (!$isArch): ?>
+                <div class="pv-chart-tools">
                 <div id="dentitionForm" class="dentition-switch" role="group" aria-label="پیشاندانی چارتەکان">
                     <button type="button" data-dentition="permanent" class="dentition-opt is-active" aria-pressed="true"
                             onclick="toggleDentitionPane('permanent')" title="ددانە هەمیشەییەکان — ٣٢ ددان (پیشاندان/شاردنەوە)">
@@ -316,9 +317,15 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
                         <i class="fas fa-child"></i> منداڵ
                     </button>
                 </div>
+                    <button type="button" id="toothSoundBtn" class="tooth-sound-btn" aria-pressed="true"
+                            onclick="toggleToothSound()"
+                            title="دەنگی ددانەکان کاتێک ماوس دەبەیتە سەریان (کردنەوە/کوژاندنەوە)">
+                        <i class="fas fa-volume-up"></i>
+                    </button>
+                </div>
                 <?php else: ?><span></span><?php endif; ?>
                 <?php if ($isEditable): ?>
-                <button class="btn btn-primary btn-sm" onclick="<?= $isArch ? 'pvOpenArchDialog()' : 'pvOpenItemDialog({})' ?>" title="<?= $isArch ? '' : 'یان کلیک لەسەر ددانێک بکە' ?>">
+                <button class="btn btn-primary btn-sm" onclick="<?= $isArch ? 'pvOpenArchDialog()' : 'pvOpenItemDialog({})' ?>" title="<?= $isArch ? '' : 'یان ددان هەڵبژێرە (کلیک یان ڕاکێشان) و کلیکی ڕاست بکە' ?>">
                     <i class="fas fa-plus"></i> زیادکردن
                 </button>
                 <?php endif; ?>
@@ -383,8 +390,7 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
                             <div class="quadrant">
                                 <?php foreach ($set[$groupKey] as $num): ?>
                                 <div class="tooth<?= $jaw['toothClass'] ?>" data-tooth="<?= $num ?>" data-palmer="<?= $palmerNumbers[$num] ?>"
-                                     data-quadrant="<?= $quadrant ?>" onclick="showToothDetail(<?= $num ?>)"
-                                     title="<?= htmlspecialchars($toothNames[$num] ?? "ددان $num") ?>">
+                                     data-quadrant="<?= $quadrant ?>" onclick="showToothDetail(<?= $num ?>)">
                                     <span class="tooth-number"><?= $palmerNumbers[$num] ?></span>
                                     <span class="tooth-svg"></span>
                                 </div>
@@ -427,6 +433,17 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
 <?php require __DIR__ . '/_view_styles.php'; ?>
 <?php // the case look (tabs, the compact mouth-shaped chart, the dark header), after the plan's own chart rules ?>
 <link rel="stylesheet" href="<?= asset_url('assets/css/case-look.css') ?>">
+<?php // the case's treatment picker: icon cards, ★ favourites ?>
+<link rel="stylesheet" href="<?= asset_url('assets/css/treatment-picker.css') ?>">
+<style>
+/* a tooth picked on the chart — after the case look, as on the case page */
+.smart-dental-chart .tooth.bulk-selected {
+    border-color: #0d9488;
+    background: #f0fdfa;
+    box-shadow: 0 0 0 3px rgba(13,148,136,.22), 0 10px 22px rgba(13,148,136,.14);
+}
+.smart-dental-chart .tooth.bulk-selected .tooth-number { background: #0d9488 !important; color: #fff !important; }
+</style>
 <?php require __DIR__ . '/_view_script.php'; ?>
 <?php require __DIR__ . '/_view_routing.php'; ?>
 

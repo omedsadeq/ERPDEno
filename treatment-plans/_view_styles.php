@@ -77,10 +77,6 @@
 
 /* ═══ Odontogram — copied from cases/view.php (smart chart) ═══ */
 .dental-chart-container { display: flex; flex-direction: column; align-items: center; padding: 12px; background: #f8f9fa; border-radius: 8px; border: 1px solid var(--border-light); }
-.tooth-tooltip { display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 4px 8px; border-radius: 4px; font-size: 10px; white-space: nowrap; pointer-events: none; z-index: 1000; margin-bottom: 4px; direction: rtl; }
-.tooth-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 4px solid transparent; border-top-color: #333; }
-.tooth:hover .tooth-tooltip { display: block; }
-@media (hover: none), (max-width: 767px) { .tooth:hover .tooth-tooltip { display: none; } }
 .chart-legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; justify-content: center; padding: 10px; background: white; border-radius: 8px; }
 .legend-color { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1); }
 
@@ -207,32 +203,31 @@
 #addTreatmentDialog.open, #archTreatmentDialog.open, #planHeaderDialog.open, #tpTransferDialog.open { z-index: 3000 !important; display: flex !important; align-items: center !important; justify-content: center !important; }
 #addTreatmentDialog.open .dialog, #archTreatmentDialog.open .dialog { position: relative !important; top: auto !important; left: auto !important; }
 
-/* ═══ Treatment picker ═══ */
-.tp-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 3200; display: none; align-items: center; justify-content: center; padding: 16px; }
-.tp-overlay.open { display: flex; }
-.tp-sheet { background: var(--bg-color, #fff); width: 560px; max-width: 100%; max-height: 82vh; border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,0.3); display: flex; flex-direction: column; overflow: hidden; }
-@media (max-width: 600px) { .tp-overlay { align-items: flex-end; padding: 0; } .tp-sheet { width: 100%; max-height: 88vh; border-radius: 14px 14px 0 0; } }
-.tp-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--border-color, #e3e6ea); }
-.tp-head h4 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
-.tp-close { background: var(--bg-main, #f2f4f6); border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; color: var(--text-secondary); }
-.tp-search-row { display: flex; align-items: center; gap: 8px; margin: 12px 16px 0; padding: 8px 12px; border: 1px solid var(--border-color, #e3e6ea); border-radius: 10px; background: var(--bg-main, #f8f9fa); }
-.tp-search-row i { color: var(--text-secondary); font-size: 13px; }
-.tp-search-row input { border: none; outline: none; background: transparent; flex: 1; font-family: inherit; font-size: 13px; }
-.tp-cats { display: flex; gap: 6px; flex-wrap: wrap; padding: 12px 16px 8px; }
-.tp-cat { border: 1px solid var(--border-color, #e3e6ea); background: var(--bg-color, #fff); color: var(--text-secondary); padding: 5px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; font-family: inherit; }
-.tp-cat.on { background: var(--win-accent, #0078d4); border-color: var(--win-accent, #0078d4); color: #fff; font-weight: 600; }
-.tp-list { overflow-y: auto; padding: 4px 12px 14px; flex: 1; }
-.tp-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; margin-top: 6px; border: 1px solid var(--border-color, #e3e6ea); border-radius: 10px; background: var(--bg-color, #fff); cursor: pointer; font-family: inherit; text-align: right; transition: all 0.12s; }
-.tp-item:hover { border-color: var(--win-accent, #0078d4); background: rgba(var(--win-accent-rgb, 0, 120, 212), 0.05); }
-.tp-item-icon { flex-shrink: 0; display: flex; align-items: center; }
-.tp-item-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--text-color, #222); }
-.tp-item-price { font-size: 12.5px; font-weight: 700; color: #107c10; }
-.tp-empty { text-align: center; padding: 30px 0; color: var(--text-secondary); font-size: 13px; }
-.tp-trigger { flex: 1; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--border-color, #d5dbe1); border-radius: 6px; background: var(--bg-color, #fff); cursor: pointer; font-family: inherit; font-size: 13px; color: var(--text-secondary); min-height: 38px; text-align: right; }
-.tp-trigger:hover { border-color: var(--win-accent, #0078d4); }
-.tp-btn-icon { display: flex; align-items: center; flex-shrink: 0; }
-.tp-btn-name { flex: 1; color: var(--text-color, #222); font-weight: 600; }
-.tp-btn-price { font-weight: 700; color: #107c10; font-size: 12.5px; }
+/* ═══ Teeth picked on the chart, as on the case page ═══ */
+.pv-chart-tools { display: flex; align-items: center; gap: 8px; }
+.tooth-sound-btn {
+    display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0;
+    border: 0; border-radius: 999px; background: #eef2f7; color: var(--win-accent, #0078d4);
+    font-size: 12px; cursor: pointer; transition: background-color .2s ease, color .2s ease;
+}
+.tooth-sound-btn:hover { background: #e2e9f2; }
+.tooth-sound-btn.is-off { color: #94a3b8; }
+@media (hover: none) { .tooth-sound-btn { display: none; } }
+#bulkActionBar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 2500;
+    background: #fff; border-top: 2px solid #0d9488;
+    box-shadow: 0 -6px 24px rgba(0,0,0,.12); padding: 10px 16px;
+}
+.bulk-bar-inner { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; max-width: 1100px; margin: 0 auto; }
+.bulk-bar-count { font-weight: 700; color: #0f766e; white-space: nowrap; }
+.bulk-bar-teeth { flex: 1; display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
+.bulk-bar-teeth .bt-chip {
+    display: inline-flex; align-items: center; gap: 5px; background: #f0fdfa;
+    border: 1px solid #99f6e4; color: #0f766e; border-radius: 14px;
+    padding: 2px 9px; font-size: 12px; font-weight: 700;
+}
+.bulk-bar-teeth .bt-chip .bt-x { cursor: pointer; color: #ef4444; font-weight: 700; }
+.bulk-bar-actions { display: flex; gap: 8px; }
 
 /* ═══ Surface picker ═══ */
 .surface-picker { display: flex; align-items: center; gap: 14px; padding: 10px; border: 1px solid var(--border-color, #e3e6ea); border-radius: 10px; background: var(--bg-main, #f8f9fa); }

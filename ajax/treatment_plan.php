@@ -262,6 +262,34 @@ if ($action === 'add_item') {
     tp_ok(['item_id' => $itemId, 'plan' => $plan, 'items' => $plans->getItems($planId)]);
 }
 
+// One treatment for several teeth picked on the chart: a row a tooth, all of
+// them or none.
+if ($action === 'add_items') {
+    tp_require('treatment_plan.write');
+    $planId = (int)($_POST['plan_id'] ?? 0);
+    tp_require_examiner(tp_plan_or_fail($plans, $planId));
+    $teeth = array_values(array_unique(array_filter(array_map('intval', (array)($_POST['tooth_numbers'] ?? [])))));
+    if (!$teeth || count($teeth) > 52) {
+        tp_fail('ددانێک هەڵبژێرە');
+    }
+    $itemIds = [];
+    $db->beginTransaction();
+    try {
+        foreach ($teeth as $tooth) {
+            $res = $plans->addItem($planId, ['tooth_number' => $tooth, 'quantity' => 1] + $_POST);
+            if (empty($res['success'])) {
+                throw new RuntimeException(($res['message'] ?? 'هەڵە') . ' (ددان ' . $tooth . ')');
+            }
+            $itemIds[] = $res['item_id'] ?? null;
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollback();
+        tp_fail($e instanceof RuntimeException && !($e instanceof PDOException) ? $e->getMessage() : 'هەڵە');
+    }
+    tp_ok(['item_ids' => $itemIds, 'plan' => $plans->getById($planId), 'items' => $plans->getItems($planId)]);
+}
+
 if ($action === 'update_item') {
     tp_require('treatment_plan.write');
     $itemId = (int)($_POST['item_id'] ?? 0);

@@ -176,18 +176,52 @@ if (!isset($plan)) { exit; }
     </div>
 </div>
 
-<!-- ═══ Searchable, categorized treatment picker ═══ -->
+<!-- ═══ The case's treatment picker: one card a treatment type, ★ first ═══ -->
 <div class="tp-overlay" id="treatmentPicker">
     <div class="tp-sheet">
         <div class="tp-head">
-            <h4><i class="fas fa-briefcase-medical"></i> هەڵبژاردنی چارەسەر</h4>
+            <h4 id="tpTitle"><i class="fas fa-briefcase-medical"></i> هەڵبژاردنی چارەسەر</h4>
             <button type="button" class="tp-close" onclick="closeTreatmentPicker()"><i class="fas fa-times"></i></button>
         </div>
-        <div class="tp-search-row"><i class="fas fa-search"></i><input type="text" id="tpSearch" placeholder="گەڕان بۆ چارەسەر..."></div>
+        <div class="tp-search-row">
+            <i class="fas fa-search"></i>
+            <input type="text" id="tpSearch" placeholder="گەڕان بۆ چارەسەر...">
+        </div>
         <div class="tp-cats" id="tpCats"></div>
+        <!-- a click picks a card, «دیارکردن» or a double click uses it -->
         <div class="tp-list" id="tpList"></div>
+        <div class="tp-foot" id="tpFoot">
+            <div class="tp-foot-acts">
+                <button type="button" class="tp-confirm" id="tpConfirm" onclick="tpConfirmPick()" disabled>دیارکردن</button>
+                <button type="button" class="tp-cancel" onclick="closeTreatmentPicker()">هەڵوەشاندنەوە</button>
+            </div>
+            <!-- one tooth from the chart: what is already planned for it -->
+            <button type="button" class="tp-history" id="tpHistory" onclick="openQuickToothHistory()" hidden></button>
+        </div>
     </div>
 </div>
+
+<?php if ($isEditable && !$isArch): ?>
+<!-- ═══ Teeth selected on the chart (as on the case page) ═══ -->
+<div id="bulkActionBar" style="display: none;">
+    <div class="bulk-bar-inner">
+        <span class="bulk-bar-count"><i class="fas fa-tooth"></i> <span id="bulkCount">0</span> ددان هەڵبژێردراوە</span>
+        <span class="bulk-bar-teeth" id="bulkTeethList"></span>
+        <div class="bulk-bar-actions">
+            <button type="button" class="btn btn-sm" onclick="clearBulkSelection()" style="background:#eef2f5;color:#37474f;border:1px solid #cfd8dc;">
+                <i class="fas fa-eraser"></i> لابردن
+            </button>
+            <button type="button" class="btn btn-sm" id="bulkHistBtn" onclick="bulkShowHistory()"
+                    style="background:#fff;color:#0369a1;border:1px solid #bae6fd;" title="ئیشە پلانکراوەکانی ئەم ددانە">
+                <i class="fas fa-history"></i> مێژوو
+            </button>
+            <button type="button" class="btn btn-sm btn-primary" id="bulkApplyBtn" onclick="openQuickTeethAdd()">
+                <i class="fas fa-plus-circle"></i> زیادکردنی ئیش
+            </button>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- ═══ Whole-arch job — the case's arch treatment dialog ═══ -->
 <div class="dialog-overlay" id="archTreatmentDialog">

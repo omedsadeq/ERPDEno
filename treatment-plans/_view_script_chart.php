@@ -1,6 +1,8 @@
 <?php if (!isset($plan)) { exit; } ?>
-<?php // the tooth shapes and toothSVG(), shared with cases/view.php ?>
+<?php // the tooth shapes and toothSVG(), the hover notes and the treatment icons, shared with cases/view.php ?>
 <script src="<?= asset_url('assets/js/tooth-art.js') ?>"></script>
+<script src="<?= asset_url('assets/js/tooth-sound.js') ?>"></script>
+<script src="<?= asset_url('assets/js/treatment-icons.js') ?>"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════
 // Chart engine — same renderer as cases/view.php (anatomical SVG teeth,
