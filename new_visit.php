@@ -334,6 +334,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $date_of_birth = !empty($_POST['date_of_birth']) ? sanitize($_POST['date_of_birth']) : null;
     $address = sanitize($_POST['address'] ?? '');
     $city = sanitize($_POST['city'] ?? '');
+    $location_id = (int)($_POST['location_id'] ?? 0);   // the گەڕەک picked from شوێن
     $occupation = sanitize($_POST['occupation'] ?? '');
     $blood_type = !empty($_POST['blood_type']) ? sanitize($_POST['blood_type']) : null;
     $patient_notes = sanitize($_POST['patient_notes'] ?? '');
@@ -799,6 +800,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
+            // شوێن: the picked گەڕەک, its شار as the patient's city (as before)
+            if ($location_id > 0) {
+                $locStmt = $conn->prepare(
+                    "SELECT a.name AS area, c.name AS city FROM locations a JOIN locations c ON c.id = a.parent_id
+                     WHERE a.id = ? AND a.level = 'area'"
+                );
+                $locStmt->bind_param('i', $location_id);
+                $locStmt->execute();
+                $loc = $locStmt->get_result()->fetch_assoc();
+                $locStmt->close();
+                if ($loc) {
+                    $placeStmt = $conn->prepare("UPDATE patients SET city = ?, area = ?, location_id = ? WHERE id = ?");
+                    $placeStmt->bind_param('ssii', $loc['city'], $loc['area'], $location_id, $final_patient_id);
+                    $placeStmt->execute();
+                    $placeStmt->close();
+                }
+            }
+
             $patientRow = $patientManager->getById($final_patient_id);
             if (!$patientRow) {
                 throw new Exception('Patient lookup failed');
@@ -975,15 +994,12 @@ $work_types_for_modal = $conn->query(
      ORDER BY sort_order, id"
 );
 
-// Cities list — grouped by province, loaded from DB so receptionists can add new entries
-$cities_grouped = [];
-if ($citiesRes = $conn->query("SELECT id, name, province FROM cities WHERE is_active = 1 ORDER BY sort_order, id")) {
-    while ($cityRow = $citiesRes->fetch_assoc()) {
-        $provinceKey = trim($cityRow['province'] ?? '');
-        if ($provinceKey === '') {
-            $provinceKey = 'شارە تر';
-        }
-        $cities_grouped[$provinceKey][] = $cityRow['name'];
+// شوێن — پارێزگا → ئیدارە → شار → گەڕەک (api/locations.php, 2026_10_28_locations.sql)
+$locations_all = [];
+if ($locRes = @$conn->query("SELECT id, parent_id, level, name FROM locations WHERE is_active = 1 ORDER BY sort_order, name")) {
+    while ($locRow = $locRes->fetch_assoc()) {
+        $locations_all[] = ['id' => (int)$locRow['id'], 'parent_id' => $locRow['parent_id'] !== null ? (int)$locRow['parent_id'] : null,
+                            'level' => $locRow['level'], 'name' => $locRow['name']];
     }
 }
 
@@ -1719,29 +1735,33 @@ textarea {
     </div>
 </div>
 
-<!-- Add City Dialog -->
+<!-- Add a place: پارێزگا، (ئیدارە)، شار، گەڕەک — each picked from what exists or typed new -->
 <div id="addCityDialog" class="dialog-overlay">
-    <div class="dialog apt-dialog-modern" style="max-width: 400px;">
+    <div class="dialog apt-dialog-modern" style="max-width: 460px;">
         <div class="apt-dialog-header" style="background: linear-gradient(135deg, var(--win-accent, #0078d4) 0%, var(--win-accent-dark, #005a9e) 100%);">
-            <h4><i class="fas fa-map-marker-alt"></i> زیادکردنی شاری نوێ</h4>
+            <h4><i class="fas fa-map-marker-alt"></i> زیادکردنی شوێنی نوێ</h4>
             <button type="button" class="apt-dialog-close" onclick="closeAddCityDialog()"><i class="fas fa-times"></i></button>
         </div>
         <div class="apt-dialog-body">
             <div class="apt-form-field">
-                <label><i class="fas fa-city"></i> ناوی شار <span class="required">*</span></label>
-                <input type="text" id="newCityName" placeholder="بۆ نموونە: کۆیە">
+                <label><i class="fas fa-map"></i> پارێزگا <span class="required">*</span></label>
+                <input type="text" id="newPlaceProvince" list="locProvinceList" placeholder="بۆ نموونە: هەولێر" autocomplete="off">
             </div>
             <div class="apt-form-field" style="margin-top:10px;">
-                <label><i class="fas fa-map"></i> پارێزگا</label>
-                <select id="newCityProvince">
-                    <option value="">— هەڵبژێرە —</option>
-                    <option value="پارێزگای سلێمانی">پارێزگای سلێمانی</option>
-                    <option value="پارێزگای هەولێر">پارێزگای هەولێر</option>
-                    <option value="پارێزگای دهۆک">پارێزگای دهۆک</option>
-                    <option value="شارە تر">شارە تر</option>
-                </select>
+                <label><i class="fas fa-landmark"></i> ئیدارە <small style="color:#90a4ae;font-weight:400;">(ئەگەر هەبێت)</small></label>
+                <input type="text" id="newPlaceRegion" list="locRegionList" placeholder="بۆ نموونە: ئیدارەی سەربەخۆی سۆران" autocomplete="off">
             </div>
-            <div id="addCityErr" style="color:#f44336;font-size:12px;margin-top:6px;display:none;"></div>
+            <div class="apt-form-field" style="margin-top:10px;">
+                <label><i class="fas fa-city"></i> شار / قەزا <span class="required">*</span></label>
+                <input type="text" id="newPlaceCity" list="locCityList" placeholder="بۆ نموونە: سۆران" autocomplete="off">
+            </div>
+            <div class="apt-form-field" style="margin-top:10px;">
+                <label><i class="fas fa-house-chimney"></i> گەڕەک / گوند <span class="required">*</span></label>
+                <input type="text" id="newPlaceArea" list="locAreaList" placeholder="بۆ نموونە: ئازادی" autocomplete="off">
+            </div>
+            <datalist id="locProvinceList"></datalist><datalist id="locRegionList"></datalist>
+            <datalist id="locCityList"></datalist><datalist id="locAreaList"></datalist>
+            <div id="addCityErr" style="color:#f44336;font-size:12px;margin-top:8px;display:none;"></div>
         </div>
         <div class="apt-dialog-footer">
             <button type="button" class="apt-btn-primary" onclick="submitNewCity()"><i class="fas fa-check"></i> زیادکردن</button>
@@ -2479,6 +2499,10 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
 .nv-layout .form-group.nv-photo { grid-column: auto; }
 /* the full name is the longest thing typed here: two columns wide */
 .nv-layout .form-group.nv-name { grid-column: span 2; }
+.nv-layout .form-group.nv-place { grid-column: span 2; }
+.city-combo-item small { display: block; font-size: 11px; color: #90a4ae; }
+.city-combo-add { padding: 9px 12px; color: #2e7d32; font-weight: 700; cursor: pointer; border-top: 1px dashed #e0e0e0; }
+.city-combo-add:hover { background: #f1f8f4; }
 .nv-layout .form-group.nv-name input { font-size: 15px; font-weight: 600; }
 .nv-layout .form-group.nv-address { order: 1; }   /* the full-width line last, so the photo fills the row beside «پیشە» */
 /* Choices side by side as one segmented row (the page's .form-group label
@@ -2664,18 +2688,27 @@ if (!empty($nvErr) && !isset($nvErr['full_name']) && !isset($nvErr['phone']) && 
                     <label>ژمارەی دووەم</label>
                     <input type="tel" id="phone2" name="phone2" value="<?php echo htmlspecialchars($_POST['phone2'] ?? ''); ?>" placeholder="0770-987-6543">
                 </div>
-                <div class="form-group">
-                    <label>شار</label>
-                    <?php $selected_city = $_POST['city'] ?? ''; ?>
+                <?php
+                // شوێن: one search over every گەڕەک (with its شار, ئیدارە and پارێزگا);
+                // «+» adds a new one. Typed text that is not picked stays the city, as before.
+                $selected_city = $_POST['city'] ?? '';
+                $selected_area = $_POST['area'] ?? '';
+                $selected_loc  = (int)($_POST['location_id'] ?? 0);
+                $selected_show = $selected_loc && $selected_area !== '' ? $selected_area . '، ' . $selected_city : $selected_city;
+                ?>
+                <div class="form-group nv-place">
+                    <label>شوێن <small style="color:#90a4ae;font-weight:400;">(شار · گەڕەک)</small></label>
                     <div style="display: flex; gap: 4px;">
                         <div class="city-combo">
-                            <input type="text" id="cityComboInput" placeholder="گەڕان بۆ شار..." autocomplete="off"
-                                   value="<?php echo htmlspecialchars($selected_city); ?>"
+                            <input type="text" id="cityComboInput" placeholder="گەڕەک یان شار بنووسە…" autocomplete="off"
+                                   value="<?php echo htmlspecialchars($selected_show); ?>"
                                    oninput="cityComboFilter()" onfocus="cityComboOpen()">
                             <input type="hidden" id="city" name="city" value="<?php echo htmlspecialchars($selected_city); ?>">
+                            <input type="hidden" id="area" name="area" value="<?php echo htmlspecialchars($selected_area); ?>">
+                            <input type="hidden" id="location_id" name="location_id" value="<?php echo $selected_loc ?: ''; ?>">
                             <div id="cityComboDropdown" class="city-combo-dropdown"></div>
                         </div>
-                        <button type="button" onclick="openAddCityDialog()" title="زیادکردنی شاری نوێ"
+                        <button type="button" onclick="openAddCityDialog()" title="شوێنی نوێ: پارێزگا، شار، گەڕەک"
                                 style="padding: 0 10px; background: var(--win-accent, #0078d4); color: #fff; border: 1px solid var(--win-accent, #0078d4); border-radius: 4px; cursor: pointer;">
                             <i class="fas fa-plus"></i>
                         </button>
@@ -3529,6 +3562,7 @@ document.addEventListener('DOMContentLoaded', function() {
         setFieldValue('phone2', patient.phone2 ?? '');
         setFieldValue('address', patient.address ?? '');
         setFieldValue('city', patient.city ?? '');
+        if (window.placeShow) placeShow(patient.location_id || null, patient.city ?? '', patient.area ?? '');
         setFieldValue('occupation', patient.occupation ?? '');
         setFieldValue('blood_type', patient.blood_type ?? '');
         setFieldValue('patient_notes', patient.notes ?? '');
@@ -3556,6 +3590,7 @@ document.addEventListener('DOMContentLoaded', function() {
         setFieldValue('phone2', '');
         setFieldValue('address', '');
         setFieldValue('city', '');
+        if (window.placeShow) placeShow(null, '', '');
         setFieldValue('occupation', '');
         setFieldValue('blood_type', '');
         setFieldValue('patient_notes', '');
@@ -4129,88 +4164,148 @@ document.addEventListener('click', function(ev) {
     }
 });
 
-// ── Add City dialog ──
-function openAddCityDialog() {
+// ── شوێن: پارێزگا → ئیدارە → شار → گەڕەک ──
+var LOCATIONS = <?php echo json_encode($locations_all, JSON_UNESCAPED_UNICODE); ?>;
+function locById(id) { for (var i = 0; i < LOCATIONS.length; i++) if (LOCATIONS[i].id === Number(id)) return LOCATIONS[i]; return null; }
+function locKids(parentId, level) {
+    return LOCATIONS.filter(function (l) { return l.parent_id === (parentId == null ? null : Number(parentId)) && (!level || l.level === level); });
+}
+/** A گەڕەک with everything above it: {id, area, city, region, province, path}. */
+function locPlace(areaId) {
+    var a = locById(areaId); if (!a) return null;
+    var c = locById(a.parent_id) || {}, up = locById(c.parent_id) || {};
+    var region = up.level === 'region' ? up : null, prov = region ? (locById(up.parent_id) || {}) : up;
+    return { id: a.id, area: a.name, city: c.name || '', region: region ? region.name : '', province: prov.name || '',
+             path: [c.name, region && region.name, prov.name].filter(Boolean).join(' · ') };
+}
+/** Every گەڕەک in the tree's own order: پارێزگا → ئیدارە → شار → گەڕەک. */
+function locPlaces() {
+    var out = [];
+    (function walk(parentId) {
+        locKids(parentId).forEach(function (l) {
+            if (l.level === 'area') out.push(locPlace(l.id)); else walk(l.id);
+        });
+    })(null);
+    return out;
+}
+
+// ── the dialog: all three names (پارێزگا، شار، گەڕەک) required, ئیدارە if there is one ──
+function locFill(listId, names) {
+    var dl = document.getElementById(listId); if (!dl) return;
+    dl.innerHTML = names.map(function (n) { return '<option value="' + String(n).replace(/"/g, '&quot;') + '">'; }).join('');
+}
+function locByName(parentId, name, levels) {
+    name = String(name || '').trim();
+    return LOCATIONS.filter(function (l) { return l.parent_id === parentId && l.name === name && (!levels || levels.indexOf(l.level) !== -1); })[0] || null;
+}
+function locRefreshLists() {
+    var prov = locByName(null, document.getElementById('newPlaceProvince').value, ['province']);
+    var region = prov ? locByName(prov.id, document.getElementById('newPlaceRegion').value, ['region']) : null;
+    var cityParent = region || prov;
+    var city = cityParent ? locByName(cityParent.id, document.getElementById('newPlaceCity').value, ['city']) : null;
+    locFill('locProvinceList', locKids(null, 'province').map(function (l) { return l.name; }));
+    locFill('locRegionList', prov ? locKids(prov.id, 'region').map(function (l) { return l.name; }) : []);
+    locFill('locCityList', cityParent ? locKids(cityParent.id, 'city').map(function (l) { return l.name; }) : []);
+    locFill('locAreaList', city ? locKids(city.id, 'area').map(function (l) { return l.name; }) : []);
+}
+function openAddCityDialog(areaGuess) {
     var d = document.getElementById('addCityDialog');
-    var n = document.getElementById('newCityName');
-    var p = document.getElementById('newCityProvince');
     var e = document.getElementById('addCityErr');
-    if (n) n.value = '';
-    if (p) p.value = '';
+    ['newPlaceProvince', 'newPlaceRegion', 'newPlaceCity', 'newPlaceArea'].forEach(function (id) { document.getElementById(id).value = ''; });
+    if (typeof areaGuess === 'string') document.getElementById('newPlaceArea').value = areaGuess;
+    // the usual case starts filled in: هەولێر › ئیدارەی سەربەخۆی سۆران
+    var first = locKids(null, 'province')[0];
+    if (first) {
+        document.getElementById('newPlaceProvince').value = first.name;
+        var reg = locKids(first.id, 'region')[0];
+        if (reg) document.getElementById('newPlaceRegion').value = reg.name;
+    }
+    locRefreshLists();
     if (e) { e.style.display = 'none'; e.textContent = ''; }
     if (d) d.classList.add('open');
-    setTimeout(function() { n && n.focus(); }, 50);
+    setTimeout(function () { document.getElementById('newPlaceCity').focus(); }, 50);
 }
+['newPlaceProvince', 'newPlaceRegion', 'newPlaceCity'].forEach(function (id) {
+    document.addEventListener('input', function (ev) { if (ev.target && ev.target.id === id) locRefreshLists(); });
+});
 function closeAddCityDialog() {
     var d = document.getElementById('addCityDialog');
     if (d) d.classList.remove('open');
 }
 function submitNewCity() {
-    var n = document.getElementById('newCityName');
-    var p = document.getElementById('newCityProvince');
     var e = document.getElementById('addCityErr');
-    var name = (n.value || '').trim();
-    var province = (p.value || '').trim();
-    if (!name) { e.textContent = 'تکایە ناوی شار بنووسە'; e.style.display = 'block'; return; }
-    fetch('<?= APP_URL ?>/api/cities.php', {
+    var val = function (id) { return (document.getElementById(id).value || '').trim(); };
+    var body = { action: 'add', province: val('newPlaceProvince'), region: val('newPlaceRegion'), city: val('newPlaceCity'), area: val('newPlaceArea') };
+    var missing = [];
+    if (!body.province) missing.push('پارێزگا');
+    if (!body.city) missing.push('شار');
+    if (!body.area) missing.push('گەڕەک');
+    if (missing.length) { e.textContent = 'تکایە ' + missing.join('، ') + ' بنووسە'; e.style.display = 'block'; return; }
+    fetch('<?= APP_URL ?>/api/locations.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'add', name: name, province: province })
+        body: JSON.stringify(body)
     })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
         if (!d.success) { e.textContent = d.message || 'هەڵە'; e.style.display = 'block'; return; }
-        // Add the new city to the searchable combo data and select it
-        var groupLabel = (d.province && d.province !== '') ? d.province : 'شارە تر';
-        if (!CITY_GROUPS[groupLabel]) CITY_GROUPS[groupLabel] = [];
-        if (CITY_GROUPS[groupLabel].indexOf(d.name) === -1) CITY_GROUPS[groupLabel].push(d.name);
-        cityComboPick(d.name);
+        (d.chain || []).forEach(function (l) { if (!locById(l.id)) LOCATIONS.push({ id: Number(l.id), parent_id: l.parent_id == null ? null : Number(l.parent_id), level: l.level, name: l.name }); });
+        cityComboPick(Number(d.id));
         closeAddCityDialog();
     })
-    .catch(function(err) { e.textContent = 'کێشەی پەیوەندی: ' + err.message; e.style.display = 'block'; });
+    .catch(function (err) { e.textContent = 'کێشەی پەیوەندی: ' + err.message; e.style.display = 'block'; });
 }
 
-// ── City searchable combo ──
-var CITY_GROUPS = <?php echo json_encode($cities_grouped ?? [], JSON_UNESCAPED_UNICODE); ?>;
-
+// ── the field: one search over every گەڕەک, grouped by شار ──
 function cityComboRender(filter) {
     var dd = document.getElementById('cityComboDropdown');
     if (!dd) return;
     dd.innerHTML = '';
     var f = String(filter || '').trim().toLowerCase();
-    var total = 0;
-    Object.keys(CITY_GROUPS).forEach(function(province) {
-        var items = (CITY_GROUPS[province] || []).filter(function(c) {
-            return !f || String(c).toLowerCase().indexOf(f) !== -1;
-        });
-        if (!items.length) return;
+    var groups = {}, order = [];
+    locPlaces().forEach(function (p) {
+        var hay = (p.area + ' ' + p.city + ' ' + p.region + ' ' + p.province).toLowerCase();
+        if (f && hay.indexOf(f) === -1) return;
+        if (!groups[p.path]) { groups[p.path] = []; order.push(p.path); }
+        groups[p.path].push(p);
+    });
+    order.forEach(function (path) {
         var g = document.createElement('div');
         g.className = 'city-combo-group';
-        g.textContent = province;
+        g.textContent = path;
         dd.appendChild(g);
-        items.forEach(function(c) {
-            total++;
+        groups[path].forEach(function (p) {
             var it = document.createElement('div');
             it.className = 'city-combo-item';
-            it.textContent = c;
+            it.textContent = p.area;
             // mousedown (not click) so the input doesn't lose focus first
-            it.addEventListener('mousedown', function(ev) { ev.preventDefault(); cityComboPick(c); });
+            it.addEventListener('mousedown', function (ev) { ev.preventDefault(); cityComboPick(p.id); });
             dd.appendChild(it);
         });
     });
-    if (!total) {
+    if (!order.length) {
         var em = document.createElement('div');
         em.className = 'city-combo-empty';
-        em.textContent = 'هیچ شارێک نەدۆزرایەوە — دەتوانیت بە دوگمەی + زیادی بکەیت';
+        em.textContent = 'هیچ شوێنێک نەدۆزرایەوە';
         dd.appendChild(em);
     }
+    // not in the list yet: add it here, with its پارێزگا and شار
+    var add = document.createElement('div');
+    add.className = 'city-combo-add';
+    add.innerHTML = '<i class="fas fa-plus"></i> ' + (f ? '«' + String(filter).trim().replace(/</g, '&lt;') + '» زیاد بکە وەک گەڕەک' : 'شوێنی نوێ زیاد بکە');
+    add.addEventListener('mousedown', function (ev) {
+        ev.preventDefault();
+        dd.style.display = 'none';
+        openAddCityDialog(String(filter || '').trim());
+    });
+    dd.appendChild(add);
 }
 
 function cityComboOpen() {
     var wtDd = document.getElementById('wtComboDropdown');
     if (wtDd) wtDd.style.display = 'none';
     var inp = document.getElementById('cityComboInput');
-    cityComboRender(inp ? inp.value : '');
+    cityComboRender(document.getElementById('location_id').value ? '' : (inp ? inp.value : ''));
     var dd = document.getElementById('cityComboDropdown');
     if (dd) dd.style.display = 'block';
 }
@@ -4218,19 +4313,32 @@ function cityComboOpen() {
 function cityComboFilter() {
     var inp = document.getElementById('cityComboInput');
     var v = inp ? inp.value : '';
-    // Free text is allowed too (legacy/custom city values)
+    // typed, not picked: kept as the city (as before), with no گەڕەک
     document.getElementById('city').value = v.trim();
+    document.getElementById('area').value = '';
+    document.getElementById('location_id').value = '';
     cityComboRender(v);
     var dd = document.getElementById('cityComboDropdown');
     if (dd) dd.style.display = 'block';
 }
 
-function cityComboPick(name) {
-    var inp = document.getElementById('cityComboInput');
-    if (inp) inp.value = name;
-    document.getElementById('city').value = name;
+/** Pick a گەڕەک by id — or show a patient's saved place (placeShow). */
+function cityComboPick(areaId) {
+    var p = locPlace(areaId);
+    if (!p) return;
+    placeShow(p.id, p.city, p.area);
     var dd = document.getElementById('cityComboDropdown');
     if (dd) dd.style.display = 'none';
+    var dirty = document.getElementById('patient_dirty');
+    if (dirty) dirty.value = '1';
+}
+function placeShow(locationId, city, area) {
+    var p = locationId ? locPlace(locationId) : null;
+    document.getElementById('city').value = p ? p.city : (city || '');
+    document.getElementById('area').value = p ? p.area : (area || '');
+    document.getElementById('location_id').value = p ? p.id : '';
+    var inp = document.getElementById('cityComboInput');
+    if (inp) inp.value = p ? p.area + '، ' + p.city : [area, city].filter(Boolean).join('، ');
 }
 
 document.addEventListener('click', function(ev) {

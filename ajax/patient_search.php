@@ -58,7 +58,7 @@ $conn->set_charset('utf8mb4');
 if ($id > 0) {
     $stmt = $conn->prepare("
         SELECT id, patient_code, full_name, gender, date_of_birth,
-               phone, phone2, address, city, occupation, blood_type,
+               phone, phone2, address, city, area, location_id, occupation, blood_type,
                notes, profile_image
         FROM patients WHERE id = ? LIMIT 1
     ");
@@ -135,7 +135,7 @@ if ($patient_ids !== null) {
     $ids_sql = implode(',', $patient_ids);
     $res = $conn->query("
         SELECT id, patient_code, full_name, gender, date_of_birth,
-               phone, phone2, address, city, occupation, blood_type,
+               phone, phone2, address, city, area, location_id, occupation, blood_type,
                notes, profile_image
         FROM patients
         WHERE id IN ($ids_sql)
@@ -153,7 +153,7 @@ if ($patient_ids !== null) {
     $term = '%' . $q . '%';
     $stmt = $conn->prepare("
         SELECT id, patient_code, full_name, gender, date_of_birth,
-               phone, phone2, address, city, occupation, blood_type,
+               phone, phone2, address, city, area, location_id, occupation, blood_type,
                notes, profile_image
         FROM patients
         WHERE full_name LIKE ? OR phone LIKE ? OR phone2 LIKE ?
