@@ -1,0 +1,341 @@
+/* assets/css/case-look.css — the look shared by a case (cases/view.php) and
+   a treatment plan (treatment-plans/view.php): the coloured tab strip, the
+   compact mouth-shaped odontogram with its hover, and the dark indigo
+   header. Linked after each page's own base chart rules, which it refines. */
+
+/* ── Case tabs ────────────────────────────────────────────────────────
+   A soft track under the indigo case header. Every tab has its own colour
+   (--c, tint --c-soft) shown as an icon tile; the open tab rises as a
+   white card, its tile turns solid and a bar of its colour sits under it,
+   so the doctor finds a tab by colour as much as by name. */
+.tabs-container {
+    --tab-accent: #181a5c;
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    padding: 8px;
+    background: linear-gradient(180deg, #f4f6fc 0%, #eef1f9 100%);
+    border-bottom: 1px solid #e3e7f2;
+    border-radius: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.tabs-container::-webkit-scrollbar { display: none; }
+
+.tab {
+    --c: #4f46e5; --c-soft: #eef2ff;
+    position: relative;
+    /* Share the strip; min-width keeps the Kurdish labels whole and lets the
+       strip scroll sideways only when the screen is genuinely too narrow. */
+    flex: 1 1 0;
+    min-width: max-content;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    padding: 8px 14px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.35;
+    white-space: nowrap;
+    color: #334155;
+    cursor: pointer;
+    transition: background-color .18s ease, box-shadow .18s ease, transform .18s ease, color .18s ease, border-color .18s ease;
+}
+.tab--chart { --c: #4f46e5; --c-soft: #e0e7ff; }
+.tab--treat { --c: #0d9488; --c-soft: #ccfbf1; }
+.tab--pay   { --c: #16a34a; --c-soft: #dcfce7; }
+.tab--img   { --c: #0284c7; --c-soft: #e0f2fe; }
+.tab--rx    { --c: #e11d48; --c-soft: #ffe4e6; }
+.tab--mat   { --c: #d97706; --c-soft: #fef3c7; }
+.tab--logs  { --c: #7c3aed; --c-soft: #ede9fe; }
+
+/* the icon tile */
+.tab i {
+    display: inline-grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: var(--c-soft);
+    color: var(--c);
+    font-size: 13.5px;
+    transition: background-color .18s ease, color .18s ease, transform .18s ease;
+}
+.tab:hover { background: rgba(255, 255, 255, .75); color: #0f172a; }
+.tab:hover i { transform: scale(1.06); }
+
+/* the open tab: a raised white card in its colour */
+.tab.active {
+    background: #fff;
+    border-color: #e1e5f2;
+    color: var(--tab-accent);
+    font-weight: 700;
+    box-shadow: 0 6px 16px rgba(24, 26, 92, .10), 0 1px 2px rgba(24, 26, 92, .06);
+}
+.tab.active i { background: var(--c); color: #fff; box-shadow: 0 4px 10px color-mix(in srgb, var(--c) 35%, transparent); }
+.tab::after {
+    content: "";
+    position: absolute;
+    left: 22%;
+    right: 22%;
+    bottom: -1px;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+    background: var(--c);
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform .2s cubic-bezier(.4, 0, .2, 1);
+}
+.tab.active::after { transform: scaleX(1); }
+.tab:focus-visible {
+    outline: 2px solid var(--c);
+    outline-offset: 2px;
+}
+
+/* A count is a reading, not a parenthetical: a small pill, LTR-isolated so
+   RTL never flips "0/6" round into "6/0". */
+.tab-count {
+    direction: ltr;
+    unicode-bidi: isolate;
+    min-width: 22px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: #e6e9f3;
+    color: #475569;
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 1.6;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    transition: background-color .18s ease, color .18s ease;
+}
+.tab.active .tab-count { background: var(--c-soft); color: var(--c); }
+/* Images are six fixed slots, not an open list — read it as a capacity. */
+.tab-count .cap-max { opacity: .7; }
+
+@media (prefers-reduced-motion: reduce) {
+    .tab,
+    .tab i,
+    .tab::after,
+    .tab-count { transition: none; }
+}
+
+/* ── Compact chart: the two jaws meet at the bite line like a mouth ──
+   Upper crowns point down and lower crowns up, so the work painted on the
+   crowns sits along the middle; the numbers are on the outer edges and the
+   jaw headings are gone. The jaws follow the shape of an open mouth. */
+.smart-dental-chart { padding: 12px 16px; }
+.smart-dental-chart .jaw-section { position: relative; padding: 3px 4px; }
+/* room by the bite line for the back teeth, which curve in toward it */
+.smart-dental-chart .jaw-section--upper { padding-bottom: calc(3px + 20px * var(--chart-scale)); }
+.smart-dental-chart .jaw-section + .jaw-section { border-top: 2px dashed #d3dfeb; padding-top: calc(3px + 20px * var(--chart-scale)); }
+/* the mouth shape already says which jaw is which: no jaw headings */
+.smart-dental-chart .jaw-label { display: none; }
+.smart-dental-chart .quadrant { gap: calc(2px * var(--chart-scale)); padding: 0; }
+.smart-dental-chart .quadrant-divider { height: calc(86px * var(--chart-scale)); margin: 0 calc(clamp(6px, .7vw, 11px) * var(--chart-scale)); }
+.smart-dental-chart .tooth {
+    --tooth-art-height: calc(67px * var(--chart-scale));
+    min-height: calc(93px * var(--chart-scale));
+    gap: 1px; padding: 2px 1px 3px; border-radius: 10px;
+    user-select: none; -webkit-user-select: none;
+    touch-action: pan-y;            /* a sideways finger sweep selects, an up/down one scrolls */
+    --arc-y: 0; --arc-r: 0deg; --arc-dir: 1;
+}
+.smart-dental-chart .tooth--incisor  { --tooth-base-w: 44px; --tooth-base-art: 38px; }
+.smart-dental-chart .tooth--canine   { --tooth-base-w: 48px; --tooth-base-art: 40px; }
+.smart-dental-chart .tooth--premolar { --tooth-base-w: 51px; --tooth-base-art: 43px; }
+.smart-dental-chart .tooth--molar    { --tooth-base-w: 57px; --tooth-base-art: 47px; }
+.smart-dental-chart .tooth-number { min-width: 20px; height: 20px; padding: 0 4px; border-radius: 6px; font-size: 12.5px !important; }
+
+/* The mouth curve: the upper jaw arches down at both ends (∩) and the lower
+   jaw up (U), so the back teeth close in on the bite line and the front ones
+   stand furthest from it. Each tooth further back moves --arc-y px (at full
+   size) toward the bite line and leans out by --arc-r, pivoting on its crown
+   edge; --arc-dir turns the lean the other way on the patient's left (the
+   right of the chart). --pop is the hover magnification (below). */
+.smart-dental-chart .jaw-section--upper .tooth {
+    transform-origin: 50% 100%;
+    transform: translateY(calc(var(--arc-y) * 1px * var(--chart-scale))) rotate(calc(var(--arc-r) * var(--arc-dir) * -1)) scale(var(--pop, 1));
+}
+.smart-dental-chart .jaw-section--lower .tooth {
+    transform-origin: 50% 0;
+    transform: translateY(calc(var(--arc-y) * -1px * var(--chart-scale))) rotate(calc(var(--arc-r) * var(--arc-dir))) scale(var(--pop, 1));
+}
+.smart-dental-chart .tooth[data-quadrant="UL"],
+.smart-dental-chart .tooth[data-quadrant="LL"] { --arc-dir: -1; }
+.smart-dental-chart .tooth[data-palmer="2"] { --arc-y: 1;  --arc-r: .8deg; }
+.smart-dental-chart .tooth[data-palmer="3"] { --arc-y: 3;  --arc-r: 1.6deg; }
+.smart-dental-chart .tooth[data-palmer="4"] { --arc-y: 5;  --arc-r: 2.4deg; }
+.smart-dental-chart .tooth[data-palmer="5"] { --arc-y: 8;  --arc-r: 3.2deg; }
+.smart-dental-chart .tooth[data-palmer="6"] { --arc-y: 11; --arc-r: 4deg; }
+.smart-dental-chart .tooth[data-palmer="7"] { --arc-y: 14; --arc-r: 4.8deg; }
+.smart-dental-chart .tooth[data-palmer="8"] { --arc-y: 18; --arc-r: 5.6deg; }
+/* milk teeth: a shorter arch, so the same curve in five steps */
+.smart-dental-chart .tooth[data-palmer="B"] { --arc-y: 2;  --arc-r: 1.2deg; }
+.smart-dental-chart .tooth[data-palmer="C"] { --arc-y: 5;  --arc-r: 2.4deg; }
+.smart-dental-chart .tooth[data-palmer="D"] { --arc-y: 9;  --arc-r: 3.6deg; }
+.smart-dental-chart .tooth[data-palmer="E"] { --arc-y: 13; --arc-r: 4.8deg; }
+.smart-dental-chart .jaw-section--upper .tooth-svg svg { transform: scaleY(-1); }
+.smart-dental-chart .jaw-section--lower .tooth-number { order: 2; }
+.smart-dental-chart .jaw-section--upper .treatment-count { top: auto; bottom: 3px; }
+.smart-dental-chart .jaw-section--lower .treatment-count { top: 3px; }
+.smart-dental-chart .dentition-pane-title { margin: 0 0 2px; }
+/* a thick rounded band between the adult and the milk-teeth charts, fading
+   out at both ends, so it never reads as the dashed bite line */
+.smart-dental-chart .dentition-pane + .dentition-pane { position: relative; margin-top: 18px; padding-top: 16px; border-top: 0; }
+.smart-dental-chart .dentition-pane + .dentition-pane::before {
+    content: ''; position: absolute; top: 0; left: 2%; right: 2%; height: 5px; border-radius: 999px;
+    background: linear-gradient(90deg, rgba(47, 111, 165, 0), #8fb3d3 14%, #2f6fa5 50%, #8fb3d3 86%, rgba(47, 111, 165, 0));
+    box-shadow: 0 2px 6px rgba(47, 111, 165, .18);
+}
+.smart-dental-chart .chart-legend { margin-top: 6px; padding: 6px 8px; gap: 2px 6px; }
+.smart-dental-chart .smart-chart-legend-item { padding: 2px 5px; }
+
+/* Hover, with a mouse only: the tooth springs up out of the arch (its
+   neighbours a little, like a dock), a band of light sweeps across the
+   enamel and it casts a soft blue glow. While the whole arch fits, the jaw
+   rows stop clipping so a popped tooth is never cut off; when they have to
+   scroll sideways (.chart-fits off) they keep clipping. */
+.smart-dental-chart.chart-fits .jaw-section { overflow: visible; }
+@keyframes tooth-shine { from { transform: translateX(0); } to { transform: translateX(84px); } }
+@media (hover: hover) and (pointer: fine) {
+    .smart-dental-chart .tooth {
+        transition: transform .34s cubic-bezier(.34, 1.56, .64, 1), box-shadow .25s ease,
+                    background-color .2s ease, border-color .2s ease;
+    }
+    .smart-dental-chart .tooth:hover { --pop: 1.16; box-shadow: 0 12px 26px rgba(22, 119, 255, .18); }
+    .smart-dental-chart .tooth:hover + .tooth,
+    .smart-dental-chart .tooth:has(+ .tooth:hover) { --pop: 1.06; z-index: 50; }
+    .smart-dental-chart .tooth-svg svg { transition: filter .25s ease; }
+    .smart-dental-chart .tooth:hover .tooth-svg svg { filter: drop-shadow(0 5px 7px rgba(22, 119, 255, .28)); }
+    .smart-dental-chart .tooth:hover .tooth-shine { animation: tooth-shine .8s cubic-bezier(.3, .6, .4, 1) .08s both; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .smart-dental-chart .tooth, .smart-dental-chart .tooth-svg svg { transition: none !important; }
+    .smart-dental-chart .tooth:hover .tooth-shine { animation: none !important; }
+}
+
+/* Narrow columns stack each jaw's quadrants: no longer an arch, keep them straight. */
+@media (max-width: 900px) {
+    /* stacked quadrants are no longer an arch: keep them straight */
+    .smart-dental-chart .jaw-section--upper .tooth,
+    .smart-dental-chart .jaw-section--lower .tooth { transform: none; }
+    .smart-dental-chart .jaw-section--upper { padding-bottom: 3px; }
+    .smart-dental-chart .jaw-section + .jaw-section { padding-top: 3px; }
+}
+
+/* ── Case header: dark indigo band with a faint diamond lattice ── */
+.case-hero {
+    --ch-ink: #ffffff;
+    --ch-soft: rgba(255, 255, 255, .72);
+    --ch-line: rgba(255, 255, 255, .13);
+    --ch-glass: rgba(255, 255, 255, .07);
+    position: relative;
+    margin-bottom: 16px;
+    padding: 18px 22px 16px;
+    border-radius: 16px;
+    color: var(--ch-ink);
+    background:
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, .035) 0 1px, transparent 1px 22px),
+        repeating-linear-gradient(-45deg, rgba(255, 255, 255, .035) 0 1px, transparent 1px 22px),
+        radial-gradient(120% 140% at 100% 0%, #2a2d86 0%, rgba(42, 45, 134, 0) 55%),
+        linear-gradient(135deg, #12134a 0%, #181a5c 55%, #1e2170 100%);
+    box-shadow: 0 10px 28px rgba(18, 19, 74, .28);
+    overflow: hidden;
+}
+.case-hero a { color: inherit; }
+.ch-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.ch-id { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.ch-icon {
+    flex: 0 0 auto; width: 54px; height: 54px; border-radius: 14px;
+    display: grid; place-items: center; font-size: 22px;
+    background: rgba(255, 255, 255, .1); border: 1px solid var(--ch-line); color: #c7d2fe;
+}
+.ch-icon--open { color: #86efac; }
+.ch-id-text { min-width: 0; }
+.ch-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.ch-number { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: .3px; color: #fff; direction: ltr; }
+.ch-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap;
+    background: rgba(255, 255, 255, .1); border: 1px solid var(--ch-line); color: #e0e7ff;
+}
+.ch-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px rgba(255, 255, 255, .08); }
+.ch-pill--open    { background: rgba(34, 197, 94, .16); border-color: rgba(134, 239, 172, .35); color: #86efac; }
+.ch-pill--pending { background: rgba(245, 158, 11, .16); border-color: rgba(252, 211, 77, .35); color: #fcd34d; }
+.ch-pill--closed  { color: #cbd5e1; }
+.ch-pill--old     { background: rgba(251, 191, 36, .12); border-color: rgba(252, 211, 77, .3); color: #fde68a; }
+.ch-pill--advance { background: rgba(52, 211, 153, .14); border-color: rgba(110, 231, 183, .35); color: #a7f3d0; }
+.ch-old-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 999px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+    background: transparent; border: 1px dashed rgba(252, 211, 77, .55); color: #fcd34d;
+}
+.ch-old-toggle:hover { background: rgba(252, 211, 77, .1); }
+.ch-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 13px; color: var(--ch-soft); }
+.ch-meta-item { display: inline-flex; align-items: center; gap: 6px; }
+.ch-meta-item i { font-size: 12px; opacity: .8; }
+.ch-patient { color: #fff !important; font-weight: 700; text-decoration: none; }
+.ch-patient:hover { text-decoration: underline; }
+.ch-appt { padding: 1px 10px; border-radius: 999px; background: rgba(96, 165, 250, .16); color: #bfdbfe; font-weight: 700; }
+/* the left column: the actions, and the case's totals under them */
+.ch-side { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; max-width: 62%; }
+.ch-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.ch-inline-form { display: contents; }
+.ch-note {
+    margin-top: 8px; max-width: 720px; font-size: 12.5px; color: var(--ch-soft);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ch-note b { color: #fde68a; font-weight: 700; }
+.ch-note i { color: #fcd34d; margin-inline-end: 3px; }
+.ch-note--closed b, .ch-note--closed i { color: #e2e8f0; }
+.ch-note-when { margin-inline-start: 8px; font-size: 11.5px; opacity: .8; }
+.case-hero .ch-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 16px; border-radius: 11px; font-weight: 700; font-size: 13px;
+    border: 1px solid transparent; box-shadow: none; text-decoration: none;
+}
+.case-hero .ch-btn--glass { background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .22); color: #fff; }
+.case-hero .ch-btn--glass:hover { background: rgba(255, 255, 255, .18); }
+.case-hero .ch-btn--green { background: #16a34a; border-color: #16a34a; color: #fff; }
+.case-hero .ch-btn--green:hover { background: #15803d; }
+/* the header's own colours: gold and white */
+.case-hero .ch-btn--gold { background: linear-gradient(180deg, #fcd34d 0%, #f5b301 100%); border-color: #f5b301; color: #1f1600;
+                           box-shadow: 0 4px 14px rgba(245, 179, 1, .25); }
+.case-hero .ch-btn--gold:hover { background: #f5b301; }
+.case-hero .ch-btn--gold-line { background: rgba(252, 211, 77, .08); border-color: rgba(252, 211, 77, .6); color: #fcd34d; }
+.case-hero .ch-btn--gold-line:hover { background: rgba(252, 211, 77, .16); }
+.case-hero .ch-btn--white { background: #fff; border-color: #fff; color: #181a5c; }
+.case-hero .ch-btn--white:hover { background: #eef0ff; }
+.case-hero .ch-btn--amber { background: #f59e0b; border-color: #f59e0b; color: #1f1300; }
+
+.ch-money { display: flex; gap: 6px; flex: 0 0 auto; }
+.ch-stat {
+    display: flex; flex-direction: column; justify-content: center; gap: 1px;
+    min-width: 92px; padding: 5px 11px; border-radius: 10px;
+    background: var(--ch-glass); border: 1px solid var(--ch-line);
+}
+.ch-stat-label { font-size: 11px; color: var(--ch-soft); white-space: nowrap; }
+.ch-stat-label i { font-size: 10.5px; margin-inline-end: 3px; opacity: .8; }
+.ch-stat-value { font-size: 16px; font-weight: 800; color: #fff; direction: ltr; text-align: right; }
+.ch-stat--paid .ch-stat-value { color: #6ee7b7; }
+.ch-stat--due.is-due { background: rgba(248, 113, 113, .1); border-color: rgba(252, 165, 165, .3); }
+.ch-stat--due.is-due .ch-stat-value { color: #fca5a5; }
+
+/* the label sits beside the cards, not above them */
+@media (max-width: 767px) {
+    .case-hero { padding: 14px 14px 12px; border-radius: 14px; }
+    .ch-icon { width: 44px; height: 44px; font-size: 18px; }
+    .ch-number { font-size: 20px; }
+    .ch-money { width: 100%; }
+    .ch-stat { flex: 1 1 0; min-width: 0; padding: 5px 9px; }
+    .ch-stat-value { font-size: 15px; }
+    .ch-side { width: 100%; max-width: none; align-items: stretch; }
+    .ch-actions { justify-content: flex-start; }
+    .ch-note { white-space: normal; }
+}
