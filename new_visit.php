@@ -2651,7 +2651,8 @@ if (!empty($nvErr) && !isset($nvErr['full_name']) && !isset($nvErr['phone']) && 
                         </button>
                     </div>
                 </div>
-                <div class="form-group">
+                <?php // «پیشە» is not asked: the field stays (hidden) so a returning patient's job is kept ?>
+                <div class="form-group" hidden>
                     <label>پیشە</label>
                     <input type="text" id="occupation" name="occupation" value="<?php echo htmlspecialchars($_POST['occupation'] ?? ''); ?>" placeholder="کارمەند">
                 </div>
