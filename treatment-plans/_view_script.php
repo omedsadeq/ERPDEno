@@ -86,7 +86,8 @@ function renderHeader() {
     });
     const badge = document.getElementById('pvStatusBadge');
     const meta = STATUS_META[planData.status] || [planData.status, 'badge-secondary'];
-    if (badge) { badge.textContent = meta[0]; badge.className = 'badge ' + meta[1]; }
+    const pill = { 'badge-blue': 'ch-pill--blue', 'badge-orange': 'ch-pill--pending', 'badge-green': 'ch-pill--open' }[meta[1]] || 'ch-pill--closed';
+    if (badge) { badge.textContent = meta[0]; badge.className = 'ch-pill ' + pill; }
     const pending = planItems.filter(i => i.status === 'planned').length;
     const pc = document.getElementById('pvPendingCount');
     if (pc) pc.textContent = pending;

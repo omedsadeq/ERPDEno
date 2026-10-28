@@ -1,4 +1,6 @@
 <?php if (!isset($plan)) { exit; } ?>
+<?php // the tooth shapes and toothSVG(), shared with cases/view.php ?>
+<script src="<?= asset_url('assets/js/tooth-art.js') ?>"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════
 // Chart engine — same renderer as cases/view.php (anatomical SVG teeth,
@@ -29,7 +31,7 @@ let serviceTreatmentRows = [];
 const CHART_COLORS = {
     amalgam: '#51b56b', composite: '#f06a94', canal: '#e8637f', crown: '#dfa32b',
     implant: '#78909c', extract: '#4a5560', cleaning: '#2bb3c9', whitening: '#4dabf7',
-    cosmetic: '#9775fa', ortho: '#f76707', other: '#4dabf7', outline: '#b8c3d1', body: '#ffffff'
+    cosmetic: '#9775fa', ortho: '#f76707', other: '#4dabf7', outline: '#59626f', body: '#ffffff'
 };
 const SURFACE_LABELS = {
     occlusal: 'سەری ددان', mesial: 'لای ناوەند (M)', distal: 'لای دواوە (D)',
@@ -43,43 +45,7 @@ const CATEGORY_LABELS = {
 };
 const SURFACE_CATEGORIES = ['filling', 'cosmetic', 'other', 'examination'];
 
-const TOOTH_SHAPES = {
-    molar: {
-        body: 'M5,17 C5,6 11,3 22,3 C33,3 39,6 39,17 C39,23 37,27 34,30 C34.5,36 33,44 30.5,51 C29.5,54 27,54 26.5,51 C25.8,45 25,39 24.5,35 Q22,32 19.5,35 C19,39 18.2,45 17.5,51 C17,54 14.5,54 13.5,51 C11,44 9.5,36 10,30 C7,27 5,23 5,17 Z',
-        crown: 'M6,16 C6,6 12,3 22,3 C32,3 38,6 38,16 C38,20 37,23.5 35.5,26.5 L8.5,26.5 C7,23.5 6,20 6,16 Z',
-        chamber: {cx: 22, cy: 25, rx: 4.5, ry: 3},
-        canals: ['M16,30 C15.2,36 15,42.5 16.5,48.5', 'M28,30 C28.8,36 29,42.5 27.5,48.5'],
-        zones: { occlusal: {star: [22, 14.5, 1]}, left: {cx: 10, cy: 15, rx: 4.5, ry: 7}, right: {cx: 34, cy: 15, rx: 4.5, ry: 7}, buccal: {cx: 22, cy: 6.5, rx: 9, ry: 4}, lingual: {cx: 22, cy: 23.5, rx: 9, ry: 4} }
-    },
-    premolar: {
-        body: 'M8,16 C8,7 13,4 22,4 C31,4 36,7 36,16 C36,22 34,26 31.5,29 C31,37 29,46 24.5,52.5 Q22,55.5 19.5,52.5 C15,46 13,37 12.5,29 C10,26 8,22 8,16 Z',
-        crown: 'M9,15 C9,7 14,4 22,4 C30,4 35,7 35,15 C35,19 34,22.5 32.5,25.5 L11.5,25.5 C10,22.5 9,19 9,15 Z',
-        chamber: {cx: 22, cy: 24.5, rx: 3.8, ry: 2.8},
-        canals: ['M22,28 C21.8,36 21.8,43 22,49'],
-        zones: { occlusal: {star: [22, 14, 0.88]}, left: {cx: 12, cy: 14.5, rx: 4, ry: 6.2}, right: {cx: 32, cy: 14.5, rx: 4, ry: 6.2}, buccal: {cx: 22, cy: 7, rx: 8, ry: 3.6}, lingual: {cx: 22, cy: 22.5, rx: 8, ry: 3.6} }
-    },
-    canine: {
-        body: 'M22,2.5 C29,4 35,7 35,14.5 C35,20 33,25 30,28.5 C29.5,38 27,47 23.8,53.5 Q22,56.5 20.2,53.5 C17,47 14.5,38 14,28.5 C11,25 9,20 9,14.5 C9,7 15,4 22,2.5 Z',
-        crown: 'M22,2.5 C29,4 35,7 35,14.5 C35,18.5 34,22 32,25 L12,25 C10,22 9,18.5 9,14.5 C9,7 15,4 22,2.5 Z',
-        chamber: {cx: 22, cy: 24, rx: 3.2, ry: 2.6},
-        canals: ['M22,27 C21.8,35 21.9,43 22,50'],
-        zones: { occlusal: {star: [22, 13.5, 0.82]}, left: {cx: 12.5, cy: 14, rx: 3.8, ry: 6}, right: {cx: 31.5, cy: 14, rx: 3.8, ry: 6}, buccal: {cx: 22, cy: 6.5, rx: 7.5, ry: 3.4}, lingual: {cx: 22, cy: 21.5, rx: 7.5, ry: 3.4} }
-    },
-    incisor: {
-        body: 'M11,3.5 C18,2 26,2 33,3.5 C33.5,10 32.5,17 30.5,23.5 C30,32 27,44 23.5,52 Q22,55 20.5,52 C17,44 14,32 13.5,23.5 C11.5,17 10.5,10 11,3.5 Z',
-        crown: 'M11,3.5 C18,2 26,2 33,3.5 C33.3,9 32.7,15 31.3,20.5 L12.7,20.5 C11.3,15 10.7,9 11,3.5 Z',
-        chamber: {cx: 22, cy: 24, rx: 3, ry: 2.5},
-        canals: ['M22,26.5 C21.8,34 21.9,42 22,49.5'],
-        zones: { occlusal: {star: [22, 12, 0.78]}, left: {cx: 13, cy: 12, rx: 3.5, ry: 6}, right: {cx: 31, cy: 12, rx: 3.5, ry: 6}, buccal: {cx: 22, cy: 4.8, rx: 8, ry: 2.8}, lingual: {cx: 22, cy: 19, rx: 7.5, ry: 3.2} }
-    }
-};
-const TOOTH_ANATOMY = {
-    molar: ['M10.5,13.5 C14.5,17.5 18,17.5 22,13.5 C26,17.5 29.5,17.5 33.5,13.5', 'M12.5,22 C16.5,19 19.5,20 22,22 C24.5,20 27.5,19 31.5,22'],
-    premolar: ['M13.5,13 C17.5,17 19.5,17 22,13 C24.5,17 26.5,17 30.5,13', 'M15,22 C18.5,19.5 21,20.5 22,22 C23,20.5 25.5,19.5 29,22'],
-    canine: ['M14,14 C17.5,17.5 20,17.5 22,14 C24,17.5 26.5,17.5 30,14', 'M16,22 C18.5,20 20.5,20 22,22 C23.5,20 25.5,20 28,22'],
-    incisor: ['M13,11.5 Q22,15.5 31,11.5', 'M14.5,19.5 Q22,17.2 29.5,19.5']
-};
-
+// TOOTH_SHAPES / TOOTH_ANATOMY: assets/js/tooth-art.js
 function isPrimaryTooth(fdi) { const q = Math.floor(fdi / 10); return q >= 5 && q <= 8; }
 function toothShapeKey(fdi) {
     const p = fdi % 10;
@@ -122,81 +88,7 @@ function toothState(fdi) {
     return st;
 }
 
-function toothSVG(fdi, opts) {
-    opts = opts || {};
-    const st = opts.state || toothState(fdi);
-    const shapeKey = toothShapeKey(fdi);
-    const shape = TOOTH_SHAPES[shapeKey];
-    const uid = (opts.idPrefix || 't') + '-' + fdi;
-    const selected = opts.selectedSurfaces || null;
-    let defs = `
-        <linearGradient id="tooth-base-${uid}" x1="18%" y1="0%" x2="82%" y2="100%"><stop offset="0%" stop-color="#ffffff"/><stop offset="58%" stop-color="#fbfcfe"/><stop offset="100%" stop-color="#edf2f7"/></linearGradient>
-        <clipPath id="clip-${uid}"><path d="${shape.body}"/></clipPath>`;
-    let parts = [];
-    const ghost = st.extract ? ' opacity="0.18"' : '';
-    if (!st.implant) {
-        parts.push(`<g${ghost}>`);
-        parts.push(`<path d="${shape.body}" fill="url(#tooth-base-${uid})" stroke="${CHART_COLORS.outline}" stroke-width="1.95" stroke-linejoin="round"/>`);
-        const anatomy = TOOTH_ANATOMY[shapeKey] || [];
-        if (anatomy.length) {
-            parts.push(`<g fill="none" stroke="#d5dee8" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round" opacity="0.72">`);
-            anatomy.forEach(path => parts.push(`<path d="${path}"/>`));
-            parts.push('</g>');
-        }
-        parts.push(`<g clip-path="url(#clip-${uid})">`);
-        const rootFill = selected ? (selected.has('root') ? CHART_COLORS.other : null) : st.rootZone;
-        if (opts.showAllZones) {
-            parts.push(`<rect x="0" y="29" width="44" height="31" fill="${rootFill || '#eceff3'}" fill-opacity="${rootFill ? 0.75 : 0.55}" data-surface="root" style="cursor:pointer"/>`);
-        } else if (rootFill) {
-            parts.push(`<rect x="0" y="29" width="44" height="31" fill="${rootFill}" fill-opacity="0.55"/>`);
-        }
-        const zoneEls = [];
-        const zdef = shape.zones;
-        const zoneGeo = { mesial: zdef[mesialIsLeft(fdi) ? 'left' : 'right'], distal: zdef[mesialIsLeft(fdi) ? 'right' : 'left'], buccal: zdef.buccal, lingual: zdef.lingual };
-        ['mesial', 'distal', 'buccal', 'lingual'].forEach(surf => {
-            const g = zoneGeo[surf];
-            const fill = selected ? (selected.has(surf) ? CHART_COLORS.other : null) : st.surfaces[surf];
-            if (opts.showAllZones) {
-                zoneEls.push(`<ellipse cx="${g.cx}" cy="${g.cy}" rx="${(g.rx * 1.06).toFixed(2)}" ry="${(g.ry * 1.06).toFixed(2)}" fill="${fill || '#dfe5ea'}" fill-opacity="${fill ? 0.9 : 0.6}" stroke="${fill ? '#00000033' : '#c3ccd4'}" stroke-width="0.7" data-surface="${surf}" style="cursor:pointer"/>`);
-            } else if (fill) {
-                zoneEls.push(`<ellipse cx="${g.cx}" cy="${g.cy}" rx="${(g.rx * 1.08).toFixed(2)}" ry="${(g.ry * 1.08).toFixed(2)}" fill="${fill}" fill-opacity="0.94" stroke="#00000022" stroke-width="0.7"/>`);
-            }
-        });
-        const [scx, scy, ss] = zdef.occlusal.star;
-        const oFill = selected ? (selected.has('occlusal') ? CHART_COLORS.other : null) : st.surfaces.occlusal;
-        if (opts.showAllZones) {
-            zoneEls.push(`<path d="${starPath(scx, scy, ss * 1.12)}" fill="${oFill || '#dfe5ea'}" fill-opacity="${oFill ? 0.95 : 0.65}" stroke="${oFill ? '#00000033' : '#c3ccd4'}" stroke-width="0.7" data-surface="occlusal" style="cursor:pointer"/>`);
-        } else if (oFill) {
-            zoneEls.push(`<path d="${starPath(scx, scy, ss * 1.16)}" fill="${oFill}" fill-opacity="0.96" stroke="#00000022" stroke-width="0.7"/>`);
-        }
-        parts.push(zoneEls.join(''));
-        parts.push('</g>');
-        if (st.canal) {
-            const c = shape.chamber;
-            parts.push(`<ellipse cx="${c.cx}" cy="${c.cy}" rx="${c.rx}" ry="${c.ry}" fill="${CHART_COLORS.canal}" fill-opacity="0.9"/>`);
-            shape.canals.forEach(p => parts.push(`<path d="${p}" fill="none" stroke="${CHART_COLORS.canal}" stroke-width="2.6" stroke-linecap="round"/>`));
-        }
-        parts.push('</g>');
-    } else {
-        parts.push(`<g fill="${CHART_COLORS.implant}" stroke="${CHART_COLORS.implant}">`);
-        parts.push(`<rect x="17.5" y="6" width="9" height="6" rx="1.2"/>`);
-        parts.push(`<path d="M14.5,13.5 L29.5,13.5 L27.8,23 L16.2,23 Z"/>`);
-        parts.push(`<path d="M16.5,25 L27.5,25 L25.8,49 Q22,54 18.2,49 Z"/>`);
-        [29, 34, 39, 44].forEach((y, i) => { const inset = 16.8 + i * 0.55; parts.push(`<line x1="${inset}" y1="${y}" x2="${44 - inset}" y2="${y}" stroke="#fff" stroke-width="1.6"/>`); });
-        parts.push('</g>');
-    }
-    if (st.crown) parts.push(`<path d="${shape.crown}" fill="${CHART_COLORS.crown}" fill-opacity="0.18" stroke="${CHART_COLORS.crown}" stroke-width="2.65" stroke-linejoin="round"/>`);
-    if (st.bracket) {
-        parts.push(`<line x1="5" y1="14.5" x2="39" y2="14.5" stroke="${CHART_COLORS.ortho}" stroke-width="1.4"/>`);
-        parts.push(`<rect x="18" y="10.5" width="8" height="8" rx="1.5" fill="#fff" stroke="${CHART_COLORS.ortho}" stroke-width="1.8"/>`);
-    }
-    if (st.sparkle) parts.push(`<path d="M34,1 L35.6,5 L39.5,6.5 L35.6,8 L34,12 L32.4,8 L28.5,6.5 L32.4,5 Z" fill="${st.sparkle}"/>`);
-    if (st.dot) parts.push(`<circle cx="34" cy="23" r="3.2" fill="${CHART_COLORS.other}" stroke="#fff" stroke-width="1.2"/>`);
-    if (st.extract) {
-        parts.push(`<g stroke="${CHART_COLORS.extract}" stroke-width="3.6" stroke-linecap="round"><line x1="12" y1="14" x2="32" y2="44"/><line x1="32" y1="14" x2="12" y2="44"/></g>`);
-    }
-    return `<svg viewBox="0 0 44 60" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${toothNames[fdi] || ('Tooth ' + fdi)}" shape-rendering="geometricPrecision"><defs>${defs}</defs>${parts.join('')}</svg>`;
-}
+// toothSVG(): assets/js/tooth-art.js
 
 function legendSample(kind, color) {
     const wrap = c => `<svg viewBox="0 0 44 60" style="width:20px;height:25px;display:block;">${c}</svg>`;
@@ -268,12 +160,6 @@ function renderSmartChart() {
             if (!badge) { badge = document.createElement('span'); badge.className = 'treatment-count'; el.appendChild(badge); }
             badge.textContent = st.count;
         } else if (badge) { badge.remove(); }
-        const tip = el.querySelector('.tooth-tooltip');
-        if (tip) {
-            let txt = toothNames[fdi] || ('ددان ' + fdi);
-            if (st.count > 0) txt += ' — ' + st.treatments[0].treatment_name + (st.count > 1 ? ' +' + (st.count - 1) : '');
-            tip.textContent = txt;
-        }
     });
     renderChartLegend();
     renderDentitionCounts();
@@ -323,15 +209,19 @@ function fitChartScale() {
     document.querySelectorAll('.smart-dental-chart').forEach(chart => {
         const current = parseFloat(getComputedStyle(chart).getPropertyValue('--chart-scale')) || 1;
         let scale = 1;
+        const rows = [];
         chart.querySelectorAll('.dentition-pane:not([hidden]) .jaw-section').forEach(sec => {
             const row = sec.querySelector('.teeth-row');
             const avail = sec.clientWidth - 12;
             if (!row || avail <= 0) return;
             const natural = rowNaturalWidth(row, current);
+            rows.push([natural, avail]);
             if (natural > 0 && natural > avail) scale = Math.min(scale, avail / natural);
         });
         scale = Math.max(CHART_MIN_SCALE, Math.min(1, scale));
         chart.style.setProperty('--chart-scale', scale.toFixed(4));
+        // rows that fit need no sideways scroll, so they may let a hovered tooth spill out
+        chart.classList.toggle('chart-fits', rows.every(([natural, avail]) => natural * scale <= avail + 1));
     });
 }
 let _rtlScrollNegative = null;

@@ -269,6 +269,7 @@
 .ch-pill--open    { background: rgba(34, 197, 94, .16); border-color: rgba(134, 239, 172, .35); color: #86efac; }
 .ch-pill--pending { background: rgba(245, 158, 11, .16); border-color: rgba(252, 211, 77, .35); color: #fcd34d; }
 .ch-pill--closed  { color: #cbd5e1; }
+.ch-pill--blue    { background: rgba(96, 165, 250, .16); border-color: rgba(147, 197, 253, .35); color: #bfdbfe; }
 .ch-pill--old     { background: rgba(251, 191, 36, .12); border-color: rgba(252, 211, 77, .3); color: #fde68a; }
 .ch-pill--advance { background: rgba(52, 211, 153, .14); border-color: rgba(110, 231, 183, .35); color: #a7f3d0; }
 .ch-old-toggle {

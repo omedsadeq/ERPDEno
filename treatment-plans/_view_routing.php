@@ -133,38 +133,14 @@ if ($routeWanted > 0) {
 
 <style>
 /* ── کێ چارەسەر دەکات؟ ─────────────────────────────────────────────── */
-.tp-route-badge { background: #eef2ff; color: #3730a3; }
-.tp-route-badge.is-undecided { background: #fff7ed; color: #9a3412; }
-.tp-route-badge.is-self { background: #ecfdf5; color: #047857; }
-.tp-route-badge.is-doctor { background: #eff6ff; color: #1d4ed8; }
-.tp-route-badge.is-waiting { background: #fef3c7; color: #92400e; }
-.tp-route-state { display: flex; gap: 10px; align-items: flex-start; margin-top: 10px; padding: 10px 12px; border-radius: 9px; border: 1px solid #e5e7eb; background: #f9fafb; font-size: 12.5px; line-height: 1.6; }
-.tp-route-state > i { font-size: 16px; margin-top: 2px; }
-.tp-route-state b { display: block; color: #1f2937; }
-.tp-route-state small { display: block; color: #6b7280; }
-.tp-route-state.is-undecided { background: #fff7ed; border-color: #fed7aa; }
-.tp-route-state.is-undecided > i { color: #ea580c; }
-.tp-route-state.is-self { background: #ecfdf5; border-color: #a7f3d0; }
-.tp-route-state.is-self > i { color: #059669; }
-.tp-route-state.is-doctor { background: #eff6ff; border-color: #bfdbfe; }
-.tp-route-state.is-doctor > i { color: #2563eb; }
-.tp-route-state.is-waiting { background: #fffbeb; border-color: #fde68a; }
-.tp-route-state.is-waiting > i { color: #d97706; }
-.tp-route-quick { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-.tp-route-quick .btn { flex: 1 1 auto; }
 .tp-route-note { margin-top: 10px; padding: 8px 11px; border-radius: 8px; background: #f3f4f6; color: #4b5563; font-size: 12px; line-height: 1.6; }
 .tp-route-note.is-soft { background: transparent; padding: 4px 0 0; color: #6b7280; }
-.tp-route-choose { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #e5e7eb; }
 .tp-route-help { display: block; color: #6b7280; font-size: 12px; line-height: 1.6; }
 .tp-route-cands { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; margin-top: 8px; }
 .tp-route-cand { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1.5px solid #e0e0ec; border-radius: 8px; font-size: 12.5px; cursor: pointer; }
 .tp-route-cand:has(input:checked) { border-color: #5e35b1; background: #f3effb; color: #4527a0; font-weight: 600; }
 .tp-route-cand input { accent-color: #5e35b1; }
 /* ── مەوعیدی چارەسەر ───────────────────────────────────────────────── */
-.tp-appt-card { padding: 11px 13px; border-radius: 10px; background: linear-gradient(135deg, #ecfeff, #eff6ff); border: 1px solid #bae6fd; }
-.tp-appt-day { font-size: 12px; color: #0369a1; font-weight: 600; }
-.tp-appt-date { font-size: 17px; font-weight: 800; color: #0c4a6e; margin: 2px 0; }
-.tp-appt-doc { font-size: 12px; color: #475569; }
 .tp-book-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
 .tp-book-day { margin-top: 4px; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 9px; background: #fafafa; }
 .tp-book-day-title { font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 6px; }
