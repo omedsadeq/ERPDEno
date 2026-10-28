@@ -388,6 +388,19 @@ try {
             break;
         }
 
+        // «ڕۆژی ئامانەت»: an ئامانەت receipt dated on the day the patient paid,
+        // or back on the day it was moved (Payment::redateAdvanceReceipt).
+        case 'redate_advance_receipt': {
+            $paymentId = (int)($_POST['payment_id'] ?? 0);
+            $result = $paymentManager->redateAdvanceReceipt($paymentId, (string)($_POST['to'] ?? ''), $actorId);
+            if (empty($result['success'])) {
+                echo json_encode(['ok' => false, 'error' => $result['message'] ?? 'قەبزەکە نەگۆڕدرا'], JSON_UNESCAPED_UNICODE);
+                break;
+            }
+            echo json_encode(['ok' => true, 'payment_id' => $paymentId, 'unchanged' => !empty($result['unchanged'])], JSON_UNESCAPED_UNICODE);
+            break;
+        }
+
         // ----------------------------------------------------- installments
 
         case 'activate_installment': {

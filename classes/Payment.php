@@ -1518,6 +1518,106 @@ class Payment
     }
 
     /**
+     * An ئامانەت receipt's two days: when the patient paid — the latest of the
+     * counter receipts behind it, by when all of it was in hand — and when it
+     * was moved onto the case. Null for a receipt not paid from ئامانەت.
+     *
+     * @return array{paid_at:string, moved_at:string, advances:string[]}|null
+     */
+    public function advanceDaysOf($paymentId): ?array
+    {
+        if (!$this->db->tableExists('patient_advance_allocations')) {
+            return null;
+        }
+        $rows = $this->db->fetchAll(
+            'SELECT a.advance_no, a.received_at, al.allocated_at FROM patient_advance_allocations al
+             JOIN patient_advances a ON a.id = al.advance_id
+             WHERE al.payment_id = ? AND al.reversed_at IS NULL ORDER BY a.received_at, a.id', [(int)$paymentId]
+        );
+        if (!$rows) {
+            return null;
+        }
+        return [
+            'paid_at'  => max(array_column($rows, 'received_at')),
+            'moved_at' => max(array_column($rows, 'allocated_at')),
+            'advances' => array_values(array_unique(array_column($rows, 'advance_no'))),
+        ];
+    }
+
+    /**
+     * «ڕۆژی ئامانەت»: an ئامانەت receipt dated on the day the patient paid
+     * ($to 'paid'), or back on the day it was moved onto the case ('moved').
+     * Only the receipt's date moves — the day its income counts, the printed
+     * قەبز; the cashbox journal keeps when the cash really moved, as on any
+     * receipt's date edit. The switch, the admin and the settled periods hold
+     * here as for «تەعدیل».
+     */
+    public function redateAdvanceReceipt($paymentId, string $to, $actorId): array
+    {
+        require_once __DIR__ . '/Settings.php';
+        if (!Settings::allowEditApprovedInvoice()) {
+            return ['success' => false, 'message' => 'دەستکاریکردنی تۆماری پەسەندکراو ناچالاکە — لە ڕێکخستنەکان چالاکی بکە'];
+        }
+        $paymentId = (int)$paymentId;
+        $actorId = (int)$actorId;
+        if (!$this->db->fetch("SELECT id FROM users WHERE id=? AND is_active=1 AND role='admin'", [$actorId])) {
+            return ['success' => false, 'message' => 'تەنها بەڕێوەبەر بەرواری قەبزی ئامانەت دەگۆڕێت'];
+        }
+        if (!in_array($to, ['paid', 'moved'], true)) {
+            return ['success' => false, 'message' => 'داواکاری نادروستە'];
+        }
+        $planId = 0;
+        $this->db->beginTransaction();
+        try {
+            $payment = $this->db->fetch('SELECT * FROM payments WHERE id=? FOR UPDATE', [$paymentId]);
+            if (!$payment || $payment['status'] !== 'approved' || $payment['payment_method'] !== 'advance') {
+                throw new RuntimeException('تەنها قەبزی پەسەندکراوی ئامانەت بەم شێوەیە دەگۆڕدرێت');
+            }
+            // Coming from ئامانەت is the point here; the other rules still hold
+            // (arch-work, a split debt collection, a plan's down payment).
+            $blocked = $this->approvedEditBlockReason(['payment_method' => 'cash'] + $payment, true);
+            if ($blocked !== null) {
+                throw new RuntimeException($blocked);
+            }
+            $days = $this->advanceDaysOf($paymentId);
+            if (!$days) {
+                throw new RuntimeException('ئامانەتی ئەم قەبزە نەدۆزرایەوە');
+            }
+            $newDate = $to === 'paid' ? $days['paid_at'] : $days['moved_at'];
+            if ($newDate === (string)$payment['payment_date']) {
+                $this->db->rollback();
+                return ['success' => true, 'payment_id' => $paymentId, 'unchanged' => true];
+            }
+            $this->assertDateNotSettled((int)$payment['case_id'], (string)$payment['payment_date'], $newDate);
+            $this->db->update('payments', ['payment_date' => $newDate], 'id=?', [$paymentId]);
+            $link = $this->db->tableExists('installment_payments')
+                ? $this->db->fetch('SELECT id, plan_id FROM installment_payments WHERE payment_id = ? FOR UPDATE', [$paymentId])
+                : null;
+            if ($link) {
+                $planId = (int)$link['plan_id'];
+                $this->db->update('installment_payments', ['paid_at' => $newDate], 'id = ?', [(int)$link['id']]);
+            }
+            AuditLog::log('payment_advance_redated', 'payments', $paymentId,
+                ['payment_date' => $payment['payment_date']],
+                ['payment_date' => $newDate, 'to' => $to, 'advances' => $days['advances']], $actorId);
+            CashboxLedger::captureCase((int)$payment['case_id'], $actorId, 'بەرواری قەبزی ' . $payment['payment_number']);
+            $this->db->commit();
+        } catch (Throwable $e) {
+            $this->db->rollback();
+            if ($e instanceof PDOException) {
+                error_log('Payment::redateAdvanceReceipt failed: ' . $e->getMessage());
+                return ['success' => false, 'message' => 'هەڵەیەک ڕوویدا، دووبارە هەوڵبدەرەوە'];
+            }
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+        if ($planId > 0) {
+            try { $this->installmentManager->recomputePlan($planId); }
+            catch (Throwable $e) { error_log('Plan recompute after receipt redate failed: ' . $e->getMessage()); }
+        }
+        return ['success' => true, 'payment_id' => $paymentId, 'payment_date' => $newDate];
+    }
+
+    /**
      * The new date and time of a receipt as «Y-m-d H:i:s», or null when it is
      * the same minute as now stored. Not in the future, not before 2000.
      */

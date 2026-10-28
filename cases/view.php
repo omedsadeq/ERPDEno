@@ -5414,7 +5414,7 @@ button.rx-card-print { cursor:pointer; padding:0; }
                                         <small style="display:block;color:#9b6000">داشکاندن: <?= number_format((float)$pay['discount_amount'], 2) ?></small>
                                         <?php endif; ?>
                                     </td>
-                                    <td><?= $pay['payment_method'] === 'cash' ? 'نەقد' : 'کارت' ?></td>
+                                    <td><?= ['cash' => 'نەقد', 'card' => 'کارت', 'transfer' => 'گواستنەوە', 'other' => 'تر', 'advance' => 'لە ئامانەت'][$pay['payment_method']] ?? 'کارت' ?></td>
                                     <td>
                                         <?php
                                         $statuses = [
@@ -5427,7 +5427,17 @@ button.rx-card-print { cursor:pointer; padding:0; }
                                         ?>
                                         <span class="badge <?= $st[0] ?>"><?= $st[1] ?></span>
                                     </td>
-                                    <td><?= date('Y-m-d H:i', strtotime($pay['payment_date'])) ?></td>
+                                    <td><?= date('Y-m-d H:i', strtotime($pay['payment_date'])) ?>
+                                        <?php
+                                        // An ئامانەت receipt: the other of its two days, under its date
+                                        $advDays = ($pay['payment_method'] ?? '') === 'advance' ? $paymentManager->advanceDaysOf((int)$pay['id']) : null;
+                                        if ($advDays):
+                                            $advOnPaid = $advDays['paid_at'] === (string)$pay['payment_date']; ?>
+                                        <small style="display:block;color:#78909c;white-space:nowrap" title="<?= htmlspecialchars(implode('، ', $advDays['advances'])) ?>">
+                                            <?= $advOnPaid ? 'گوازرایەوە: ' . date('Y-m-d H:i', strtotime($advDays['moved_at'])) : 'ئامانەت: ' . date('Y-m-d H:i', strtotime($advDays['paid_at'])) ?>
+                                        </small>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <?php if (($pay['status'] ?? '') === 'draft' && $isDoctor && (int)$pay['received_by'] === (int)$currentUser['id']): ?>
                                         <form method="POST" style="display:inline;">
@@ -5474,6 +5484,20 @@ button.rx-card-print { cursor:pointer; padding:0; }
                                                 title="تەعدیلی قەبز: بڕ، ڕێکەوت و کات، جۆری پارەدان، داشکاندن"><i class="fas fa-pen"></i> تەعدیل</button>
                                         <?php else: ?>
                                         <span style="color:#94a3b8;cursor:help;" title="<?= htmlspecialchars($payEditBlock) ?>"><i class="fas fa-lock"></i></span>
+                                        <?php endif; ?>
+                                        <?php
+                                        // «ڕۆژی ئامانەت»: date it on the day the patient paid, or back on
+                                        // the day it was moved (Payment::redateAdvanceReceipt)
+                                        if ($advDays && Settings::allowEditApprovedInvoice()
+                                            && $paymentManager->approvedEditBlockReason(['payment_method' => 'cash'] + $pay, true) === null
+                                            && $advDays['paid_at'] !== $advDays['moved_at']):
+                                            $advTo = $advOnPaid ? 'moved' : 'paid';
+                                            $advAt = date('Y-m-d H:i', strtotime($advOnPaid ? $advDays['moved_at'] : $advDays['paid_at'])); ?>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" style="padding:3px 8px;"
+                                                onclick="redateAdvanceReceipt(<?= (int)$pay['id'] ?>, '<?= $advTo ?>', '<?= $advAt ?>')"
+                                                title="<?= $advOnPaid ? 'بەرواری قەبز بگەڕێنەوە بۆ ڕۆژی گواستنەوە: ' : 'بەرواری قەبز بکە بە ڕۆژی پارەدانی نەخۆش: ' ?><?= $advAt ?> (<?= htmlspecialchars(implode('، ', $advDays['advances'])) ?>)">
+                                            <i class="fas fa-calendar-day"></i> <?= $advOnPaid ? 'ڕۆژی گواستنەوە' : 'ڕۆژی ئامانەت' ?>
+                                        </button>
                                         <?php endif; ?>
                                         <?php endif; ?>
                                     </td>
@@ -14888,6 +14912,31 @@ function saveEditPayment() {
         })
         .catch(() => { btn.disabled = false; toast('error', 'هەڵەیەک ڕوویدا لە پەیوەندیکردن'); });
 }
+// «ڕۆژی ئامانەت»: an ئامانەت receipt dated on the day the patient paid, or
+// back on the day it was moved onto the case
+function redateAdvanceReceipt(paymentId, to, at) {
+    const ask = to === 'paid'
+        ? 'بەرواری ئەم قەبزە ببێت بە ڕۆژی پارەدانی نەخۆش (' + at + ')؟\nداهاتەکەی دەچێتە سەر ئەو ڕۆژە.'
+        : 'بەرواری ئەم قەبزە بگەڕێتەوە بۆ ڕۆژی گواستنەوە (' + at + ')؟';
+    if (!confirm(ask)) return;
+    const fd = new FormData();
+    fd.set('csrf_token', window.CSRF_TOKEN || CSRF_TOKEN);
+    fd.set('action', 'redate_advance_receipt');
+    fd.set('payment_id', paymentId);
+    fd.set('to', to);
+    fetch('<?= APP_URL ?>/api/finance-actions.php', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(d => {
+            if (!d.ok) { toast('error', d.error || 'قەبزەکە نەگۆڕدرا'); return; }
+            toast('success', 'بەرواری قەبزەکە گۆڕدرا');
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', 'payments');
+            url.hash = '';
+            window.location.href = url.toString();
+        })
+        .catch(() => toast('error', 'هەڵەیەک ڕوویدا لە پەیوەندیکردن'));
+}
+window.redateAdvanceReceipt = redateAdvanceReceipt;
 window.openEditPaymentDialog = openEditPaymentDialog;
 window.saveEditPayment = saveEditPayment;
 window.epDiscountReasonToggle = epDiscountReasonToggle;
