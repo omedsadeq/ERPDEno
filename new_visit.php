@@ -2477,6 +2477,9 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
 .nv-layout .form-group.span-2,
 .nv-layout .form-group.span-3 { grid-column: 1 / -1; }
 .nv-layout .form-group.nv-photo { grid-column: auto; }
+/* the full name is the longest thing typed here: two columns wide */
+.nv-layout .form-group.nv-name { grid-column: span 2; }
+.nv-layout .form-group.nv-name input { font-size: 15px; font-weight: 600; }
 .nv-layout .form-group.nv-address { order: 1; }   /* the full-width line last, so the photo fills the row beside «پیشە» */
 /* Choices side by side as one segmented row (the page's .form-group label
    rule made each one a block of its own). */
@@ -2593,7 +2596,7 @@ if (!empty($nvErr) && !isset($nvErr['full_name']) && !isset($nvErr['phone']) && 
         </div>
         <div class="form-card-body">
             <div class="form-grid">
-                <div class="form-group" style="position:relative;">
+                <div class="form-group nv-name" style="position:relative;">
                     <label><span class="required">*</span> ناوی تەواو</label>
                     <input type="text" id="full_name" name="full_name" class="<?php echo isset($errors['full_name']) ? 'error' : ''; ?>"
                            value="<?php echo htmlspecialchars($_POST['full_name'] ?? ($_POST['patient_name'] ?? '')); ?>" required placeholder="ناوی سیانی" autocomplete="off">
