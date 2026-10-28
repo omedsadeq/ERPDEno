@@ -1543,28 +1543,37 @@ class Payment
         return $d->format('Y-m-d H:i:00');
     }
 
-    /** Refuse a date that leaves or enters a period already settled for the case's doctor. */
-    private function assertDateNotSettled(int $caseId, string $oldDate, string $newDate): void
+    /**
+     * Refuse a date that leaves or enters a period already settled
+     * (دابەشکردنی داهات) for the doctor the money counts under — the case's
+     * doctor, or $doctorIds when the caller knows better (an invoice counts
+     * under its own doctor). $what names the date in the message: «قەبز»,
+     * «وەسڵ». Shared with InvoiceCorrection, so both edit paths hold the line.
+     */
+    public function assertDateNotSettled(int $caseId, string $oldDate, string $newDate, string $what = 'قەبز', array $doctorIds = []): void
     {
         if (!$this->db->tableExists('income_settlements')) {
             return;
         }
-        $doctor = $this->db->fetch(
-            'SELECT pf.doctor_id FROM cases c JOIN patient_folders pf ON pf.id = c.folder_id WHERE c.id = ?', [$caseId]
-        );
-        if (!$doctor || !(int)$doctor['doctor_id']) {
-            return;
-        }
-        foreach ([substr($oldDate, 0, 10), substr($newDate, 0, 10)] as $day) {
-            $settled = $this->db->fetch(
-                "SELECT settlement_no, period_from, period_to FROM income_settlements
-                 WHERE doctor_id = ? AND status = 'done' AND period_from <= ? AND period_to >= ? LIMIT 1",
-                [(int)$doctor['doctor_id'], $day, $day]
+        if (!$doctorIds) {
+            $doctor = $this->db->fetch(
+                'SELECT pf.doctor_id FROM cases c JOIN patient_folders pf ON pf.id = c.folder_id WHERE c.id = ?', [$caseId]
             );
-            if ($settled) {
-                throw new RuntimeException('ڕێکەوتی ' . $day . ' لە ماوەیەکی دابەشکراوی داهاتدایە (ژمارە '
-                    . $settled['settlement_no'] . '، ' . $settled['period_from'] . ' بۆ ' . $settled['period_to']
-                    . ')؛ بەرواری قەبز ناچێتە ناو ئەو ماوەیە و لێی دەرناچێت. سەرەتا دابەشکردنەکە هەڵبوەشێنەوە.');
+            $doctorIds = [(int)($doctor['doctor_id'] ?? 0)];
+        }
+        $doctorIds = array_values(array_unique(array_filter(array_map('intval', $doctorIds))));
+        foreach ($doctorIds as $doctorId) {
+            foreach ([substr($oldDate, 0, 10), substr($newDate, 0, 10)] as $day) {
+                $settled = $this->db->fetch(
+                    "SELECT settlement_no, period_from, period_to FROM income_settlements
+                     WHERE doctor_id = ? AND status = 'done' AND period_from <= ? AND period_to >= ? LIMIT 1",
+                    [$doctorId, $day, $day]
+                );
+                if ($settled) {
+                    throw new RuntimeException('ڕێکەوتی ' . $day . ' لە ماوەیەکی دابەشکراوی داهاتدایە (ژمارە '
+                        . $settled['settlement_no'] . '، ' . $settled['period_from'] . ' بۆ ' . $settled['period_to']
+                        . ')؛ بەرواری ' . $what . ' ناچێتە ناو ئەو ماوەیە و لێی دەرناچێت. سەرەتا دابەشکردنەکە هەڵبوەشێنەوە.');
+                }
             }
         }
     }

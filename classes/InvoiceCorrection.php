@@ -146,6 +146,15 @@ class InvoiceCorrection
                 'notes'=>self::text($input['notes'] ?? '',10000), 'accounting_notes'=>self::text($input['accounting_notes'] ?? '',10000)];
 
             $paymentManager = new Payment();
+            // A settled period (دابەشکردنی داهات) keeps its money: the invoice's
+            // date — its chair cash and its work — neither leaves one nor
+            // enters one. It counts under its own doctor; the folder's doctor
+            // is checked too, whose receipts on it are split by this date.
+            if ($date !== $old['work_date']) {
+                $folder = $this->db->fetch('SELECT pf.doctor_id FROM cases c JOIN patient_folders pf ON pf.id=c.folder_id WHERE c.id=?', [$caseId]);
+                $paymentManager->assertDateNotSettled($caseId, (string)$old['work_date'], $date, 'وەسڵ',
+                    [(int)($old['doctor_id'] ?: ($folder['doctor_id'] ?? 0)), (int)($folder['doctor_id'] ?? 0)]);
+            }
             $paymentEdits = []; $seenPayments = [];
             if (!is_array($input['payments'] ?? [])) throw new InvalidArgumentException('قەبزەکان نادروستن');
             $linked = array_column($before['payments'], null, 'id');
@@ -163,6 +172,10 @@ class InvoiceCorrection
                 // The date picker does not edit the receipt's time of day.
                 if (strlen($linked[$pid]['payment_date']) > 10) $paymentDate .= substr($linked[$pid]['payment_date'],10);
                 if ($paymentDate > date('Y-m-d H:i:s')) $paymentDate = date('Y-m-d H:i:s');
+                // the same line as «تەعدیل» on the پارەدان tab
+                if (substr($paymentDate, 0, 10) !== substr((string)$linked[$pid]['payment_date'], 0, 10)) {
+                    $paymentManager->assertDateNotSettled((int)$linked[$pid]['case_id'], (string)$linked[$pid]['payment_date'], $paymentDate);
+                }
                 $data = ['amount'=>CashboxLedger::decimal($amount),'payment_date'=>$paymentDate,'payment_method'=>$method];
                 $changed = false;
                 foreach ($data as $k=>$v) if ((string)$v !== (string)$linked[$pid][$k]) $changed = true;

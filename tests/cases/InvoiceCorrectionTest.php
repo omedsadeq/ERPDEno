@@ -157,5 +157,27 @@ require_once __DIR__ . '/../../classes/InvoiceCorrection.php';
     $db->update('cases',['status'=>'open'],'id=?',[$case]);
     $db->update('case_invoices',['accounting_status'=>'cancelled'],'id=?',[$other]);
     $t->assertTrue(!$editor->save($case,$other,$admin,$draft)['success'],'cancelled invoice refused');
+
+    // A settled period (دابەشکردنی داهات) keeps its money — the line «تەعدیل»
+    // holds on the پارەدان tab: no invoice or receipt date leaves or enters one.
+    if ($db->tableExists('income_settlements')) {
+        $sid=(int)$db->insert('income_settlements',['settlement_no'=>'T-'.uniqid(),'doctor_id'=>$doctor,'period_from'=>'2026-09-01','period_to'=>'2026-09-15',
+            'doctor_rate'=>0,'status'=>'done','created_by'=>$admin,'created_at'=>date('Y-m-d H:i:s')]);
+        $p=$payload(); $p['work_date']='2026-09-10'; $r=$save($p);
+        $t->assertTrue(!$r['success'] && strpos($r['message'],'بەرواری وەسڵ')!==false,'settled: invoice date cannot enter a settled period');
+        $t->assertSame('2026-10-02',$inv()['work_date'],'settled: the refused invoice keeps its date');
+        $p=$payload(); $p['payments']=[['id'=>$pid,'amount'=>'12000.50','payment_date'=>'2026-09-10','payment_method'=>'cash']];
+        $t->assertTrue(!$save($p)['success'],'settled: receipt date cannot enter a settled period');
+        $db->update('income_settlements',['period_from'=>'2026-10-01','period_to'=>'2026-10-04'],'id=?',[$sid]);
+        $p=$payload(); $p['work_date']='2026-10-06'; $t->assertTrue(!$save($p)['success'],'settled: invoice date cannot leave a settled period');
+        $p=$payload(); $p['payments']=[['id'=>$pid,'amount'=>'12000.50','payment_date'=>'2026-10-06','payment_method'=>'cash']];
+        $t->assertTrue(!$save($p)['success'],'settled: receipt date cannot leave a settled period');
+        $t->assertSame('2026-10-04',substr($db->fetch('SELECT payment_date FROM payments WHERE id=?',[$pid])['payment_date'],0,10),'settled: the refused receipt keeps its date');
+        $p=$payload(); $p['notes']='settled note'; $t->assertTrue($save($p)['success'],'settled: an edit that moves no date still goes through');
+        $db->update('income_settlements',['status'=>'cancelled'],'id=?',[$sid]);
+        $p=$payload(); $p['payments']=[['id'=>$pid,'amount'=>'12000.50','payment_date'=>'2026-10-06','payment_method'=>'cash']];
+        $t->assertTrue($save($p)['success'],'settled: a cancelled settlement no longer holds the date');
+        $db->delete('income_settlements','id=?',[$sid]);
+    }
     $_SESSION=$saved;
 })();
