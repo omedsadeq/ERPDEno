@@ -44,7 +44,7 @@
 .tp-workspace .tp-estimate-receipt .vt-head-no { color:var(--win-accent, #0078d4); }
 .tp-workspace .tp-estimate-receipt .vt-head-total { font-size:16px; color:#b3261e; }
 .tp-workspace .tp-items-wrap { margin:0; border:0; border-radius:0; box-shadow:none; overflow:auto; }
-.tp-workspace .table.tp-items { min-width:890px; width:100%; table-layout:auto; }
+.tp-workspace .table.tp-items { min-width:640px; width:100%; table-layout:auto; }
 .tp-workspace .table.tp-items thead th { padding:9px 7px; font-size:13px; text-align:center; background:#edf3f7; color:#102a3a; border:1px solid #c9d6e3; }
 .tp-workspace .table.tp-items thead .en { font-size:11px; }
 .tp-workspace .table.tp-items td { padding:8px 7px; font-size:12px; text-align:center; border:1px solid #e3e9ef; background:transparent; }

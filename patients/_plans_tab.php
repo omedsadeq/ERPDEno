@@ -2,14 +2,14 @@
 /**
  * پلانی چارەسەر tab of the patient page — the markup only.
  *
- * Built like the inside of a case: the selected plan's tooth chart on top and
- * its work table under it, with the work added, changed and removed right
- * here. Routing (کێ چارەسەر دەکات؟), the appointment and the transfer to a case
- * stay on the plan's own page, treatment-plans/view.php.
+ * The patient's plans as cards; each opens its own page,
+ * treatment-plans/view.php, where the chart, the work table, routing, the
+ * appointment and the transfer to a case live. «پلانی نوێ» creates a plan and
+ * opens that page.
  *
- * Everything inside #tpwPlan is drawn by patients/_plans_tab_assets.php from
- * the plans patients/view.php loaded. A plan is a quote, not money: nothing
- * here reaches the accounting tables until an item is transferred to a case.
+ * #tpwList is drawn by patients/_plans_tab_assets.php from the plans
+ * patients/view.php loaded. A plan is a quote, not money: nothing here reaches
+ * the accounting tables until an item is transferred to a case.
  */
 if (!isset($canViewPlans)) {
     exit;
@@ -30,7 +30,6 @@ if (!isset($canViewPlans)) {
             </button>
             <?php endif; ?>
         </div>
-        <div class="tpw-switch" id="tpwSwitch" hidden></div>
-        <div id="tpwPlan"></div>
+        <div class="tpw-list" id="tpwList"></div>
     </div>
 </div>

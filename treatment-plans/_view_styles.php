@@ -23,6 +23,16 @@
 
 /* Items table */
 .tp-items-wrap { overflow-x: auto; }
+/* One row per job (receipt layout), opened tooth by tooth below itself. */
+.tp-items tr.tp-group-row.is-open td { background: #f6faff; border-bottom-color: #dbe8f5; }
+.tp-items tr.tp-group-detail > td { background: #fbfdff; padding: 4px 8px 10px !important; }
+.tp-detail-table { width: 100%; border-collapse: collapse; font-size: 12px; background: #fff; border: 1px solid #e4ecf4; border-radius: 8px; }
+.tp-detail-table th { background: #f3f7fb; color: #4a5b6c; font-size: 11px; font-weight: 700; padding: 6px 8px; text-align: right; white-space: nowrap; }
+.tp-detail-table td { padding: 6px 8px; border-top: 1px solid #eef3f8; vertical-align: middle; }
+.tp-detail-table .tp-num { direction: ltr; text-align: left; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tp-line-state { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.tp-case-link { font-size: 11px; white-space: nowrap; }
+.tp-items .rt-add-row select.rt-field { padding: 4px 6px; }
 .tp-items { width: 100%; border-collapse: collapse; font-size: 12.5px; background: #fff; }
 .tp-items th { padding: 9px 10px; background: #f4f2fb; color: #4b4470; font-size: 11px; font-weight: 700; text-align: right; white-space: nowrap; border-bottom: 1px solid #e3e0f0; }
 .tp-items td { padding: 9px 10px; border-bottom: 1px solid #f2f2f8; vertical-align: middle; }

@@ -120,44 +120,408 @@ function locationChip(it) {
     if (it.arch_type && it.arch_type !== 'none') return `<span class="tp-tooth-chip tp-arch-chip">${it.arch_type === 'upper' ? 'ئەرکی سەرەوە' : 'ئەرکی خوارەوە'}</span>`;
     return '<span style="color:#bbb;">—</span>';
 }
+// The table reads like the case's receipt (cases/partials/invoice_pane.php):
+// one row per job — the same treatment, unit price, location and state — with
+// its teeth in the quadrant cross, and a quick-entry row at the bottom. A row
+// of several teeth opens below itself, tooth by tooth, for what differs per
+// tooth (surface, discount, minutes, note) and is edited there.
+const QUAD_OF = { 1: 'UR', 2: 'UL', 3: 'LL', 4: 'LR', 5: 'UR', 6: 'UL', 7: 'LL', 8: 'LR' };
+const QUAD_FDI = { UR: [1, 5], UL: [2, 6], LL: [3, 7], LR: [4, 8] };
+const openGroups = new Set();
+let pvGroups = [];   // the rows on screen; buttons refer to them by index
+
+function itemGroups() {
+    const groups = [], byKey = {};
+    planItems.filter(i => i.status !== 'cancelled').forEach(it => {
+        const arch = ['upper', 'lower'].includes(it.arch_type) ? it.arch_type : 'none';
+        const where = arch !== 'none' ? arch : (it.tooth_number ? 'tooth' : 'service');
+        const key = [it.treatment_id || 0, it.treatment_name, Number(it.unit_price), where, it.status].join('|');
+        let g = byKey[key];
+        if (!g) {
+            g = byKey[key] = { key, name: it.treatment_name, unit: Number(it.unit_price) || 0, where, status: it.status,
+                quads: { UR: [], UL: [], LR: [], LL: [] }, qty: 0, total: 0, discount: 0, items: [], surfaces: new Set(), cases: {} };
+            groups.push(g);
+        }
+        if (where === 'tooth') {
+            const n = parseInt(it.tooth_number, 10);
+            const q = QUAD_OF[Math.floor(n / 10)];
+            if (q) g.quads[q].push(n);
+        }
+        String(it.tooth_surface || '').split(',').filter(Boolean).forEach(s => g.surfaces.add(s));
+        g.qty += Number(it.quantity) || 1;
+        g.total += Number(it.final_price) || 0;
+        g.discount += Number(it.discount) || 0;
+        g.items.push(it);
+        if (it.transferred_case_id) g.cases[it.transferred_case_id] = it.transferred_case_number;
+    });
+    // Each quadrant from the midline outwards, as the receipt writes it.
+    groups.forEach(g => Object.values(g.quads).forEach(q => q.sort((a, b) => (a % 10) - (b % 10))));
+    return groups;
+}
+
+function teethCell(g) {
+    if (g.where === 'upper') return '<span class="rt-location-badge is-upper"><i class="fas fa-teeth-open"></i> ماکزیلا / سەرەوە</span>';
+    if (g.where === 'lower') return '<span class="rt-location-badge is-lower"><i class="fas fa-teeth-open"></i> ماندیبل / خوارەوە</span>';
+    if (g.where === 'service') return '<span class="rt-location-badge is-service"><i class="fas fa-briefcase-medical"></i> بێ ژمارەی ددان</span>';
+    const q = k => g.quads[k].map(n => palmerNumbers[n] || (n % 10)).join(',');
+    return `<div class="tooth-cross" title="${escapeHtml(g.items.map(i => toothNames[i.tooth_number] || i.tooth_number).join('، '))}">
+        <span class="tc-ur">${q('UR')}</span><span class="tc-ul">${q('UL')}</span>
+        <span class="tc-lr">${q('LR')}</span><span class="tc-ll">${q('LL')}</span></div>`;
+}
+
+function groupRow(g, no, editable) {
+    const transferred = g.status === 'transferred';
+    const many = g.items.length > 1;
+    const open = openGroups.has(g.key);
+    const gi = no - 1;
+    const surfaces = [...g.surfaces];
+    const caseLinks = Object.keys(g.cases).map(id =>
+        `<a href="<?= APP_URL ?>/cases/view.php?id=${id}" class="tp-case-link"><i class="fas fa-arrow-left"></i> ${escapeHtml(g.cases[id])}</a>`).join('');
+    const desc = `${escapeHtml(g.name)}
+        ${surfaces.length ? `<div class="treatment-surface-tags">${surfaces.map(s => `<span class="treatment-surface-tag">${SURFACE_LABELS[s] || s}</span>`).join('')}</div>` : ''}
+        ${g.discount > 0 ? `<small class="tp-line-note">داشکاندن: ${numberFormat(g.discount)}</small>` : ''}
+        ${transferred ? `<div class="tp-line-state"><span class="tp-item-state transferred">گوازراوە</span>${caseLinks}</div>` : ''}`;
+    let act = '';
+    if (editable && !transferred) {
+        act = `<span class="rt-row-actions">
+            <button type="button" class="rt-row-action is-edit" title="${many ? 'دەستکاری ددانەکان یەک یەک' : 'دەستکاری'}"
+                onclick="${many ? `pvToggleGroup(${gi})` : `pvEditItem(${g.items[0].id})`}"><i class="fas fa-pen"></i></button>
+            <button type="button" class="rt-row-action is-delete" title="سڕینەوە"
+                onclick="${many ? `pvRemoveGroup(${gi})` : `pvRemoveItem(${g.items[0].id})`}"><i class="fas fa-trash-alt"></i></button></span>`;
+    } else if (many) {
+        act = `<button type="button" class="rt-row-action is-edit" title="ددانەکان یەک یەک" onclick="pvToggleGroup(${gi})"><i class="fas fa-list"></i></button>`;
+    } else if (transferred) {
+        act = '<i class="fas fa-lock" style="color:#a9b6c3;" title="گوازراوەتەوە بۆ کەیس"></i>';
+    }
+    let html = `<tr class="tp-group-row${transferred ? ' is-transferred' : ''}${open ? ' is-open' : ''}">
+        <td class="rt-c-no">${no}</td>
+        <td class="rt-c-desc">${desc}</td>
+        <td class="rt-c-teeth">${teethCell(g)}</td>
+        <td class="rt-c-qty">${numberFormat(g.qty)}</td>
+        <td class="rt-c-unit">${numberFormat(g.unit)}</td>
+        <td class="rt-c-total">${numberFormat(g.total)}</td>
+        <td class="rt-c-act">${act}</td>
+    </tr>`;
+    if (many && open) html += groupDetailRow(g, editable && !transferred);
+    return html;
+}
+
+// The teeth of one row, one line each — what can differ per tooth.
+function groupDetailRow(g, editable) {
+    const lines = g.items.map(it => `<tr>
+        <td>${locationChip(it)}</td>
+        <td>${String(it.tooth_surface || '').split(',').filter(Boolean).map(s => SURFACE_LABELS[s] || s).join('، ') || '—'}</td>
+        <td class="tp-num">${Number(it.discount) > 0 ? numberFormat(it.discount) : '—'}</td>
+        <td class="tp-num">${it.estimated_minutes ? it.estimated_minutes + ' خ' : '—'}</td>
+        <td class="tp-num"><strong>${numberFormat(it.final_price)}</strong></td>
+        <td>${escapeHtml(it.notes || '')}</td>
+        <td>${editable ? `<div class="tp-row-actions">
+            <button type="button" class="tp-icon-btn" title="دەستکاری" onclick="pvEditItem(${it.id})"><i class="fas fa-edit"></i></button>
+            <button type="button" class="tp-icon-btn danger" title="سڕینەوە" onclick="pvRemoveItem(${it.id})"><i class="fas fa-trash"></i></button>
+        </div>` : ''}</td>
+    </tr>`).join('');
+    return `<tr class="tp-group-detail"><td></td><td colspan="6"><table class="tp-detail-table"><thead><tr>
+        <th>ددان</th><th>ڕووەکان</th><th>داشکاندن</th><th>کات</th><th>کۆ</th><th>تێبینی</th><th></th>
+    </tr></thead><tbody>${lines}</tbody></table></td></tr>`;
+}
+
+// The quick-entry row: treatment → teeth (typed per quadrant, as on the
+// receipt: «5,7») or nothing for a job without a tooth → price → Enter.
+// An arch plan picks the arch instead of teeth.
+function addRowHtml() {
+    const teeth = IS_ARCH
+        ? `<select class="rt-field" id="pvAddArch" title="ئەرک"><option value="upper">سەرەوە</option><option value="lower">خوارەوە</option><option value="both">هەردوو</option></select>`
+        : `<div class="rt-teeth-wrap">
+            <div class="tooth-cross is-input">
+                <input type="text" class="tc-ur rt-tooth-in" data-q="UR" placeholder="—" title="سەرەوەی ڕاست" autocomplete="off">
+                <input type="text" class="tc-ul rt-tooth-in" data-q="UL" placeholder="—" title="سەرەوەی چەپ" autocomplete="off">
+                <input type="text" class="tc-lr rt-tooth-in" data-q="LR" placeholder="—" title="خوارەوەی ڕاست" autocomplete="off">
+                <input type="text" class="tc-ll rt-tooth-in" data-q="LL" placeholder="—" title="خوارەوەی چەپ" autocomplete="off">
+            </div>
+            <button type="button" class="rt-teeth-btn" tabindex="-1" onclick="showTab('chart', document.getElementById('pvTab-chart'))"
+                title="هەڵبژاردنی ددان لە چارتەوە"><i class="fas fa-tooth"></i></button>
+        </div>`;
+    return `<tr class="rt-add-row" id="pvAddRow">
+        <td class="rt-c-no"><i class="fas fa-plus" style="color:var(--win-accent, #0078D4);"></i></td>
+        <td class="rt-c-desc"><div class="rt-combo">
+            <input type="text" class="rt-field rt-combo-input" id="pvAddName" autocomplete="off" placeholder="چارەسەر بگەڕێ یان بنووسە..." aria-label="چارەسەر">
+            <button type="button" class="rt-combo-caret" tabindex="-1" onclick="pvComboOpen(true)" title="هەموو چارەسەرەکان"><i class="fas fa-chevron-down"></i></button>
+        </div></td>
+        <td class="rt-c-teeth">${teeth}</td>
+        <td class="rt-c-qty"><input type="number" class="rt-field rt-in-qty is-auto" id="pvAddQty" value="1" min="1" step="1" title="بۆ ددان: ژمارەی ددانەکان"></td>
+        <td class="rt-c-unit"><input type="number" class="rt-field rt-in-price" id="pvAddPrice" value="0" min="0" step="any"></td>
+        <td class="rt-c-total"><span class="rt-in-total" id="pvAddTotal">0</span></td>
+        <td class="rt-c-act">
+            <button type="button" class="rt-act-btn is-save" id="pvAddSaveBtn" onclick="pvAddSave()" title="زیادکردن (Enter)"><i class="fas fa-check"></i></button>
+            <button type="button" class="rt-act-btn is-clear" tabindex="-1" onclick="pvAddClear()" title="پاککردنەوە (Esc)"><i class="fas fa-eraser"></i></button>
+        </td>
+    </tr>`;
+}
+
 function renderItemsTable() {
     const root = document.getElementById('pvItemsTable');
     if (!root) return;
-    const rows = planItems.filter(i => i.status !== 'cancelled');
     const editable = isEditable();
-    let body = rows.map((it, index) => {
-        const transferred = it.status === 'transferred';
-        const surfaces = String(it.tooth_surface || '').split(',').filter(Boolean);
-        return `<tr class="${transferred ? 'is-transferred' : ''}">
-            <td class="rt-c-no">${index + 1}</td>
-            <td class="rt-c-desc">${escapeHtml(it.treatment_name)}
-                ${surfaces.length ? `<div class="treatment-surface-tags">${surfaces.map(s => `<span class="treatment-surface-tag">${SURFACE_LABELS[s] || s}</span>`).join('')}</div>` : ''}
-                ${it.notes ? `<small class="tp-line-note">${escapeHtml(it.notes)}</small>` : ''}</td>
-            <td class="rt-c-teeth">${locationChip(it)}</td>
-            <td class="tp-num rt-c-qty">${it.quantity}</td>
-            <td class="tp-num rt-c-unit">${numberFormat(it.unit_price)}</td>
-            <td class="tp-num">${Number(it.discount) > 0 ? numberFormat(it.discount) : '—'}</td>
-            <td class="tp-num rt-c-total"><strong>${numberFormat(it.final_price)}</strong></td>
-            <td class="tp-num">${it.estimated_minutes ? it.estimated_minutes + ' خ' : '—'}</td>
-            <td>
-                <span class="tp-item-state ${it.status}">${transferred ? 'گوازراوە' : 'چاوەڕوان'}</span>
-                ${transferred && it.transferred_case_number ? `<a href="<?= APP_URL ?>/cases/view.php?id=${it.transferred_case_id}" style="display:block;font-size:11px;margin-top:3px;"><i class="fas fa-arrow-left"></i> ${escapeHtml(it.transferred_case_number)}</a>` : ''}
-            </td>
-            <td class="rt-c-act">${editable && !transferred ? `<div class="tp-row-actions">
-                <button type="button" class="tp-icon-btn" title="دەستکاری" onclick="pvEditItem(${it.id})"><i class="fas fa-edit"></i></button>
-                <button type="button" class="tp-icon-btn danger" title="سڕینەوە" onclick="pvRemoveItem(${it.id})"><i class="fas fa-trash"></i></button>
-            </div>` : ''}</td>
-        </tr>`;
-    }).join('');
-    if (!rows.length) {
-        body = `<tr><td colspan="10"><div class="tp-empty-items"><i class="fas fa-clipboard-list"></i><strong>هێشتا هیچ چارەسەرێک نییە</strong><span>لە چارتەکە ددانێک هەڵبژێرە یان چارەسەرێک زیاد بکە.</span>${editable ? `<button type="button" class="btn btn-primary btn-sm" onclick="${IS_ARCH ? 'pvOpenArchDialog()' : 'pvOpenItemDialog({})'}"><i class="fas fa-plus"></i> زیادکردنی چارەسەر</button>` : ''}</div></td></tr>`;
+    // What is half-typed in the quick-entry row survives a redraw.
+    const keep = pvAddState();
+    const groups = pvGroups = itemGroups();
+    let body = groups.map((g, i) => groupRow(g, i + 1, editable)).join('');
+    if (editable) body += addRowHtml();
+    if (!groups.length && !editable) {
+        body = `<tr><td colspan="7"><div class="tp-empty-items"><i class="fas fa-clipboard-list"></i><strong>هێشتا هیچ چارەسەرێک نییە</strong></div></td></tr>`;
+    }
+    // Ruled to six lines, like the receipt pad.
+    for (let n = groups.length + (editable ? 1 : 0) + 1; n <= 6; n++) {
+        body += `<tr class="rt-blank-row"><td class="rt-c-no">${n}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
     }
     root.innerHTML = `<div class="table-container tp-items-wrap"><table class="table rcpt-table tp-items no-responsive"><thead><tr>
-        <th class="rt-c-no">ژ</th><th class="rt-c-desc">ناوەڕۆک<span class="en">Description</span></th><th class="rt-c-teeth">ددان / ئەرک<span class="en">Teeth</span></th>
+        <th class="rt-c-no">ژ</th><th class="rt-c-desc">ناوەڕۆک<span class="en">Description</span></th>
+        <th class="rt-c-teeth">${IS_ARCH ? 'ئەرک' : 'چارتی ددان'}<span class="en">Teeth</span></th>
         <th class="rt-c-qty">ژمارە<span class="en">Quantity</span></th><th class="rt-c-unit">نرخی تاک<span class="en">Unit Price</span></th>
-        <th>داشکاندن</th><th class="rt-c-total">نرخی کۆ<span class="en">Total Price</span></th><th>کات</th><th>دۆخ</th><th class="rt-c-act">کردارەکان</th>
+        <th class="rt-c-total">نرخی کۆ<span class="en">Total Price</span></th><th class="rt-c-act">کردارەکان</th>
     </tr></thead><tbody>${body}</tbody></table></div>`;
+    if (editable) pvAddBind(keep);
 }
+
+window.pvToggleGroup = function (i) {
+    const g = pvGroups[i];
+    if (!g) return;
+    if (openGroups.has(g.key)) openGroups.delete(g.key); else openGroups.add(g.key);
+    renderItemsTable();
+};
+window.pvRemoveGroup = async function (i) {
+    const g = pvGroups[i];
+    if (!g || !confirm('«' + g.name + '» بۆ ' + g.items.length + ' ددان دەسڕدرێتەوە. دڵنیایت؟')) return;
+    for (const it of g.items) {
+        const res = await post('remove_item', { item_id: it.id });
+        if (!res || !res.success) { toast('error', (res && res.error) || 'هەڵە'); return; }
+        applyResponse(res);
+    }
+    toast('success', 'سڕایەوە');
+};
+
+// ── Quick-entry row ─────────────────────────────────────────────────
+const PALMER_TO_FDI = { UR: {}, UL: {}, LL: {}, LR: {} };
+Object.keys(palmerNumbers).forEach(fdi => {
+    const q = QUAD_OF[Math.floor(fdi / 10)];
+    if (q) PALMER_TO_FDI[q][String(palmerNumbers[fdi]).toUpperCase()] = Number(fdi);
+});
+const DIGITS = { '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4', '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9',
+                 '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4', '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9' };
+const toothTokens = s => String(s || '').replace(/[٠-٩۰-۹]/g, c => DIGITS[c]).toUpperCase().replace(/[^0-9A-Z]/g, '');
+let pvAddTreatmentId = '';
+let pvQtyManual = false;
+
+function pvAddRow() { return document.getElementById('pvAddRow'); }
+function pvAddState() {
+    const row = pvAddRow();
+    if (!row) return null;
+    const s = { name: row.querySelector('#pvAddName').value, id: pvAddTreatmentId,
+        qty: row.querySelector('#pvAddQty').value, price: row.querySelector('#pvAddPrice').value, teeth: {} };
+    row.querySelectorAll('.rt-tooth-in').forEach(i => { s.teeth[i.dataset.q] = i.value; });
+    const arch = row.querySelector('#pvAddArch');
+    if (arch) s.arch = arch.value;
+    return s;
+}
+
+// Every tooth typed in the four boxes, as FDI numbers; a box with something
+// that is not a tooth of its quadrant turns red.
+function pvReadTeeth() {
+    const out = [];
+    let bad = false;
+    document.querySelectorAll('#pvAddRow .rt-tooth-in').forEach(inp => {
+        let boxBad = false;
+        toothTokens(inp.value).split('').forEach(tok => {
+            const fdi = PALMER_TO_FDI[inp.dataset.q][tok];
+            if (!fdi) { boxBad = true; return; }
+            if (!out.includes(fdi)) out.push(fdi);
+        });
+        inp.classList.toggle('is-bad', boxBad);
+        bad = bad || boxBad;
+    });
+    return { teeth: out, bad };
+}
+function pvAddCalc() {
+    const row = pvAddRow();
+    if (!row) return;
+    const qty = row.querySelector('#pvAddQty');
+    if (IS_ARCH) {
+        qty.value = row.querySelector('#pvAddArch').value === 'both' ? 2 : 1;
+    } else if (!pvQtyManual) {
+        const n = pvReadTeeth().teeth.length;
+        qty.value = n || 1;
+    }
+    const total = (Number(qty.value) || 0) * (Number(row.querySelector('#pvAddPrice').value) || 0);
+    row.querySelector('#pvAddTotal').textContent = numberFormat(total);
+}
+function pvAddBind(keep) {
+    const row = pvAddRow();
+    const name = row.querySelector('#pvAddName');
+    if (keep) {
+        name.value = keep.name;
+        pvAddTreatmentId = keep.id;
+        name.classList.toggle('is-chosen', !!keep.id);
+        row.querySelector('#pvAddQty').value = keep.qty;
+        row.querySelector('#pvAddPrice').value = keep.price;
+        row.querySelectorAll('.rt-tooth-in').forEach(i => { i.value = keep.teeth[i.dataset.q] || ''; });
+        if (keep.arch && row.querySelector('#pvAddArch')) row.querySelector('#pvAddArch').value = keep.arch;
+    }
+    name.addEventListener('input', () => { pvAddTreatmentId = ''; name.classList.remove('is-chosen'); pvComboOpen(false); });
+    name.addEventListener('focus', () => pvComboOpen(false));
+    name.addEventListener('keydown', pvComboKey);
+    row.querySelectorAll('.rt-tooth-in').forEach(inp => inp.addEventListener('input', () => {
+        // «167» reads as three teeth: 1,6,7 — the same as on the receipt.
+        const out = toothTokens(inp.value).split('').join(',');
+        if (out !== inp.value) inp.value = out;
+        pvAddCalc();
+    }));
+    row.querySelector('#pvAddQty').addEventListener('input', () => { pvQtyManual = true; row.querySelector('#pvAddQty').classList.remove('is-auto'); pvAddCalc(); });
+    row.querySelector('#pvAddPrice').addEventListener('input', pvAddCalc);
+    const arch = row.querySelector('#pvAddArch');
+    if (arch) arch.addEventListener('change', pvAddCalc);
+    row.addEventListener('keydown', e => {
+        if (e.target === name && pvComboMenu && !pvComboMenu.hidden) return;
+        if (e.key === 'Enter') { e.preventDefault(); pvAddSave(); }
+        if (e.key === 'Escape') { e.preventDefault(); pvAddClear(); }
+    });
+    pvAddCalc();
+}
+
+// The treatment search under the name box (the receipt's rt-combo look).
+let pvComboMenu = null, pvComboIdx = -1;
+const fold = s => String(s || '').toLowerCase().replace(/[يى]/g, 'ی').replace(/ك/g, 'ک').replace(/[ەة]/g, 'ه').replace(/ڕ/g, 'ر').replace(/ڵ/g, 'ل').replace(/\s+/g, ' ').trim();
+window.pvComboOpen = function (all) {
+    const input = document.getElementById('pvAddName');
+    if (!input) return;
+    if (!pvComboMenu) {
+        pvComboMenu = document.createElement('ul');
+        pvComboMenu.className = 'rt-combo-list';
+        pvComboMenu.hidden = true;
+        document.body.appendChild(pvComboMenu);
+        pvComboMenu.addEventListener('mousedown', e => {
+            const li = e.target.closest('.rt-combo-item');
+            if (li) { e.preventDefault(); pvComboPick(li.dataset.id); }
+        });
+        document.addEventListener('mousedown', e => {
+            if (pvComboMenu.hidden || e.target.closest('.rt-combo-list') || e.target.closest('#pvAddRow .rt-combo')) return;
+            pvComboMenu.hidden = true;
+        });
+        // The page scrolling moves the field away from the fixed list; the
+        // list scrolling itself must not close it.
+        window.addEventListener('scroll', e => { if (pvComboMenu && e.target !== pvComboMenu) pvComboMenu.hidden = true; }, true);
+    }
+    const q = all ? '' : fold(input.value);
+    const rows = treatmentCatalog.filter(t => !q || fold(t.name).includes(q)).slice(0, 80);
+    pvComboMenu.innerHTML = rows.length
+        ? rows.map((t, i) => `<li class="rt-combo-item" data-id="${t.id}" data-i="${i}"><span>${escapeHtml(t.name)}</span><span class="rt-combo-price">${numberFormat(t.price)}</span></li>`).join('')
+        : `<li class="rt-combo-empty">${q ? 'لە لیستەکەدا نییە — بە ناوی نووسراو زیاد دەکرێت' : 'هیچ چارەسەرێک نییە'}</li>`;
+    const r = input.getBoundingClientRect();
+    pvComboMenu.hidden = false;
+    pvComboMenu.style.width = Math.max(r.width, 280) + 'px';
+    pvComboMenu.style.left = Math.max(6, Math.min(r.left, window.innerWidth - pvComboMenu.offsetWidth - 6)) + 'px';
+    const below = window.innerHeight - r.bottom;
+    pvComboMenu.style.top = (below < 180 && r.top > below) ? Math.max(6, r.top - pvComboMenu.offsetHeight - 4) + 'px' : (r.bottom + 4) + 'px';
+    pvComboIdx = rows.length ? 0 : -1;
+    pvComboMark();
+    if (all) input.focus();
+};
+function pvComboMark() {
+    if (!pvComboMenu) return;
+    pvComboMenu.querySelectorAll('.rt-combo-item').forEach((li, i) => {
+        li.classList.toggle('is-active', i === pvComboIdx);
+        if (i === pvComboIdx) li.scrollIntoView({ block: 'nearest' });
+    });
+}
+function pvComboKey(e) {
+    if (!pvComboMenu || pvComboMenu.hidden) return;
+    const items = pvComboMenu.querySelectorAll('.rt-combo-item');
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!items.length) return;
+        pvComboIdx = (pvComboIdx + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+        pvComboMark();
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (pvComboIdx >= 0 && items[pvComboIdx]) pvComboPick(items[pvComboIdx].dataset.id);
+        else pvComboMenu.hidden = true;
+    } else if (e.key === 'Escape') {
+        pvComboMenu.hidden = true;
+    }
+}
+function pvComboPick(id) {
+    const t = treatmentCatalog.find(x => String(x.id) === String(id));
+    const row = pvAddRow();
+    if (!t || !row) return;
+    const name = row.querySelector('#pvAddName');
+    name.value = t.name;
+    name.classList.add('is-chosen');
+    pvAddTreatmentId = String(t.id);
+    row.querySelector('#pvAddPrice').value = t.price;
+    pvComboMenu.hidden = true;
+    pvAddCalc();
+    const next = row.querySelector('.rt-tooth-in, #pvAddArch');
+    if (next) next.focus();
+}
+
+window.pvAddClear = function () {
+    const row = pvAddRow();
+    if (!row) return;
+    row.querySelector('#pvAddName').value = '';
+    row.querySelector('#pvAddName').classList.remove('is-chosen');
+    row.querySelectorAll('.rt-tooth-in').forEach(i => { i.value = ''; i.classList.remove('is-bad'); });
+    row.querySelector('#pvAddQty').value = 1;
+    row.querySelector('#pvAddQty').classList.add('is-auto');
+    row.querySelector('#pvAddPrice').value = 0;
+    pvAddTreatmentId = '';
+    pvQtyManual = false;
+    if (pvComboMenu) pvComboMenu.hidden = true;
+    pvAddCalc();
+    row.querySelector('#pvAddName').focus();
+};
+
+window.pvAddSave = async function () {
+    const row = pvAddRow();
+    if (!row) return;
+    const btn = row.querySelector('#pvAddSaveBtn');
+    if (btn.disabled) return;
+    const name = row.querySelector('#pvAddName').value.trim();
+    if (!name) { toast('error', 'چارەسەرێک هەڵبژێرە یان ناوەکەی بنووسە'); row.querySelector('#pvAddName').focus(); return; }
+    const price = Number(row.querySelector('#pvAddPrice').value);
+    if (!(price >= 0)) { toast('error', 'نرخ نادروستە'); return; }
+    const base = { plan_id: PLAN_ID, treatment_id: pvAddTreatmentId, treatment_name: name, unit_price: price, discount: 0 };
+    const calls = [];
+    if (IS_ARCH) {
+        calls.push(Object.assign({}, base, { arch_type: row.querySelector('#pvAddArch').value, upper_unit_price: price, lower_unit_price: price }));
+    } else {
+        const read = pvReadTeeth();
+        if (read.bad) { toast('error', 'ژمارەیەکی ددان هەڵەیە (سوورە) — ١ تا ٨ یان A تا E'); return; }
+        if (read.teeth.length) {
+            read.teeth.forEach(fdi => calls.push(Object.assign({}, base, { tooth_number: fdi, quantity: 1 })));
+        } else {
+            calls.push(Object.assign({}, base, { quantity: Math.max(1, parseInt(row.querySelector('#pvAddQty').value, 10) || 1) }));
+        }
+    }
+    btn.disabled = true;
+    let added = 0;
+    try {
+        for (const c of calls) {
+            const res = await post('add_item', c);
+            if (!res || !res.success) {
+                toast('error', ((res && (res.error || res.message)) || 'هەڵە') + (added ? ' — ' + added + ' زیادکرا، ئەوانی تر نەکران' : ''));
+                return;
+            }
+            applyResponse(res);
+            added++;
+        }
+        pvAddClear();
+        toast('success', added > 1 ? added + ' ددان زیادکران' : 'زیادکرا');
+    } catch (e) {
+        toast('error', 'هەڵە لە پەیوەندی');
+    } finally {
+        const b = document.getElementById('pvAddSaveBtn');
+        if (b) b.disabled = false;
+    }
+};
 function renderTotals() {
     const root = document.getElementById('pvTotals');
     if (!root) return;
@@ -622,7 +986,7 @@ window.tpDoTransfer = function () {
 document.addEventListener('DOMContentLoaded', function () {
     renderAll();
     const qs = new URLSearchParams(location.search);
-    if (qs.get('tab') === 'items') showTab('items', document.querySelectorAll('.tabs-container .tab')[1]);
+    if (qs.get('tab') === 'items' || location.hash === '#items') showTab('items', document.getElementById('pvTab-items'));
     // «گواستنەوە بۆ کەیس» on the patient's plans tab lands here with the dialog open.
     if (qs.get('transfer') === '1' && typeof window.pvOpenTransfer === 'function') window.pvOpenTransfer();
 });

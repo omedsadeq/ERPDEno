@@ -527,6 +527,8 @@ window.showTab = function (tabName, button) {
     document.querySelectorAll('.tp-plan-tabs [role="tab"]').forEach(t => t.setAttribute('aria-selected', t === button ? 'true' : 'false'));
     content.style.display = 'block';
     if (button) button.classList.add('active');
+    // Remember the tab in the address, so a reload opens the same one.
+    try { history.replaceState(null, '', '#' + tabName); } catch (e) {}
     if (tabName === 'chart') requestAnimationFrame(() => { fitChartScale(); centerJawScroll(); });
 };
 </script>
