@@ -2630,7 +2630,8 @@ if (!empty($nvErr) && !isset($nvErr['full_name']) && !isset($nvErr['phone']) && 
                     <input type="tel" id="phone" name="phone" class="<?php echo isset($errors['phone']) ? 'error' : ''; ?>"
                            value="<?php echo htmlspecialchars($_POST['phone'] ?? ($_POST['mobile_number'] ?? '')); ?>" required placeholder="0750-123-4567">
                 </div>
-                <div class="form-group">
+                <?php // «ژمارەی دووەم» is not asked: hidden, so a returning patient's second number is kept ?>
+                <div class="form-group" hidden>
                     <label>ژمارەی دووەم</label>
                     <input type="tel" id="phone2" name="phone2" value="<?php echo htmlspecialchars($_POST['phone2'] ?? ''); ?>" placeholder="0770-987-6543">
                 </div>
