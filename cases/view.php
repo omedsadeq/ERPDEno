@@ -5077,8 +5077,8 @@ button.rx-card-print { cursor:pointer; padding:0; }
                             </button>
                             <?php // Tooth work is added from the chart (select teeth → right click);
                                   // whole-arch work (ortho, a denture) from this button — in any case. ?>
-                            <button class="btn btn-primary btn-sm" onclick="openArchTreatmentDialog()" title="ئیشی هەموو ئەرکێک: ڕاستکردنەوە، تاخم …">
-                                <i class="fas fa-teeth"></i> ئیشی ئەرک
+                            <button type="button" class="chart-arch-btn" onclick="openArchTreatmentDialog()" title="ئیشی هەموو ئەرکێک: زنجیر، تاخم …">
+                                <span class="chart-arch-ico"></span> ئیشی ئەرک <small>زنجیر · تاخم</small>
                             </button>
                         </div>
                         <?php endif; ?>
@@ -7419,220 +7419,89 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
     </div>
 </div>
 
-<!-- Arch Treatment Dialog -->
+<!-- Arch Treatment Dialog — whole-arch work (ortho, a denture …): the arch,
+     the treatment as a card, one price an arch. Posts add_arch_treatment
+     with pricing_mode=per_arch; the receipt on screen takes it (stampActiveReceipt). -->
 <div class="dialog-overlay" id="archTreatmentDialog">
-    <div class="dialog arch-dialog-modern">
-        <div class="arch-dialog-header">
-            <h4><i class="fas fa-teeth"></i> زیادکردنی چارەسەری ئەرک</h4>
-            <button type="button" class="arch-dialog-close" onclick="closeDialog('archTreatmentDialog')"><i class="fas fa-times"></i></button>
+    <div class="dialog ar2-dialog">
+        <div class="ar2-head">
+            <h4><i class="fas fa-teeth"></i> ئیشی ئەرک <small>زنجیر · تاخم · هەموو ئەرکێک</small></h4>
+            <button type="button" class="ar2-close" onclick="closeDialog('archTreatmentDialog')"><i class="fas fa-times"></i></button>
         </div>
         <form method="POST" action="" id="archTreatmentForm" onsubmit="return validateArchForm()">
             <input type="hidden" name="action" value="add_arch_treatment">
+            <input type="hidden" name="pricing_mode" value="per_arch">
             <input type="hidden" name="arch_type" id="archTreatmentArchType" value="">
-            <div class="arch-dialog-body">
-              <div class="pl-grid">
-                <div class="pl-col">
-                <!-- Arch Selection -->
-                <div class="arch-form-field">
-                    <label><i class="fas fa-teeth-open"></i> هەڵبژاردنی ئەرک <span class="required">*</span></label>
-                    <div class="arch-select-chart-modern">
-                        <!-- Upper Arch -->
-                        <div class="arch-select-panel" data-arch="upper" onclick="selectArchForTreatment('upper')">
-                            <div class="arch-select-visual">
-                                <svg viewBox="0 0 280 80" class="arch-select-svg">
-                                    <path d="M 15 65 Q 140 -10 265 65" fill="none" stroke="#0078d4" stroke-width="2.5" class="arch-select-outline"/>
-                                    <g class="arch-teeth-indicators">
-                                        <rect x="20" y="42" width="14" height="20" rx="2"/>
-                                        <rect x="38" y="34" width="14" height="24" rx="2"/>
-                                        <rect x="56" y="26" width="14" height="28" rx="2"/>
-                                        <rect x="74" y="20" width="12" height="30" rx="2"/>
-                                        <rect x="90" y="16" width="11" height="32" rx="2"/>
-                                        <rect x="105" y="13" width="10" height="34" rx="2"/>
-                                        <rect x="119" y="11" width="9" height="35" rx="2"/>
-                                        <rect x="132" y="10" width="8" height="36" rx="2"/>
-                                        <rect x="144" y="10" width="8" height="36" rx="2"/>
-                                        <rect x="156" y="11" width="9" height="35" rx="2"/>
-                                        <rect x="169" y="13" width="10" height="34" rx="2"/>
-                                        <rect x="183" y="16" width="11" height="32" rx="2"/>
-                                        <rect x="198" y="20" width="12" height="30" rx="2"/>
-                                        <rect x="214" y="26" width="14" height="28" rx="2"/>
-                                        <rect x="232" y="34" width="14" height="24" rx="2"/>
-                                        <rect x="250" y="42" width="14" height="20" rx="2"/>
-                                    </g>
-                                </svg>
-                            </div>
-                            <div class="arch-select-label">
-                                <i class="fas fa-check-circle arch-select-check"></i>
-                                <span>ئەرکی سەرەوە (Maxilla)</span>
-                                <span class="arch-select-count">یەک کاری سەرانسەری ئەرک</span>
-                            </div>
-                        </div>
-
-                        <!-- Lower Arch -->
-                        <div class="arch-select-panel" data-arch="lower" onclick="selectArchForTreatment('lower')">
-                            <div class="arch-select-visual">
-                                <svg viewBox="0 0 280 80" class="arch-select-svg">
-                                    <path d="M 20 15 Q 140 90 260 15" fill="none" stroke="#0078d4" stroke-width="2.5" class="arch-select-outline"/>
-                                    <g class="arch-teeth-indicators">
-                                        <rect x="25" y="18" width="13" height="18" rx="2"/>
-                                        <rect x="42" y="24" width="13" height="22" rx="2"/>
-                                        <rect x="59" y="30" width="13" height="25" rx="2"/>
-                                        <rect x="76" y="36" width="11" height="27" rx="2"/>
-                                        <rect x="91" y="40" width="10" height="29" rx="2"/>
-                                        <rect x="105" y="44" width="9" height="30" rx="2"/>
-                                        <rect x="118" y="46" width="8" height="31" rx="2"/>
-                                        <rect x="130" y="48" width="7" height="32" rx="2"/>
-                                        <rect x="141" y="48" width="7" height="32" rx="2"/>
-                                        <rect x="152" y="46" width="8" height="31" rx="2"/>
-                                        <rect x="164" y="44" width="9" height="30" rx="2"/>
-                                        <rect x="177" y="40" width="10" height="29" rx="2"/>
-                                        <rect x="191" y="36" width="11" height="27" rx="2"/>
-                                        <rect x="206" y="30" width="13" height="25" rx="2"/>
-                                        <rect x="223" y="24" width="13" height="22" rx="2"/>
-                                        <rect x="240" y="18" width="13" height="18" rx="2"/>
-                                    </g>
-                                </svg>
-                            </div>
-                            <div class="arch-select-label">
-                                <i class="fas fa-check-circle arch-select-check"></i>
-                                <span>ئەرکی خوارەوە (Mandible)</span>
-                                <span class="arch-select-count">یەک کاری سەرانسەری ئەرک</span>
-                            </div>
-                        </div>
-                    </div>
-                    <p class="arch-select-hint-modern"><i class="fas fa-info-circle"></i> کرتە بکە لەسەر ئەرکەکان بۆ هەڵبژاردن. دەتوانیت هەردووکیان هەڵبژێریت.</p>
+            <input type="hidden" name="treatment_id" id="archTreatmentId" value="">
+            <input type="hidden" name="treatment_name" id="archTreatmentName" value="">
+            <div class="ar2-body">
+                <div class="ar2-step"><span class="ar2-num">١</span> کام ئەرک؟</div>
+                <div class="ar2-arches">
+                    <button type="button" class="ar2-arch" data-arch="upper" onclick="arSetArch('upper')">
+                        <svg viewBox="0 0 64 40" aria-hidden="true"><path d="M6 36 Q32 -14 58 36" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>
+                        <b>سەرەوە</b><small>Maxilla</small>
+                    </button>
+                    <button type="button" class="ar2-arch" data-arch="lower" onclick="arSetArch('lower')">
+                        <svg viewBox="0 0 64 40" aria-hidden="true"><path d="M6 4 Q32 54 58 4" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>
+                        <b>خوارەوە</b><small>Mandible</small>
+                    </button>
+                    <button type="button" class="ar2-arch" data-arch="both" onclick="arSetArch('both')">
+                        <svg viewBox="0 0 64 40" aria-hidden="true"><path d="M8 18 Q32 -12 56 18 M8 22 Q32 52 56 22" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>
+                        <b>هەردوو</b><small>×2</small>
+                    </button>
                 </div>
-
-                <div class="arch-form-field">
-                    <label><i class="fas fa-briefcase-medical"></i> چارەسەر <span class="required">*</span></label>
-                    <select name="treatment_id" id="archTreatmentSelect" onchange="updateArchTreatmentPrice()">
-                        <option value="">هەڵبژێرە...</option>
-                        <?php foreach ($archTreatments as $t): ?>
-                        <option value="<?= $t['id'] ?>" data-price="<?= $t['default_price'] ?>" data-name="<?= htmlspecialchars($t['treatment_name']) ?>">
-                            <?= htmlspecialchars($t['treatment_name']) ?> (<?= number_format($t['default_price']) ?>)
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
+                <div class="ar2-step"><span class="ar2-num">٢</span> کام ئیش؟</div>
+                <div class="ar2-cards" id="arCards"></div>
+                <div class="ar2-step"><span class="ar2-num">٣</span> نرخ بۆ هەر ئەرکێک</div>
+                <div class="ar2-price">
+                    <input type="number" name="unit_price" id="archUnitPrice" min="0" step="1" placeholder="نرخ…" oninput="arCalc()">
+                    <span class="ar2-total">کۆ: <b id="archTotalPriceDisplay">0</b></span>
                 </div>
-
-                <div class="arch-form-field">
-                    <label><i class="fas fa-pen"></i> ناوی چارەسەر <span class="required">*</span></label>
-                    <input type="text" name="treatment_name" id="archTreatmentName" required placeholder="ناوی چارەسەر...">
-                </div>
-                </div><!-- /pl-col left -->
-
-                <div class="pl-col">
-                <!-- Pricing Mode Selection -->
-                <div class="arch-form-field">
-                    <label><i class="fas fa-tags"></i> شێوازی نرخدانان <span class="required">*</span></label>
-                    <div class="arch-pricing-mode-selector">
-                        <label class="arch-pricing-mode-option selected" data-mode="per_arch">
-                            <input type="radio" name="pricing_mode" value="per_arch" checked>
-                            <i class="fas fa-teeth-open"></i>
-                            <span>نرخ بۆ هەر ئەرکێک</span>
-                        </label>
-                        <label class="arch-pricing-mode-option" data-mode="total">
-                            <input type="radio" name="pricing_mode" value="total">
-                            <i class="fas fa-calculator"></i>
-                            <span>کۆی گشتی</span>
-                        </label>
-                        <label class="arch-pricing-mode-option" data-mode="separate" id="separatePriceOption" style="display: none;">
-                            <input type="radio" name="pricing_mode" value="separate">
-                            <i class="fas fa-divide"></i>
-                            <span>نرخی جیاواز</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Per arch job price section -->
-                <div class="arch-pricing-section" id="perToothPricing">
-                    <div class="arch-pricing-header orange">
-                        <i class="fas fa-coins"></i> نرخ بۆ هەر ئەرکێک
-                    </div>
-                    <div class="arch-pricing-content">
-                        <div class="arch-price-row">
-                            <span class="arch-price-label">نرخی پێشنیارکراو:</span>
-                            <span class="arch-price-value" id="archDefaultPriceDisplay">0</span>
-                            <span class="arch-price-currency"></span>
-                        </div>
-                        <div class="arch-price-row">
-                            <span class="arch-price-label">نرخی ڕێککەوتن:</span>
-                            <input type="number" name="unit_price" id="archUnitPrice" oninput="calculateArchTotal()" placeholder="نرخ بنووسە...">
-                            <span class="arch-price-currency"></span>
-                            <button type="button" class="arch-use-default-btn" onclick="useArchDefaultPrice()" title="بەکارهێنانی نرخی پێشنیارکراو">
-                                <i class="fas fa-sync-alt"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Total price section (shared only across selected arches) -->
-                <div class="arch-pricing-section" id="totalPricing" style="display: none;">
-                    <div class="arch-pricing-header green">
-                        <i class="fas fa-hand-holding-usd"></i> کۆی نرخی ڕێککەوتن
-                    </div>
-                    <div class="arch-pricing-content">
-                        <div class="arch-price-row">
-                            <span class="arch-price-label" style="color: #2e7d32; font-weight: 600;">کۆی پارەی ڕێککەوتن:</span>
-                            <input type="number" name="total_price" id="archTotalAgreedPrice" oninput="calculateFromTotal()" placeholder="کۆی نرخ..." class="green-input">
-                            <span class="arch-price-currency"></span>
-                        </div>
-                        <div class="arch-price-row calculated">
-                            <span class="arch-price-label">نرخی هەر ئەرکێک:</span>
-                            <span class="arch-price-value green" id="calculatedPerToothPrice">0</span>
-                            <span class="arch-price-currency"></span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Separate Prices Section (upper/lower different) -->
-                <div class="arch-pricing-section" id="separatePricing" style="display: none;">
-                    <div class="arch-pricing-header purple">
-                        <i class="fas fa-layer-group"></i> نرخی جیاواز بۆ هەر ئەرکێک
-                    </div>
-                    <div class="arch-pricing-content">
-                        <div class="arch-price-row">
-                            <span class="arch-price-label" style="color: var(--win-accent, #0078d4); font-weight: 600;">
-                                <i class="fas fa-arrow-up"></i> ماکزیلا / سەرەوە:
-                            </span>
-                            <input type="number" id="upperArchPrice" oninput="calculateSeparateTotal()" placeholder="کۆی نرخ..." class="blue-input">
-                            <span class="arch-price-currency"></span>
-                        </div>
-                        <div class="arch-price-row">
-                            <span class="arch-price-label" style="color: #9c27b0; font-weight: 600;">
-                                <i class="fas fa-arrow-down"></i> ماندیبل / خوارەوە:
-                            </span>
-                            <input type="number" id="lowerArchPrice" oninput="calculateSeparateTotal()" placeholder="کۆی نرخ..." class="purple-input">
-                            <span class="arch-price-currency"></span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Hidden fields for calculated prices -->
-                <input type="hidden" name="upper_unit_price" id="hiddenUpperPrice" value="">
-                <input type="hidden" name="lower_unit_price" id="hiddenLowerPrice" value="">
-
-                <!-- Arch Total Display -->
-                <div class="arch-total-display" id="archTotalDisplay">
-                    <span class="arch-total-label">کۆی گشتی (<span id="archTeethCountDisplay">0</span> ئەرک):</span>
-                    <span class="arch-total-value" id="archTotalPriceDisplay">0</span>
-                    <span class="arch-total-currency"></span>
-                </div>
-
-                <div class="arch-form-field">
-                    <label><i class="fas fa-comment"></i> تێبینی</label>
-                    <input type="text" name="notes" placeholder="تێبینی ئارەزوومەندانە...">
-                </div>
-                </div><!-- /pl-col right -->
-              </div><!-- /pl-grid -->
             </div>
-            <div class="arch-dialog-footer">
-                <button type="submit" class="arch-btn-primary"><i class="fas fa-plus-circle"></i> زیادکردن بۆ ئەرکی هەڵبژێردراو</button>
-                <button type="button" class="arch-btn-secondary" onclick="closeDialog('archTreatmentDialog')"><i class="fas fa-times"></i> داخستن</button>
+            <div class="ar2-foot">
+                <button type="submit" class="ar2-save" id="arSaveBtn" disabled><i class="fas fa-plus-circle"></i> زیادکردن</button>
+                <button type="button" class="ar2-cancel" onclick="closeDialog('archTreatmentDialog')">داخستن</button>
             </div>
         </form>
     </div>
 </div>
+<style>
+.ar2-dialog { max-width: 640px; width: 100%; border-radius: 18px; overflow: hidden; }
+.ar2-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: linear-gradient(135deg, #6d28d9, #4c1d95); color: #fff; }
+.ar2-head h4 { margin: 0; font-size: 17px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
+.ar2-head h4 small { font-size: 12px; font-weight: 500; opacity: .8; }
+.ar2-close { width: 34px; height: 34px; border: 0; border-radius: 50%; background: rgba(255,255,255,.18); color: #fff; cursor: pointer; }
+.ar2-body { padding: 14px 20px 6px; max-height: 70vh; overflow-y: auto; }
+.ar2-step { display: flex; align-items: center; gap: 8px; margin: 10px 0 8px; font-size: 13px; font-weight: 800; color: #4c1d95; }
+.ar2-num { width: 22px; height: 22px; border-radius: 50%; background: #ede9fe; color: #5b21b6; display: grid; place-items: center; font-size: 12px; }
+.ar2-arches { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.ar2-arch { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px 8px; border: 2px solid #e5e7eb; border-radius: 14px; background: #fff; color: #94a3b8; cursor: pointer; font: inherit; transition: border-color .15s, background-color .15s, color .15s, transform .15s; }
+.ar2-arch svg { width: 64px; height: 40px; }
+.ar2-arch b { font-size: 14px; color: #1f2937; }
+.ar2-arch small { font-size: 11px; color: #94a3b8; }
+.ar2-arch:hover { border-color: #c4b5fd; transform: translateY(-1px); }
+.ar2-arch.on { border-color: #6d28d9; background: #f5f3ff; color: #6d28d9; box-shadow: 0 0 0 3px rgba(109, 40, 217, .14); }
+.ar2-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
+.ar2-cards .tp-card { min-height: 128px; }
+.ar2-cards .tp-card.on { border-color: #6d28d9; background: #f5f3ff; box-shadow: 0 0 0 3px rgba(109, 40, 217, .14); }
+.ar2-cards .tp-card.on .tp-card-check { background: #6d28d9; }
+.ar2-cards .tp-card.on .tp-card-price { background: #ede9fe; color: #5b21b6; }
+.ar2-empty { grid-column: 1 / -1; padding: 18px; text-align: center; color: #94a3b8; font-size: 13px; }
+.ar2-price { display: flex; align-items: center; gap: 12px; }
+.ar2-price input { width: 180px; padding: 10px 12px; border: 1.5px solid #e5e7eb; border-radius: 10px; font: inherit; font-size: 16px; font-weight: 700; direction: ltr; text-align: left; }
+.ar2-price input:focus { border-color: #6d28d9; outline: none; box-shadow: 0 0 0 3px rgba(109, 40, 217, .12); }
+.ar2-total { font-size: 14px; color: #475569; }
+.ar2-total b { font-size: 17px; color: #15803d; direction: ltr; display: inline-block; }
+.ar2-foot { display: flex; gap: 10px; padding: 12px 20px 16px; border-top: 1px solid #eef0f3; }
+.ar2-save { padding: 11px 32px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #6d28d9, #4c1d95); color: #fff; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; box-shadow: 0 6px 16px rgba(76, 29, 149, .28); }
+.ar2-save:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+.ar2-cancel { padding: 11px 22px; border: 1.5px solid #d0d7de; border-radius: 12px; background: #fff; color: #334155; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+/* the chart's «ئیشی ئەرک» button */
+.chart-arch-btn { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border: 0; border-radius: 999px; background: linear-gradient(135deg, #6d28d9, #4c1d95); color: #fff; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(76, 29, 149, .28); transition: transform .15s, box-shadow .15s; }
+.chart-arch-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(76, 29, 149, .36); }
+.chart-arch-btn .chart-arch-ico { width: 30px; height: 30px; border-radius: 50%; background: #fff; display: grid; place-items: center; padding: 3px; }
+.chart-arch-btn small { font-weight: 500; opacity: .85; font-size: 11px; }
+</style>
 
 <?php if ($isArchCase): ?>
 <!-- Procedure Log Dialog -->
@@ -13571,77 +13440,63 @@ function calculateTotal() {
 }
 
 // Arch Treatment Functions
-let archDefaultPrice = 0;
-let selectedArches = [];
+
+// ── Whole-arch work: the arch, the treatment as a card, one price an arch ──
+// (the dialog #archTreatmentDialog; arch types are the catalog's scope 'arch')
+const ARCH_TREATMENTS = <?= json_encode(array_map(function ($t) {
+    return ['id' => (int)$t['id'], 'name' => $t['treatment_name'], 'category' => $t['category'] ?? 'other',
+        'icon' => $t['icon'] ?? null, 'price' => (float)$t['default_price']];
+}, $archTreatments), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
+let arArch = '', arTreatment = null;
 
 function openArchTreatmentDialog() {
-    const form = document.getElementById('archTreatmentForm');
-    if (form) form.reset();
-    // Reset selection
-    selectedArches = [];
-    document.querySelectorAll('.arch-select-panel').forEach(p => p.classList.remove('selected'));
+    arArch = ''; arTreatment = null;
     document.getElementById('archTreatmentArchType').value = '';
-    document.getElementById('archTeethCountDisplay').textContent = '0';
-    document.getElementById('archTotalPriceDisplay').textContent = '0';
-    const separate = document.getElementById('separatePriceOption');
-    if (separate) separate.style.display = 'none';
-    ['archUnitPrice', 'archTotalAgreedPrice', 'upperArchPrice', 'lowerArchPrice', 'hiddenUpperPrice', 'hiddenLowerPrice'].forEach(function (id) {
-        const input = document.getElementById(id); if (input) input.value = '';
-    });
-    switchPricingMode('per_arch');
+    document.getElementById('archTreatmentId').value = '';
+    document.getElementById('archTreatmentName').value = '';
+    document.getElementById('archUnitPrice').value = '';
+    document.querySelectorAll('.ar2-arch').forEach(b => b.classList.remove('on'));
+    const box = document.getElementById('arCards');
+    box.innerHTML = ARCH_TREATMENTS.length ? ARCH_TREATMENTS.map(t => `<button type="button" class="tp-card" data-id="${t.id}" onclick="arPickTreatment(${t.id})">
+            <span class="tp-card-check"><i class="fas fa-check"></i></span>
+            <span class="tp-card-art">${treatmentIconSvg(t)}</span>
+            <span class="tp-card-name">${escapeHtml(t.name)}</span>
+            <span class="tp-card-price">${numberFormat(t.price)}</span>
+        </button>`).join('')
+        : '<div class="ar2-empty">هیچ جۆرێکی ئیشی ئەرک نییە — لە «جۆری چارەسەر» یەکێک بە بواری «ئەرک» زیاد بکە</div>';
+    arCalc();
     openDialog('archTreatmentDialog');
 }
-
-function selectArchForTreatment(arch) {
-    const panel = document.querySelector(`.arch-select-panel[data-arch="${arch}"]`);
-    panel.classList.toggle('selected');
-
-    // Update selected arches array
-    if (panel.classList.contains('selected')) {
-        if (!selectedArches.includes(arch)) {
-            selectedArches.push(arch);
-        }
-    } else {
-        selectedArches = selectedArches.filter(a => a !== arch);
-    }
-
-    // Update hidden input
-    if (selectedArches.length === 2) {
-        document.getElementById('archTreatmentArchType').value = 'both';
-    } else if (selectedArches.length === 1) {
-        document.getElementById('archTreatmentArchType').value = selectedArches[0];
-    } else {
-        document.getElementById('archTreatmentArchType').value = '';
-    }
-
-    // An arch is one job; never multiply its price by sixteen teeth.
-    document.getElementById('archTeethCountDisplay').textContent = selectedArches.length;
-
-    // Show/hide separate prices option (only when both arches selected)
-    const separateOption = document.getElementById('separatePriceOption');
-    if (selectedArches.length === 2) {
-        separateOption.style.display = 'flex';
-    } else {
-        separateOption.style.display = 'none';
-        // If separate mode was selected, switch back to the per-arch price.
-        const currentMode = document.querySelector('input[name="pricing_mode"]:checked')?.value;
-        if (currentMode === 'separate') {
-            switchPricingMode('per_arch');
-        }
-    }
-
-    calculateArchTotal();
+function arSetArch(arch) {
+    arArch = arch;
+    document.getElementById('archTreatmentArchType').value = arch;
+    document.querySelectorAll('.ar2-arch').forEach(b => b.classList.toggle('on', b.dataset.arch === arch));
+    arCalc();
 }
-
+function arPickTreatment(id) {
+    arTreatment = ARCH_TREATMENTS.find(t => t.id === id) || null;
+    document.querySelectorAll('#arCards .tp-card').forEach(c => c.classList.toggle('on', Number(c.dataset.id) === id));
+    document.getElementById('archTreatmentId').value = arTreatment ? arTreatment.id : '';
+    document.getElementById('archTreatmentName').value = arTreatment ? arTreatment.name : '';
+    if (arTreatment) document.getElementById('archUnitPrice').value = arTreatment.price;
+    arCalc();
+}
+function arCalc() {
+    const price = Math.max(0, parseFloat(document.getElementById('archUnitPrice').value) || 0);
+    const n = arArch === 'both' ? 2 : (arArch ? 1 : 0);
+    document.getElementById('archTotalPriceDisplay').textContent = numberFormat(price * n);
+    document.getElementById('arSaveBtn').disabled = !(arArch && arTreatment);
+}
 function validateArchForm() {
-    const archType = document.getElementById('archTreatmentArchType').value;
-    if (!archType) {
-        alert('تکایە لانیکەم یەک ئەرک هەڵبژێرە');
-        return false;
-    }
+    if (!arArch) { toast('error', 'ئەرکێک هەڵبژێرە'); return false; }
+    if (!arTreatment) { toast('error', 'ئیشێک هەڵبژێرە'); return false; }
     stampActiveReceipt(document.getElementById('archTreatmentForm'));
     return true;
 }
+document.addEventListener('DOMContentLoaded', function () {
+    const ico = document.querySelector('.chart-arch-btn .chart-arch-ico');
+    if (ico && window.TreatmentIcons) ico.innerHTML = TreatmentIcons.svg('orthodontic');
+});
 
 /**
  * The receipt open in the treatments tab takes a dialog's work; on «ئەمڕۆ»
@@ -13657,137 +13512,6 @@ function stampActiveReceipt(form) {
         form.appendChild(input);
     }
     input.value = typeof activeVisitTab !== 'undefined' && activeVisitTab ? String(activeVisitTab) : '';
-}
-
-function updateArchTreatmentPrice() {
-    const select = document.getElementById('archTreatmentSelect');
-    const option = select.options[select.selectedIndex];
-    const price = parseFloat(option.dataset.price) || 0;
-    const name = option.dataset.name || '';
-
-    archDefaultPrice = price;
-    document.getElementById('archDefaultPriceDisplay').textContent = numberFormat(price);
-    document.getElementById('archUnitPrice').value = price;
-    document.getElementById('archTreatmentName').value = name;
-
-    calculateArchTotal();
-}
-
-function useArchDefaultPrice() {
-    document.getElementById('archUnitPrice').value = archDefaultPrice;
-    calculateArchTotal();
-
-    const btn = document.querySelector('.arch-use-default-btn');
-    if (btn) {
-        btn.style.transform = 'rotate(360deg) scale(1.2)';
-        setTimeout(() => {
-            btn.style.transform = '';
-        }, 300);
-    }
-}
-
-function calculateArchTotal() {
-    const pricingMode = document.querySelector('input[name="pricing_mode"]:checked')?.value || 'per_arch';
-    const archCount = selectedArches.length;
-    let total = 0;
-
-    if (pricingMode === 'per_arch') {
-        const unitPrice = parseFloat(document.getElementById('archUnitPrice').value) || 0;
-        total = unitPrice * archCount;
-        document.getElementById('hiddenUpperPrice').value = unitPrice;
-        document.getElementById('hiddenLowerPrice').value = unitPrice;
-    } else if (pricingMode === 'total') {
-        total = parseFloat(document.getElementById('archTotalAgreedPrice').value) || 0;
-        const perArchPrice = archCount > 0 ? total / archCount : 0;
-        document.getElementById('calculatedPerToothPrice').textContent = numberFormat(perArchPrice);
-        document.getElementById('hiddenUpperPrice').value = perArchPrice;
-        document.getElementById('hiddenLowerPrice').value = perArchPrice;
-    } else if (pricingMode === 'separate') {
-        const upperPrice = parseFloat(document.getElementById('upperArchPrice').value) || 0;
-        const lowerPrice = parseFloat(document.getElementById('lowerArchPrice').value) || 0;
-
-        // Total depends on which arches are selected
-        if (selectedArches.includes('upper') && selectedArches.includes('lower')) {
-            total = upperPrice + lowerPrice;
-        } else if (selectedArches.includes('upper')) {
-            total = upperPrice;
-        } else if (selectedArches.includes('lower')) {
-            total = lowerPrice;
-        }
-
-        // Set hidden prices
-        document.getElementById('hiddenUpperPrice').value = upperPrice;
-        document.getElementById('hiddenLowerPrice').value = lowerPrice;
-    }
-
-    const totalDisplay = document.getElementById('archTotalPriceDisplay');
-    if (totalDisplay) {
-        totalDisplay.textContent = numberFormat(total);
-    }
-}
-
-// Pricing Mode Functions
-function switchPricingMode(mode) {
-    // Update radio buttons and visual selection
-    document.querySelectorAll('.arch-pricing-mode-option').forEach(opt => {
-        opt.classList.remove('selected');
-        if (opt.dataset.mode === mode) {
-            opt.classList.add('selected');
-            opt.querySelector('input[type="radio"]').checked = true;
-        }
-    });
-
-    // Show/hide pricing sections
-    document.getElementById('perToothPricing').style.display = mode === 'per_arch' ? 'block' : 'none';
-    document.getElementById('totalPricing').style.display = mode === 'total' ? 'block' : 'none';
-    document.getElementById('separatePricing').style.display = mode === 'separate' ? 'block' : 'none';
-
-    // Recalculate total
-    calculateArchTotal();
-}
-
-// Initialize pricing mode event listeners
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.arch-pricing-mode-option').forEach(opt => {
-        opt.addEventListener('click', function() {
-            switchPricingMode(this.dataset.mode);
-        });
-    });
-});
-
-function calculateFromTotal() {
-    const totalPrice = parseFloat(document.getElementById('archTotalAgreedPrice').value) || 0;
-    const archCount = selectedArches.length;
-
-    if (archCount > 0) {
-        const perArchPrice = totalPrice / archCount;
-        document.getElementById('calculatedPerToothPrice').textContent = numberFormat(perArchPrice);
-        document.getElementById('hiddenUpperPrice').value = perArchPrice;
-        document.getElementById('hiddenLowerPrice').value = perArchPrice;
-    }
-
-    // Update total display
-    document.getElementById('archTotalPriceDisplay').textContent = numberFormat(totalPrice);
-}
-
-function calculateSeparateTotal() {
-    const upperPrice = parseFloat(document.getElementById('upperArchPrice').value) || 0;
-    const lowerPrice = parseFloat(document.getElementById('lowerArchPrice').value) || 0;
-
-    document.getElementById('hiddenUpperPrice').value = upperPrice;
-    document.getElementById('hiddenLowerPrice').value = lowerPrice;
-
-    // Calculate total based on selected arches
-    let total = 0;
-    if (selectedArches.includes('upper') && selectedArches.includes('lower')) {
-        total = upperPrice + lowerPrice;
-    } else if (selectedArches.includes('upper')) {
-        total = upperPrice;
-    } else if (selectedArches.includes('lower')) {
-        total = lowerPrice;
-    }
-
-    document.getElementById('archTotalPriceDisplay').textContent = numberFormat(total);
 }
 
 function editTreatment(t) {
