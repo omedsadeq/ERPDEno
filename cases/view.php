@@ -1162,47 +1162,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
 
         $pricingMode = $_POST['pricing_mode'] ?? 'per_arch';
-
-        $treatmentData = [
-            'treatment_id' => intval($_POST['treatment_id']) ?: null,
-            'treatment_name' => trim($_POST['treatment_name']),
-            'quantity' => 1,
-            'discount' => 0,
-            'notes' => trim($_POST['notes'] ?? ''),
-            'performed_by' => $currentUser['id']
-        ];
-
-        $archCount = $archType === 'both' ? 2 : 1;
-        // Legacy per_tooth is accepted as an alias so an already-open browser
-        // tab cannot fall back to multiplying by sixteen after deployment.
-        if ($pricingMode === 'per_arch' || $pricingMode === 'per_tooth') {
-            $treatmentData['unit_price'] = max(0, floatval($_POST['unit_price']));
-        } elseif ($pricingMode === 'total') {
-            $wholeTotal = max(0, floatval($_POST['total_price'] ?? 0));
-            $perArch = $archCount > 0 ? round($wholeTotal / $archCount, 2) : 0;
-            $treatmentData['unit_price'] = $perArch;
-            $treatmentData['upper_unit_price'] = $perArch;
-            $treatmentData['lower_unit_price'] = $perArch;
-        } elseif ($pricingMode === 'separate') {
-            $treatmentData['upper_unit_price'] = max(0, floatval($_POST['upper_unit_price'] ?: 0));
-            $treatmentData['lower_unit_price'] = max(0, floatval($_POST['lower_unit_price'] ?: 0));
-            $treatmentData['unit_price'] = 0;
-        } else {
-            $treatmentData['unit_price'] = floatval($_POST['unit_price']);
-        }
-
         if (!in_array($archType, ['upper', 'lower', 'both'], true)) {
             case_view_fail($caseId, 'هەڵبژاردنی ئەرک نادروستە', 'archTreatmentDialog');
         }
-        if (trim($treatmentData['treatment_name']) === '') {
-            case_view_fail($caseId, 'ناوی چارەسەر پێویستە', 'archTreatmentDialog');
+        $archCount = $archType === 'both' ? 2 : 1;
+
+        // «ئیشی ئەرک» may send several cards at once — items[n][treatment_id,
+        // treatment_name, unit_price], a price an arch each — added together,
+        // all of them or none. A single card still comes as the plain fields.
+        $archItems = [];
+        if (isset($_POST['items']) && is_array($_POST['items'])) {
+            foreach ($_POST['items'] as $it) {
+                if (!is_array($it)) {
+                    continue;
+                }
+                $archItems[] = [
+                    'treatment_id'   => intval($it['treatment_id'] ?? 0) ?: null,
+                    'treatment_name' => trim((string)($it['treatment_name'] ?? '')),
+                    'unit_price'     => max(0, floatval($it['unit_price'] ?? 0)),
+                ];
+            }
+            if (!$archItems || count($archItems) > 30) {
+                case_view_fail($caseId, 'ئیشێک هەڵبژێرە', 'archTreatmentDialog');
+            }
+        } else {
+            $one = [
+                'treatment_id'   => intval($_POST['treatment_id'] ?? 0) ?: null,
+                'treatment_name' => trim((string)($_POST['treatment_name'] ?? '')),
+            ];
+            // Legacy per_tooth is accepted as an alias so an already-open browser
+            // tab cannot fall back to multiplying by sixteen after deployment.
+            if ($pricingMode === 'per_arch' || $pricingMode === 'per_tooth') {
+                $one['unit_price'] = max(0, floatval($_POST['unit_price'] ?? 0));
+            } elseif ($pricingMode === 'total') {
+                $wholeTotal = max(0, floatval($_POST['total_price'] ?? 0));
+                $perArch = $archCount > 0 ? round($wholeTotal / $archCount, 2) : 0;
+                $one['unit_price'] = $perArch;
+                $one['upper_unit_price'] = $perArch;
+                $one['lower_unit_price'] = $perArch;
+            } elseif ($pricingMode === 'separate') {
+                $one['upper_unit_price'] = max(0, floatval($_POST['upper_unit_price'] ?: 0));
+                $one['lower_unit_price'] = max(0, floatval($_POST['lower_unit_price'] ?: 0));
+                $one['unit_price'] = 0;
+            } else {
+                $one['unit_price'] = floatval($_POST['unit_price'] ?? 0);
+            }
+            $archItems[] = $one;
+        }
+        foreach ($archItems as $it) {
+            if ($it['treatment_name'] === '') {
+                case_view_fail($caseId, 'ناوی چارەسەر پێویستە', 'archTreatmentDialog');
+            }
         }
         list($targetInvoiceId, $targetPerformed) = $resolve_target_draft();
-        if ($targetInvoiceId) {
-            $treatmentData['invoice_id'] = $targetInvoiceId;
-            $treatmentData['performed_date'] = $targetPerformed;
+        $result = ['success' => true, 'count' => 0];
+        $db->beginTransaction();
+        foreach ($archItems as $it) {
+            $treatmentData = $it + [
+                'quantity' => 1,
+                'discount' => 0,
+                'notes' => trim($_POST['notes'] ?? ''),
+                'performed_by' => $currentUser['id'],
+            ];
+            if ($targetInvoiceId) {
+                $treatmentData['invoice_id'] = $targetInvoiceId;
+                $treatmentData['performed_date'] = $targetPerformed;
+            }
+            $added = $caseManager->addArchTreatment($caseId, $treatmentData, $archType);
+            if (empty($added['success'])) {
+                // rolls back the cards already added in this request too
+                case_view_fail($caseId, ($added['message'] ?? '') ?: 'زیادکردنی ' . $it['treatment_name'] . ' سەرنەکەوت', 'archTreatmentDialog');
+            }
+            $result['count'] += (int)($added['count'] ?? 0);
         }
-        $result = $caseManager->addArchTreatment($caseId, $treatmentData, $archType);
+        $db->commit();
         if ($result['success']) {
             if ($targetInvoiceId) { $caseInvoice->recomputeTotal($targetInvoiceId); }
             // Update the case's selected_arch if it's an arch-type case
@@ -7420,8 +7453,9 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 </div>
 
 <!-- Arch Treatment Dialog — whole-arch work (ortho, a denture …): the arch,
-     the treatment as a card, one price an arch. Posts add_arch_treatment
-     with pricing_mode=per_arch; the receipt on screen takes it (stampActiveReceipt). -->
+     the treatments as cards (several at once), each at its catalog price an
+     arch — corrected in the receipt afterwards. Posts add_arch_treatment with
+     items[]; the receipt on screen takes them (stampActiveReceipt). -->
 <div class="dialog-overlay" id="archTreatmentDialog">
     <div class="dialog ar2-dialog">
         <div class="ar2-head">
@@ -7432,8 +7466,7 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
             <input type="hidden" name="action" value="add_arch_treatment">
             <input type="hidden" name="pricing_mode" value="per_arch">
             <input type="hidden" name="arch_type" id="archTreatmentArchType" value="">
-            <input type="hidden" name="treatment_id" id="archTreatmentId" value="">
-            <input type="hidden" name="treatment_name" id="archTreatmentName" value="">
+            <div id="arItems" hidden></div>
             <div class="ar2-body">
                 <div class="ar2-step"><span class="ar2-num">١</span> کام ئەرک؟</div>
                 <div class="ar2-arches">
@@ -7450,17 +7483,13 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
                     </button>
                     <?php endforeach; ?>
                 </div>
-                <div class="ar2-step"><span class="ar2-num">٢</span> کام ئیش؟</div>
+                <div class="ar2-step"><span class="ar2-num">٢</span> کام ئیش؟ <small class="ar2-hint">— چەند دانەیەک دەتوانیت هەڵبژێریت</small></div>
                 <div class="ar2-cards" id="arCards"></div>
-                <div class="ar2-step"><span class="ar2-num">٣</span> نرخ بۆ هەر ئەرکێک</div>
-                <div class="ar2-price">
-                    <input type="number" name="unit_price" id="archUnitPrice" min="0" step="1" placeholder="نرخ…" oninput="arCalc()">
-                    <span class="ar2-total">کۆ: <b id="archTotalPriceDisplay">0</b></span>
-                </div>
             </div>
             <div class="ar2-foot">
                 <button type="submit" class="ar2-save" id="arSaveBtn" disabled><i class="fas fa-plus-circle"></i> زیادکردن</button>
                 <button type="button" class="ar2-cancel" onclick="closeDialog('archTreatmentDialog')">داخستن</button>
+                <span class="ar2-total">کۆ: <b id="archTotalPriceDisplay">0</b></span>
             </div>
         </form>
     </div>
@@ -7501,12 +7530,13 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 .ar2-cards .tp-card.on .tp-card-check { background: #6d28d9; }
 .ar2-cards .tp-card.on .tp-card-price { background: #ede9fe; color: #5b21b6; }
 .ar2-empty { grid-column: 1 / -1; padding: 18px; text-align: center; color: #94a3b8; font-size: 13px; }
+.ar2-hint { font-weight: 500; color: #94a3b8; font-size: 12px; }
 .ar2-price { display: flex; align-items: center; gap: 12px; }
 .ar2-price input { width: 180px; padding: 10px 12px; border: 1.5px solid #e5e7eb; border-radius: 10px; font: inherit; font-size: 16px; font-weight: 700; direction: ltr; text-align: left; }
 .ar2-price input:focus { border-color: #6d28d9; outline: none; box-shadow: 0 0 0 3px rgba(109, 40, 217, .12); }
-.ar2-total { font-size: 14px; color: #475569; }
+.ar2-total { margin-inline-start: auto; font-size: 14px; color: #475569; }
 .ar2-total b { font-size: 17px; color: #15803d; direction: ltr; display: inline-block; }
-.ar2-foot { display: flex; gap: 10px; padding: 12px 20px 16px; border-top: 1px solid #eef0f3; }
+.ar2-foot { display: flex; align-items: center; gap: 10px; padding: 12px 20px 16px; border-top: 1px solid #eef0f3; }
 .ar2-save { padding: 11px 32px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #6d28d9, #4c1d95); color: #fff; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; box-shadow: 0 6px 16px rgba(76, 29, 149, .28); }
 .ar2-save:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
 .ar2-cancel { padding: 11px 22px; border: 1.5px solid #d0d7de; border-radius: 12px; background: #fff; color: #334155; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
@@ -11185,16 +11215,27 @@ function tpToggleFavorite(id) {
 }
 
 // A click picks a card, «دیارکردن» (or a double click, or Enter) uses it.
+// From the chart a click toggles, so several treatments go on the teeth at once.
 let tpSelectedId = null;
+let tpPicked = [];                  // ids picked for the chart's teeth, in click order
 function tpPaintSelection() {
-    document.querySelectorAll('#tpList .tp-card').forEach(c =>
-        c.classList.toggle('on', Number(c.dataset.id) === tpSelectedId));
+    // from the chart several cards can be picked; for a dialog's field, one
+    const multi = tpQuickTeeth !== null;
+    document.querySelectorAll('#tpList .tp-card').forEach(c => {
+        const id = Number(c.dataset.id);
+        c.classList.toggle('on', multi ? tpPicked.includes(id) : id === tpSelectedId);
+    });
     const ok = document.getElementById('tpConfirm');
-    if (ok) ok.disabled = tpSelectedId === null || quickAddBusy;
+    if (ok) {
+        const n = multi ? tpPicked.length : (tpSelectedId === null ? 0 : 1);
+        ok.disabled = !n || quickAddBusy;
+        ok.textContent = 'دیارکردن' + (multi && n > 1 ? ' (' + n + ')' : '');
+    }
 }
 function tpConfirmPick() {
-    if (tpSelectedId === null || quickAddBusy) return;
-    if (tpQuickTeeth !== null) quickAddTreatment(tpSelectedId); else chooseTreatment(tpSelectedId);
+    if (quickAddBusy) return;
+    if (tpQuickTeeth !== null) { if (tpPicked.length) quickAddTreatments(tpPicked.slice()); }
+    else if (tpSelectedId !== null) chooseTreatment(tpSelectedId);
 }
 
 function openTreatmentPicker() {
@@ -11245,6 +11286,7 @@ function setQuickToothMode(nums) {
     }
     // work for teeth on the chart: nothing picked yet
     tpSelectedId = null;
+    tpPicked = [];
     tpPaintSelection();
     if (tpQuickTeeth.length === 1) {
         const num = tpQuickTeeth[0];
@@ -11261,6 +11303,7 @@ function setQuickToothMode(nums) {
             + ' — هەر ددانێک بە نرخی خۆی</small>';
         if (history) history.hidden = true;
     }
+    title.insertAdjacentHTML('beforeend', ' <small class="tp-multi-hint">· دەتوانیت چەند چارەسەرێک هەڵبژێریت</small>');
 }
 function openQuickToothAdd(num) {
     openTreatmentPicker();
@@ -11272,49 +11315,61 @@ function openQuickTeethAdd() {
     openTreatmentPicker();
     setQuickToothMode(bulkSelected.slice());
 }
-function quickAddTreatment(id) {
-    const t = treatmentCatalog.find(x => x.id === id);
-    if (!t || quickAddBusy || !tpQuickTeeth || !tpQuickTeeth.length) return;
+/** Every picked treatment onto every selected tooth, one request a treatment. */
+async function quickAddTreatments(ids) {
+    const list = ids.map(id => treatmentCatalog.find(x => x.id === id)).filter(Boolean);
+    if (!list.length || quickAddBusy || !tpQuickTeeth || !tpQuickTeeth.length) return;
     quickAddBusy = true;
     tpPaintSelection();
     const teeth = tpQuickTeeth.slice();
-    const fd = new FormData();
-    fd.set('csrf_token', window.CSRF_TOKEN || CSRF_TOKEN);
-    fd.set('ajax', '1');
-    if (teeth.length === 1) {
-        fd.set('action', 'add_treatment');
-        fd.set('tooth_number', teeth[0]);
-        fd.set('quantity', '1');
-    } else {
-        // all-or-nothing on the server; the quantity is the group's (1 a tooth)
-        fd.set('action', 'add_treatment_bulk');
-        fd.set('tooth_numbers', JSON.stringify(teeth));
-        fd.set('quantity', String(teeth.length));
-    }
-    fd.set('treatment_id', t.id);
-    fd.set('treatment_name', t.name);
-    fd.set('unit_price', t.price);
-    fd.set('discount', '0');
-    const activeTab = document.querySelector('.vt-tab.is-active[data-invoice-tab]');
-    if (activeTab) fd.set('invoice_id', activeTab.dataset.invoiceTab);
+    const done = [];
     document.getElementById('tpList')?.classList.add('is-busy');
-    fetch(window.location.href, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-        .then(r => r.json())
-        .then(d => {
-            if (!d.success) { toast('error', d.message || 'هەڵەیەک ڕوویدا'); return; }
+    try {
+        for (const t of list) {
+            const fd = new FormData();
+            fd.set('csrf_token', window.CSRF_TOKEN || CSRF_TOKEN);
+            fd.set('ajax', '1');
+            if (teeth.length === 1) {
+                fd.set('action', 'add_treatment');
+                fd.set('tooth_number', teeth[0]);
+                fd.set('quantity', '1');
+            } else {
+                // all-or-nothing on the server; the quantity is the group's (1 a tooth)
+                fd.set('action', 'add_treatment_bulk');
+                fd.set('tooth_numbers', JSON.stringify(teeth));
+                fd.set('quantity', String(teeth.length));
+            }
+            fd.set('treatment_id', t.id);
+            fd.set('treatment_name', t.name);
+            fd.set('unit_price', t.price);
+            fd.set('discount', '0');
+            // read each time: the first one may have just made today's receipt
+            const activeTab = document.querySelector('.vt-tab.is-active[data-invoice-tab]');
+            if (activeTab) fd.set('invoice_id', activeTab.dataset.invoiceTab);
+            const d = await fetch(window.location.href, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then(r => r.json());
+            if (!d.success) {
+                toast('error', (done.length ? done.length + ' زیادکرا؛ ' : '') + t.name + ': ' + (d.message || 'هەڵەیەک ڕوویدا'));
+                break;
+            }
+            applyCaseSnapshot(d);
+            done.push(t);
+        }
+        if (done.length === list.length) {
             closeTreatmentPicker();
             clearBulkSelection();
-            applyCaseSnapshot(d);
-            toast('success', teeth.length === 1
-                ? t.name + ' بۆ ددان ' + palmerOf(teeth[0]) + ' زیادکرا'
-                : t.name + ' بۆ ' + teeth.length + ' ددان زیادکرا');
-        })
-        .catch(() => toast('error', 'هەڵەیەک ڕوویدا لە پەیوەندیکردن'))
-        .finally(() => {
-            quickAddBusy = false;
-            document.getElementById('tpList')?.classList.remove('is-busy');
-            tpPaintSelection();
-        });
+            toast('success', (done.length === 1 ? done[0].name : done.length + ' چارەسەر')
+                + (teeth.length === 1 ? ' بۆ ددان ' + palmerOf(teeth[0]) : ' بۆ ' + teeth.length + ' ددان') + ' زیادکرا');
+        } else {
+            // what went in is not picked any more, so trying again does not add it twice
+            tpPicked = tpPicked.filter(id => !done.some(t => t.id === id));
+        }
+    } catch (e) {
+        toast('error', 'هەڵەیەک ڕوویدا لە پەیوەندیکردن');
+    } finally {
+        quickAddBusy = false;
+        document.getElementById('tpList')?.classList.remove('is-busy');
+        tpPaintSelection();
+    }
 }
 function openQuickToothHistory() {
     const num = tpQuickTeeth && tpQuickTeeth.length === 1 ? tpQuickTeeth[0] : null;
@@ -11369,7 +11424,13 @@ document.addEventListener('click', function (e) {
     if (star) { tpToggleFavorite(parseInt(star.dataset.star, 10)); return; }
     const card = e.target.closest('#tpList .tp-card');
     if (card) {
-        tpSelectedId = parseInt(card.dataset.id, 10);
+        const id = parseInt(card.dataset.id, 10);
+        if (tpQuickTeeth !== null) {
+            const i = tpPicked.indexOf(id);
+            if (i === -1) tpPicked.push(id); else tpPicked.splice(i, 1);
+        } else {
+            tpSelectedId = id;
+        }
         tpPaintSelection();
         return;
     }
@@ -11379,7 +11440,9 @@ document.addEventListener('click', function (e) {
 document.addEventListener('dblclick', function (e) {
     const card = e.target.closest('#tpList .tp-card');
     if (!card || e.target.closest('.tp-card-star')) return;
-    tpSelectedId = parseInt(card.dataset.id, 10);
+    const id = parseInt(card.dataset.id, 10);
+    if (tpQuickTeeth !== null) { if (!tpPicked.includes(id)) tpPicked.push(id); }
+    else tpSelectedId = id;
     tpConfirmPick();
 });
 document.addEventListener('input', function (e) {
@@ -11390,7 +11453,10 @@ document.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter' || !e.target || e.target.id !== 'tpSearch') return;
     e.preventDefault();
     const shown = Array.from(document.querySelectorAll('#tpList .tp-card')).map(c => Number(c.dataset.id));
-    if (tpSelectedId !== null && shown.includes(tpSelectedId)) tpConfirmPick();
+    if (tpQuickTeeth !== null) {
+        if (tpPicked.length) tpConfirmPick();
+        else if (shown.length) { tpPicked = [shown[0]]; tpPaintSelection(); }
+    } else if (tpSelectedId !== null && shown.includes(tpSelectedId)) tpConfirmPick();
     else if (shown.length) { tpSelectedId = shown[0]; tpPaintSelection(); }
 });
 document.addEventListener('keydown', function (e) {
@@ -13461,7 +13527,7 @@ const ARCH_TREATMENTS = <?= json_encode(array_map(function ($t) {
     return ['id' => (int)$t['id'], 'name' => $t['treatment_name'], 'category' => $t['category'] ?? 'other',
         'icon' => $t['icon'] ?? null, 'price' => (float)$t['default_price']];
 }, $archTreatments), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
-let arArch = '', arTreatment = null;
+let arArch = '', arPicked = [];     // the arch, and the picked cards: [{id, name, icon, category, price}]
 
 /** One arch from above, in the treatment icons' gradients (assets/js/treatment-icons.js). */
 function arArchSvg(kind) {
@@ -13492,11 +13558,8 @@ function arDrawArches() {
 
 function openArchTreatmentDialog() {
     arDrawArches();
-    arArch = ''; arTreatment = null;
+    arArch = ''; arPicked = [];
     document.getElementById('archTreatmentArchType').value = '';
-    document.getElementById('archTreatmentId').value = '';
-    document.getElementById('archTreatmentName').value = '';
-    document.getElementById('archUnitPrice').value = '';
     document.querySelectorAll('.ar2-arch').forEach(b => b.classList.remove('on'));
     const box = document.getElementById('arCards');
     box.innerHTML = ARCH_TREATMENTS.length ? ARCH_TREATMENTS.map(t => `<button type="button" class="tp-card" data-id="${t.id}" onclick="arPickTreatment(${t.id})">
@@ -13515,23 +13578,41 @@ function arSetArch(arch) {
     document.querySelectorAll('.ar2-arch').forEach(b => b.classList.toggle('on', b.dataset.arch === arch));
     arCalc();
 }
+/** A card click picks it, a second click lets it go — several can be picked. */
 function arPickTreatment(id) {
-    arTreatment = ARCH_TREATMENTS.find(t => t.id === id) || null;
-    document.querySelectorAll('#arCards .tp-card').forEach(c => c.classList.toggle('on', Number(c.dataset.id) === id));
-    document.getElementById('archTreatmentId').value = arTreatment ? arTreatment.id : '';
-    document.getElementById('archTreatmentName').value = arTreatment ? arTreatment.name : '';
-    if (arTreatment) document.getElementById('archUnitPrice').value = arTreatment.price;
+    const i = arPicked.findIndex(p => p.id === id);
+    if (i !== -1) arPicked.splice(i, 1);
+    else {
+        const t = ARCH_TREATMENTS.find(x => x.id === id);
+        if (t) arPicked.push(Object.assign({}, t));
+    }
+    document.querySelectorAll('#arCards .tp-card').forEach(c => c.classList.toggle('on', arPicked.some(p => p.id === Number(c.dataset.id))));
     arCalc();
 }
+/** Each card at its catalog price an arch; «هەردوو» is two arches. */
 function arCalc() {
-    const price = Math.max(0, parseFloat(document.getElementById('archUnitPrice').value) || 0);
     const n = arArch === 'both' ? 2 : (arArch ? 1 : 0);
-    document.getElementById('archTotalPriceDisplay').textContent = numberFormat(price * n);
-    document.getElementById('arSaveBtn').disabled = !(arArch && arTreatment);
+    const total = arPicked.reduce((sum, p) => sum + p.price * n, 0);
+    document.getElementById('archTotalPriceDisplay').textContent = n && arPicked.length ? numberFormat(total) : '—';
+    const save = document.getElementById('arSaveBtn');
+    save.disabled = !(arArch && arPicked.length);
+    save.innerHTML = '<i class="fas fa-plus-circle"></i> زیادکردن' + (arPicked.length > 1 ? ' (' + arPicked.length + ')' : '');
 }
 function validateArchForm() {
     if (!arArch) { toast('error', 'ئەرکێک هەڵبژێرە'); return false; }
-    if (!arTreatment) { toast('error', 'ئیشێک هەڵبژێرە'); return false; }
+    if (!arPicked.length) { toast('error', 'ئیشێک هەڵبژێرە'); return false; }
+    // one items[n] per card (cases/view.php add_arch_treatment)
+    const box = document.getElementById('arItems');
+    box.innerHTML = '';
+    arPicked.forEach((p, i) => {
+        [['treatment_id', p.id], ['treatment_name', p.name], ['unit_price', p.price]].forEach(([k, v]) => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'items[' + i + '][' + k + ']';
+            input.value = String(v);
+            box.appendChild(input);
+        });
+    });
     stampActiveReceipt(document.getElementById('archTreatmentForm'));
     return true;
 }

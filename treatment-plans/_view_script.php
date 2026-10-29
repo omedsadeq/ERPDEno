@@ -788,15 +788,25 @@ function tpToggleFavorite(id) {
 }
 
 let tpSelectedId = null;
+let tpPicked = [];                  // ids picked for the chart's teeth, in click order
 function tpPaintSelection() {
-    document.querySelectorAll('#tpList .tp-card').forEach(c =>
-        c.classList.toggle('on', Number(c.dataset.id) === tpSelectedId));
+    // from the chart several cards can be picked; for a dialog's field, one
+    const multi = tpQuickTeeth !== null;
+    document.querySelectorAll('#tpList .tp-card').forEach(c => {
+        const id = Number(c.dataset.id);
+        c.classList.toggle('on', multi ? tpPicked.includes(id) : id === tpSelectedId);
+    });
     const ok = document.getElementById('tpConfirm');
-    if (ok) ok.disabled = tpSelectedId === null || quickAddBusy;
+    if (ok) {
+        const n = multi ? tpPicked.length : (tpSelectedId === null ? 0 : 1);
+        ok.disabled = !n || quickAddBusy;
+        ok.textContent = 'دیارکردن' + (multi && n > 1 ? ' (' + n + ')' : '');
+    }
 }
 window.tpConfirmPick = function () {
-    if (tpSelectedId === null || quickAddBusy) return;
-    if (tpQuickTeeth !== null) quickAddTreatment(tpSelectedId); else chooseTreatment(tpSelectedId);
+    if (quickAddBusy) return;
+    if (tpQuickTeeth !== null) { if (tpPicked.length) quickAddTreatments(tpPicked.slice()); }
+    else if (tpSelectedId !== null) chooseTreatment(tpSelectedId);
 };
 window.openTreatmentPicker = function () {
     const ov = document.getElementById('treatmentPicker');
@@ -841,6 +851,7 @@ function setQuickToothMode(nums) {
         return;
     }
     tpSelectedId = null;
+    tpPicked = [];
     tpPaintSelection();
     if (tpQuickTeeth.length === 1) {
         const num = tpQuickTeeth[0];
@@ -856,6 +867,7 @@ function setQuickToothMode(nums) {
             + ' <small>' + tpQuickTeeth.map(toothTag).join(' ') + ' — هەر ددانێک بە نرخی خۆی</small>';
         if (history) history.hidden = true;
     }
+    title.insertAdjacentHTML('beforeend', ' <small class="tp-multi-hint">· دەتوانیت چەند چارەسەرێک هەڵبژێریت</small>');
 }
 /** Right click, or «زیادکردنی ئیش» on the bar: the cards for every selected tooth. */
 window.openQuickTeethAdd = function () {
@@ -863,33 +875,43 @@ window.openQuickTeethAdd = function () {
     openTreatmentPicker();
     setQuickToothMode(bulkSelected.slice());
 };
-function quickAddTreatment(id) {
-    const t = treatmentCatalog.find(x => x.id === id);
-    if (!t || quickAddBusy || !tpQuickTeeth || !tpQuickTeeth.length) return;
+/** Every picked treatment onto every selected tooth, one request a treatment (each all-or-nothing). */
+async function quickAddTreatments(ids) {
+    const list = ids.map(id => treatmentCatalog.find(x => x.id === id)).filter(Boolean);
+    if (!list.length || quickAddBusy || !tpQuickTeeth || !tpQuickTeeth.length) return;
     quickAddBusy = true;
     tpPaintSelection();
     const teeth = tpQuickTeeth.slice();
-    const base = { plan_id: PLAN_ID, treatment_id: t.id, treatment_name: t.name, unit_price: t.price, discount: 0, quantity: 1 };
-    // several teeth: one request, all of them or none (ajax/treatment_plan.php add_items)
-    const req = teeth.length === 1
-        ? post('add_item', Object.assign({ tooth_number: teeth[0] }, base))
-        : post('add_items', Object.assign({ tooth_numbers: teeth }, base));
+    const done = [];
     document.getElementById('tpList')?.classList.add('is-busy');
-    req.then(res => {
-        if (!res || !res.success) { toast('error', (res && (res.error || res.message)) || 'هەڵەیەک ڕوویدا'); return; }
-        closeTreatmentPicker();
-        clearBulkSelection();
-        applyResponse(res);
-        toast('success', teeth.length === 1
-            ? t.name + ' بۆ ددان ' + palmerOf(teeth[0]) + ' زیادکرا'
-            : t.name + ' بۆ ' + teeth.length + ' ددان زیادکرا');
-    })
-        .catch(() => toast('error', 'هەڵەیەک ڕوویدا لە پەیوەندیکردن'))
-        .finally(() => {
-            quickAddBusy = false;
-            document.getElementById('tpList')?.classList.remove('is-busy');
-            tpPaintSelection();
-        });
+    try {
+        for (const t of list) {
+            const base = { plan_id: PLAN_ID, treatment_id: t.id, treatment_name: t.name, unit_price: t.price, discount: 0, quantity: 1 };
+            const res = await (teeth.length === 1
+                ? post('add_item', Object.assign({ tooth_number: teeth[0] }, base))
+                : post('add_items', Object.assign({ tooth_numbers: teeth }, base)));
+            if (!res || !res.success) {
+                toast('error', (done.length ? done.length + ' زیادکرا؛ ' : '') + t.name + ': ' + ((res && (res.error || res.message)) || 'هەڵەیەک ڕوویدا'));
+                break;
+            }
+            applyResponse(res);
+            done.push(t);
+        }
+        if (done.length === list.length) {
+            closeTreatmentPicker();
+            clearBulkSelection();
+            toast('success', (done.length === 1 ? done[0].name : done.length + ' چارەسەر')
+                + (teeth.length === 1 ? ' بۆ ددان ' + palmerOf(teeth[0]) : ' بۆ ' + teeth.length + ' ددان') + ' زیادکرا');
+        } else {
+            tpPicked = tpPicked.filter(id => !done.some(t => t.id === id));
+        }
+    } catch (e) {
+        toast('error', 'هەڵەیەک ڕوویدا لە پەیوەندیکردن');
+    } finally {
+        quickAddBusy = false;
+        document.getElementById('tpList')?.classList.remove('is-busy');
+        tpPaintSelection();
+    }
 }
 window.openQuickToothHistory = function () {
     const num = tpQuickTeeth && tpQuickTeeth.length === 1 ? tpQuickTeeth[0] : null;
@@ -935,14 +957,26 @@ document.addEventListener('click', function (e) {
     const star = e.target.closest('#tpList .tp-card-star');
     if (star) { tpToggleFavorite(parseInt(star.dataset.star, 10)); return; }
     const card = e.target.closest('#tpList .tp-card');
-    if (card) { tpSelectedId = parseInt(card.dataset.id, 10); tpPaintSelection(); return; }
+    if (card) {
+        const id = parseInt(card.dataset.id, 10);
+        if (tpQuickTeeth !== null) {
+            const i = tpPicked.indexOf(id);
+            if (i === -1) tpPicked.push(id); else tpPicked.splice(i, 1);
+        } else {
+            tpSelectedId = id;
+        }
+        tpPaintSelection();
+        return;
+    }
     const ov = document.getElementById('treatmentPicker');
     if (ov && e.target === ov) closeTreatmentPicker();
 });
 document.addEventListener('dblclick', function (e) {
     const card = e.target.closest('#tpList .tp-card');
     if (!card || e.target.closest('.tp-card-star')) return;
-    tpSelectedId = parseInt(card.dataset.id, 10);
+    const id = parseInt(card.dataset.id, 10);
+    if (tpQuickTeeth !== null) { if (!tpPicked.includes(id)) tpPicked.push(id); }
+    else tpSelectedId = id;
     tpConfirmPick();
 });
 document.addEventListener('input', function (e) { if (e.target && e.target.id === 'tpSearch') renderTreatmentPicker(); });
@@ -951,7 +985,10 @@ document.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter' || !e.target || e.target.id !== 'tpSearch') return;
     e.preventDefault();
     const shown = Array.from(document.querySelectorAll('#tpList .tp-card')).map(c => Number(c.dataset.id));
-    if (tpSelectedId !== null && shown.includes(tpSelectedId)) tpConfirmPick();
+    if (tpQuickTeeth !== null) {
+        if (tpPicked.length) tpConfirmPick();
+        else if (shown.length) { tpPicked = [shown[0]]; tpPaintSelection(); }
+    } else if (tpSelectedId !== null && shown.includes(tpSelectedId)) tpConfirmPick();
     else if (shown.length) { tpSelectedId = shown[0]; tpPaintSelection(); }
 });
 document.addEventListener('keydown', function (e) {

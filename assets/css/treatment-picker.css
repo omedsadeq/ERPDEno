@@ -206,3 +206,5 @@
 .tp-btn-icon { display: flex; align-items: center; flex-shrink: 0; width: 26px; height: 26px; }
 .tp-btn-name { flex: 1; color: var(--text-color, #222); font-weight: 600; }
 .tp-btn-price { font-weight: 700; color: #107c10; font-size: 12.5px; }
+/* «· دەتوانیت چەند چارەسەرێک هەڵبژێریت» after the title, when adding from the chart */
+.tp-head h4 small.tp-multi-hint { color: #1d6fe0; font-weight: 600; }
