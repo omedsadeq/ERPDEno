@@ -346,7 +346,7 @@
     .ch-note { white-space: normal; }
 }
 
-/* Whole-arch work on its jaw (assets/js/tooth-art.js renderArchWork) */
+/* Whole-arch work on its jaw (assets/js/tooth-art.js renderArchWork): chips, no tint behind the jaw */
 .smart-dental-chart .jaw-arch-row { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; margin: 0 0 6px; }
 .smart-dental-chart .jaw-section--lower .jaw-arch-row { margin: 6px 0 0; }
 .smart-dental-chart .jaw-arch-label { font-size: 11px; font-weight: 800; color: #64748b; }
@@ -359,9 +359,6 @@
 .smart-dental-chart .jaw-arch-chip.is-ortho { border-color: #fdba74; background: #fff7ed; color: #c2410c; }
 .smart-dental-chart .jaw-arch-chip.is-denture { border-color: #fda4af; background: #fff1f2; color: #be123c; }
 .smart-dental-chart .jaw-arch-chip.is-other { border-color: #c4b5fd; background: #f5f3ff; color: #5b21b6; }
-.smart-dental-chart .jaw-section.has-arch-ortho { background: linear-gradient(180deg, rgba(255, 237, 213, .55), rgba(255, 247, 237, .25)); border-radius: 14px; }
-.smart-dental-chart .jaw-section.has-arch-denture { background: linear-gradient(180deg, rgba(255, 228, 230, .6), rgba(255, 241, 242, .25)); border-radius: 14px; }
-.smart-dental-chart .jaw-section.has-arch-other { background: linear-gradient(180deg, rgba(237, 233, 254, .6), rgba(245, 243, 255, .25)); border-radius: 14px; }
 
 /* A treated tooth: a soft tint in its lead work's colour (--tw, tooth-art.js
    paintToothWork) and a badge with that work's icon and how many there are */
