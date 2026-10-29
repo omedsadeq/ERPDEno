@@ -7466,23 +7466,23 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
     </div>
 </div>
 <style>
-.ar2-dialog { max-width: 640px; width: 100%; border-radius: 18px; overflow: hidden; }
+.ar2-dialog { max-width: 1000px; width: 100%; border-radius: 18px; overflow: hidden; }
 .ar2-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: linear-gradient(135deg, #6d28d9, #4c1d95); color: #fff; }
 .ar2-head h4 { margin: 0; font-size: 17px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
 .ar2-head h4 small { font-size: 12px; font-weight: 500; opacity: .8; }
 .ar2-close { width: 34px; height: 34px; border: 0; border-radius: 50%; background: rgba(255,255,255,.18); color: #fff; cursor: pointer; }
-.ar2-body { padding: 14px 20px 6px; max-height: 70vh; overflow-y: auto; }
-.ar2-step { display: flex; align-items: center; gap: 8px; margin: 10px 0 8px; font-size: 13px; font-weight: 800; color: #4c1d95; }
+.ar2-body { padding: 10px 20px 6px; max-height: 82vh; overflow-y: auto; }
+.ar2-step { display: flex; align-items: center; gap: 8px; margin: 8px 0 6px; font-size: 13px; font-weight: 800; color: #4c1d95; }
 .ar2-num { width: 22px; height: 22px; border-radius: 50%; background: #ede9fe; color: #5b21b6; display: grid; place-items: center; font-size: 12px; }
 .ar2-arches { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.ar2-arch { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px 8px; border: 2px solid #e5e7eb; border-radius: 14px; background: #fff; color: #94a3b8; cursor: pointer; font: inherit; transition: border-color .15s, background-color .15s, color .15s, transform .15s; }
-.ar2-arch svg { width: 64px; height: 40px; }
+.ar2-arch { display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 10px; padding: 8px 10px; border: 2px solid #e5e7eb; border-radius: 14px; background: #fff; color: #94a3b8; cursor: pointer; font: inherit; transition: border-color .15s, background-color .15s, color .15s, transform .15s; }
+.ar2-arch svg { width: 52px; height: 32px; }
 .ar2-arch b { font-size: 14px; color: #1f2937; }
 .ar2-arch small { font-size: 11px; color: #94a3b8; }
 .ar2-arch:hover { border-color: #c4b5fd; transform: translateY(-1px); }
 .ar2-arch.on { border-color: #6d28d9; background: #f5f3ff; color: #6d28d9; box-shadow: 0 0 0 3px rgba(109, 40, 217, .14); }
-.ar2-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
-.ar2-cards .tp-card { min-height: 128px; }
+.ar2-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.ar2-cards .tp-card { min-height: 118px; padding: 9px 6px 8px; }
 .ar2-cards .tp-card.on { border-color: #6d28d9; background: #f5f3ff; box-shadow: 0 0 0 3px rgba(109, 40, 217, .14); }
 .ar2-cards .tp-card.on .tp-card-check { background: #6d28d9; }
 .ar2-cards .tp-card.on .tp-card-price { background: #ede9fe; color: #5b21b6; }
