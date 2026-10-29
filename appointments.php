@@ -606,6 +606,7 @@ $availableSlots = $appointmentManager->getAvailableSlots($selectedDoctor ?: $cur
 $pageTitle = 'مەوعیدەکان';
 $breadcrumb = [['title' => 'مەوعیدەکان']];
 require_once __DIR__ . '/includes/header.php';
+require_once __DIR__ . '/includes/case-button.php';
 ?>
 
 <style>
@@ -2150,6 +2151,10 @@ $dayName = $days[$dayNum];
                                 <a href="<?= APP_URL ?>/patients/view.php?id=<?= $apt['patient_id'] ?>" class="patient-name-apt">
                                     <?= htmlspecialchars($apt['patient_name']) ?>
                                 </a>
+                                <?php // «کەیس» by the name, so a wide table never hides it — the appointment's doctor's case ?>
+                                <?php if (case_button_allowed($auth, (int)$apt['patient_id'])): ?>
+                                <div style="margin-top: 5px;"><?= case_button((int)$apt['patient_id'], ['size' => 'sm', 'doctor' => (int)$apt['doctor_id']]) ?></div>
+                                <?php endif; ?>
                             </td>
                             <td style="font-size: 12px; color: #546e7a;">
                                 د. <?= htmlspecialchars($apt['doctor_name']) ?>

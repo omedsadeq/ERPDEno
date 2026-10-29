@@ -217,6 +217,9 @@ $realtimeNotifCount = $notificationObj->getUnreadCount(
     <!-- Responsive Layer (loaded after style.css to override where needed) -->
     <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/responsive.css">
 
+    <!-- «کەیس» from any page (includes/case-button.php) -->
+    <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/case-button.css?v=<?= @filemtime(__DIR__ . '/../assets/css/case-button.css') ?>">
+
     <!-- Centre accent colour (admin/settings.php) — after the stylesheets so it wins -->
     <?= Branding::themeStyleTag() ?>
 

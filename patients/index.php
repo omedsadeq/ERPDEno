@@ -16,7 +16,7 @@ require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/Patient.php';
 require_once __DIR__ . '/../classes/AccessGuard.php';
 require_once __DIR__ . '/../classes/XrayManager.php';
-require_once __DIR__ . '/../classes/CaseManager.php';
+require_once __DIR__ . '/../includes/case-button.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_patient') {
     $authGate = new Auth();
     $authGate->requireLogin();
@@ -44,87 +44,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
         (new Patient())->delete($deleteId); // soft delete (see Patient::delete)
     }
     header('Location: ' . APP_URL . '/patients/index.php?deleted=1');
-    exit;
-}
-
-// «کەیس» on a row: straight into the patient's case (CaseManager::quickOpen).
-// A doctor opens their own. The admin and reception say whose: open_case_options
-// lists the patient's open cases and the doctors who could take a new one, and
-// open_case then goes to the case picked (case_id) or the doctor's (doctor_id).
-require_once __DIR__ . '/_case_button.php';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['open_case', 'open_case_options'], true)) {
-    $authGate = new Auth();
-    $authGate->requireLogin();
-    Csrf::require();
-    $casePatientId = intval($_POST['patient_id'] ?? 0);
-    AccessGuard::requirePatientGeneral($casePatientId);
-    $db = Database::getInstance();
-    $patientRow = $db->fetch("SELECT id FROM patients WHERE id = :id AND deleted_at IS NULL", ['id' => $casePatientId]);
-    if (!$patientRow || !patient_case_button_allowed($authGate, $casePatientId)) {
-        header('Location: ' . APP_URL . '/403.php');
-        exit;
-    }
-    $fullAccess = $authGate->isAdmin() || $authGate->isReceptionist();
-    $openCases = $fullAccess ? $db->fetchAll(
-        "SELECT c.id, c.case_name, c.case_number, pf.doctor_id, u.full_name AS doctor_name
-         FROM cases c JOIN patient_folders pf ON pf.id = c.folder_id
-         LEFT JOIN users u ON u.id = pf.doctor_id
-         WHERE pf.patient_id = :pid AND c.status = 'open'
-         ORDER BY c.created_at DESC, c.id DESC",
-        ['pid' => $casePatientId]
-    ) : [];
-
-    if ($_POST['action'] === 'open_case_options') {
-        header('Content-Type: application/json; charset=utf-8');
-        $doctors = $fullAccess ? $db->fetchAll(
-            "SELECT id, full_name FROM users WHERE role = 'doctor' AND is_active = 1 ORDER BY full_name"
-        ) : [];
-        // the doctor offered first: today's waiting-room entry, else the patient's last folder
-        $lead = $fullAccess ? $db->fetch(
-            "SELECT doctor_id FROM waiting_room WHERE patient_id = :pid AND DATE(check_in_time) = CURDATE()
-               AND doctor_id IS NOT NULL AND status NOT IN ('cancelled', 'rejected')
-             ORDER BY check_in_time DESC LIMIT 1",
-            ['pid' => $casePatientId]
-        ) : null;
-        if (!$lead && $fullAccess) {
-            $lead = $db->fetch(
-                "SELECT doctor_id FROM patient_folders WHERE patient_id = :pid ORDER BY created_at DESC, id DESC LIMIT 1",
-                ['pid' => $casePatientId]
-            );
-        }
-        echo json_encode([
-            'success' => true,
-            'cases'   => array_map(fn($c) => [
-                'id' => (int)$c['id'],
-                'label' => ($c['doctor_name'] ?: '—') . ' — ' . ($c['case_name'] ?: $c['case_number']),
-            ], $openCases),
-            'doctors' => array_map(fn($d) => ['id' => (int)$d['id'], 'name' => $d['full_name']], $doctors),
-            'doctor_id' => (int)($lead['doctor_id'] ?? 0),
-        ], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-
-    $caseId = 0;
-    if ($fullAccess) {
-        $pickedCase = intval($_POST['case_id'] ?? 0);
-        $pickedDoctor = intval($_POST['doctor_id'] ?? 0);
-        if ($pickedCase > 0) {
-            $caseId = in_array($pickedCase, array_map('intval', array_column($openCases, 'id')), true) ? $pickedCase : 0;
-        } elseif ($pickedDoctor > 0) {
-            $isDoc = $db->fetch("SELECT id FROM users WHERE id = :id AND role = 'doctor' AND is_active = 1", ['id' => $pickedDoctor]);
-            $caseId = $isDoc ? (int)(new CaseManager())->quickOpen($casePatientId, $pickedDoctor, (int)$authGate->getCurrentUser()['id']) : 0;
-        } elseif (count($openCases) === 1) {
-            $caseId = (int)$openCases[0]['id'];
-        }
-    } else {
-        $meId = (int)$authGate->getCurrentUser()['id'];
-        $caseId = (int)(new CaseManager())->quickOpen($casePatientId, $meId, $meId);
-    }
-    if ($caseId <= 0) {
-        header('Location: ' . APP_URL . '/patients/index.php?case_err=1');
-        exit;
-    }
-    header('Location: ' . APP_URL . '/cases/view.php?id=' . $caseId . '&tab=chart');
     exit;
 }
 
@@ -240,10 +159,6 @@ $paginationContext = $profileDoctorId > 0 ? '&doctor_id=' . $profileDoctorId : '
 
 if (isset($_GET['deleted'])) {
     echo '<script>window.addEventListener("DOMContentLoaded", function() { showToast("success", "نەخۆشەکە سڕایەوە"); });</script>';
-}
-
-if (isset($_GET['case_err'])) {
-    echo '<script>window.addEventListener("DOMContentLoaded", function() { showToast("error", "کەیسەکە نەکرایەوە — دووبارە هەوڵ بدەرەوە"); });</script>';
 }
 
 if (($_GET['delete_err'] ?? '') === 'pw') {
@@ -612,15 +527,6 @@ if (isset($_GET['updated'])) {
 .patient-card:hover .patient-actions .btn { border-color: #cdd3da; }
 .patient-actions .btn:hover { background: var(--pt-accent); border-color: var(--pt-accent); color: #fff; }
 .patient-actions .btn.btn-danger:hover { background: var(--pt-danger); border-color: var(--pt-danger); }
-/* «کەیس» — the one the doctor reaches for: wider, and in a colour of its own (as in the waiting room) */
-.patient-actions .btn.pt-case-btn,
-.patient-card:hover .patient-actions .btn.pt-case-btn {
-    width: auto; padding: 0 14px; gap: 6px; font-size: 13px; font-weight: 800; border: 0;
-    background: linear-gradient(135deg, #6d28d9, #4c1d95); color: #fff;
-    box-shadow: 0 3px 10px rgba(76, 29, 149, .28);
-}
-.patient-actions .btn.pt-case-btn:hover { background: linear-gradient(135deg, #5b21b6, #3b0764); color: #fff; transform: translateY(-1px); }
-.patient-actions .btn.pt-case-btn.is-busy { opacity: .7; pointer-events: none; }
 
 /* ── Badges ── */
 .badge {
@@ -1027,8 +933,8 @@ if (isset($_GET['updated'])) {
 
                 <!-- Actions -->
                 <div class="patient-actions">
-                    <?php if (patient_case_button_allowed($auth, (int)$patient['id'])): ?>
-                    <?= patient_case_button((int)$patient['id']) ?>
+                    <?php if (case_button_allowed($auth, (int)$patient['id'])): ?>
+                    <?= case_button((int)$patient['id'], ['size' => 'sm']) ?>
                     <?php endif; ?>
                     <a href="<?= APP_URL ?>/patients/view.php?id=<?= $patient['id'] ?>"
                        class="btn btn-primary" title="بینین">
@@ -1068,60 +974,7 @@ if (isset($_GET['updated'])) {
             <input type="hidden" name="confirm_password" value="">
             <?= Csrf::field() ?>
         </form>
-        <!-- «کەیس»: one shared form; openPatientCase() fills it in -->
-        <form id="openCaseForm" method="POST" action="<?= APP_URL ?>/patients/index.php" style="display:none;">
-            <input type="hidden" name="action" value="open_case">
-            <input type="hidden" name="patient_id" value="">
-            <input type="hidden" name="case_id" value="">
-            <input type="hidden" name="doctor_id" value="">
-            <?= Csrf::field() ?>
-        </form>
         <script>
-        // «کەیس»: a doctor goes straight into their case on the patient (made now
-        // if there is none). The admin and reception go straight in when the
-        // patient has one open case; with more they pick it, with none they pick
-        // the doctor it is made for.
-        const PT_CASE_DIRECT = <?= ($isAdmin || $auth->isReceptionist()) ? 'false' : 'true' ?>;
-        function openPatientCase(id, btn) {
-            const f = document.getElementById('openCaseForm');
-            const go = (field, value) => {
-                f.querySelector('[name="patient_id"]').value = id;
-                f.querySelector('[name="case_id"]').value = field === 'case_id' ? value : '';
-                f.querySelector('[name="doctor_id"]').value = field === 'doctor_id' ? value : '';
-                if (btn) btn.classList.add('is-busy');
-                f.submit();
-            };
-            if (PT_CASE_DIRECT) { go(); return; }
-            if (btn) btn.classList.add('is-busy');
-            const body = new FormData();
-            body.append('action', 'open_case_options');
-            body.append('patient_id', id);
-            fetch('<?= APP_URL ?>/patients/index.php', { method: 'POST', body, headers: { 'Accept': 'application/json' } })
-                .then(r => r.json())
-                .then(d => {
-                    if (btn) btn.classList.remove('is-busy');
-                    if (!d || !d.success) { showToast('error', 'کەیسەکە نەکرایەوە'); return; }
-                    if (d.cases.length === 1) { go('case_id', d.cases[0].id); return; }
-                    if (d.cases.length > 1) {
-                        const opts = new Map(d.cases.map(c => [String(c.id), c.label]));   // a Map keeps the newest first
-                        Swal.fire({
-                            title: 'کام کەیس؟', input: 'select', inputOptions: opts, inputValue: String(d.cases[0].id),
-                            showCancelButton: true, confirmButtonText: 'بڕۆ بۆ کەیس', cancelButtonText: 'نەخێر', confirmButtonColor: '#6d28d9'
-                        }).then(r => { if (r.isConfirmed && r.value) go('case_id', r.value); });
-                        return;
-                    }
-                    const docs = new Map(d.doctors.map(x => [String(x.id), x.name]));
-                    Swal.fire({
-                        title: 'کەیس بۆ کام دکتۆر؟', text: 'ئەم نەخۆشە کەیسی کراوەی نییە — یەکێکی نوێ دروست دەبێت',
-                        input: 'select', inputOptions: docs, inputPlaceholder: 'دکتۆر هەڵبژێرە',
-                        inputValue: docs.has(String(d.doctor_id)) ? String(d.doctor_id) : '',
-                        showCancelButton: true, confirmButtonText: 'کەیس', cancelButtonText: 'نەخێر', confirmButtonColor: '#6d28d9',
-                        inputValidator: v => v ? null : 'دکتۆر هەڵبژێرە'
-                    }).then(r => { if (r.isConfirmed && r.value) go('doctor_id', r.value); });
-                })
-                .catch(() => { if (btn) btn.classList.remove('is-busy'); showToast('error', 'کەیسەکە نەکرایەوە'); });
-        }
-
         // Deleting a patient requires the password again, even in a live session.
         // The password is only ever posted, never stored client-side.
         function deletePatient(id, name) {

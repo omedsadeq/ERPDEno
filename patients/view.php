@@ -435,6 +435,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 require_once __DIR__ . '/../includes/header.php';
+require_once __DIR__ . '/../includes/case-button.php';
 ?>
 
 <style>
@@ -584,6 +585,7 @@ require_once __DIR__ . '/../includes/header.php';
 }
 .patient-quick-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     padding: 12px 14px;
     background: linear-gradient(to bottom, #fafafa, white);
@@ -2015,6 +2017,9 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
 
             <div class="patient-quick-actions">
+                <?php if (case_button_allowed($auth, (int)$patient['id'])): ?>
+                <?= case_button((int)$patient['id'], ['class' => 'case-go-btn--block']) ?>
+                <?php endif; ?>
                 <a href="tel:<?= htmlspecialchars($patient['phone']) ?>" class="btn btn-primary" style="flex: 1; font-size: 12px; padding: 8px;">
                     <i class="fas fa-phone"></i>
                     پەیوەندی
@@ -2224,6 +2229,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <i class="fas fa-plus"></i> کەیسی تر
                         </button>
                         <?php else: ?>
+                        <?= case_button((int)$patientId) ?>
                         <button class="btn btn-primary" onclick="openDialog('newCaseDialog')">
                             <i class="fas fa-plus"></i>
                             کەیسی نوێ
@@ -2251,6 +2257,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <i class="fas fa-tooth"></i> کەیس
                         </button></form>
                         <?php else: ?>
+                        <?= case_button((int)$patientId, ['size' => 'lg']) ?>
                         <button class="btn btn-primary" onclick="openDialog('newCaseDialog')" style="padding: 11px 24px; font-size: 14px; border-radius: 10px;">
                             <i class="fas fa-plus-circle"></i>
                             دروستکردنی کەیس

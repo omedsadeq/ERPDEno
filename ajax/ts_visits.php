@@ -10,6 +10,7 @@ require_once __DIR__ . '/../classes/TypesenseClient.php';
 require_once __DIR__ . '/../classes/Database.php';
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../includes/search_helpers.php';
+require_once __DIR__ . '/../includes/case-button.php';
 
 $auth = new Auth();
 if (!$auth->isLoggedIn()) {
@@ -317,7 +318,7 @@ $visits_raw = $db->fetchAll("
 ", $params);
 
 // Format for front-end
-$visits = array_map(function ($v) {
+$visits = array_map(function ($v) use ($auth) {
     $v['visit_date_fmt']    = !empty($v['visit_date'])    ? date('Y-m-d', strtotime($v['visit_date']))    : '-';
     $v['arrival_time_fmt']  = !empty($v['arrival_time'])  ? date('h:i A', strtotime($v['arrival_time']))  : '-';
     $v['checkin_time_fmt']  = !empty($v['checkin_time'])  ? date('h:i A', strtotime($v['checkin_time']))  : '-';
@@ -327,6 +328,7 @@ $visits = array_map(function ($v) {
     $v['is_linked']         = !empty($v['linked_patient_id']);
     $v['has_phone_match']   = !$v['is_linked'] && !empty($v['phone_match_patient_id']);
     $v['linked_patient_id'] = (int)($v['linked_patient_id'] ?? 0);
+    $v['can_case']          = $v['is_linked'] && case_button_allowed($auth, $v['linked_patient_id']);   // «کەیس» on the row
     return $v;
 }, $visits_raw);
 

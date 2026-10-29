@@ -74,6 +74,7 @@ $pageTitle = 'سەردانەکان';
 $breadcrumb = [['title' => 'سەردانەکان']];
 
 require_once __DIR__ . '/includes/header.php';
+require_once __DIR__ . '/includes/case-button.php';
 
 $db = Database::getInstance();
 
@@ -1581,6 +1582,7 @@ function buildPaginationUrl($pageNum) {
     border: 1px solid;
     white-space: nowrap;
 }
+.patient-details .visit-case-btn { margin-inline-start: 6px; vertical-align: middle; }
 .share-badge.share-linked {
     background: #e8f5e9;
     color: #2e7d32;
@@ -2160,6 +2162,9 @@ function buildPaginationUrl($pageNum) {
                                     <span class="share-badge <?= $shareClass ?>" title="<?= $shareText ?>">
                                         <i class="fas <?= $shareIcon ?>"></i> <?= $shareText ?>
                                     </span>
+                                    <?php if ($isLinked && case_button_allowed($auth, (int)$visit['linked_patient_id'])): ?>
+                                    <?= case_button((int)$visit['linked_patient_id'], ['size' => 'sm', 'class' => 'visit-case-btn']) ?>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </td>
@@ -3101,7 +3106,9 @@ document.getElementById('syncPatientModal').addEventListener('click', function(e
         } else {
             shareCls = 'share-none';   shareIcon = 'fa-times-circle'; shareTxt = 'بەشدار نەکراوە';
         }
-        const shareBadge = `<span class="share-badge ${shareCls}" title="${shareTxt}"><i class="fas ${shareIcon}"></i> ${shareTxt}</span>`;
+        const shareBadge = `<span class="share-badge ${shareCls}" title="${shareTxt}"><i class="fas ${shareIcon}"></i> ${shareTxt}</span>`
+            // «کەیس» beside the name (includes/case-button.php draws the same in the PHP rows)
+            + (v.can_case ? `<button type="button" class="case-go-btn case-go-btn--sm visit-case-btn" onclick="event.stopPropagation(); openPatientCase(${parseInt(v.linked_patient_id, 10)}, this, 0)" title="ڕاستەوخۆ بۆ چارتی ددانی کەیسەکە — ئەگەر نەبێت، دروست دەبێت"><i class="fas fa-tooth"></i><span>کەیس</span></button>` : '');
 
         let actions = '';
         if (v.is_linked) {

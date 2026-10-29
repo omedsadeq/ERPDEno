@@ -144,6 +144,7 @@ $breadcrumb = [
 ];
 
 require_once __DIR__ . '/../includes/header.php';
+require_once __DIR__ . '/../includes/case-button.php';
 ?>
 <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/invoice-pane.css?v=<?= (int)filemtime(__DIR__ . '/../assets/css/invoice-pane.css') ?>">
 <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/treatment-plan-layout.css?v=<?= (int)filemtime(__DIR__ . '/../assets/css/treatment-plan-layout.css') ?>">
@@ -206,6 +207,9 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
         </div>
         <div class="ch-side">
             <div class="ch-actions">
+                <?php if (case_button_allowed($auth, (int)$plan['patient_id'])): ?>
+                <?= case_button((int)$plan['patient_id'], ['doctor' => (int)($treatingId ?? 0)]) ?>
+                <?php endif; ?>
                 <?php if ($canTransfer): ?>
                 <button type="button" class="btn ch-btn ch-btn--gold" id="pvTransferBtn" style="<?= $pendingCount ? '' : 'display:none;' ?>" onclick="pvOpenTransfer()">
                     <i class="fas fa-exchange-alt"></i> گواستنەوە بۆ کەیس (<span id="pvPendingCount"><?= $pendingCount ?></span>)

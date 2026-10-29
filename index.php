@@ -7,6 +7,7 @@
 $pageTitle = 'داشبۆرد';
 
 require_once __DIR__ . '/includes/header.php';
+require_once __DIR__ . '/includes/case-button.php';
 require_once __DIR__ . '/classes/Patient.php';
 require_once __DIR__ . '/classes/Appointment.php';
 require_once __DIR__ . '/classes/Payment.php';
@@ -1151,7 +1152,10 @@ $waitingPatients = $db->fetchAll(
                 <span><i class="fas fa-phone"></i> <?= htmlspecialchars($currentPatient['phone']) ?></span>
                 <span><i class="fas fa-clock"></i> <?= $currentPatient['waiting_minutes'] ?> خولەک چاوەڕوانی</span>
             </div>
-            <div style="margin-top: 14px;">
+            <div style="margin-top: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <?php if (case_button_allowed($auth, (int)$currentPatient['patient_id'])): ?>
+                <?= case_button((int)$currentPatient['patient_id'], ['size' => 'lg']) ?>
+                <?php endif; ?>
                 <a href="<?= APP_URL ?>/patients/view.php?id=<?= $currentPatient['patient_id'] ?>" class="btn btn-light btn-sm">
                     <i class="fas fa-eye"></i> بینینی پڕۆفایل
                 </a>
@@ -1191,6 +1195,9 @@ $waitingPatients = $db->fetchAll(
                 <div class="queue-num"><?= $position ?></div>
                 <div class="queue-name"><?= htmlspecialchars($queueItem['full_name']) ?></div>
                 <div class="queue-time"><i class="fas fa-clock"></i> <?= $queueItem['waiting_minutes'] ?> خولەک</div>
+                <?php if (case_button_allowed($auth, (int)$queueItem['patient_id'])): ?>
+                <?= case_button((int)$queueItem['patient_id'], ['size' => 'sm']) ?>
+                <?php endif; ?>
             </div>
             <?php $position++; endforeach; ?>
         </div>
@@ -1257,7 +1264,10 @@ $waitingPatients = $db->fetchAll(
                             ?>
                             <span class="badge-sm <?= $status[0] ?>"><?= $status[1] ?></span>
                         </td>
-                        <td>
+                        <td style="white-space: nowrap;">
+                            <?php if (case_button_allowed($auth, (int)$apt['patient_id'])): ?>
+                            <?= case_button((int)$apt['patient_id'], ['size' => 'sm', 'doctor' => (int)$apt['doctor_id']]) ?>
+                            <?php endif; ?>
                             <a href="<?= APP_URL ?>/appointments.php?action=check-in&id=<?= $apt['id'] ?>"
                                class="btn btn-sm btn-success" title="هات">
                                 <i class="fas fa-check"></i>
@@ -1296,6 +1306,7 @@ $waitingPatients = $db->fetchAll(
                         <th>نەخۆش</th>
                         <th>کاتی هاتن</th>
                         <th>دکتۆر</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1305,6 +1316,11 @@ $waitingPatients = $db->fetchAll(
                         <td><?= htmlspecialchars($wp['full_name']) ?></td>
                         <td><?= date('H:i', strtotime($wp['check_in_time'])) ?></td>
                         <td><?= htmlspecialchars($wp['doctor_name']) ?></td>
+                        <td>
+                            <?php if (case_button_allowed($auth, (int)$wp['patient_id'])): ?>
+                            <?= case_button((int)$wp['patient_id'], ['size' => 'sm', 'doctor' => (int)($wp['doctor_id'] ?? 0)]) ?>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -1339,6 +1355,7 @@ $waitingPatients = $db->fetchAll(
                         <th>ناو</th>
                         <th>مۆبایل</th>
                         <th>بەروار</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1352,6 +1369,11 @@ $waitingPatients = $db->fetchAll(
                         <td><?= htmlspecialchars($patient['full_name']) ?></td>
                         <td><?= $patient['phone'] ?></td>
                         <td><?= date('Y-m-d', strtotime($patient['created_at'])) ?></td>
+                        <td>
+                            <?php if (case_button_allowed($auth, (int)$patient['id'])): ?>
+                            <?= case_button((int)$patient['id'], ['size' => 'sm']) ?>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
