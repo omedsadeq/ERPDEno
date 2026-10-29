@@ -377,8 +377,8 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
                     </div>
                     <?php
                     $jaws = [
-                        'upper' => ['label' => 'سەرەوە', 'toothClass' => '', 'groups' => ['upper_left' => 'UL', 'upper_right' => 'UR']],
-                        'lower' => ['label' => 'خوارەوە', 'toothClass' => ' lower', 'groups' => ['lower_left' => 'LL', 'lower_right' => 'LR']],
+                        'upper' => ['label' => 'فەکی سەرەوە', 'toothClass' => '', 'groups' => ['upper_left' => 'UL', 'upper_right' => 'UR']],
+                        'lower' => ['label' => 'فەکی خوارەوە', 'toothClass' => ' lower', 'groups' => ['lower_left' => 'LL', 'lower_right' => 'LR']],
                     ];
                     foreach ($jaws as $jawKey => $jaw):
                     ?>

@@ -5220,9 +5220,9 @@ button.rx-card-print { cursor:pointer; padding:0; }
                             // Left group first, then right: the RTL row puts the first group on
                             // the right, which gives the clinician's view.
                             $jaws = [
-                                'upper' => ['label' => 'سەرەوە', 'toothClass' => '',
+                                'upper' => ['label' => 'فەکی سەرەوە', 'toothClass' => '',
                                             'groups' => ['upper_left' => 'UL', 'upper_right' => 'UR']],
-                                'lower' => ['label' => 'خوارەوە', 'toothClass' => ' lower',
+                                'lower' => ['label' => 'فەکی خوارەوە', 'toothClass' => ' lower',
                                             'groups' => ['lower_left' => 'LL', 'lower_right' => 'LR']],
                             ];
                             foreach ($jaws as $jawKey => $jaw):

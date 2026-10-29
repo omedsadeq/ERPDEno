@@ -394,10 +394,12 @@ class CaseManager {
     public function getTreatments($caseId) {
         $sql = "SELECT ct.*, t.treatment_name as default_name, t.category, t.icon,
                 COALESCE(t.requires_tooth_number, 1) AS requires_tooth_number,
-                u.full_name as performed_by_name
+                u.full_name as performed_by_name,
+                ci.status AS invoice_status
                 FROM case_treatments ct
                 LEFT JOIN treatments t ON ct.treatment_id = t.id
                 LEFT JOIN users u ON ct.performed_by = u.id
+                LEFT JOIN case_invoices ci ON ci.id = ct.invoice_id
                 WHERE ct.case_id = :case_id
                 -- The clinical table reads top-to-bottom as work was added.
                 -- New rows must append at the end, never jump to row one.

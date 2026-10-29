@@ -141,8 +141,8 @@ function toothSVG(fdi, opts) {
     const did = cat => work.some(t => chartCategoryOf(t) === cat);
     const wash = work.length ? chartTintOf(chartLeadTreatment(work)) : null;   // the whole tooth, in its lead work's colour
 
-    // ── tooth body ──
-    const ghost = st.extract ? ' opacity="0.18"' : '';
+    // ── tooth body ── (an extracted tooth is only its dashed outline, below)
+    const ghost = st.extract ? ' opacity="0.1"' : '';
     if (!st.implant) {
         parts.push(`<g${ghost}>`);
         parts.push(`<path d="${shape.body}" fill="url(#tooth-base-${uid})"/>`);
@@ -234,7 +234,10 @@ function toothSVG(fdi, opts) {
 
     // crown / bridge overlay (also valid on implants)
     if (st.crown) {
-        parts.push(`<path d="${shape.crown}" fill="${CHART_COLORS.crown}" fill-opacity="0.82" stroke="#a86a00" stroke-width="2" stroke-linejoin="round"/>`);
+        const metal = work.some(t => window.TreatmentIcons && TreatmentIcons.keyFor({ name: t.treatment_name, category: t.category, icon: t.icon }) === 'crown_metal');
+        parts.push(metal
+            ? `<path d="${shape.crown}" fill="#a7b1bd" fill-opacity="0.92" stroke="#6b7785" stroke-width="2" stroke-linejoin="round"/>`
+            : `<path d="${shape.crown}" fill="${CHART_COLORS.crown}" fill-opacity="0.82" stroke="#a86a00" stroke-width="2" stroke-linejoin="round"/>`);
         parts.push(`<ellipse cx="${shape.gloss.cx}" cy="${shape.gloss.cy}" rx="${shape.gloss.rx}" ry="${shape.gloss.ry}" fill="#fff" fill-opacity="0.45"/>`);
     } else if (did('cosmetic')) {
         parts.push(`<path d="${shape.crown}" fill="${CHART_COLORS.cosmetic}" fill-opacity="0.62" stroke="#6741d9" stroke-width="1.8" stroke-linejoin="round"/>`);
@@ -253,11 +256,11 @@ function toothSVG(fdi, opts) {
     if (st.dot) {
         parts.push(`<circle cx="34" cy="23" r="3.2" fill="${CHART_COLORS.other}" stroke="#fff" stroke-width="1.2"/>`);
     }
-    // extraction X on top of everything
+    // extraction: the tooth's dashed outline, and a red X on top of everything
     if (st.extract) {
-        parts.push(`<g stroke="#ffffff" stroke-width="6.4" stroke-linecap="round"><line x1="12" y1="14" x2="32" y2="44"/><line x1="32" y1="14" x2="12" y2="44"/></g>`);
-        parts.push(`<g stroke="${CHART_COLORS.extract}" stroke-width="4.2" stroke-linecap="round">`);
-        parts.push(`<line x1="12" y1="14" x2="32" y2="44"/><line x1="32" y1="14" x2="12" y2="44"/>`);
+        parts.push(`<path d="${shape.body}" fill="#fff1f2" fill-opacity=".7" stroke="#f87171" stroke-width="1.3" stroke-dasharray="3 2.4" stroke-linejoin="round"/>`);
+        parts.push(`<g stroke="${CHART_COLORS.extract}" stroke-width="3.4" stroke-linecap="round">`);
+        parts.push(`<line x1="15" y1="22" x2="29" y2="38"/><line x1="29" y1="22" x2="15" y2="38"/>`);
         parts.push('</g>');
     }
 
@@ -358,19 +361,42 @@ function chartLeadTreatment(list) {
 /** The tooth's tint: the lead work's colour. */
 function chartTintOf(t) {
     const cat = t ? chartCategoryOf(t) : 'other';
+    if (cat === 'crown' && window.TreatmentIcons && TreatmentIcons.keyFor({ name: t.treatment_name, category: t.category, icon: t.icon }) === 'crown_metal') return '#94a3b8';
     if (cat === 'filling') return /کۆمپۆزیت|كۆمپۆزیت|composite/i.test(t.treatment_name || '') ? CHART_COLORS.composite : CHART_COLORS.amalgam;
     return ({ root_canal: CHART_COLORS.canal, crown: CHART_COLORS.crown, bridge: CHART_COLORS.crown, implant: CHART_COLORS.implant,
         post: CHART_COLORS.implant, extraction: CHART_COLORS.extract, surgery: CHART_COLORS.extract, cosmetic: CHART_COLORS.cosmetic,
         cleaning: CHART_COLORS.cleaning, whitening: CHART_COLORS.whitening, orthodontic: CHART_COLORS.ortho })[cat] || CHART_COLORS.other;
 }
 /** Paint a tooth's badge (.treatment-count) and tint for its treatments; none clears both. */
+/**
+ * Where a row stands: on a case its receipt — not sent, with the accountant,
+ * money received — and on a plan, planned or moved to a case.
+ */
+const CHART_STATES = {
+    draft: ['#f59e0b', 'نەنێردراوە'], sent: ['#3b82f6', 'لای ژمێریار'], paid: ['#22c55e', 'پارە وەرگیراوە'],
+    planned: ['#f59e0b', 'پلانکراو'], transferred: ['#22c55e', 'گوازراوەتەوە بۆ کەیس']
+};
+const CHART_STATE_ORDER = ['draft', 'planned', 'sent', 'paid', 'transferred'];   // the least finished first
+function chartStateOf(t) {
+    if (t.invoice_status !== undefined) {
+        return t.invoice_status === 'processed' ? 'paid' : t.invoice_status === 'sent' ? 'sent' : 'draft';
+    }
+    return t.status === 'transferred' ? 'transferred' : 'planned';
+}
 function paintToothWork(el, list) {
     let badge = el.querySelector('.treatment-count');
+    let dot = el.querySelector('.tooth-state');
     if (!list || !list.length) {
         if (badge) badge.remove();
+        if (dot) dot.remove();
         el.style.removeProperty('--tw');
         return;
     }
+    // the dot: the least finished of the tooth's work
+    const state = list.map(chartStateOf).sort((a, b) => CHART_STATE_ORDER.indexOf(a) - CHART_STATE_ORDER.indexOf(b))[0];
+    if (!dot) { dot = document.createElement('span'); dot.className = 'tooth-state'; el.appendChild(dot); }
+    dot.style.background = CHART_STATES[state][0];
+    dot.title = CHART_STATES[state][1];
     const lead = chartLeadTreatment(list);
     el.style.setProperty('--tw', chartTintOf(lead));
     if (!badge) { badge = document.createElement('span'); el.appendChild(badge); }
@@ -389,8 +415,11 @@ function renderChartLegendIcons() {
         ['implant', CHART_COLORS.implant], ['extraction', CHART_COLORS.extract], ['orthodontic', CHART_COLORS.ortho],
         ['cleaning', CHART_COLORS.cleaning]
     ];
+    const states = typeof planItems !== 'undefined' ? ['planned', 'transferred'] : ['draft', 'sent', 'paid'];
     el.innerHTML = items.map(([key, color]) => `<div class="smart-chart-legend-item" style="--tw:${color}">`
-        + `<span class="smart-chart-legend-icon is-ti">${TreatmentIcons.svg(key)}</span><span>${TreatmentIcons.label(key)}</span></div>`).join('');
+        + `<span class="smart-chart-legend-icon is-ti">${TreatmentIcons.svg(key)}</span><span>${TreatmentIcons.label(key)}</span></div>`).join('')
+        + '<div class="chart-legend-states">' + states.map(k =>
+            `<span><i style="background:${CHART_STATES[k][0]}"></i>${CHART_STATES[k][1]}</span>`).join('') + '</div>';
     return true;
 }
 
