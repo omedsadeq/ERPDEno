@@ -23,6 +23,58 @@ class CaseManager {
     /**
      * Generate unique case number
      */
+    /**
+     * «کەیس» in one click: the doctor's open case on this patient, or — when
+     * there is none — a general one (CaseNamePreset::GENERAL) made without a
+     * dialog. Name, complaint and the rest are filled in on the case itself if
+     * ever needed. Used by the patient's profile and by the new-visit save.
+     *
+     * @return int|null the case id, or null when it could not be made
+     */
+    public function quickOpen($patientId, $doctorId, $actorId) {
+        $patientId = (int)$patientId; $doctorId = (int)$doctorId; $actorId = (int)$actorId;
+        if ($patientId <= 0 || $doctorId <= 0) {
+            return null;
+        }
+        $open = $this->db->fetch(
+            "SELECT c.id FROM cases c JOIN patient_folders pf ON pf.id = c.folder_id
+             WHERE pf.patient_id = :pid AND pf.doctor_id = :did AND c.status = 'open'
+             ORDER BY c.created_at DESC, c.id DESC LIMIT 1",
+            ['pid' => $patientId, 'did' => $doctorId]
+        );
+        if ($open) {
+            return (int)$open['id'];
+        }
+        require_once __DIR__ . '/Folder.php';
+        require_once __DIR__ . '/CaseNamePreset.php';
+        require_once __DIR__ . '/Patient.php';
+        require_once __DIR__ . '/UnassignedCaseLog.php';
+        require_once __DIR__ . '/AuditLog.php';
+        $presets = new CaseNamePreset();
+        if (!$presets->exists(CaseNamePreset::GENERAL)) {
+            $presets->add(CaseNamePreset::GENERAL, 'tooth', $actorId ?: null);
+        }
+        // how the doctor reached this patient, captured before the folder makes them an owner
+        $relation = (new Patient())->doctorPatientRelation($patientId, $doctorId);
+        $folderId = (new Folder())->findOrCreateDefault($patientId, $doctorId);
+        if (!$folderId) {
+            return null;
+        }
+        $made = $this->create([
+            'folder_id' => $folderId, 'case_name' => CaseNamePreset::GENERAL, 'scope_type' => 'tooth',
+            'selected_arch' => null, 'chief_complaint' => '', 'notes' => '', 'is_historical' => 0, 'historical_date' => null,
+        ]);
+        if (empty($made['success'])) {
+            return null;
+        }
+        UnassignedCaseLog::recordCaseCreation($doctorId, $patientId, $relation, (int)$made['case_id'], (int)$folderId);
+        AuditLog::log('create_case', 'cases', (int)$made['case_id'], null, [
+            'patient_id' => $patientId, 'doctor_id' => $doctorId, 'folder_id' => (int)$folderId,
+            'source' => 'quick_open', 'relation' => $relation, 'is_historical' => 0, 'historical_date' => null,
+        ], $actorId ?: null);
+        return (int)$made['case_id'];
+    }
+
     private function generateCaseNumber() {
         $year = date('Y');
         $month = date('m');

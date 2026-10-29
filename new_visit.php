@@ -942,6 +942,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $redirect_qs['embed'] = 1;   // the choice dialog opens inside the same dialog
             }
             $redirect_url = APP_URL . "/new_visit.php?" . http_build_query($redirect_qs);
+
+            // Straight into the chart: a doctor lands on their case for this
+            // patient (made now if there is none); an admin on the visit's
+            // doctor's. Reception cannot open a case, and «ناردن بۆ ژووری
+            // چاوەڕوانی» keeps its own dialog, so both keep the choice dialog.
+            $chartDoctorId = ($currentUser['role'] ?? '') === 'doctor' ? (int)$currentUser['id']
+                : ((($currentUser['role'] ?? '') === 'admin') ? (int)($doctor_user_id ?? 0) : 0);
+            if ($chartDoctorId > 0 && !$send_to_waiting) {
+                require_once __DIR__ . '/classes/CaseManager.php';
+                $chartCaseId = (new CaseManager())->quickOpen($final_patient_id, $chartDoctorId, (int)$currentUser['id']);
+                if ($chartCaseId) {
+                    $caseUrl = APP_URL . '/cases/view.php?id=' . $chartCaseId . '&tab=chart';
+                    // inside the «سەردانی نوێ» dialog the page itself cannot leave the iframe:
+                    // the success page tells the dialog to navigate (nvParent 'navigate')
+                    $redirect_url = $embedLayout
+                        ? APP_URL . '/new_visit.php?' . http_build_query($redirect_qs + ['go_case' => $chartCaseId])
+                        : $caseUrl;
+                }
+            }
         } catch (Exception $e) {
             $conn->rollback();
 
@@ -3843,6 +3862,9 @@ function clearNewVisitSuccessUrl() {
     window.history.replaceState({}, document.title, '<?= APP_URL ?>/new_visit.php' + (NV_EMBED ? '?embed=1' : ''));
     // In the dialog, closing the after-save choice ends the job: the parent
     // closes the dialog and reloads, so the new visit shows in its list.
+    // saved from inside the dialog: on to the case's chart, else just close
+    var goCase = <?php echo (int)($_GET['go_case'] ?? 0); ?>;
+    if (NV_EMBED && savedPatientId && goCase) { nvParent({ action: 'navigate', url: '<?= APP_URL ?>/cases/view.php?id=' + goCase + '&tab=chart' }); return; }
     if (NV_EMBED && savedPatientId) nvParent({ action: 'saved' });
 }
 

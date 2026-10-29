@@ -261,22 +261,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if ($quickDoctorId <= 0) {
             patient_view_fail($patientId, 'دکتۆر هەڵبژێرە', 'newCaseDialog');
         }
-        $openCase = $db->fetch(
-            "SELECT c.id FROM cases c JOIN patient_folders pf ON pf.id = c.folder_id
-             WHERE pf.patient_id = :pid AND pf.doctor_id = :did AND c.status = 'open'
-             ORDER BY c.created_at DESC, c.id DESC LIMIT 1",
-            ['pid' => $patientId, 'did' => $quickDoctorId]
-        );
-        if ($openCase) {
-            header('Location: ' . APP_URL . '/cases/view.php?id=' . (int)$openCase['id']);
-            exit;
+        $quickCaseId = (new CaseManager())->quickOpen($patientId, $quickDoctorId, (int)$currentUser['id']);
+        if (!$quickCaseId) {
+            patient_view_fail($patientId, 'هەڵە لە دروستکردنی کەیس', 'newCaseDialog');
         }
-        $presets = new CaseNamePreset();
-        if (!$presets->exists(CaseNamePreset::GENERAL)) {
-            $presets->add(CaseNamePreset::GENERAL, 'tooth', (int)$currentUser['id']);
-        }
-        $_POST = ['action' => 'create_case', 'case_name' => CaseNamePreset::GENERAL, 'scope_type' => 'tooth',
-            'case_age' => 'new', 'doctor_id' => $quickDoctorId, 'chief_complaint' => '', 'notes' => ''] + $_POST;
+        header('Location: ' . APP_URL . '/cases/view.php?id=' . $quickCaseId);
+        exit;
     }
 
     if ($_POST['action'] === 'create_case') {
