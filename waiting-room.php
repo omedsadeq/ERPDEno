@@ -201,6 +201,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         );
     };
 
+    if ($action === 'open_case' && $waitingRow) {
+        // «کەیس»: straight into the entry's doctor's case for this patient —
+        // made now if there is none (CaseManager::quickOpen). A doctor opens
+        // their own (the ownership check above), the admin anyone's.
+        $caseDoctor = $db->fetch("SELECT id FROM users WHERE id = :id AND role = 'doctor' AND is_active = 1", ['id' => (int)($waitingRow['doctor_id'] ?? 0)]);
+        if (!$caseDoctor || !($isAdmin || $isDoctorRole)) {
+            header('Location: ' . APP_URL . '/403.php');
+            exit;
+        }
+        require_once __DIR__ . '/classes/CaseManager.php';
+        $caseId = (new CaseManager())->quickOpen((int)$waitingRow['patient_id'], (int)$caseDoctor['id'], $actorId);
+        if (!$caseId) {
+            header('Location: ' . $buildWaitingRoomRedirect(['error' => 'case_failed']));
+            exit;
+        }
+        header('Location: ' . APP_URL . '/cases/view.php?id=' . $caseId . '&tab=chart');
+        exit;
+    }
+
     if ($action === 'call' && $waitingId) {
         // Get waiting room details for notification
         $waitingInfo = $db->fetch("
@@ -1523,6 +1542,13 @@ $waitingRoomRejectReasons = $db->fetchAll("
     font-family: inherit;
 }
 
+/* «کەیس» — the one the doctor reaches for: bigger, and in a colour of its own */
+.wr-btn-case {
+    font-size: 14px; font-weight: 800; padding: 10px 20px; border: 0; border-radius: 10px;
+    background: linear-gradient(135deg, #6d28d9, #4c1d95); color: #fff;
+    box-shadow: 0 4px 12px rgba(76, 29, 149, .32);
+}
+.wr-btn-case:hover { background: linear-gradient(135deg, #5b21b6, #3b0764); color: #fff; transform: translateY(-1px); }
 .wr-btn-call {
     background: linear-gradient(135deg, #4caf50, #388e3c);
     color: white;
@@ -3076,6 +3102,15 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
                 </div>
                 <div class="wr-patient-actions" onclick="event.stopPropagation();">
                     <?php $isXrayDest = empty($w['doctor_id']) || ($w['doctor_role'] ?? '') === 'xray_department'; ?>
+                    <?php if (($isDoctorRole || $isAdmin) && !$isXrayDest): // «کەیس»: straight into the doctor's case for this patient ?>
+                    <form method="POST" style="display: inline;">
+                        <input type="hidden" name="action" value="open_case">
+                        <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
+                        <button type="submit" class="wr-btn wr-btn-case" title="ڕاستەوخۆ بۆ چارتی ددانی کەیسەکە — ئەگەر نەبێت، دروست دەبێت">
+                            <i class="fas fa-tooth"></i> کەیس
+                        </button>
+                    </form>
+                    <?php endif; ?>
                     <?php if (!$isXrayDest): ?>
                     <?php if ($doctorMayCall): ?>
                     <form method="POST" style="display: inline;" data-doctor-id="<?= (int)($w['doctor_id'] ?? 0) ?>">
@@ -3204,6 +3239,15 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
                     </div>
                 </div>
                 <div class="wr-patient-actions" onclick="event.stopPropagation();">
+                    <?php if (($isDoctorRole || $isAdmin) && !empty($w['doctor_id']) && ($w['doctor_role'] ?? '') !== 'xray_department'): ?>
+                    <form method="POST" style="display: inline;">
+                        <input type="hidden" name="action" value="open_case">
+                        <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
+                        <button type="submit" class="wr-btn wr-btn-case" title="ڕاستەوخۆ بۆ چارتی ددانی کەیسەکە — ئەگەر نەبێت، دروست دەبێت">
+                            <i class="fas fa-tooth"></i> کەیس
+                        </button>
+                    </form>
+                    <?php endif; ?>
                     <form method="POST" style="display: inline;">
                         <input type="hidden" name="action" value="complete">
                         <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
