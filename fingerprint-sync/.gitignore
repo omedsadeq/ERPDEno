@@ -1,4 +1,0 @@
-.venv/
-logs/
-queue.sqlite3*
-__pycache__/

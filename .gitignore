@@ -9,3 +9,6 @@ nul
 *.rar
 *.zip
 temp_output.txt
+
+# the fingerprint service lives on the centre computer, not in the repo
+fingerprint-sync/
