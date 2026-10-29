@@ -7437,18 +7437,18 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
             <div class="ar2-body">
                 <div class="ar2-step"><span class="ar2-num">١</span> کام ئەرک؟</div>
                 <div class="ar2-arches">
-                    <button type="button" class="ar2-arch" data-arch="upper" onclick="arSetArch('upper')">
-                        <svg viewBox="0 0 64 40" aria-hidden="true"><path d="M6 36 Q32 -14 58 36" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>
-                        <b>سەرەوە</b><small>Maxilla</small>
+                    <?php foreach ([
+                        ['upper', 'سەرەوە', 'Maxilla', ''],
+                        ['lower', 'خوارەوە', 'Mandible', ''],
+                        ['both', 'هەردوو', 'سەرەوە و خوارەوە', '×٢'],
+                    ] as [$archKey, $archLabel, $archSub, $archBadge]): ?>
+                    <button type="button" class="ar2-arch ar2-arch--<?= $archKey ?>" data-arch="<?= $archKey ?>" onclick="arSetArch('<?= $archKey ?>')">
+                        <span class="ar2-arch-check"><i class="fas fa-check"></i></span>
+                        <?php if ($archBadge): ?><span class="ar2-arch-badge"><?= $archBadge ?></span><?php endif; ?>
+                        <span class="ar2-art" data-art="<?= $archKey ?>"></span>
+                        <span class="ar2-arch-text"><b><?= $archLabel ?></b><small><?= $archSub ?></small></span>
                     </button>
-                    <button type="button" class="ar2-arch" data-arch="lower" onclick="arSetArch('lower')">
-                        <svg viewBox="0 0 64 40" aria-hidden="true"><path d="M6 4 Q32 54 58 4" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>
-                        <b>خوارەوە</b><small>Mandible</small>
-                    </button>
-                    <button type="button" class="ar2-arch" data-arch="both" onclick="arSetArch('both')">
-                        <svg viewBox="0 0 64 40" aria-hidden="true"><path d="M8 18 Q32 -12 56 18 M8 22 Q32 52 56 22" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>
-                        <b>هەردوو</b><small>×2</small>
-                    </button>
+                    <?php endforeach; ?>
                 </div>
                 <div class="ar2-step"><span class="ar2-num">٢</span> کام ئیش؟</div>
                 <div class="ar2-cards" id="arCards"></div>
@@ -7474,13 +7474,27 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
 .ar2-body { padding: 10px 20px 6px; max-height: 82vh; overflow-y: auto; }
 .ar2-step { display: flex; align-items: center; gap: 8px; margin: 8px 0 6px; font-size: 13px; font-weight: 800; color: #4c1d95; }
 .ar2-num { width: 22px; height: 22px; border-radius: 50%; background: #ede9fe; color: #5b21b6; display: grid; place-items: center; font-size: 12px; }
-.ar2-arches { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.ar2-arch { display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 10px; padding: 8px 10px; border: 2px solid #e5e7eb; border-radius: 14px; background: #fff; color: #94a3b8; cursor: pointer; font: inherit; transition: border-color .15s, background-color .15s, color .15s, transform .15s; }
-.ar2-arch svg { width: 52px; height: 32px; }
-.ar2-arch b { font-size: 14px; color: #1f2937; }
+.ar2-arches { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.ar2-arch {
+    position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 10px 10px;
+    border: 2px solid #e8e5f3; border-radius: 16px; background: linear-gradient(180deg, #fff, #fbfaff);
+    cursor: pointer; font: inherit; transition: border-color .18s, background-color .18s, box-shadow .18s, transform .18s;
+}
+.ar2-art { display: block; width: 128px; height: 66px; transition: transform .25s, filter .25s, opacity .25s; filter: saturate(.55); opacity: .8; }
+.ar2-art svg { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 3px 4px rgba(76, 29, 149, .14)); }
+.ar2-arch-text { display: flex; flex-direction: column; align-items: center; line-height: 1.25; }
+.ar2-arch b { font-size: 15px; font-weight: 800; color: #1f2937; }
 .ar2-arch small { font-size: 11px; color: #94a3b8; }
-.ar2-arch:hover { border-color: #c4b5fd; transform: translateY(-1px); }
-.ar2-arch.on { border-color: #6d28d9; background: #f5f3ff; color: #6d28d9; box-shadow: 0 0 0 3px rgba(109, 40, 217, .14); }
+.ar2-arch-badge { position: absolute; top: 8px; right: 10px; padding: 1px 8px; border-radius: 999px; background: #ede9fe; color: #5b21b6; font-size: 11.5px; font-weight: 800; }
+.ar2-arch-check { position: absolute; top: 8px; left: 8px; width: 22px; height: 22px; border-radius: 50%; background: #6d28d9; color: #fff;
+    font-size: 10px; display: grid; place-items: center; transform: scale(0); transition: transform .18s; box-shadow: 0 2px 6px rgba(109, 40, 217, .4); }
+.ar2-arch:hover { border-color: #c4b5fd; transform: translateY(-2px); box-shadow: 0 8px 20px rgba(76, 29, 149, .1); }
+.ar2-arch:hover .ar2-art { filter: none; opacity: 1; }
+.ar2-arch.on { border-color: #6d28d9; background: linear-gradient(180deg, #faf7ff, #f1ecff); box-shadow: 0 0 0 4px rgba(109, 40, 217, .13), 0 10px 22px rgba(76, 29, 149, .14); }
+.ar2-arch.on .ar2-art { filter: none; opacity: 1; transform: scale(1.06); }
+.ar2-arch.on .ar2-arch-check { transform: scale(1); }
+.ar2-arch.on b { color: #4c1d95; }
+.ar2-arch:focus-visible { outline: 2px solid #6d28d9; outline-offset: 2px; }
 .ar2-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
 .ar2-cards .tp-card { min-height: 118px; padding: 9px 6px 8px; }
 .ar2-cards .tp-card.on { border-color: #6d28d9; background: #f5f3ff; box-shadow: 0 0 0 3px rgba(109, 40, 217, .14); }
@@ -13449,7 +13463,35 @@ const ARCH_TREATMENTS = <?= json_encode(array_map(function ($t) {
 }, $archTreatments), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
 let arArch = '', arTreatment = null;
 
+/** One arch from above, in the treatment icons' gradients (assets/js/treatment-icons.js). */
+function arArchSvg(kind) {
+    const one = flip => {
+        let teeth = '';
+        const n = 14;
+        for (let i = 0; i < n; i++) {
+            const deg = 168 - i * (156 / (n - 1)), t = deg * Math.PI / 180;
+            const fromFront = Math.min(i, n - 1 - i);          // 0 = a back molar … 6 = a front incisor
+            const w = 10.6 - fromFront * 0.55, h = 12.4 - fromFront * 0.35;
+            const x = 60 + 43 * Math.cos(t), y = 62 - 47 * Math.sin(t);
+            teeth += `<rect x="${(-w / 2).toFixed(2)}" y="${(-h / 2).toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" rx="3.2"
+                transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${(90 - deg).toFixed(1)})" fill="url(#ti-enamel)" stroke="#aab4c2" stroke-width=".8"/>`;
+        }
+        const gum = `<path d="M4,62 A56,60 0 0 1 116,62 L91,62 A31,35 0 0 0 29,62 Z" fill="url(#ti-gum)" stroke="#b83f47" stroke-opacity=".35" stroke-width=".9"/>`
+            + `<path d="M12,52 C18,30 34,13 58,8" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="2.2" stroke-linecap="round"/>`;
+        return `<g${flip ? ' transform="translate(0 66) scale(1 -1)"' : ''}>${gum}${teeth}</g>`;
+    };
+    const body = kind === 'lower' ? one(true)
+        : kind === 'both' ? `<g transform="translate(60 0) scale(.55) translate(-60 0)">${one(false)}</g><g transform="translate(60 36) scale(.55) translate(-60 0)">${one(true)}</g>`
+        : one(false);
+    return `<svg viewBox="0 0 120 66" aria-hidden="true">${body}</svg>`;
+}
+function arDrawArches() {
+    if (window.TreatmentIcons) TreatmentIcons.ensureDefs();
+    document.querySelectorAll('.ar2-art[data-art]').forEach(el => { if (!el.firstChild) el.innerHTML = arArchSvg(el.dataset.art); });
+}
+
 function openArchTreatmentDialog() {
+    arDrawArches();
     arArch = ''; arTreatment = null;
     document.getElementById('archTreatmentArchType').value = '';
     document.getElementById('archTreatmentId').value = '';
