@@ -378,3 +378,97 @@ function paintToothWork(el, list) {
     const key = window.TreatmentIcons ? TreatmentIcons.keyFor({ name: lead.treatment_name, category: lead.category, icon: lead.icon }) : '';
     badge.innerHTML = (key ? `<span class="tb-ico">${TreatmentIcons.svg(key)}</span>` : '') + (list.length > 1 ? `<b>${list.length}</b>` : '');
 }
+
+/** The chart's key, in the treatment types' own icons, each edged in the colour it paints the tooth. */
+function renderChartLegendIcons() {
+    const el = document.getElementById('smartChartLegend');
+    if (!el || !window.TreatmentIcons) return false;
+    const items = [
+        ['filling', CHART_COLORS.amalgam], ['filling_cosmetic', CHART_COLORS.composite], ['root_canal', CHART_COLORS.canal],
+        ['post', CHART_COLORS.implant], ['crown', CHART_COLORS.crown], ['veneer', CHART_COLORS.cosmetic],
+        ['implant', CHART_COLORS.implant], ['extraction', CHART_COLORS.extract], ['orthodontic', CHART_COLORS.ortho],
+        ['cleaning', CHART_COLORS.cleaning]
+    ];
+    el.innerHTML = items.map(([key, color]) => `<div class="smart-chart-legend-item" style="--tw:${color}">`
+        + `<span class="smart-chart-legend-icon is-ti">${TreatmentIcons.svg(key)}</span><span>${TreatmentIcons.label(key)}</span></div>`).join('');
+    return true;
+}
+
+// ── Hold a tooth: what was done on it ───────────────────────────────
+// A press of about half a second on a tooth (mouse or finger) opens a small
+// card beside it — the tooth's work, each with its icon, price and day —
+// instead of picking it. initToothHold wires it on a chart; the page says how
+// to undo the pick the press began (o.undo) and what «هەمووی» opens (o.more).
+function toothWorkPopover(anchor, fdi, list, o) {
+    closeToothWorkPopover();
+    o = o || {};
+    const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const fmt = n => new Intl.NumberFormat('en-US').format(Math.round(Number(n) || 0));
+    const day = t => { const d = String(t.performed_date || t.created_at || '').slice(0, 10); return d ? d.replace(/-/g, '/') : ''; };
+    const rows = (list || []).map(t => {
+        const key = window.TreatmentIcons ? TreatmentIcons.keyFor({ name: t.treatment_name, category: t.category, icon: t.icon }) : '';
+        return `<div class="tw-row" style="--tw:${chartTintOf(t)}">`
+            + `<span class="tw-ico">${key ? TreatmentIcons.svg(key) : ''}</span>`
+            + `<span class="tw-name">${esc(t.treatment_name)}${t.tooth_surface ? `<small>${esc(String(t.tooth_surface).split(',').join('، '))}</small>` : ''}</span>`
+            + `<span class="tw-meta"><b>${fmt(t.final_price)}</b>${day(t) ? `<small>${day(t)}</small>` : ''}</span></div>`;
+    }).join('');
+    const box = document.createElement('div');
+    box.className = 'tw-pop';
+    box.setAttribute('role', 'dialog');
+    const pal = typeof palmerNumbers !== 'undefined' ? (palmerNumbers[fdi] || (fdi % 10)) : (fdi % 10);
+    box.innerHTML = `<div class="tw-head"><b>ددان ${esc(pal)}</b><span>${esc((typeof toothNames !== 'undefined' && toothNames[fdi]) || '')}</span>`
+        + `<button type="button" class="tw-x" aria-label="داخستن">&times;</button></div>`
+        + (rows ? `<div class="tw-list">${rows}</div>` : '<div class="tw-empty">هیچ ئیشێک بۆ ئەم ددانە نییە</div>')
+        + (o.more ? '<button type="button" class="tw-more"><i class="fas fa-list"></i> هەموو وردەکاری</button>' : '');
+    document.body.appendChild(box);
+    // beside the tooth: below an upper one, above a lower one, kept on screen
+    const r = anchor.getBoundingClientRect(), w = box.offsetWidth, h = box.offsetHeight;
+    const upper = !!anchor.closest('.jaw-section--upper');
+    let top = upper ? r.bottom + 8 : r.top - h - 8;
+    if (top < 8) top = r.bottom + 8;
+    if (top + h > window.innerHeight - 8) top = Math.max(8, window.innerHeight - h - 8);
+    const left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), window.innerWidth - w - 8);
+    box.style.top = (top + window.scrollY) + 'px';
+    box.style.left = (left + window.scrollX) + 'px';
+    box.querySelector('.tw-x').addEventListener('click', closeToothWorkPopover);
+    if (o.more) box.querySelector('.tw-more').addEventListener('click', () => { closeToothWorkPopover(); o.more(fdi); });
+    requestAnimationFrame(() => box.classList.add('is-on'));
+    try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) { /* not on this device */ }
+}
+function closeToothWorkPopover() {
+    document.querySelectorAll('.tw-pop').forEach(el => el.remove());
+}
+document.addEventListener('pointerdown', e => { if (!e.target.closest || !e.target.closest('.tw-pop')) closeToothWorkPopover(); }, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeToothWorkPopover(); });
+window.addEventListener('scroll', closeToothWorkPopover, { passive: true });
+window.addEventListener('resize', closeToothWorkPopover);
+
+/**
+ * Wire the hold on a chart. o.list(fdi) → the tooth's rows; o.undo(before) puts
+ * back the selection the press changed; o.more(fdi) → the full panel.
+ * Returns {held()} — true once, right after a hold, so the page can swallow
+ * the click (and the touch's contextmenu) that follows.
+ */
+function initToothHold(chart, o) {
+    let hold = null, heldAt = 0;
+    chart.addEventListener('pointerdown', function (e) {
+        if (e.button !== 0) return;
+        const toothEl = e.target.closest('.tooth[data-tooth]');
+        if (!toothEl) return;
+        const before = o.snapshot ? o.snapshot() : null;   // capture phase: before the page picks it
+        const num = parseInt(toothEl.dataset.tooth, 10);
+        if (hold) clearTimeout(hold.t);
+        hold = { x: e.clientX, y: e.clientY, t: setTimeout(function () {
+            hold = null;
+            heldAt = Date.now();
+            if (o.undo) o.undo(before);
+            toothWorkPopover(toothEl, num, o.list(num), { more: o.more });
+        }, 520) };
+    }, true);
+    const cancel = () => { if (hold) { clearTimeout(hold.t); hold = null; } };
+    chart.addEventListener('pointermove', e => { if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > 8) cancel(); });
+    document.addEventListener('pointerup', cancel);
+    document.addEventListener('pointercancel', cancel);
+    chart.addEventListener('contextmenu', cancel, true);     // a right click (or a touch's own hold) won first
+    return { held: () => Date.now() - heldAt < 1200 };
+}

@@ -107,6 +107,7 @@ function legendSample(kind, color) {
     }
 }
 function renderChartLegend() {
+    if (renderChartLegendIcons()) return;   // the treatment types' own icons (tooth-art.js)
     const el = document.getElementById('smartChartLegend');
     if (!el) return;
     const items = [

@@ -60,7 +60,7 @@ function rebuildFeeds() {
                 id: it.id, treatment_name: it.treatment_name,
                 arch_type: ['upper', 'lower'].includes(it.arch_type) ? it.arch_type : 'none',
                 quantity: Number(it.quantity) || 1, unit_price: Number(it.unit_price) || 0,
-                final_price: Number(it.final_price) || 0, category: it.category || 'other'
+                final_price: Number(it.final_price) || 0, category: it.category || 'other', icon: it.icon || null
             });
         }
     });
@@ -1084,9 +1084,18 @@ document.addEventListener('DOMContentLoaded', function () {
     document.addEventListener('pointerup', sweepEnd);
     document.addEventListener('pointercancel', sweepEnd);
 
+    // Hold a tooth: the list of its planned work, without picking it (tooth-art.js)
+    const toothHold = initToothHold(chart, {
+        snapshot: () => bulkSelected.slice(),
+        undo: before => { sweep = null; bulkSelected = before; renderBulkSelection(); },
+        list: num => (toothTreatmentMap[num] && toothTreatmentMap[num].treatments) || [],
+        more: num => showToothDetail(num)
+    });
+
     // Capture phase, so this beats the tooth's own onclick="showToothDetail(...)"
     chart.addEventListener('click', function (e) {
         const toothEl = e.target.closest('.tooth');
+        if (toothEl && toothHold.held()) { e.stopPropagation(); e.preventDefault(); return; }   // that press was a hold
         if (!toothEl || !isEditable()) return;
         const num = parseInt(toothEl.dataset.tooth, 10);
         if (e.ctrlKey || e.metaKey) { e.stopPropagation(); e.preventDefault(); toggleBulkTooth(num); }
@@ -1098,6 +1107,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const toothEl = e.target.closest('.tooth');
         if (!toothEl) return;
         e.preventDefault();
+        if (toothHold.held()) return;          // a finger's hold showed the list already
         const num = parseInt(toothEl.dataset.tooth, 10);
         if (!isEditable()) { showToothDetail(num); return; }
         if (!bulkSelected.includes(num)) {

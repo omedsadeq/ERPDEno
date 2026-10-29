@@ -192,6 +192,7 @@ function build_service_treatment_rows(array $caseTreatments) {
             'unit_price' => (float)($ct['unit_price'] ?? 0),
             'final_price' => (float)($ct['final_price'] ?? 0),
             'category' => $ct['category'] ?? 'other',
+            'icon' => $ct['icon'] ?? null,     // the type's own icon: the chart shows the same one
         ];
     }, array_filter($caseTreatments, function ($ct) {
         return empty($ct['tooth_number']);
@@ -10591,6 +10592,7 @@ function legendSample(kind, color) {
 }
 
 function renderChartLegend() {
+    if (renderChartLegendIcons()) return;   // the treatment types' own icons (tooth-art.js)
     const el = document.getElementById('smartChartLegend');
     if (!el) return;
     const items = [
@@ -12844,10 +12846,19 @@ function initChartSelection() {
     document.addEventListener('pointerup', sweepEnd);
     document.addEventListener('pointercancel', sweepEnd);
 
+    // Hold a tooth: the list of its work, without picking it (tooth-art.js)
+    const toothHold = initToothHold(chart, {
+        snapshot: () => bulkSelected.slice(),
+        undo: before => { sweep = null; bulkSelected = before; renderBulkSelection(); },
+        list: num => (toothTreatmentMap[num] && toothTreatmentMap[num].treatments) || [],
+        more: num => showToothHistory(num)
+    });
+
     // Capture phase so this beats the tooth's inline onclick="showToothDetail(...)"
     chart.addEventListener('click', function(e) {
         const toothEl = e.target.closest('.tooth');
         if (!toothEl) return;
+        if (toothHold.held()) { e.stopPropagation(); e.preventDefault(); return; }   // that press was a hold
         const num = parseInt(toothEl.dataset.tooth, 10);
         if (e.ctrlKey || e.metaKey || window.bulkMode) {
             e.stopPropagation(); e.preventDefault();
@@ -12870,6 +12881,7 @@ function initChartSelection() {
         const toothEl = e.target.closest('.tooth');
         if (!toothEl) return;
         e.preventDefault();
+        if (toothHold.held()) return;          // a finger's hold showed the list already
         const num = parseInt(toothEl.dataset.tooth, 10);
         if (!CASE_IS_OPEN) { showToothHistory(num); return; }
         if (!bulkSelected.includes(num)) {
@@ -12999,8 +13011,11 @@ function mtFillCategorySelect(sel, current) {
 function mtIconChooser(el, value, nameEl) {
     if (!el || !window.TreatmentIcons) return null;
     if (nameEl) nameEl.textContent = value ? TreatmentIcons.label(value) : '';
+    if (value === 'other') value = '';          // «تر» is not a choice: a type says what it is
+    if (nameEl && !value) nameEl.textContent = '';
     return TreatmentIcons.chooser(el, {
         value: value,
+        noOther: true,
         onChange: k => { if (nameEl) nameEl.textContent = TreatmentIcons.label(k); }
     });
 }
@@ -13149,6 +13164,7 @@ function mtSaveEdit(id) {
     const icon = mtEditIconPicker ? mtEditIconPicker.get() : '';
     const requiresTooth = true;   // tooth number is optional for every treatment
     if (!name) { alert('تکایە ناوی چارەسەر بنووسە'); return; }
+    if (mtEditIconPicker && !icon) { mtEditIconPicker.missing(); alert('تکایە ئایکۆنێک بۆ چارەسەرەکە هەڵبژێرە'); return; }
 
     mtPost({ action: 'update', id: id, treatment_name: name, default_price: price, category: category, icon: icon, scope: scope, requires_tooth_number: requiresTooth })
         .then(d => {

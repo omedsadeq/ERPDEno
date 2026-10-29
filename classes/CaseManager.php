@@ -392,7 +392,7 @@ class CaseManager {
      * Get case treatments
      */
     public function getTreatments($caseId) {
-        $sql = "SELECT ct.*, t.treatment_name as default_name, t.category,
+        $sql = "SELECT ct.*, t.treatment_name as default_name, t.category, t.icon,
                 COALESCE(t.requires_tooth_number, 1) AS requires_tooth_number,
                 u.full_name as performed_by_name
                 FROM case_treatments ct

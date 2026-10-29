@@ -208,6 +208,7 @@ class TreatmentPlan
         return $this->db->fetchAll(
             "SELECT i.*,
                     t.category,
+                    t.icon,
                     c.case_number AS transferred_case_number,
                     tu.full_name AS transferred_by_name
              FROM treatment_plan_items i
