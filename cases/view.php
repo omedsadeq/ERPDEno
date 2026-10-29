@@ -10522,13 +10522,12 @@ function renderServiceWork() {
         grouped[key].qty += Number(row.quantity) || 0;
         grouped[key].total += Number(row.final_price) || 0;
     });
-    const rows = Object.values(grouped);
+    const rows = Object.values(grouped).filter(x => x.arch === 'none');
     root.classList.toggle('has-items', rows.length > 0);
     if (!rows.length) { root.innerHTML = ''; return; }
+    // whole-arch work is shown on its jaw (renderArchWork); this strip is the work with neither tooth nor jaw
     const lanes = [
-        ['upper', 'ماکزیلا / ئەرکی سەرەوە', 'fa-arrow-up', 'is-upper'],
-        ['none', 'کارەکانی بێ ژمارەی ددان', 'fa-briefcase-medical', 'is-service'],
-        ['lower', 'ماندیبل / ئەرکی خوارەوە', 'fa-arrow-down', 'is-lower']
+        ['none', 'کارەکانی بێ ژمارەی ددان', 'fa-briefcase-medical', 'is-service']
     ];
     root.innerHTML = lanes.map(function (lane) {
         const items = rows.filter(x => x.arch === lane[0]);
@@ -10544,9 +10543,11 @@ function renderServiceWork() {
 
 // Render / re-render the whole chart from toothTreatmentMap
 function renderSmartChart() {
+    const archWork = archWorkPlan(serviceTreatmentRows);   // whole-arch work: braces on its teeth, chips on its jaw
     document.querySelectorAll('.tooth[data-quadrant]').forEach(el => {
         const fdi = parseInt(el.dataset.tooth, 10);
         const st = toothState(fdi);
+        if (archWorkBracket(archWork, fdi)) st.bracket = true;
         const shapeClass = 'tooth--' + toothShapeKey(fdi);
         el.classList.remove('tooth--incisor', 'tooth--canine', 'tooth--premolar', 'tooth--molar');
         el.classList.add(shapeClass);
@@ -10572,6 +10573,7 @@ function renderSmartChart() {
     renderDentitionCounts();
     renderArchCharts();
     renderServiceWork();
+    renderArchWork(archWork);
 }
 
 function legendSample(kind, color) {
@@ -10819,6 +10821,8 @@ function applyDentitionPanes(vis) {
         // A pane that was hidden had no measurable width, so re-fit and center
         // now that it is laid out.
         requestAnimationFrame(() => { fitChartScale(); centerJawScroll(chart); });
+        // the arch work sits on the first set on screen, which may have just changed
+        if (typeof serviceTreatmentRows !== 'undefined') renderArchWork(archWorkPlan(serviceTreatmentRows));
     }
     document.querySelectorAll('#dentitionForm .dentition-opt').forEach(btn => {
         const on = vis[btn.dataset.dentition] !== false;

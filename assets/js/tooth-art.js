@@ -242,3 +242,67 @@ function toothSVG(fdi, opts) {
 
     return `<svg viewBox="0 0 44 60" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${toothNames[fdi] || ('Tooth ' + fdi)}" shape-rendering="geometricPrecision"><defs>${defs}</defs>${parts.join('')}</svg>`;
 }
+
+// ── Whole-arch work on the tooth chart ──────────────────────────────
+// Work filed on a whole jaw (arch_type upper / lower: braces, a denture …)
+// is shown on that jaw of the first tooth set on screen: a chip a treatment
+// (its icon, its name, how many), a soft tint behind the jaw, and — for
+// braces — a bracket on every tooth, whose wire segments meet into one wire.
+// Shared by cases/view.php and treatment-plans/view.php.
+
+/** The arch work grouped by jaw: {pane, upper: [chips], lower: [chips], braces: {upper, lower}}. */
+function archWorkPlan(rows) {
+    const visible = document.querySelector('#smartDentalChart .dentition-pane:not([hidden])');
+    const plan = { pane: visible ? visible.dataset.dentition : 'permanent', upper: [], lower: [], braces: { upper: false, lower: false } };
+    const kindOf = row => {
+        const key = window.TreatmentIcons ? TreatmentIcons.keyFor({ name: row.treatment_name, category: row.category, icon: row.icon }) : '';
+        if (key === 'orthodontic' || row.category === 'orthodontic') return ['ortho', 'orthodontic'];
+        if (key === 'denture') return ['denture', key];
+        return ['other', key];
+    };
+    (rows || []).forEach(row => {
+        if (row.arch_type !== 'upper' && row.arch_type !== 'lower') return;
+        const [kind, icon] = kindOf(row);
+        const jaw = plan[row.arch_type];
+        let chip = jaw.find(c => c.name === row.treatment_name);
+        if (!chip) { chip = { name: row.treatment_name, kind: kind, icon: icon, count: 0, total: 0 }; jaw.push(chip); }
+        chip.count += Number(row.quantity) || 1;
+        chip.total += Number(row.final_price) || 0;
+        if (kind === 'ortho') plan.braces[row.arch_type] = true;
+    });
+    return plan;
+}
+
+/** Whether a tooth wears the braces of its jaw (only on the set the chips are on). */
+function archWorkBracket(plan, fdi) {
+    const q = Math.floor(fdi / 10);
+    const primary = q >= 5;
+    if ((plan.pane === 'primary') !== primary) return false;
+    return (q === 1 || q === 2 || q === 5 || q === 6) ? plan.braces.upper : plan.braces.lower;
+}
+
+/** The chips and the tint, on the jaws of the set on screen. */
+function renderArchWork(plan) {
+    const chart = document.getElementById('smartDentalChart');
+    if (!chart) return;
+    chart.querySelectorAll('.jaw-arch-row').forEach(el => el.remove());
+    chart.querySelectorAll('.jaw-section').forEach(el => el.classList.remove('has-arch-ortho', 'has-arch-denture', 'has-arch-other'));
+    const pane = chart.querySelector('.dentition-pane[data-dentition="' + plan.pane + '"]');
+    if (!pane) return;
+    const esc = t => String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const fmt = n => new Intl.NumberFormat('en-US').format(Math.round(Number(n) || 0));
+    [['upper', 'سەرەوە', 'fa-arrow-up'], ['lower', 'خوارەوە', 'fa-arrow-down']].forEach(([jaw, label, arrow]) => {
+        const chips = plan[jaw];
+        const section = pane.querySelector('.jaw-section--' + jaw);
+        if (!chips.length || !section) return;
+        const kinds = chips.map(c => c.kind);
+        section.classList.add('has-arch-' + (kinds.includes('ortho') ? 'ortho' : kinds.includes('denture') ? 'denture' : 'other'));
+        const row = document.createElement('div');
+        row.className = 'jaw-arch-row';
+        row.innerHTML = `<span class="jaw-arch-label"><i class="fas ${arrow}"></i> ئەرکی ${label}</span>` + chips.map(c =>
+            `<span class="jaw-arch-chip is-${c.kind}" title="${esc(c.name)} — ${fmt(c.total)}">`
+            + `<span class="jaw-arch-ico">${window.TreatmentIcons ? TreatmentIcons.svg(c.icon || 'other') : ''}</span>${esc(c.name)}`
+            + (c.count > 1 ? `<b>×${c.count}</b>` : '') + `</span>`).join('');
+        if (jaw === 'upper') section.insertBefore(row, section.firstChild); else section.appendChild(row);
+    });
+}

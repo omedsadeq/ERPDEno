@@ -322,7 +322,7 @@
         [/پرد|bridge/, 'bridge'],
         [/چاندن|ئیمپلانت|implant/, 'implant'],
         [/screw|post|پوست|بزمار/, 'post'],
-        [/راستکردنەوە|ortho|brace/, 'orthodontic'],
+        [/راستکردنەوە|ortho|brace|تیل|زنجیر/, 'orthodontic'],   // تێل / زنجیر: the wire, the braces
         [/سپیکردنەوە|whiten|bleach/, 'whitening'],
         [/ڤینیر|veneer|لامینیت|laminate/, 'veneer'],
         [/کاتی|temporary/, 'temporary'],

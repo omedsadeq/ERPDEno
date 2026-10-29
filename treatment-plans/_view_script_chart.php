@@ -127,13 +127,12 @@ function renderServiceWork() {
         grouped[key].qty += Number(row.quantity) || 0;
         grouped[key].total += Number(row.final_price) || 0;
     });
-    const rows = Object.values(grouped);
+    const rows = Object.values(grouped).filter(x => x.arch === 'none');
     root.classList.toggle('has-items', rows.length > 0);
     if (!rows.length) { root.innerHTML = ''; return; }
+    // whole-arch work is shown on its jaw (renderArchWork); this strip is the work with neither tooth nor jaw
     const lanes = [
-        ['upper', 'ماکزیلا / ئەرکی سەرەوە', 'fa-arrow-up', 'is-upper'],
-        ['none', 'کارەکانی بێ ژمارەی ددان', 'fa-briefcase-medical', 'is-service'],
-        ['lower', 'ماندیبل / ئەرکی خوارەوە', 'fa-arrow-down', 'is-lower']
+        ['none', 'کارەکانی بێ ژمارەی ددان', 'fa-briefcase-medical', 'is-service']
     ];
     root.innerHTML = lanes.map(function (lane) {
         const items = rows.filter(x => x.arch === lane[0]);
@@ -148,9 +147,11 @@ function renderServiceWork() {
 }
 
 function renderSmartChart() {
+    const archWork = archWorkPlan(serviceTreatmentRows);   // whole-arch work: braces on its teeth, chips on its jaw
     document.querySelectorAll('.tooth[data-quadrant]').forEach(el => {
         const fdi = parseInt(el.dataset.tooth, 10);
         const st = toothState(fdi);
+        if (archWorkBracket(archWork, fdi)) st.bracket = true;
         el.classList.remove('tooth--incisor', 'tooth--canine', 'tooth--premolar', 'tooth--molar');
         el.classList.add('tooth--' + toothShapeKey(fdi));
         const holder = el.querySelector('.tooth-svg');
@@ -167,6 +168,7 @@ function renderSmartChart() {
     renderDentitionCounts();
     renderArchCharts();
     renderServiceWork();
+    renderArchWork(archWork);
 }
 
 // ── Adult / child panes ─────────────────────────────────────────────
@@ -240,6 +242,7 @@ function applyDentitionPanes(vis) {
     if (chart) {
         chart.querySelectorAll('.dentition-pane').forEach(pane => { pane.hidden = (vis[pane.dataset.dentition] === false); });
         requestAnimationFrame(() => { fitChartScale(); centerJawScroll(chart); });
+        renderArchWork(archWorkPlan(serviceTreatmentRows));
     }
     document.querySelectorAll('#dentitionForm .dentition-opt').forEach(btn => {
         const on = vis[btn.dataset.dentition] !== false;
