@@ -202,6 +202,13 @@ function toothSVG(fdi, opts) {
                 parts.push(`<path d="${p}" fill="none" stroke="${CHART_COLORS.canal}" stroke-width="2.6" stroke-linecap="round"/>`);
             });
         }
+        // a post / screw in the canal, over the canal it sits in: grey metal down
+        // the first canal, its head in the crown
+        if (st.post) {
+            parts.push(`<path d="${shape.canals[0]}" fill="none" stroke="#6f7a86" stroke-width="3.6" stroke-linecap="round"/>`);
+            parts.push(`<path d="${shape.canals[0]}" fill="none" stroke="#d5dbe1" stroke-width="1.2" stroke-linecap="round"/>`);
+            parts.push(`<rect x="${shape.chamber.cx - 3.6}" y="${shape.chamber.cy - 3}" width="7.2" height="6" rx="1.6" fill="#9aa5b1" stroke="#6f7a86" stroke-width=".8"/>`);
+        }
         parts.push('</g>'); // end ghost group
     } else {
         // ── implant: screw instead of tooth ──
@@ -305,4 +312,55 @@ function renderArchWork(plan) {
             + (c.count > 1 ? `<b>×${c.count}</b>` : '') + `</span>`).join('');
         if (jaw === 'upper') section.insertBefore(row, section.firstChild); else section.appendChild(row);
     });
+}
+
+// ── Per-tooth work, readable at a glance ────────────────────────────
+// A type saved as «other» is drawn as what its name and icon say (a metal
+// crown is a crown, a screw a post); the tooth's badge carries the icon of
+// the work that says most about it now, with how many there are, and the
+// tooth is tinted in that work's colour. Shared by both charts.
+
+/** The chart's category for a treatment row. */
+function chartCategoryOf(t) {
+    const cat = t.category || 'other';
+    if (cat !== 'other' && cat !== 'examination') return cat;
+    if (!window.TreatmentIcons) return cat;
+    const key = TreatmentIcons.keyFor({ name: t.treatment_name, category: cat, icon: t.icon });
+    return ({
+        crown: 'crown', crown_metal: 'crown', cementation: 'crown', bridge: 'bridge', implant: 'implant',
+        root_canal: 'root_canal', retreatment: 'root_canal', post: 'post',
+        extraction: 'extraction', surgical_extraction: 'extraction', surgery: 'surgery',
+        filling: 'filling', filling_cosmetic: 'filling', temporary: 'filling',
+        veneer: 'cosmetic', gem: 'cosmetic', cleaning: 'cleaning', whitening: 'whitening', orthodontic: 'orthodontic'
+    })[key] || cat;
+}
+const CHART_LEAD = ['extraction', 'surgery', 'implant', 'crown', 'bridge', 'cosmetic', 'root_canal', 'post',
+    'filling', 'orthodontic', 'whitening', 'cleaning', 'examination', 'other'];
+/** The treatment that says most about the tooth now (a crown over a root canal over a filling …). */
+function chartLeadTreatment(list) {
+    const rank = t => { const i = CHART_LEAD.indexOf(chartCategoryOf(t)); return i === -1 ? CHART_LEAD.length : i; };
+    return (list || []).reduce((best, t) => (best === null || rank(t) < rank(best) ? t : best), null);
+}
+/** The tooth's tint: the lead work's colour. */
+function chartTintOf(t) {
+    const cat = t ? chartCategoryOf(t) : 'other';
+    if (cat === 'filling') return /کۆمپۆزیت|كۆمپۆزیت|composite/i.test(t.treatment_name || '') ? CHART_COLORS.composite : CHART_COLORS.amalgam;
+    return ({ root_canal: CHART_COLORS.canal, crown: CHART_COLORS.crown, bridge: CHART_COLORS.crown, implant: CHART_COLORS.implant,
+        post: CHART_COLORS.implant, extraction: CHART_COLORS.extract, surgery: CHART_COLORS.extract, cosmetic: CHART_COLORS.cosmetic,
+        cleaning: CHART_COLORS.cleaning, whitening: CHART_COLORS.whitening, orthodontic: CHART_COLORS.ortho })[cat] || CHART_COLORS.other;
+}
+/** Paint a tooth's badge (.treatment-count) and tint for its treatments; none clears both. */
+function paintToothWork(el, list) {
+    let badge = el.querySelector('.treatment-count');
+    if (!list || !list.length) {
+        if (badge) badge.remove();
+        el.style.removeProperty('--tw');
+        return;
+    }
+    const lead = chartLeadTreatment(list);
+    el.style.setProperty('--tw', chartTintOf(lead));
+    if (!badge) { badge = document.createElement('span'); el.appendChild(badge); }
+    badge.className = 'treatment-count has-ico';
+    const key = window.TreatmentIcons ? TreatmentIcons.keyFor({ name: lead.treatment_name, category: lead.category, icon: lead.icon }) : '';
+    badge.innerHTML = (key ? `<span class="tb-ico">${TreatmentIcons.svg(key)}</span>` : '') + (list.length > 1 ? `<b>${list.length}</b>` : '');
 }

@@ -71,7 +71,7 @@ function toothState(fdi) {
     st.count = d.treatments.length;
     st.treatments = d.treatments;
     d.treatments.forEach(t => {
-        const cat = t.category || 'other';
+        const cat = chartCategoryOf(t);   // «other» types drawn as what they are (tooth-art.js)
         const surfs = String(t.tooth_surface || '').split(',').filter(Boolean).map(s => s === 'incisal' ? 'occlusal' : s);
         const paint = (color, fallback) => {
             (surfs.length ? surfs : fallback).forEach(s => { if (s === 'root') st.rootZone = color; else st.surfaces[s] = color; });
@@ -79,6 +79,7 @@ function toothState(fdi) {
         if (cat === 'filling') paint(/کۆمپۆزیت|كۆمپۆزیت|composite/i.test(t.treatment_name) ? CHART_COLORS.composite : CHART_COLORS.amalgam, ['occlusal']);
         else if (cat === 'cosmetic') paint(CHART_COLORS.cosmetic, ['buccal']);
         else if (cat === 'root_canal') st.canal = true;
+        else if (cat === 'post') st.post = true;
         else if (cat === 'crown' || cat === 'bridge') st.crown = true;
         else if (cat === 'implant') st.implant = true;
         else if (cat === 'extraction' || cat === 'surgery') st.extract = true;
@@ -158,11 +159,8 @@ function renderSmartChart() {
         if (holder) holder.innerHTML = toothSVG(fdi, {state: st, idPrefix: 'chart'});
         el.classList.toggle('has-treatments', st.count > 0);
         el.classList.toggle('has-transferred', st.count > 0 && st.treatments.every(t => t.status === 'transferred'));
-        let badge = el.querySelector('.treatment-count');
-        if (st.count > 0) {
-            if (!badge) { badge = document.createElement('span'); badge.className = 'treatment-count'; el.appendChild(badge); }
-            badge.textContent = st.count;
-        } else if (badge) { badge.remove(); }
+        // the badge: the lead work's icon and how many; the tint (tooth-art.js)
+        paintToothWork(el, st.treatments);
     });
     renderChartLegend();
     renderDentitionCounts();

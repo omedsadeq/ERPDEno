@@ -357,3 +357,21 @@
 .smart-dental-chart .jaw-section.has-arch-ortho { background: linear-gradient(180deg, rgba(255, 237, 213, .55), rgba(255, 247, 237, .25)); border-radius: 14px; }
 .smart-dental-chart .jaw-section.has-arch-denture { background: linear-gradient(180deg, rgba(255, 228, 230, .6), rgba(255, 241, 242, .25)); border-radius: 14px; }
 .smart-dental-chart .jaw-section.has-arch-other { background: linear-gradient(180deg, rgba(237, 233, 254, .6), rgba(245, 243, 255, .25)); border-radius: 14px; }
+
+/* A treated tooth: a soft tint in its lead work's colour (--tw, tooth-art.js
+   paintToothWork) and a badge with that work's icon and how many there are */
+.smart-dental-chart .tooth.has-treatments:not(:hover):not(.bulk-selected):not(.selected) {
+    background: color-mix(in srgb, var(--tw, #4dabf7) 10%, transparent);
+    border-color: color-mix(in srgb, var(--tw, #4dabf7) 30%, transparent);
+}
+.smart-dental-chart .tooth .treatment-count.has-ico {
+    width: calc(24px * var(--chart-scale, 1)); height: calc(24px * var(--chart-scale, 1)); min-width: 0; padding: 2px;
+    border-radius: 50%; background: #fff; border: 1.6px solid var(--tw, #4dabf7); color: inherit;
+    box-shadow: 0 2px 5px rgba(15, 23, 42, .16); display: grid; place-items: center; overflow: visible;
+}
+.smart-dental-chart .tooth .treatment-count.has-ico .tb-ico { display: block; width: 100%; height: 100%; }
+.smart-dental-chart .tooth .treatment-count.has-ico b {
+    position: absolute; top: -6px; inset-inline-start: -7px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px;
+    background: var(--tw, #4dabf7); color: #fff; font-size: 9px; font-weight: 800; line-height: 14px; text-align: center;
+    box-shadow: 0 0 0 1.5px #fff;
+}
