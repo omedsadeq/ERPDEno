@@ -136,12 +136,18 @@ function toothSVG(fdi, opts) {
         <clipPath id="clip-${uid}"><path d="${shape.body}"/></clipPath>`;
     let parts = [];
 
+    // ── what was done, strong enough to read from across the room ──
+    const work = (!opts.showAllZones && st.treatments && st.treatments.length) ? st.treatments : [];
+    const did = cat => work.some(t => chartCategoryOf(t) === cat);
+    const wash = work.length ? chartTintOf(chartLeadTreatment(work)) : null;   // the whole tooth, in its lead work's colour
+
     // ── tooth body ──
     const ghost = st.extract ? ' opacity="0.18"' : '';
     if (!st.implant) {
         parts.push(`<g${ghost}>`);
         parts.push(`<path d="${shape.body}" fill="url(#tooth-base-${uid})"/>`);
         parts.push(`<path d="${shape.body}" fill="url(#tooth-shade-${uid})"/>`);
+        if (wash) parts.push(`<path d="${shape.body}" fill="${wash}" fill-opacity="0.32"/>`);
         const gl = shape.gloss;
         parts.push(`<ellipse cx="${gl.cx}" cy="${gl.cy}" rx="${gl.rx}" ry="${gl.ry}" fill="url(#tooth-gloss-${uid})"/>`);
         const anatomy = TOOTH_ANATOMY[shapeKey] || [];
@@ -153,6 +159,9 @@ function toothSVG(fdi, opts) {
 
         // clipped layers (zones, root highlight)
         parts.push(`<g clip-path="url(#clip-${uid})">`);
+        if (st.canal && work.length) {
+            parts.push(`<rect x="0" y="${shape.cej}" width="44" height="${60 - shape.cej}" fill="${CHART_COLORS.canal}" fill-opacity="0.3"/>`);
+        }
         // root zone highlight
         const rootFill = selected ? (selected.has('root') ? CHART_COLORS.other : null) : st.rootZone;
         if (opts.showAllZones) {
@@ -176,7 +185,7 @@ function toothSVG(fdi, opts) {
             if (opts.showAllZones) {
                 zoneEls.push(`<ellipse cx="${g.cx}" cy="${g.cy}" rx="${(g.rx * 1.06).toFixed(2)}" ry="${(g.ry * 1.06).toFixed(2)}" fill="${fill || '#dfe5ea'}" fill-opacity="${fill ? 0.9 : 0.6}" stroke="${fill ? '#00000033' : '#c3ccd4'}" stroke-width="0.7" data-surface="${surf}" style="cursor:pointer"/>`);
             } else if (fill) {
-                zoneEls.push(`<ellipse cx="${g.cx}" cy="${g.cy}" rx="${(g.rx * 1.08).toFixed(2)}" ry="${(g.ry * 1.08).toFixed(2)}" fill="${fill}" fill-opacity="0.94" stroke="#00000022" stroke-width="0.7"/>`);
+                zoneEls.push(`<ellipse cx="${g.cx}" cy="${g.cy}" rx="${(g.rx * 1.25).toFixed(2)}" ry="${(g.ry * 1.25).toFixed(2)}" fill="${fill}" fill-opacity="1" stroke="#ffffff" stroke-width="1.1"/>`);
             }
         });
         // occlusal star patch
@@ -185,7 +194,7 @@ function toothSVG(fdi, opts) {
         if (opts.showAllZones) {
             zoneEls.push(`<path d="${starPath(scx, scy, ss * 1.12)}" fill="${oFill || '#dfe5ea'}" fill-opacity="${oFill ? 0.95 : 0.65}" stroke="${oFill ? '#00000033' : '#c3ccd4'}" stroke-width="0.7" data-surface="occlusal" style="cursor:pointer"/>`);
         } else if (oFill) {
-            zoneEls.push(`<path d="${starPath(scx, scy, ss * 1.16)}" fill="${oFill}" fill-opacity="0.96" stroke="#00000022" stroke-width="0.7"/>`);
+            zoneEls.push(`<path d="${starPath(scx, scy, ss * 1.5)}" fill="${oFill}" fill-opacity="1" stroke="#ffffff" stroke-width="1.1"/>`);
         }
         parts.push(zoneEls.join(''));
         // a band of light, parked off the tooth until hover sweeps it across (CSS)
@@ -197,9 +206,9 @@ function toothSVG(fdi, opts) {
         // root canal indicator
         if (st.canal) {
             const c = shape.chamber;
-            parts.push(`<ellipse cx="${c.cx}" cy="${c.cy}" rx="${c.rx}" ry="${c.ry}" fill="${CHART_COLORS.canal}" fill-opacity="0.9"/>`);
+            parts.push(`<ellipse cx="${c.cx}" cy="${c.cy}" rx="${(c.rx * 1.15).toFixed(2)}" ry="${(c.ry * 1.15).toFixed(2)}" fill="${CHART_COLORS.canal}"/>`);
             shape.canals.forEach(p => {
-                parts.push(`<path d="${p}" fill="none" stroke="${CHART_COLORS.canal}" stroke-width="2.6" stroke-linecap="round"/>`);
+                parts.push(`<path d="${p}" fill="none" stroke="${CHART_COLORS.canal}" stroke-width="3.8" stroke-linecap="round"/>`);
             });
         }
         // a post / screw in the canal, over the canal it sits in: grey metal down
@@ -225,7 +234,11 @@ function toothSVG(fdi, opts) {
 
     // crown / bridge overlay (also valid on implants)
     if (st.crown) {
-        parts.push(`<path d="${shape.crown}" fill="${CHART_COLORS.crown}" fill-opacity="0.18" stroke="${CHART_COLORS.crown}" stroke-width="2.65" stroke-linejoin="round"/>`);
+        parts.push(`<path d="${shape.crown}" fill="${CHART_COLORS.crown}" fill-opacity="0.82" stroke="#a86a00" stroke-width="2" stroke-linejoin="round"/>`);
+        parts.push(`<ellipse cx="${shape.gloss.cx}" cy="${shape.gloss.cy}" rx="${shape.gloss.rx}" ry="${shape.gloss.ry}" fill="#fff" fill-opacity="0.45"/>`);
+    } else if (did('cosmetic')) {
+        parts.push(`<path d="${shape.crown}" fill="${CHART_COLORS.cosmetic}" fill-opacity="0.62" stroke="#6741d9" stroke-width="1.8" stroke-linejoin="round"/>`);
+        parts.push(`<ellipse cx="${shape.gloss.cx}" cy="${shape.gloss.cy}" rx="${shape.gloss.rx}" ry="${shape.gloss.ry}" fill="#fff" fill-opacity="0.5"/>`);
     }
     // orthodontic bracket
     if (st.bracket) {
@@ -242,7 +255,8 @@ function toothSVG(fdi, opts) {
     }
     // extraction X on top of everything
     if (st.extract) {
-        parts.push(`<g stroke="${CHART_COLORS.extract}" stroke-width="3.6" stroke-linecap="round">`);
+        parts.push(`<g stroke="#ffffff" stroke-width="6.4" stroke-linecap="round"><line x1="12" y1="14" x2="32" y2="44"/><line x1="32" y1="14" x2="12" y2="44"/></g>`);
+        parts.push(`<g stroke="${CHART_COLORS.extract}" stroke-width="4.2" stroke-linecap="round">`);
         parts.push(`<line x1="12" y1="14" x2="32" y2="44"/><line x1="32" y1="14" x2="12" y2="44"/>`);
         parts.push('</g>');
     }

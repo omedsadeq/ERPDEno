@@ -10412,7 +10412,7 @@ const CHART_COLORS = {
     canal:     '#e8637f',   // چارەسەری دەمار
     crown:     '#dfa32b',   // تاج / پرد
     implant:   '#78909c',   // ئیمپلانت
-    extract:   '#4a5560',   // ڕاکێشان / جراحی
+    extract:   '#e03131',   // ڕاکێشان / جراحی
     cleaning:  '#2bb3c9',   // پاککردنەوە
     whitening: '#4dabf7',   // سپیکردنەوە
     cosmetic:  '#9775fa',   // ڤینیر / لامینیت

@@ -32,7 +32,7 @@ let serviceTreatmentRows = [];
 
 const CHART_COLORS = {
     amalgam: '#51b56b', composite: '#f06a94', canal: '#e8637f', crown: '#dfa32b',
-    implant: '#78909c', extract: '#4a5560', cleaning: '#2bb3c9', whitening: '#4dabf7',
+    implant: '#78909c', extract: '#e03131', cleaning: '#2bb3c9', whitening: '#4dabf7',
     cosmetic: '#9775fa', ortho: '#f76707', other: '#4dabf7', outline: '#59626f', body: '#ffffff'
 };
 const SURFACE_LABELS = {
