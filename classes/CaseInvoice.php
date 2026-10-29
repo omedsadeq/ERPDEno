@@ -189,24 +189,28 @@ class CaseInvoice {
     }
 
     /**
-     * The draft a new treatment should be filed under: the newest open draft,
-     * or a fresh one for today. Called whenever work is entered without an
-     * explicit tab, so the doctor never has to think about invoices.
+     * The draft a new treatment should be filed under when no tab is named:
+     * today's open receipt, or a fresh one for today. Called whenever work is
+     * entered without an explicit tab, so the doctor never has to think about
+     * invoices. A receipt left unsent from an earlier day never takes today's
+     * work — it would be dated, and counted, on that day.
      */
     public function getOrCreateActiveDraft($caseId, $userId) {
+        // A historical case's first receipt belongs to the day the old work was
+        // done, so it never lands in today's production figures — and while it
+        // is open, the old work keeps going on it.
+        $case = $this->db->fetch("SELECT is_historical, historical_date FROM cases WHERE id = :id", ['id' => (int)$caseId]);
+        $oldDay = (!empty($case['is_historical']) && !empty($case['historical_date'])) ? $case['historical_date'] : null;
         $row = $this->db->fetch(
-            "SELECT id FROM case_invoices WHERE case_id = :cid AND accounting_status IN ('draft','returned') ORDER BY invoice_seq DESC LIMIT 1",
-            ['cid' => (int)$caseId]
+            "SELECT id FROM case_invoices WHERE case_id = :cid AND accounting_status IN ('draft','returned') AND work_date IN (:today, :old)
+             ORDER BY (work_date = :today2) DESC, invoice_seq DESC LIMIT 1",
+            ['cid' => (int)$caseId, 'today' => date('Y-m-d'), 'old' => $oldDay ?? date('Y-m-d'), 'today2' => date('Y-m-d')]
         );
         if ($row) {
             return (int)$row['id'];
         }
-        // A historical case's first receipt belongs to the day the old work was
-        // done, so it never lands in today's production figures.
-        $case = $this->db->fetch("SELECT is_historical, historical_date FROM cases WHERE id = :id", ['id' => (int)$caseId]);
-        $workDate = (!empty($case['is_historical']) && !empty($case['historical_date']))
-            ? $case['historical_date']
-            : date('Y-m-d');
+        $firstReceipt = !$this->db->fetch("SELECT id FROM case_invoices WHERE case_id = :cid AND accounting_status <> 'cancelled' LIMIT 1", ['cid' => (int)$caseId]);
+        $workDate = ($oldDay !== null && $firstReceipt) ? $oldDay : date('Y-m-d');
         $made = $this->createDraft($caseId, $workDate, $userId);
         return !empty($made['success']) ? (int)$made['invoice_id'] : null;
     }

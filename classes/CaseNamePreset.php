@@ -12,6 +12,9 @@ require_once __DIR__ . '/Database.php';
 
 class CaseNamePreset {
 
+    /** The name a case made by «کەیس» in one click gets (patients/view.php open_case). */
+    const GENERAL = 'گشتی';
+
     private $db;
 
     public function __construct() {

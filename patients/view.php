@@ -253,6 +253,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         AccessGuard::requirePatientGeneral($patientId, false);
     }
 
+    if ($_POST['action'] === 'open_case') {
+        // «کەیس» in one click: the doctor's open case on this patient, or —
+        // when there is none — a general one made without a dialog. Name,
+        // complaint and the rest are filled in on the case itself if needed.
+        $quickDoctorId = $hasFullAccess ? intval($_POST['doctor_id'] ?? 0) : intval($currentUser['id']);
+        if ($quickDoctorId <= 0) {
+            patient_view_fail($patientId, 'دکتۆر هەڵبژێرە', 'newCaseDialog');
+        }
+        $openCase = $db->fetch(
+            "SELECT c.id FROM cases c JOIN patient_folders pf ON pf.id = c.folder_id
+             WHERE pf.patient_id = :pid AND pf.doctor_id = :did AND c.status = 'open'
+             ORDER BY c.created_at DESC, c.id DESC LIMIT 1",
+            ['pid' => $patientId, 'did' => $quickDoctorId]
+        );
+        if ($openCase) {
+            header('Location: ' . APP_URL . '/cases/view.php?id=' . (int)$openCase['id']);
+            exit;
+        }
+        $presets = new CaseNamePreset();
+        if (!$presets->exists(CaseNamePreset::GENERAL)) {
+            $presets->add(CaseNamePreset::GENERAL, 'tooth', (int)$currentUser['id']);
+        }
+        $_POST = ['action' => 'create_case', 'case_name' => CaseNamePreset::GENERAL, 'scope_type' => 'tooth',
+            'case_age' => 'new', 'doctor_id' => $quickDoctorId, 'chief_complaint' => '', 'notes' => ''] + $_POST;
+    }
+
     if ($_POST['action'] === 'create_case') {
         // Auto-Folder flow: the UI creates cases directly on the patient;
         // the folder level is resolved silently behind the scenes.
@@ -1868,10 +1894,17 @@ require_once __DIR__ . '/../includes/header.php';
             <span style="font-size: 12px; opacity: 0.85;">تەنها کەیسەکانی خۆت دەبینیت - زانیاری دکتۆرەکانی تر شاراوەتەوە.</span>
         </div>
     </div>
+    <?php if (!$hasFullAccess): ?>
+    <form method="POST" style="display:inline;"><?= Csrf::field() ?><input type="hidden" name="action" value="open_case">
+    <button type="submit" class="btn" style="background: #2196f3; color: white; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; white-space: nowrap;">
+        <i class="fas fa-tooth"></i> کەیس
+    </button></form>
+    <?php else: ?>
     <button onclick="openDialog('newCaseDialog')" class="btn" style="background: #2196f3; color: white; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; white-space: nowrap;">
         <i class="fas fa-briefcase-medical"></i>
         کەیسی نوێ دروستبکە
     </button>
+    <?php endif; ?>
 </div>
 <?php elseif ($isRestrictedView): ?>
 <!-- New Patient Banner - No folders yet for this patient from anyone -->
@@ -1888,10 +1921,17 @@ require_once __DIR__ . '/../includes/header.php';
             هیچ کەیسێکت بۆ ئەم نەخۆشە نییە. کەیسی نوێ دروستبکە بۆ دەستپێکردنی کار.
         </div>
     </div>
+    <?php if (!$hasFullAccess): ?>
+    <form method="POST" style="display:inline;"><?= Csrf::field() ?><input type="hidden" name="action" value="open_case">
+    <button type="submit" class="btn" style="background: #4caf50; color: white; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; white-space: nowrap;">
+        <i class="fas fa-tooth"></i> کەیس
+    </button></form>
+    <?php else: ?>
     <button onclick="openDialog('newCaseDialog')" class="btn" style="background: #4caf50; color: white; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; white-space: nowrap;">
         <i class="fas fa-briefcase-medical"></i>
         کەیسی نوێ دروستبکە
     </button>
+    <?php endif; ?>
 </div>
 <?php endif; ?>
 
@@ -2184,10 +2224,21 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php if ($isAdmin || $isDoctor): ?>
                         <a class="btn btn-secondary" href="<?= APP_URL ?>/cases/deleted.php?patient_id=<?= (int)$patientId ?>"><i class="fas fa-history"></i> کەیسە سڕاوەکان</a>
                         <?php endif; ?>
+                        <?php if (!$hasFullAccess): ?>
+                        <?php // «کەیس»: the doctor's open case, or a new one at once — no dialog ?>
+                        <form method="POST" style="display:inline;"><?= Csrf::field() ?><input type="hidden" name="action" value="open_case">
+                        <button type="submit" class="btn btn-primary" title="کەیسی کراوەت دەکاتەوە، یان یەکێکی نوێ دروست دەکات">
+                            <i class="fas fa-tooth"></i> کەیس
+                        </button></form>
+                        <button type="button" class="btn btn-secondary" onclick="openDialog('newCaseDialog')" title="کەیسێک بە ناو و جۆری خۆی، یان کەیسی کۆن">
+                            <i class="fas fa-plus"></i> کەیسی تر
+                        </button>
+                        <?php else: ?>
                         <button class="btn btn-primary" onclick="openDialog('newCaseDialog')">
                             <i class="fas fa-plus"></i>
                             کەیسی نوێ
                         </button>
+                        <?php endif; ?>
                     </div>
 
                     <?php if (!empty($caseCreateError)): ?>
@@ -2204,10 +2255,17 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
                         <p class="empty-state-title-modern">هیچ کەیسێک نییە</p>
                         <p class="empty-state-text-modern">ئەم نەخۆشە هێشتا هیچ کەیسێکی نییە. کەیسێکی نوێ دروست بکە بۆ دەستپێکردنی چارەسەر</p>
+                        <?php if (!$hasFullAccess): ?>
+                        <form method="POST" style="display:inline;"><?= Csrf::field() ?><input type="hidden" name="action" value="open_case">
+                        <button type="submit" class="btn btn-primary" style="padding: 11px 24px; font-size: 14px; border-radius: 10px;">
+                            <i class="fas fa-tooth"></i> کەیس
+                        </button></form>
+                        <?php else: ?>
                         <button class="btn btn-primary" onclick="openDialog('newCaseDialog')" style="padding: 11px 24px; font-size: 14px; border-radius: 10px;">
                             <i class="fas fa-plus-circle"></i>
                             دروستکردنی کەیس
                         </button>
+                        <?php endif; ?>
                     </div>
                     <?php else: ?>
                     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">

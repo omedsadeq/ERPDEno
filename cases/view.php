@@ -704,15 +704,17 @@ function case_view_ajax_success($caseManager, $caseId, $extra = []) {
 
     $freshTabs = case_view_sort_invoice_tabs($caseInvoice->getByCase($caseId));
 
-    // No tab asked for (the page is still showing the "no receipt yet"
+    // No tab asked for (the page is on «ئەمڕۆ» or the "no receipt yet"
     // placeholder, or the caller doesn't track one): fall back to the same tab
-    // a fresh page load would open — newest draft, else newest receipt.
-    if (empty($extra['invoice_id']) && $freshTabs) {
+    // a fresh page load would open — today's receipt, else «ئەمڕۆ» (stays 0),
+    // else the newest draft, else the newest receipt.
+    $todayTab = case_view_wants_today_tab($freshTabs, $freshCase);
+    if (empty($extra['invoice_id']) && $freshTabs && !$todayTab) {
         $fallback = $freshTabs[0];
         foreach ($freshTabs as $t) {
             if ($t['status'] === 'draft') { $fallback = $t; break; }
         }
-        $extra['invoice_id'] = (int)$fallback['id'];
+        $extra['invoice_id'] = case_view_today_draft_id($freshTabs) ?: (int)$fallback['id'];
     }
 
     // When the mutation touched one visit tab, ship that pane's fresh HTML back
@@ -728,7 +730,7 @@ function case_view_ajax_success($caseManager, $caseId, $extra = []) {
 
     // The strip always travels with the response: a receipt created by this very
     // mutation needs its button, and a tab sent/paid elsewhere needs its icon.
-    $extra['tabs_html'] = render_visit_tab_bar($freshTabs, (int)($extra['invoice_id'] ?? 0), $freshCase['status']);
+    $extra['tabs_html'] = render_visit_tab_bar($freshTabs, (int)($extra['invoice_id'] ?? 0), $freshCase['status'], $todayTab);
 
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(array_merge([
@@ -781,6 +783,32 @@ function render_invoice_pane($caseId, $invoiceId, $case, $allTreatments) {
  * One ordering for the page and for the AJAX response, so a tab never moves
  * when the strip is re-rendered.
  */
+/**
+ * Today's open receipt on the case (a draft, or one the accountant returned),
+ * or 0. New work belongs to it — the page opens on it.
+ */
+function case_view_today_draft_id(array $tabs) {
+    foreach ($tabs as $t) {
+        if ($t['work_date'] === date('Y-m-d') && in_array($t['accounting_status'] ?? $t['status'], ['draft', 'returned'], true)) {
+            return (int)$t['id'];
+        }
+    }
+    return 0;
+}
+
+/**
+ * Whether the strip offers «ئەمڕۆ»: an open case with no receipt open for
+ * today. Its first work makes today's receipt (getOrCreateActiveDraft), so a
+ * receipt left unsent yesterday never takes today's work. A historical case
+ * with no receipt yet is the exception — its first one is the old work day.
+ */
+function case_view_wants_today_tab(array $tabs, array $case) {
+    if (($case['status'] ?? '') !== 'open' || case_view_today_draft_id($tabs)) {
+        return false;
+    }
+    return !(!empty($case['is_historical']) && !$tabs);
+}
+
 function case_view_sort_invoice_tabs(array $tabs) {
     usort($tabs, function ($a, $b) {
         if ($a['work_date'] !== $b['work_date']) {
@@ -799,12 +827,22 @@ function case_view_sort_invoice_tabs(array $tabs) {
  * without a fresh strip the page would keep showing "no receipt yet" while the
  * work sits on a tab that has no button.
  */
-function render_visit_tab_bar(array $invoiceTabs, $activeInvoiceId, $caseStatus) {
+function render_visit_tab_bar(array $invoiceTabs, $activeInvoiceId, $caseStatus, $todayTab = false) {
     ob_start();
-    foreach ($invoiceTabs as $tab): $tid = (int)$tab['id']; ?>
+    if ($todayTab): ?>
+        <?php // «ئەمڕۆ»: no receipt is open for today yet — the first work added here makes it ?>
+        <button type="button" class="vt-tab vt-tab--today<?= (int)$activeInvoiceId === 0 ? ' is-active' : '' ?>"
+                data-invoice-tab="0" onclick="switchVisitTab(0)" title="ئیشی ئەمڕۆ — وەسڵەکە خۆی دروست دەبێت">
+            <span class="vt-tab-date"><i class="fas fa-sun"></i> ئەمڕۆ</span>
+            <span class="vt-tab-no">وەسڵی نوێ</span>
+        </button>
+    <?php endif;
+    foreach ($invoiceTabs as $tab): $tid = (int)$tab['id'];
+        // a receipt left unsent from an earlier day: say so, so it is not forgotten
+        $staleDraft = $tab['status'] === 'draft' && $tab['work_date'] < date('Y-m-d'); ?>
         <button type="button"
-                class="vt-tab vt-tab--<?= $tab['status'] ?><?= $tid === (int)$activeInvoiceId ? ' is-active' : '' ?>"
-                data-invoice-tab="<?= $tid ?>" onclick="switchVisitTab(<?= $tid ?>)">
+                class="vt-tab vt-tab--<?= $tab['status'] ?><?= $staleDraft ? ' is-stale' : '' ?><?= $tid === (int)$activeInvoiceId ? ' is-active' : '' ?>"
+                data-invoice-tab="<?= $tid ?>" onclick="switchVisitTab(<?= $tid ?>)"<?= $staleDraft ? ' title="ئەم وەسڵە هێشتا نەنێردراوە بۆ ژمێریار"' : '' ?>>
             <span class="vt-tab-date">
                 <?php if ($tab['status'] === 'draft'): ?><i class="fas fa-pen-ruler" title="نەنێردراو"></i>
                 <?php elseif ($tab['status'] === 'processed'): ?><i class="fas fa-check-double" title="پارە وەرگیراوە"></i>
@@ -816,6 +854,7 @@ function render_visit_tab_bar(array $invoiceTabs, $activeInvoiceId, $caseStatus)
                 <?php endif; ?>
             </span>
             <span class="vt-tab-no" dir="ltr"><?= htmlspecialchars($tab['invoice_no']) ?></span>
+            <?php if ($staleDraft): ?><span class="vt-tab-stale">نەنێردراوە</span><?php endif; ?>
         </button>
     <?php endforeach;
     if ($caseStatus === 'open'): ?>
@@ -2569,15 +2608,19 @@ foreach ($caseTreatments as $ct) {
 // Tabs newest-first, drafts before sent ones on the same date.
 $invoiceTabs = case_view_sort_invoice_tabs($caseInvoices);
 
-// Which tab opens first: ?inv=, else the newest draft, else the newest tab.
+// Which tab opens first: ?inv=, else today's receipt, else «ئەمڕۆ» (0 — the
+// first work makes today's receipt), else the newest draft, else the newest tab.
+$showTodayTab = case_view_wants_today_tab($invoiceTabs, $case);
 $activeInvoiceId = intval($_GET['inv'] ?? 0);
 if (!isset($invoiceMetaById[$activeInvoiceId])) {
-    $activeInvoiceId = 0;
-    foreach ($invoiceTabs as $t) {
-        if ($t['status'] === 'draft') { $activeInvoiceId = (int)$t['id']; break; }
-    }
-    if (!$activeInvoiceId && !empty($invoiceTabs)) {
-        $activeInvoiceId = (int)$invoiceTabs[0]['id'];
+    $activeInvoiceId = case_view_today_draft_id($invoiceTabs);
+    if (!$activeInvoiceId && !$showTodayTab) {
+        foreach ($invoiceTabs as $t) {
+            if ($t['status'] === 'draft') { $activeInvoiceId = (int)$t['id']; break; }
+        }
+        if (!$activeInvoiceId && !empty($invoiceTabs)) {
+            $activeInvoiceId = (int)$invoiceTabs[0]['id'];
+        }
     }
 }
 
@@ -5000,7 +5043,6 @@ button.rx-card-print { cursor:pointer; padding:0; }
                                 <?php endif; ?>
                             </h5>
 
-                            <?php if (($case['scope_type'] ?? 'tooth') !== 'arch'): ?>
                             <!-- Both charts are always active: permanent (32 teeth, 1-8) and
                                  primary (20 teeth, A-E) render together for mixed dentition.
                                  These buttons only fold a pane away on screen. -->
@@ -5023,7 +5065,6 @@ button.rx-card-print { cursor:pointer; padding:0; }
                                     title="دەنگی ددانەکان کاتێک ماوس دەبەیتە سەریان (کردنەوە/کوژاندنەوە)">
                                 <i class="fas fa-volume-up"></i>
                             </button>
-                            <?php endif; ?>
                         </div>
                         <?php if ($case['status'] === 'open'): ?>
                         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
@@ -5034,13 +5075,11 @@ button.rx-card-print { cursor:pointer; padding:0; }
                                     title="زیادکردن، دەستکاری و سڕینەوەی جۆرەکانی چارەسەر">
                                 <i class="fas fa-list-check"></i> جۆری چارەسەر
                             </button>
-                            <?php // Tooth cases add work from the chart (select teeth → «زیادکردنی ئیش»);
-                                  // an arch case has no teeth to click, so it keeps its button. ?>
-                            <?php if (($case['scope_type'] ?? 'tooth') === 'arch'): ?>
-                            <button class="btn btn-primary btn-sm" onclick="openArchTreatmentDialog()">
-                                <i class="fas fa-plus"></i> زیادکردن
+                            <?php // Tooth work is added from the chart (select teeth → right click);
+                                  // whole-arch work (ortho, a denture) from this button — in any case. ?>
+                            <button class="btn btn-primary btn-sm" onclick="openArchTreatmentDialog()" title="ئیشی هەموو ئەرکێک: ڕاستکردنەوە، تاخم …">
+                                <i class="fas fa-teeth"></i> ئیشی ئەرک
                             </button>
-                            <?php endif; ?>
                         </div>
                         <?php endif; ?>
                     </div>
@@ -5123,8 +5162,8 @@ button.rx-card-print { cursor:pointer; padding:0; }
                         <!-- Legend (rendered by JS so it matches the arch renderer) -->
                         <div class="arch-occ-legend" id="archOccLegend"></div>
                     </div>
-                    <?php else: ?>
-                    <!-- Standard Tooth Chart -->
+                    <?php endif; ?>
+                    <!-- The tooth chart — in every case; an arch case has its arch panels above it -->
                     <div class="dental-chart-container smart-dental-chart" id="smartDentalChart">
                         <?php
                         // Both tooth sets are drawn together — a patient may be in mixed
@@ -5181,7 +5220,6 @@ button.rx-card-print { cursor:pointer; padding:0; }
                         <!-- Legend (rendered by JS so it always matches the tooth renderer) -->
                         <div class="chart-legend" id="smartChartLegend"></div>
                     </div>
-                    <?php endif; ?>
                 </div>
             </div>
 
@@ -5224,9 +5262,18 @@ button.rx-card-print { cursor:pointer; padding:0; }
                     // and sent as one unit.
                     $quadKeys = ['UR' => 'upper_right', 'UL' => 'upper_left', 'LR' => 'lower_right', 'LL' => 'lower_left'];
                     ?>
-                    <div class="vt-bar"><?= render_visit_tab_bar($invoiceTabs, $activeInvoiceId, $case['status']) ?></div>
+                    <div class="vt-bar"><?= render_visit_tab_bar($invoiceTabs, $activeInvoiceId, $case['status'], $showTodayTab) ?></div>
 
-                    <?php if (empty($invoiceTabs)): ?>
+                    <?php if ($showTodayTab): ?>
+                    <!-- «ئەمڕۆ»: today's receipt, before its first work makes it -->
+                    <div class="vt-empty vt-today" data-invoice-pane="0"<?= $activeInvoiceId ? ' hidden' : '' ?>>
+                        <i class="fas fa-sun"></i>
+                        <p><b>وەسڵی ئەمڕۆ</b> — ددان هەڵبژێرە و کلیکی ڕاست بکە، وەسڵەکە خۆی دروست دەبێت.</p>
+                        <button type="button" class="btn btn-primary" onclick="openNewVisitTab()">
+                            <i class="fas fa-plus"></i> وەسڵی ئەمڕۆ بکەرەوە
+                        </button>
+                    </div>
+                    <?php elseif (empty($invoiceTabs)): ?>
                     <div class="vt-empty">
                         <i class="fas fa-receipt"></i>
                         <p>هێشتا هیچ وەسڵێک نییە. تابێکی نوێ دروست بکە و چارەسەرەکان زیاد بکە.</p>
@@ -6539,7 +6586,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 </div>
 
-<?php if ($case['status'] === 'open' && ($case['scope_type'] ?? 'tooth') !== 'arch'): ?>
+<?php if ($case['status'] === 'open'): ?>
 <!-- ── Bulk (multi-tooth) treatment: floating bar + dialog ── -->
 <div id="bulkActionBar" style="display: none;">
     <div class="bulk-bar-inner">
@@ -11619,6 +11666,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (form.dataset.busy === '1') return;
         form.dataset.busy = '1';
         setFormLoading(form, true);
+        stampActiveReceipt(form);
         const fd = new FormData(form);
         fd.set('ajax', '1');
         const saveAndNew = fd.get('save_and_new') === '1';
@@ -12918,7 +12966,8 @@ let mtData = <?= json_encode(array_values(array_map(function ($t) {
 let mtEditingId = null;
 let mtNewIconPicker = null, mtEditIconPicker = null;
 const MT_SCOPE_LABELS = { tooth: 'ددان', arch: 'ئەرک', both: 'هەردوو' };
-const CASE_TREATMENT_SCOPE = <?= json_encode(($case['scope_type'] ?? 'tooth') === 'arch' ? 'arch' : 'tooth') ?>;
+// the chart's picker lists the tooth types in every case (arch types go through the arch dialog)
+const CASE_TREATMENT_SCOPE = 'tooth';
 
 // Keep every treatment picker on this page in sync with an add/edit response.
 // Previously the management dialog only updated mtData and relied on a full
@@ -13355,6 +13404,7 @@ document.getElementById('bulkTreatmentForm')?.addEventListener('submit', functio
         alert('تکایە لانیکەم یەک ددان هەڵبژێرە');
         return;
     }
+    stampActiveReceipt(this);
     const btn = document.getElementById('bulkSubmitBtn');
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> پاشەکەوت دەکرێت...'; }
 });
@@ -13589,7 +13639,24 @@ function validateArchForm() {
         alert('تکایە لانیکەم یەک ئەرک هەڵبژێرە');
         return false;
     }
+    stampActiveReceipt(document.getElementById('archTreatmentForm'));
     return true;
+}
+
+/**
+ * The receipt open in the treatments tab takes a dialog's work; on «ئەمڕۆ»
+ * (0) nothing is named, and the server makes today's receipt.
+ */
+function stampActiveReceipt(form) {
+    if (!form) return;
+    let input = form.querySelector('input[name="invoice_id"]');
+    if (!input) {
+        input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'invoice_id';
+        form.appendChild(input);
+    }
+    input.value = typeof activeVisitTab !== 'undefined' && activeVisitTab ? String(activeVisitTab) : '';
 }
 
 function updateArchTreatmentPrice() {
@@ -14088,9 +14155,14 @@ function applyInvoiceSnapshot(d, invoiceId) {
     const bar = document.querySelector('.vt-bar');
     if (d.tabs_html !== undefined && bar) {
         bar.innerHTML = d.tabs_html;
-        if (bar.querySelector('[data-invoice-tab]')) {
-            const placeholder = document.querySelector('#treatmentTableView .vt-empty');
+        // "no receipt yet" goes once a receipt exists; «ئەمڕۆ» once today's does
+        if (bar.querySelector('[data-invoice-tab]:not([data-invoice-tab="0"])')) {
+            const placeholder = document.querySelector('#treatmentTableView .vt-empty:not(.vt-today)');
             if (placeholder) placeholder.remove();
+        }
+        if (!bar.querySelector('[data-invoice-tab="0"]')) {
+            const today = document.querySelector('#treatmentTableView .vt-today');
+            if (today) today.remove();
         }
     }
 

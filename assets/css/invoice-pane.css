@@ -63,6 +63,16 @@
 .vt-tab--draft i { color: #b07505; }
 .vt-tab--sent i { color: #0f6cbd; }
 .vt-tab--processed i { color: #137a37; }
+/* «ئەمڕۆ»: today's receipt before its first work makes it */
+.vt-tab--today { border-style: dashed; border-color: #f2c94c; background: #fffbea; color: #8a6100; }
+.vt-tab--today i { color: #e0a800; }
+.vt-tab--today.is-active { border-style: solid; border-top-color: #e0a800; }
+/* a draft from an earlier day, still not sent */
+.vt-tab.is-stale { border-color: #f5c2c0; }
+.vt-tab-stale { font-size: 9.5px; font-weight: 800; color: #c62828; background: #fdecea; border-radius: 999px; padding: 0 6px; }
+.vt-empty.vt-today { border-color: #f2c94c; background: #fffdf3; }
+.vt-empty.vt-today i { color: #e0a800; }
+.vt-empty[hidden] { display: none; }
 .vt-add {
     flex: 0 0 auto;
     padding: 7px 13px;
