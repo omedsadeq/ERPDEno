@@ -406,3 +406,5 @@
 .tw-empty { padding: 18px 12px; text-align: center; color: #94a3b8; font-size: 13px; }
 .tw-more { display: block; width: 100%; padding: 9px; border: 0; border-top: 1px solid #eef2f7; background: #fff; color: #1d4ed8; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .tw-more:hover { background: #f5f9ff; }
+/* the card the mouse brings up: it follows the mouse, so no shadow-heavy entrance */
+.tw-pop.is-hover { transition-duration: .1s; }

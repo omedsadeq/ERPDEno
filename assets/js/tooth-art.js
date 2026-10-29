@@ -413,7 +413,7 @@ function toothWorkPopover(anchor, fdi, list, o) {
             + `<span class="tw-meta"><b>${fmt(t.final_price)}</b>${day(t) ? `<small>${day(t)}</small>` : ''}</span></div>`;
     }).join('');
     const box = document.createElement('div');
-    box.className = 'tw-pop';
+    box.className = 'tw-pop' + (o.hover ? ' is-hover' : '');
     box.setAttribute('role', 'dialog');
     const pal = typeof palmerNumbers !== 'undefined' ? (palmerNumbers[fdi] || (fdi % 10)) : (fdi % 10);
     box.innerHTML = `<div class="tw-head"><b>ددان ${esc(pal)}</b><span>${esc((typeof toothNames !== 'undefined' && toothNames[fdi]) || '')}</span>`
@@ -433,7 +433,13 @@ function toothWorkPopover(anchor, fdi, list, o) {
     box.querySelector('.tw-x').addEventListener('click', closeToothWorkPopover);
     if (o.more) box.querySelector('.tw-more').addEventListener('click', () => { closeToothWorkPopover(); o.more(fdi); });
     requestAnimationFrame(() => box.classList.add('is-on'));
-    try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) { /* not on this device */ }
+    if (o.hover) {
+        // shown by the mouse resting on the tooth: it goes when the mouse does,
+        // unless the mouse moved onto the card (to press «هەموو وردەکاری»)
+        box.addEventListener('pointerleave', () => { if (o.onLeave) o.onLeave(); });
+    } else {
+        try { if (navigator.vibrate) navigator.vibrate(12); } catch (e) { /* not on this device */ }
+    }
 }
 function closeToothWorkPopover() {
     document.querySelectorAll('.tw-pop').forEach(el => el.remove());
@@ -470,5 +476,46 @@ function initToothHold(chart, o) {
     document.addEventListener('pointerup', cancel);
     document.addEventListener('pointercancel', cancel);
     chart.addEventListener('contextmenu', cancel, true);     // a right click (or a touch's own hold) won first
+
+    // Rest the mouse on a tooth: the same card, gone when the mouse leaves.
+    // The first one waits a moment, so passing over the teeth shows nothing;
+    // while a card is up, the next tooth's comes at once. Not on touch, not
+    // while a button is down (a sweep), not for a tooth with no work.
+    let hoverT = null, hideT = null, hoverEl = null;
+    const hoverCardUp = () => !!document.querySelector('.tw-pop.is-hover');
+    const hoverClose = () => { document.querySelectorAll('.tw-pop.is-hover').forEach(el => el.remove()); };
+    const hoverLeave = () => {
+        clearTimeout(hoverT); hoverT = null;
+        clearTimeout(hideT);
+        hideT = setTimeout(() => {
+            if (document.querySelector('.tw-pop.is-hover:hover') || (hoverEl && hoverEl.matches(':hover'))) return;
+            hoverEl = null;
+            hoverClose();
+        }, 180);
+    };
+    chart.addEventListener('pointerover', function (e) {
+        if (e.pointerType !== 'mouse' || e.buttons) return;
+        const toothEl = e.target.closest('.tooth[data-tooth]');
+        if (!toothEl || toothEl === hoverEl) return;
+        hoverEl = toothEl;
+        clearTimeout(hoverT); clearTimeout(hideT);
+        const num = parseInt(toothEl.dataset.tooth, 10);
+        const list = o.list(num);
+        if (!list.length) { hoverClose(); return; }
+        if (document.querySelector('.tw-pop:not(.is-hover)')) return;     // a held card stays until it is closed
+        hoverT = setTimeout(() => {
+            if (hoverEl !== toothEl) return;
+            toothWorkPopover(toothEl, num, list, { more: o.more, hover: true, onLeave: hoverLeave });
+        }, hoverCardUp() ? 60 : 450);
+    });
+    chart.addEventListener('pointerout', function (e) {
+        if (e.pointerType !== 'mouse') return;
+        const to = e.relatedTarget;
+        if (to && to.closest && to.closest('.tooth[data-tooth]') === hoverEl) return;
+        hoverLeave();
+    });
+    // a press is a pick, a sweep or a hold — never a hover card
+    chart.addEventListener('pointerdown', () => { clearTimeout(hoverT); hoverT = null; hoverEl = null; hoverClose(); }, true);
+
     return { held: () => Date.now() - heldAt < 1200 };
 }
