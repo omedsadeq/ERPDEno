@@ -11,6 +11,7 @@ require_once __DIR__ . '/classes/Auth.php';
 require_once __DIR__ . '/classes/Notification.php';
 require_once __DIR__ . '/classes/VisitDoctorSync.php';
 require_once __DIR__ . '/classes/Settings.php';
+require_once __DIR__ . '/classes/Permission.php';
 
 $db = Database::getInstance();
 $auth = new Auth();
@@ -32,7 +33,8 @@ $hasFullAccess = $isAdmin || $isReceptionist; // Receptionist sees all like admi
 // always onto their own name), CALL one in to چارەسەر (call), finish them
 // (complete), send them to the accountant (send_accounting), edit the
 // waiting-room ENTRY (work type / visit type / priority / notes), and go into
-// their case on the patient (open_case, «کەیس»).
+// their case on the patient (open_case, «کەیس») or, on a checkup, their
+// treatment plan (open_plan, «پلانی چارەسەر»).
 //
 // `call` is included so a doctor does not have to wait for reception to move
 // their own patient into treatment — the common case when the doctor is ready
@@ -45,7 +47,9 @@ $hasFullAccess = $isAdmin || $isReceptionist; // Receptionist sees all like admi
 // delete, return_doctor, return_waiting, and the full VISIT edit
 // (edit_visit.php). Those either affect other doctors' queues or undo a
 // handoff, which stays a front-desk decision.
-$doctorWaitingActions = ['call', 'complete', 'send_accounting', 'edit_waiting', 'add_walk_in', 'open_case'];
+$doctorWaitingActions = ['call', 'complete', 'send_accounting', 'edit_waiting', 'add_walk_in', 'open_case', 'open_plan'];
+// «پلانی چارەسەر» on a checkup's card: the doctor or the admin, with the plan permission.
+$canPlanFromQueue = ($isDoctorRole || $isAdmin) && Permission::getInstance()->can('treatment_plan.write');
 // ڕێکخستنەکان › دەستگەیشتن › «بانگکردنی نەخۆش»: the admin may limit `call` to
 // chosen doctors; the others leave calling to reception.
 $doctorMayCall = !$isDoctorRole || $isAdmin || Settings::doctorMayCallPatients((int)$currentUser['id']);
@@ -218,6 +222,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             exit;
         }
         header('Location: ' . APP_URL . '/cases/view.php?id=' . $caseId . '&tab=chart');
+        exit;
+    }
+
+    if ($action === 'open_plan' && $waitingRow) {
+        // «پلانی چارەسەر» on a checkup: straight into the entry's doctor's plan
+        // for this patient — today's, or one made now (TreatmentPlan::quickOpen).
+        $planDoctor = $db->fetch("SELECT id FROM users WHERE id = :id AND role = 'doctor' AND is_active = 1", ['id' => (int)($waitingRow['doctor_id'] ?? 0)]);
+        if (!$planDoctor || !$canPlanFromQueue) {
+            header('Location: ' . APP_URL . '/403.php');
+            exit;
+        }
+        require_once __DIR__ . '/classes/TreatmentPlan.php';
+        $planId = (new TreatmentPlan())->quickOpen((int)$waitingRow['patient_id'], (int)$planDoctor['id'], $actorId);
+        if (!$planId) {
+            header('Location: ' . $buildWaitingRoomRedirect(['error' => 'plan_failed']));
+            exit;
+        }
+        header('Location: ' . APP_URL . '/treatment-plans/view.php?id=' . $planId);
         exit;
     }
 
@@ -1658,6 +1680,11 @@ $waitingRoomRejectReasons = $db->fetchAll("
 .wr-patient-actions > form > .wr-btn, .wr-patient-actions > .wr-btn,
 .wr-patient-actions > .wr-more > .wr-btn { min-height: 34px; padding: 6px 12px; font-size: 12.5px; border-radius: 8px; }
 .wr-patient-actions > form > .wr-btn-case { min-height: 38px; padding: 8px 18px; font-size: 14px; border-radius: 10px; }
+.wr-patient-actions > form > .wr-btn-plan {
+    min-height: 38px; padding: 8px 16px; font-size: 14px; font-weight: 800; border: 0; border-radius: 10px;
+    background: linear-gradient(135deg, #0d9488, #0f766e); color: #fff; box-shadow: 0 4px 12px rgba(15, 118, 110, .28);
+}
+.wr-patient-actions > form > .wr-btn-plan:hover { background: linear-gradient(135deg, #0f766e, #115e59); transform: translateY(-1px); }
 .wr-btn-complete { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
 .wr-btn-complete:hover { background: #dbeafe; box-shadow: none; }
 .wr-btn-accounting { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
@@ -2704,6 +2731,8 @@ $wrErrorMessages = [
     'already_waiting' => 'ئەم نەخۆشە پێشتر لە ژووری چاوەڕوانیدایە',
     'no_patient'      => 'نەخۆش نەدۆزرایەوە',
     'call_denied'     => 'دەسەڵاتی بانگکردنی نەخۆشت نییە — پێشوازی نەخۆشەکەت بۆ بانگ دەکات',
+    'case_failed'     => 'کەیسەکە نەکرایەوە — دووبارە هەوڵ بدەرەوە',
+    'plan_failed'     => 'پلانی چارەسەر دروست نەکرا — دووبارە هەوڵ بدەرەوە',
 ];
 $wrErrorMessage = $wrErrorMessages[$_GET['error'] ?? ''] ?? null;
 ?>
@@ -3141,6 +3170,15 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
                         </button>
                     </form>
                     <?php endif; ?>
+                    <?php if ($canPlanFromQueue && ($w['display_visit_type'] ?? '') === 'checkup' && !$isXrayDest): // a checkup: «پلانی چارەسەر» ?>
+                    <form method="POST" style="display: inline;">
+                        <input type="hidden" name="action" value="open_plan">
+                        <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
+                        <button type="submit" class="wr-btn wr-btn-plan" title="پلانی چارەسەری پشکنینەکە — ئەگەر نەبێت، دروست دەبێت">
+                            <i class="fas fa-clipboard-list"></i> پلانی چارەسەر
+                        </button>
+                    </form>
+                    <?php endif; ?>
                     <?php if (!$isXrayDest): ?>
                     <?php if ($doctorMayCall): ?>
                     <form method="POST" style="display: inline;" data-doctor-id="<?= (int)($w['doctor_id'] ?? 0) ?>">
@@ -3280,6 +3318,15 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
                         <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
                         <button type="submit" class="wr-btn wr-btn-case" title="ڕاستەوخۆ بۆ چارتی ددانی کەیسەکە — ئەگەر نەبێت، دروست دەبێت">
                             <i class="fas fa-tooth"></i> کەیس
+                        </button>
+                    </form>
+                    <?php endif; ?>
+                    <?php if ($canPlanFromQueue && ($w['display_visit_type'] ?? '') === 'checkup' && !empty($w['doctor_id']) && ($w['doctor_role'] ?? '') !== 'xray_department'): // a checkup: «پلانی چارەسەر» ?>
+                    <form method="POST" style="display: inline;">
+                        <input type="hidden" name="action" value="open_plan">
+                        <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
+                        <button type="submit" class="wr-btn wr-btn-plan" title="پلانی چارەسەری پشکنینەکە — ئەگەر نەبێت، دروست دەبێت">
+                            <i class="fas fa-clipboard-list"></i> پلانی چارەسەر
                         </button>
                     </form>
                     <?php endif; ?>
@@ -4605,7 +4652,7 @@ function buildActionButtons(data) {
 // buttons, they are reached through their own dialogs.
 const IS_DOCTOR_ROLE = <?= $isDoctorRole ? 'true' : 'false' ?>;
 // 'call' drops out when the admin limited calling to other doctors ($doctorMayCall).
-const WR_ALLOWED_DOCTOR_ACTIONS = <?= json_encode(array_values(array_intersect(['call', 'complete', 'send_accounting', 'open_case'], $doctorWaitingActions))) ?>;
+const WR_ALLOWED_DOCTOR_ACTIONS = <?= json_encode(array_values(array_intersect(['call', 'complete', 'send_accounting', 'open_case', 'open_plan'], $doctorWaitingActions))) ?>;
 // ⋯ on a card: the actions used now and then. The menu is lifted to <body>
 // while open — the card moves on hover and its panel scrolls — and put back
 // in its card when it closes.

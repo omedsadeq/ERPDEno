@@ -4,8 +4,8 @@
  *
  * The patient's plans as cards; each opens its own page,
  * treatment-plans/view.php, where the chart, the work table, routing, the
- * appointment and the transfer to a case live. «پلانی نوێ» creates a plan and
- * opens that page.
+ * appointment and the transfer to a case live. «پلانی نوێ» makes a plan in a
+ * click and opens that page.
  *
  * #tpwList is drawn by patients/_plans_tab_assets.php from the plans
  * patients/view.php loaded. A plan is a quote, not money: nothing here reaches
@@ -25,7 +25,7 @@ if (!isset($canViewPlans)) {
                 </span>
             </div>
             <?php if ($canWritePlans): ?>
-            <button type="button" class="btn btn-primary" onclick="tpNewPlan()">
+            <button type="button" class="btn btn-primary" onclick="tpNewPlan(this)">
                 <i class="fas fa-plus"></i> پلانی نوێ
             </button>
             <?php endif; ?>

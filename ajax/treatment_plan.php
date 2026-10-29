@@ -230,6 +230,35 @@ if ($action === 'create_plan') {
     tp_ok(['plan_id' => $res['plan_id']]);
 }
 
+if ($action === 'quick_plan') {
+    // «پلانی نوێ» in one click (TreatmentPlan::quickOpen): a doctor's own plan;
+    // the admin and reception name whose examination it is.
+    tp_require('treatment_plan.write');
+    $patientId = (int)($_POST['patient_id'] ?? 0);
+    if ($patientId <= 0) {
+        tp_fail('نەخۆش دیاری نەکراوە');
+    }
+    if (AccessGuard::isRestrictedDoctor()) {
+        AccessGuard::requirePatientGeneral($patientId, true);
+    }
+    $doctorId = $userId;
+    if (!$auth->isDoctor() || $auth->isAdmin()) {
+        $doctorId = (int)($_POST['doctor_id'] ?? 0);
+        $isDoctor = $doctorId > 0 && $db->fetch(
+            "SELECT id FROM users WHERE id = :id AND role = 'doctor' AND is_active = 1",
+            ['id' => $doctorId]
+        );
+        if (!$isDoctor) {
+            tp_fail('تکایە دکتۆر هەڵبژێرە');
+        }
+    }
+    $planId = $plans->quickOpen($patientId, $doctorId, $userId);
+    if (!$planId) {
+        tp_fail('دروستکردنی پلان سەرنەکەوت');
+    }
+    tp_ok(['plan_id' => $planId]);
+}
+
 if ($action === 'update_plan') {
     tp_require('treatment_plan.write');
     $planId = (int)($_POST['plan_id'] ?? 0);
@@ -281,6 +310,42 @@ if ($action === 'add_items') {
                 throw new RuntimeException(($res['message'] ?? 'هەڵە') . ' (ددان ' . $tooth . ')');
             }
             $itemIds[] = $res['item_id'] ?? null;
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollback();
+        tp_fail($e instanceof RuntimeException && !($e instanceof PDOException) ? $e->getMessage() : 'هەڵە');
+    }
+    tp_ok(['item_ids' => $itemIds, 'plan' => $plans->getById($planId), 'items' => $plans->getItems($planId)]);
+}
+
+if ($action === 'add_arch_items') {
+    // «ئیشی ئەرک» — the case's dialog: one arch (or both), several jobs at
+    // once, each at its price an arch. All or none.
+    tp_require('treatment_plan.write');
+    $planId = (int)($_POST['plan_id'] ?? 0);
+    tp_require_examiner(tp_plan_or_fail($plans, $planId));
+    $arch = (string)($_POST['arch_type'] ?? '');
+    if (!in_array($arch, ['upper', 'lower', 'both'], true)) {
+        tp_fail('ئەرکێک هەڵبژێرە');
+    }
+    $jobs = array_values(array_filter((array)($_POST['items'] ?? []), 'is_array'));
+    if (!$jobs || count($jobs) > 40) {
+        tp_fail('ئیشێک هەڵبژێرە');
+    }
+    $itemIds = [];
+    $db->beginTransaction();
+    try {
+        foreach ($jobs as $job) {
+            $res = $plans->addArchItems($planId, [
+                'treatment_id'   => (int)($job['treatment_id'] ?? 0) ?: null,
+                'treatment_name' => trim((string)($job['treatment_name'] ?? '')),
+                'unit_price'     => max(0, (float)($job['unit_price'] ?? 0)),
+            ], $arch);
+            if (empty($res['success'])) {
+                throw new RuntimeException(($res['message'] ?? 'هەڵە') . ' (' . trim((string)($job['treatment_name'] ?? '')) . ')');
+            }
+            $itemIds = array_merge($itemIds, $res['item_ids']);
         }
         $db->commit();
     } catch (Throwable $e) {

@@ -152,6 +152,33 @@ class TreatmentPlan
         }
     }
 
+    /**
+     * «پلانی چارەسەر» in one click: the doctor's plan for this patient begun
+     * today and still open, or a new one — no dialog. A plan is only its day
+     * to begin with; the complaint and the rest are written on the plan page,
+     * and every plan holds tooth and whole-arch work alike, as a case does.
+     *
+     * @return int|null the plan id, or null when it could not be made
+     */
+    public function quickOpen(int $patientId, int $doctorId, int $actorId): ?int
+    {
+        if ($patientId <= 0 || $doctorId <= 0) {
+            return null;
+        }
+        $today = $this->db->fetch(
+            "SELECT id FROM treatment_plans
+             WHERE patient_id = :p AND doctor_id = :d AND DATE(created_at) = CURDATE()
+               AND status IN ('" . implode("', '", self::EDITABLE_STATUSES) . "')
+             ORDER BY id DESC LIMIT 1",
+            ['p' => $patientId, 'd' => $doctorId]
+        );
+        if ($today) {
+            return (int)$today['id'];
+        }
+        $made = $this->create(['patient_id' => $patientId, 'doctor_id' => $doctorId, 'created_by' => $actorId ?: $doctorId]);
+        return !empty($made['success']) ? (int)$made['plan_id'] : null;
+    }
+
     public function getById(int $planId): ?array
     {
         $row = $this->db->fetch(

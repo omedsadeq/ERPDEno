@@ -201,7 +201,7 @@ if (!isset($plan)) { exit; }
     </div>
 </div>
 
-<?php if ($isEditable && !$isArch): ?>
+<?php if ($isEditable): ?>
 <!-- ═══ Teeth selected on the chart (as on the case page) ═══ -->
 <div id="bulkActionBar" style="display: none;">
     <div class="bulk-bar-inner">
@@ -223,161 +223,39 @@ if (!isset($plan)) { exit; }
 </div>
 <?php endif; ?>
 
-<!-- ═══ Whole-arch job — the case's arch treatment dialog ═══ -->
+<!-- ═══ «ئیشی ئەرک» — the case's dialog: the arch, then the jobs as cards
+     (several at once), each at its catalog price an arch — corrected in the
+     table afterwards. Saved by arSave() (add_arch_items). ═══ -->
 <div class="dialog-overlay" id="archTreatmentDialog">
-    <div class="dialog arch-dialog-modern">
-        <div class="arch-dialog-header">
-            <h4><i class="fas fa-teeth"></i> زیادکردنی چارەسەری ئەرک</h4>
-            <button type="button" class="arch-dialog-close" onclick="closeDialog('archTreatmentDialog')"><i class="fas fa-times"></i></button>
+    <div class="dialog ar2-dialog">
+        <div class="ar2-head">
+            <h4><i class="fas fa-teeth"></i> ئیشی ئەرک <small>زنجیر · تاخم · هەموو ئەرکێک</small></h4>
+            <button type="button" class="ar2-close" onclick="closeDialog('archTreatmentDialog')"><i class="fas fa-times"></i></button>
         </div>
-        <div class="arch-dialog-body">
-          <input type="hidden" id="arArchType" value="">
-          <div class="pl-grid">
-            <div class="pl-col">
-            <div class="arch-form-field">
-                <label><i class="fas fa-teeth-open"></i> هەڵبژاردنی ئەرک <span class="required">*</span></label>
-                <div class="arch-select-chart-modern">
-                    <div class="arch-select-panel" data-arch="upper" onclick="arSelectArch('upper')">
-                        <div class="arch-select-visual">
-                            <svg viewBox="0 0 280 80" class="arch-select-svg">
-                                <path d="M 15 65 Q 140 -10 265 65" fill="none" stroke="#0078d4" stroke-width="2.5" class="arch-select-outline"/>
-                                <g class="arch-teeth-indicators">
-                                    <rect x="20" y="42" width="14" height="20" rx="2"/><rect x="38" y="34" width="14" height="24" rx="2"/>
-                                    <rect x="56" y="26" width="14" height="28" rx="2"/><rect x="74" y="20" width="12" height="30" rx="2"/>
-                                    <rect x="90" y="16" width="11" height="32" rx="2"/><rect x="105" y="13" width="10" height="34" rx="2"/>
-                                    <rect x="119" y="11" width="9" height="35" rx="2"/><rect x="132" y="10" width="8" height="36" rx="2"/>
-                                    <rect x="144" y="10" width="8" height="36" rx="2"/><rect x="156" y="11" width="9" height="35" rx="2"/>
-                                    <rect x="169" y="13" width="10" height="34" rx="2"/><rect x="183" y="16" width="11" height="32" rx="2"/>
-                                    <rect x="198" y="20" width="12" height="30" rx="2"/><rect x="214" y="26" width="14" height="28" rx="2"/>
-                                    <rect x="232" y="34" width="14" height="24" rx="2"/><rect x="250" y="42" width="14" height="20" rx="2"/>
-                                </g>
-                            </svg>
-                        </div>
-                        <div class="arch-select-label">
-                            <i class="fas fa-check-circle arch-select-check"></i>
-                            <span>ئەرکی سەرەوە (Maxilla)</span>
-                            <span class="arch-select-count">یەک کاری سەرانسەری ئەرک</span>
-                        </div>
-                    </div>
-                    <div class="arch-select-panel" data-arch="lower" onclick="arSelectArch('lower')">
-                        <div class="arch-select-visual">
-                            <svg viewBox="0 0 280 80" class="arch-select-svg">
-                                <path d="M 20 15 Q 140 90 260 15" fill="none" stroke="#0078d4" stroke-width="2.5" class="arch-select-outline"/>
-                                <g class="arch-teeth-indicators">
-                                    <rect x="25" y="18" width="13" height="18" rx="2"/><rect x="42" y="24" width="13" height="22" rx="2"/>
-                                    <rect x="59" y="30" width="13" height="25" rx="2"/><rect x="76" y="36" width="11" height="27" rx="2"/>
-                                    <rect x="91" y="40" width="10" height="29" rx="2"/><rect x="105" y="44" width="9" height="30" rx="2"/>
-                                    <rect x="118" y="46" width="8" height="31" rx="2"/><rect x="130" y="48" width="7" height="32" rx="2"/>
-                                    <rect x="141" y="48" width="7" height="32" rx="2"/><rect x="152" y="46" width="8" height="31" rx="2"/>
-                                    <rect x="164" y="44" width="9" height="30" rx="2"/><rect x="177" y="40" width="10" height="29" rx="2"/>
-                                    <rect x="191" y="36" width="11" height="27" rx="2"/><rect x="206" y="30" width="13" height="25" rx="2"/>
-                                    <rect x="223" y="24" width="13" height="22" rx="2"/><rect x="240" y="18" width="13" height="18" rx="2"/>
-                                </g>
-                            </svg>
-                        </div>
-                        <div class="arch-select-label">
-                            <i class="fas fa-check-circle arch-select-check"></i>
-                            <span>ئەرکی خوارەوە (Mandible)</span>
-                            <span class="arch-select-count">یەک کاری سەرانسەری ئەرک</span>
-                        </div>
-                    </div>
-                </div>
-                <p class="arch-select-hint-modern"><i class="fas fa-info-circle"></i> کرتە بکە لەسەر ئەرکەکان بۆ هەڵبژاردن. دەتوانیت هەردووکیان هەڵبژێریت.</p>
+        <div class="ar2-body">
+            <div class="ar2-step"><span class="ar2-num">١</span> کام ئەرک؟</div>
+            <div class="ar2-arches">
+                <?php foreach ([
+                    ['upper', 'سەرەوە', 'Maxilla', ''],
+                    ['lower', 'خوارەوە', 'Mandible', ''],
+                    ['both', 'هەردوو', 'سەرەوە و خوارەوە', '×٢'],
+                ] as [$archKey, $archLabel, $archSub, $archBadge]): ?>
+                <button type="button" class="ar2-arch ar2-arch--<?= $archKey ?>" data-arch="<?= $archKey ?>" onclick="arSetArch('<?= $archKey ?>')">
+                    <span class="ar2-arch-check"><i class="fas fa-check"></i></span>
+                    <?php if ($archBadge): ?><span class="ar2-arch-badge"><?= $archBadge ?></span><?php endif; ?>
+                    <span class="ar2-art" data-art="<?= $archKey ?>"></span>
+                    <span class="ar2-arch-text"><b><?= $archLabel ?></b><small><?= $archSub ?></small></span>
+                </button>
+                <?php endforeach; ?>
             </div>
-            <div class="arch-form-field">
-                <label><i class="fas fa-briefcase-medical"></i> چارەسەر <span class="required">*</span></label>
-                <select id="arTreatmentSelect" onchange="arTreatmentChanged()">
-                    <option value="">هەڵبژێرە...</option>
-                    <?php foreach ($archTreatments as $t): ?>
-                    <option value="<?= (int)$t['id'] ?>" data-price="<?= (float)$t['default_price'] ?>" data-name="<?= htmlspecialchars($t['treatment_name']) ?>">
-                        <?= htmlspecialchars($t['treatment_name']) ?> (<?= number_format((float)$t['default_price']) ?>)
-                    </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="arch-form-field">
-                <label><i class="fas fa-pen"></i> ناوی چارەسەر <span class="required">*</span></label>
-                <input type="text" id="arName" placeholder="ناوی چارەسەر...">
-            </div>
-            </div><!-- /pl-col -->
-
-            <div class="pl-col">
-            <div class="arch-form-field">
-                <label><i class="fas fa-tags"></i> شێوازی نرخدانان <span class="required">*</span></label>
-                <div class="arch-pricing-mode-selector">
-                    <label class="arch-pricing-mode-option selected" data-mode="per_arch" onclick="arSwitchMode('per_arch')">
-                        <input type="radio" name="arPricingMode" value="per_arch" checked>
-                        <i class="fas fa-teeth-open"></i><span>نرخ بۆ هەر ئەرکێک</span>
-                    </label>
-                    <label class="arch-pricing-mode-option" data-mode="total" onclick="arSwitchMode('total')">
-                        <input type="radio" name="arPricingMode" value="total">
-                        <i class="fas fa-calculator"></i><span>کۆی گشتی</span>
-                    </label>
-                    <label class="arch-pricing-mode-option" data-mode="separate" id="arSeparateOption" style="display: none;" onclick="arSwitchMode('separate')">
-                        <input type="radio" name="arPricingMode" value="separate">
-                        <i class="fas fa-divide"></i><span>نرخی جیاواز</span>
-                    </label>
-                </div>
-            </div>
-            <div class="arch-pricing-section" id="arPerArchPricing">
-                <div class="arch-pricing-header orange"><i class="fas fa-coins"></i> نرخ بۆ هەر ئەرکێک</div>
-                <div class="arch-pricing-content">
-                    <div class="arch-price-row">
-                        <span class="arch-price-label">نرخی پێشنیارکراو:</span>
-                        <span class="arch-price-value" id="arDefaultPrice">0</span>
-                    </div>
-                    <div class="arch-price-row">
-                        <span class="arch-price-label">نرخی خەمڵێنراو:</span>
-                        <input type="number" id="arUnitPrice" min="0" oninput="arCalc()" placeholder="نرخ بنووسە...">
-                        <button type="button" class="arch-use-default-btn" onclick="arUseDefault()" title="بەکارهێنانی نرخی پێشنیارکراو"><i class="fas fa-sync-alt"></i></button>
-                    </div>
-                </div>
-            </div>
-            <div class="arch-pricing-section" id="arTotalPricing" style="display: none;">
-                <div class="arch-pricing-header green"><i class="fas fa-hand-holding-usd"></i> کۆی نرخی خەمڵێنراو</div>
-                <div class="arch-pricing-content">
-                    <div class="arch-price-row">
-                        <span class="arch-price-label" style="color: #2e7d32; font-weight: 600;">کۆی پارە:</span>
-                        <input type="number" id="arTotalAgreed" min="0" oninput="arCalc()" placeholder="کۆی نرخ..." class="green-input">
-                    </div>
-                    <div class="arch-price-row calculated">
-                        <span class="arch-price-label">نرخی هەر ئەرکێک:</span>
-                        <span class="arch-price-value green" id="arCalcPerArch">0</span>
-                    </div>
-                </div>
-            </div>
-            <div class="arch-pricing-section" id="arSeparatePricing" style="display: none;">
-                <div class="arch-pricing-header purple"><i class="fas fa-layer-group"></i> نرخی جیاواز بۆ هەر ئەرکێک</div>
-                <div class="arch-pricing-content">
-                    <div class="arch-price-row">
-                        <span class="arch-price-label" style="color: var(--win-accent, #0078d4); font-weight: 600;"><i class="fas fa-arrow-up"></i> ماکزیلا / سەرەوە:</span>
-                        <input type="number" id="arUpperPrice" min="0" oninput="arCalc()" placeholder="نرخ..." class="blue-input">
-                    </div>
-                    <div class="arch-price-row">
-                        <span class="arch-price-label" style="color: #9c27b0; font-weight: 600;"><i class="fas fa-arrow-down"></i> ماندیبل / خوارەوە:</span>
-                        <input type="number" id="arLowerPrice" min="0" oninput="arCalc()" placeholder="نرخ..." class="purple-input">
-                    </div>
-                </div>
-            </div>
-            <div class="arch-total-display">
-                <span class="arch-total-label">کۆی گشتی (<span id="arArchCount">0</span> ئەرک):</span>
-                <span class="arch-total-value" id="arTotal">0</span>
-            </div>
-            <div class="arch-form-field">
-                <label><i class="fas fa-clock"></i> کاتی خەمڵێنراو بۆ هەر ئەرکێک (خولەک)</label>
-                <input type="number" id="arMinutes" min="0" step="5" placeholder="—">
-            </div>
-            <div class="arch-form-field">
-                <label><i class="fas fa-comment"></i> تێبینی</label>
-                <input type="text" id="arNotes" placeholder="تێبینی ئارەزوومەندانە...">
-            </div>
+            <div class="ar2-step"><span class="ar2-num">٢</span> کام ئیش؟ <small class="ar2-hint">— چەند دانەیەک دەتوانیت هەڵبژێریت</small></div>
+            <div class="ar2-cards" id="arCards"></div>
             <div class="tp-dialog-msg" id="arMsg"></div>
-            </div><!-- /pl-col -->
-          </div><!-- /pl-grid -->
         </div>
-        <div class="arch-dialog-footer">
-            <button type="button" class="arch-btn-primary" id="arSaveBtn" onclick="arSave()"><i class="fas fa-plus-circle"></i> زیادکردن بۆ ئەرکی هەڵبژێردراو</button>
-            <button type="button" class="arch-btn-secondary" onclick="closeDialog('archTreatmentDialog')"><i class="fas fa-times"></i> داخستن</button>
+        <div class="ar2-foot">
+            <button type="button" class="ar2-save" id="arSaveBtn" onclick="arSave()" disabled><i class="fas fa-plus-circle"></i> زیادکردن</button>
+            <button type="button" class="ar2-cancel" onclick="closeDialog('archTreatmentDialog')">داخستن</button>
+            <span class="ar2-total">کۆ: <b id="archTotalPriceDisplay">0</b></span>
         </div>
     </div>
 </div>
@@ -394,16 +272,6 @@ if (!isset($plan)) { exit; }
                 <label class="form-label">سکاڵای سەرەکی / گلەیی نەخۆش</label>
                 <input type="text" id="hdComplaint" class="form-control" value="<?= htmlspecialchars($plan['chief_complaint'] ?? '') ?>">
             </div>
-            <?php if ($isArch): ?>
-            <div class="form-group">
-                <label class="form-label">ئەرک</label>
-                <div style="display: flex; gap: 8px;">
-                    <?php foreach (['upper' => 'سەرەوە', 'lower' => 'خوارەوە', 'both' => 'هەردوو'] as $v => $l): ?>
-                    <label class="tp-radio"><input type="radio" name="hdArch" value="<?= $v ?>" <?= $selectedArch === $v ? 'checked' : '' ?>> <?= $l ?></label>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-            <?php endif; ?>
             <div class="form-group">
                 <label class="form-label">ماوەی پێویست بۆ چارەسەر</label>
                 <input type="text" id="hdDuration" class="form-control" value="<?= htmlspecialchars($plan['duration_text'] ?? '') ?>" placeholder="نمونە: ٢ هەفتە / ٣ سەردان">

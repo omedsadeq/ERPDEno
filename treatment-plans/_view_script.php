@@ -9,7 +9,6 @@
 const API = '<?= APP_URL ?>/ajax/treatment_plan.php';
 const PLAN_ID = <?= (int)$planId ?>;
 const PATIENT_ID = <?= (int)$plan['patient_id'] ?>;
-const IS_ARCH = <?= $isArch ? 'true' : 'false' ?>;
 const CAN_WRITE = <?= $canWrite ? 'true' : 'false' ?>;
 const CAN_TRANSFER = <?= $canTransfer ? 'true' : 'false' ?>;
 let planData = <?= json_encode($plan, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
@@ -23,7 +22,6 @@ const STATUS_META = {
     open: ['چاوەڕوانی بڕیاری نەخۆش', 'badge-blue'], partial: ['بەشێکی گوازراوەتەوە', 'badge-orange'],
     transferred: ['تەواو گوازراوەتەوە', 'badge-green'], cancelled: ['هەڵوەشێنراوەتەوە', 'badge-secondary']
 };
-const ARCH_LABELS = { upper: 'ئەرکی سەرەوە', lower: 'ئەرکی خوارەوە', both: 'هەردوو ئەرک' };
 
 function isEditable() { return CAN_WRITE && (planData.status === 'open' || planData.status === 'partial'); }
 
@@ -78,7 +76,6 @@ function renderAll() {
     renderItemsTable();
     renderTotals();
     renderHeader();
-    if (IS_ARCH) renderArchVisibility();
 }
 
 function renderHeader() {
@@ -106,15 +103,6 @@ function renderHeader() {
     set('pvSideNotes', planData.notes);
     const ci = document.getElementById('pvComplaintInline');
     if (ci) ci.textContent = planData.chief_complaint || '';
-    ['pvArchLabel', 'pvArchChip', 'pvArchChip2'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ARCH_LABELS[planData.selected_arch] || 'ئەرک'; });
-}
-
-function renderArchVisibility() {
-    const sel = planData.selected_arch;
-    const up = document.getElementById('archPanel-upper');
-    const lo = document.getElementById('archPanel-lower');
-    if (up) up.hidden = !(sel === 'upper' || sel === 'both' || !sel);
-    if (lo) lo.hidden = !(sel === 'lower' || sel === 'both' || !sel);
 }
 
 // ── Items table + totals ────────────────────────────────────────────
@@ -230,11 +218,9 @@ function groupDetailRow(g, editable) {
 
 // The quick-entry row: treatment → teeth (typed per quadrant, as on the
 // receipt: «5,7») or nothing for a job without a tooth → price → Enter.
-// An arch plan picks the arch instead of teeth.
+// Whole-arch work comes from «ئیشی ئەرک».
 function addRowHtml() {
-    const teeth = IS_ARCH
-        ? `<select class="rt-field" id="pvAddArch" title="ئەرک"><option value="upper">سەرەوە</option><option value="lower">خوارەوە</option><option value="both">هەردوو</option></select>`
-        : `<div class="rt-teeth-wrap">
+    const teeth = `<div class="rt-teeth-wrap">
             <div class="tooth-cross is-input">
                 <input type="text" class="tc-ur rt-tooth-in" data-q="UR" placeholder="—" title="سەرەوەی ڕاست" autocomplete="off">
                 <input type="text" class="tc-ul rt-tooth-in" data-q="UL" placeholder="—" title="سەرەوەی چەپ" autocomplete="off">
@@ -279,7 +265,7 @@ function renderItemsTable() {
     }
     root.innerHTML = `<div class="table-container tp-items-wrap"><table class="table rcpt-table tp-items no-responsive"><thead><tr>
         <th class="rt-c-no">ژ</th><th class="rt-c-desc">ناوەڕۆک<span class="en">Description</span></th>
-        <th class="rt-c-teeth">${IS_ARCH ? 'ئەرک' : 'چارتی ددان'}<span class="en">Teeth</span></th>
+        <th class="rt-c-teeth">چارتی ددان<span class="en">Teeth</span></th>
         <th class="rt-c-qty">ژمارە<span class="en">Quantity</span></th><th class="rt-c-unit">نرخی تاک<span class="en">Unit Price</span></th>
         <th class="rt-c-total">نرخی کۆ<span class="en">Total Price</span></th><th class="rt-c-act">کردارەکان</th>
     </tr></thead><tbody>${body}</tbody></table></div>`;
@@ -348,9 +334,7 @@ function pvAddCalc() {
     const row = pvAddRow();
     if (!row) return;
     const qty = row.querySelector('#pvAddQty');
-    if (IS_ARCH) {
-        qty.value = row.querySelector('#pvAddArch').value === 'both' ? 2 : 1;
-    } else if (!pvQtyManual) {
+    if (!pvQtyManual) {
         const n = pvReadTeeth().teeth.length;
         qty.value = n || 1;
     }
@@ -493,16 +477,12 @@ window.pvAddSave = async function () {
     if (!(price >= 0)) { toast('error', 'نرخ نادروستە'); return; }
     const base = { plan_id: PLAN_ID, treatment_id: pvAddTreatmentId, treatment_name: name, unit_price: price, discount: 0 };
     const calls = [];
-    if (IS_ARCH) {
-        calls.push(Object.assign({}, base, { arch_type: row.querySelector('#pvAddArch').value, upper_unit_price: price, lower_unit_price: price }));
+    const read = pvReadTeeth();
+    if (read.bad) { toast('error', 'ژمارەیەکی ددان هەڵەیە (سوورە) — ١ تا ٨ یان A تا E'); return; }
+    if (read.teeth.length) {
+        read.teeth.forEach(fdi => calls.push(Object.assign({}, base, { tooth_number: fdi, quantity: 1 })));
     } else {
-        const read = pvReadTeeth();
-        if (read.bad) { toast('error', 'ژمارەیەکی ددان هەڵەیە (سوورە) — ١ تا ٨ یان A تا E'); return; }
-        if (read.teeth.length) {
-            read.teeth.forEach(fdi => calls.push(Object.assign({}, base, { tooth_number: fdi, quantity: 1 })));
-        } else {
-            calls.push(Object.assign({}, base, { quantity: Math.max(1, parseInt(row.querySelector('#pvAddQty').value, 10) || 1) }));
-        }
+        calls.push(Object.assign({}, base, { quantity: Math.max(1, parseInt(row.querySelector('#pvAddQty').value, 10) || 1) }));
     }
     btn.disabled = true;
     let added = 0;
@@ -1122,106 +1102,78 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 
-// ── Arch dialog ─────────────────────────────────────────────────────
-let selectedArches = [];
-let arDefault = 0;
+// ── «ئیشی ئەرک» — the case's dialog (cases/view.php): the arch, then the
+// jobs as cards, several at once, each at its catalog price an arch ─────
+const ARCH_TREATMENTS = <?= json_encode(array_map(function ($t) {
+    return ['id' => (int)$t['id'], 'name' => $t['treatment_name'], 'category' => $t['category'] ?? 'other',
+        'icon' => $t['icon'] ?? null, 'price' => (float)$t['default_price']];
+}, $archTreatments), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
+let arArch = '', arPicked = [];     // the arch, and the picked cards: [{id, name, icon, category, price}]
 window.pvOpenArchDialog = function () {
     if (!isEditable()) return;
-    selectedArches = [];
-    document.querySelectorAll('.arch-select-panel').forEach(p => p.classList.remove('selected'));
-    document.getElementById('arArchType').value = '';
-    document.getElementById('arTreatmentSelect').value = '';
-    document.getElementById('arName').value = '';
-    document.getElementById('arNotes').value = '';
-    document.getElementById('arMinutes').value = '';
-    ['arUnitPrice', 'arTotalAgreed', 'arUpperPrice', 'arLowerPrice'].forEach(id => document.getElementById(id).value = '');
-    arDefault = 0;
-    document.getElementById('arDefaultPrice').textContent = '0';
-    // Preselect the plan's own arch(es) — one click less on the common path.
-    const sel = planData.selected_arch;
-    if (sel === 'upper' || sel === 'both') arSelectArch('upper');
-    if (sel === 'lower' || sel === 'both') arSelectArch('lower');
-    arSwitchMode('per_arch');
+    arDrawArches();
+    arArch = ''; arPicked = [];
+    document.querySelectorAll('.ar2-arch').forEach(b => b.classList.remove('on'));
+    const box = document.getElementById('arCards');
+    box.innerHTML = ARCH_TREATMENTS.length ? ARCH_TREATMENTS.map(t => `<button type="button" class="tp-card" data-id="${t.id}" onclick="arPickTreatment(${t.id})">
+            <span class="tp-card-check"><i class="fas fa-check"></i></span>
+            <span class="tp-card-art">${treatmentIconSvg(t)}</span>
+            <span class="tp-card-name">${escapeHtml(t.name)}</span>
+            <span class="tp-card-price">${numberFormat(t.price)}</span>
+        </button>`).join('')
+        : '<div class="ar2-empty">هیچ جۆرێکی ئیشی ئەرک نییە — لە «جۆری چارەسەر» یەکێک بە بواری «ئەرک» زیاد بکە</div>';
     setMsg('arMsg', '');
+    arCalc();
     openDialog('archTreatmentDialog');
 };
-window.arSelectArch = function (arch) {
-    const panel = document.querySelector(`.arch-select-panel[data-arch="${arch}"]`);
-    panel.classList.toggle('selected');
-    if (panel.classList.contains('selected')) { if (!selectedArches.includes(arch)) selectedArches.push(arch); }
-    else selectedArches = selectedArches.filter(a => a !== arch);
-    document.getElementById('arArchType').value = selectedArches.length === 2 ? 'both' : (selectedArches[0] || '');
-    document.getElementById('arArchCount').textContent = selectedArches.length;
-    const sep = document.getElementById('arSeparateOption');
-    if (selectedArches.length === 2) sep.style.display = 'flex';
+window.arSetArch = function (arch) {
+    arArch = arch;
+    document.querySelectorAll('.ar2-arch').forEach(b => b.classList.toggle('on', b.dataset.arch === arch));
+    arCalc();
+};
+/** A card click picks it, a second click lets it go — several can be picked. */
+window.arPickTreatment = function (id) {
+    const i = arPicked.findIndex(p => p.id === id);
+    if (i !== -1) arPicked.splice(i, 1);
     else {
-        sep.style.display = 'none';
-        if ((document.querySelector('input[name="arPricingMode"]:checked') || {}).value === 'separate') arSwitchMode('per_arch');
+        const t = ARCH_TREATMENTS.find(x => x.id === id);
+        if (t) arPicked.push(Object.assign({}, t));
     }
+    document.querySelectorAll('#arCards .tp-card').forEach(c => c.classList.toggle('on', arPicked.some(p => p.id === Number(c.dataset.id))));
     arCalc();
 };
-window.arSwitchMode = function (mode) {
-    document.querySelectorAll('.arch-pricing-mode-option').forEach(opt => {
-        const on = opt.dataset.mode === mode;
-        opt.classList.toggle('selected', on);
-        if (on) opt.querySelector('input[type="radio"]').checked = true;
-    });
-    document.getElementById('arPerArchPricing').style.display = mode === 'per_arch' ? 'block' : 'none';
-    document.getElementById('arTotalPricing').style.display = mode === 'total' ? 'block' : 'none';
-    document.getElementById('arSeparatePricing').style.display = mode === 'separate' ? 'block' : 'none';
-    arCalc();
-};
-window.arTreatmentChanged = function () {
-    const sel = document.getElementById('arTreatmentSelect');
-    const opt = sel.options[sel.selectedIndex];
-    arDefault = parseFloat(opt.dataset.price) || 0;
-    document.getElementById('arDefaultPrice').textContent = numberFormat(arDefault);
-    document.getElementById('arUnitPrice').value = arDefault;
-    document.getElementById('arName').value = opt.dataset.name || '';
-    arCalc();
-};
-window.arUseDefault = function () { document.getElementById('arUnitPrice').value = arDefault; arCalc(); };
-function arPrices() {
-    const mode = (document.querySelector('input[name="arPricingMode"]:checked') || {}).value || 'per_arch';
-    const n = selectedArches.length;
-    let upper = 0, lower = 0;
-    if (mode === 'per_arch') { upper = lower = Math.max(0, parseFloat(document.getElementById('arUnitPrice').value) || 0); }
-    else if (mode === 'total') { const t = Math.max(0, parseFloat(document.getElementById('arTotalAgreed').value) || 0); upper = lower = n ? Math.round(t / n) : 0; }
-    else { upper = Math.max(0, parseFloat(document.getElementById('arUpperPrice').value) || 0); lower = Math.max(0, parseFloat(document.getElementById('arLowerPrice').value) || 0); }
-    let total = 0;
-    if (selectedArches.includes('upper')) total += upper;
-    if (selectedArches.includes('lower')) total += lower;
-    return { mode, upper, lower, total };
+/** Each card at its catalog price an arch; «هەردوو» is two arches. */
+function arCalc() {
+    const n = arArch === 'both' ? 2 : (arArch ? 1 : 0);
+    const total = arPicked.reduce((sum, p) => sum + p.price * n, 0);
+    document.getElementById('archTotalPriceDisplay').textContent = n && arPicked.length ? numberFormat(total) : '—';
+    const save = document.getElementById('arSaveBtn');
+    save.disabled = !(arArch && arPicked.length);
+    save.innerHTML = '<i class="fas fa-plus-circle"></i> زیادکردن' + (arPicked.length > 1 ? ' (' + arPicked.length + ')' : '');
 }
-window.arCalc = function () {
-    const p = arPrices();
-    document.getElementById('arCalcPerArch').textContent = numberFormat(p.mode === 'total' ? p.upper : 0);
-    document.getElementById('arTotal').textContent = numberFormat(p.total);
-};
 window.arSave = function () {
-    const arch = document.getElementById('arArchType').value;
-    if (!arch) { setMsg('arMsg', 'تکایە لانیکەم یەک ئەرک هەڵبژێرە', 'is-error'); return; }
-    const name = document.getElementById('arName').value.trim();
-    if (!name) { setMsg('arMsg', 'ناوی چارەسەر پێویستە', 'is-error'); return; }
-    const p = arPrices();
+    if (!arArch) { setMsg('arMsg', 'ئەرکێک هەڵبژێرە', 'is-error'); return; }
+    if (!arPicked.length) { setMsg('arMsg', 'ئیشێک هەڵبژێرە', 'is-error'); return; }
+    const data = { plan_id: PLAN_ID, arch_type: arArch };
+    arPicked.forEach((p, i) => {
+        data['items[' + i + '][treatment_id]'] = p.id;
+        data['items[' + i + '][treatment_name]'] = p.name;
+        data['items[' + i + '][unit_price]'] = p.price;
+    });
     const btn = document.getElementById('arSaveBtn');
     btn.disabled = true;
     setMsg('arMsg', 'پاشەکەوت دەکرێت...');
-    post('add_item', {
-        plan_id: PLAN_ID, arch_type: arch,
-        treatment_id: document.getElementById('arTreatmentSelect').value || '',
-        treatment_name: name, unit_price: p.upper,
-        upper_unit_price: p.upper, lower_unit_price: p.lower,
-        estimated_minutes: document.getElementById('arMinutes').value,
-        notes: document.getElementById('arNotes').value.trim(),
-    }).then(res => {
-        btn.disabled = false;
-        if (!res || !res.success) { setMsg('arMsg', (res && (res.error || res.message)) || 'هەڵە', 'is-error'); return; }
+    post('add_arch_items', data).then(res => {
+        if (!res || !res.success) { btn.disabled = false; setMsg('arMsg', (res && (res.error || res.message)) || 'هەڵە', 'is-error'); return; }
+        const n = arPicked.length;
         applyResponse(res);
         closeDialog('archTreatmentDialog');
-        toast('success', 'کاری ئەرک زیادکرا');
+        toast('success', n > 1 ? n + ' ئیشی ئەرک زیادکرا' : 'ئیشی ئەرک زیادکرا');
     }).catch(() => { btn.disabled = false; setMsg('arMsg', 'هەڵە لە پەیوەندی', 'is-error'); });
 };
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.chart-arch-btn .chart-arch-ico').forEach(ico => { if (window.TreatmentIcons) ico.innerHTML = TreatmentIcons.svg('orthodontic'); });
+});
 
 // ── Header edit / cancel ────────────────────────────────────────────
 window.pvOpenHeaderEdit = function () { setMsg('hdMsg', ''); openDialog('planHeaderDialog'); };

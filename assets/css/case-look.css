@@ -435,3 +435,56 @@
 .smart-dental-chart .chart-legend-states { flex-basis: 100%; display: flex; justify-content: center; gap: 16px; margin-top: 2px; font-size: 12px; font-weight: 700; color: #475569; }
 .smart-dental-chart .chart-legend-states span { display: inline-flex; align-items: center; gap: 6px; }
 .smart-dental-chart .chart-legend-states i { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 2px #fff, 0 0 0 3px #e2e8f0; }
+
+/* «ئیشی ئەرک» — the whole-arch dialog and its chart button, on the case and
+   the treatment plan alike */
+.dialog.ar2-dialog { max-width: 1000px; width: 100%; border-radius: 18px; overflow: hidden; }   /* .dialog: over the case page's own later dialog width */
+.ar2-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: linear-gradient(135deg, #6d28d9, #4c1d95); color: #fff; }
+.ar2-head h4 { margin: 0; font-size: 17px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
+.ar2-head h4 small { font-size: 12px; font-weight: 500; opacity: .8; }
+.ar2-close { width: 34px; height: 34px; border: 0; border-radius: 50%; background: rgba(255,255,255,.18); color: #fff; cursor: pointer; }
+.ar2-body { padding: 10px 20px 6px; max-height: 82vh; overflow-y: auto; }
+.ar2-step { display: flex; align-items: center; gap: 8px; margin: 8px 0 6px; font-size: 13px; font-weight: 800; color: #4c1d95; }
+.ar2-num { width: 22px; height: 22px; border-radius: 50%; background: #ede9fe; color: #5b21b6; display: grid; place-items: center; font-size: 12px; }
+.ar2-arches { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.ar2-arch {
+    position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 10px 10px;
+    border: 2px solid #e8e5f3; border-radius: 16px; background: linear-gradient(180deg, #fff, #fbfaff);
+    cursor: pointer; font: inherit; transition: border-color .18s, background-color .18s, box-shadow .18s, transform .18s;
+}
+.ar2-art { display: block; width: 128px; height: 66px; transition: transform .25s, filter .25s, opacity .25s; filter: saturate(.55); opacity: .8; }
+.ar2-art svg { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 3px 4px rgba(76, 29, 149, .14)); }
+.ar2-arch-text { display: flex; flex-direction: column; align-items: center; line-height: 1.25; }
+.ar2-arch b { font-size: 15px; font-weight: 800; color: #1f2937; }
+.ar2-arch small { font-size: 11px; color: #94a3b8; }
+.ar2-arch-badge { position: absolute; top: 8px; right: 10px; padding: 1px 8px; border-radius: 999px; background: #ede9fe; color: #5b21b6; font-size: 11.5px; font-weight: 800; }
+.ar2-arch-check { position: absolute; top: 8px; left: 8px; width: 22px; height: 22px; border-radius: 50%; background: #6d28d9; color: #fff;
+    font-size: 10px; display: grid; place-items: center; transform: scale(0); transition: transform .18s; box-shadow: 0 2px 6px rgba(109, 40, 217, .4); }
+.ar2-arch:hover { border-color: #c4b5fd; transform: translateY(-2px); box-shadow: 0 8px 20px rgba(76, 29, 149, .1); }
+.ar2-arch:hover .ar2-art { filter: none; opacity: 1; }
+.ar2-arch.on { border-color: #6d28d9; background: linear-gradient(180deg, #faf7ff, #f1ecff); box-shadow: 0 0 0 4px rgba(109, 40, 217, .13), 0 10px 22px rgba(76, 29, 149, .14); }
+.ar2-arch.on .ar2-art { filter: none; opacity: 1; transform: scale(1.06); }
+.ar2-arch.on .ar2-arch-check { transform: scale(1); }
+.ar2-arch.on b { color: #4c1d95; }
+.ar2-arch:focus-visible { outline: 2px solid #6d28d9; outline-offset: 2px; }
+.ar2-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.ar2-cards .tp-card { min-height: 118px; padding: 9px 6px 8px; }
+.ar2-cards .tp-card.on { border-color: #6d28d9; background: #f5f3ff; box-shadow: 0 0 0 3px rgba(109, 40, 217, .14); }
+.ar2-cards .tp-card.on .tp-card-check { background: #6d28d9; }
+.ar2-cards .tp-card.on .tp-card-price { background: #ede9fe; color: #5b21b6; }
+.ar2-empty { grid-column: 1 / -1; padding: 18px; text-align: center; color: #94a3b8; font-size: 13px; }
+.ar2-hint { font-weight: 500; color: #94a3b8; font-size: 12px; }
+.ar2-price { display: flex; align-items: center; gap: 12px; }
+.ar2-price input { width: 180px; padding: 10px 12px; border: 1.5px solid #e5e7eb; border-radius: 10px; font: inherit; font-size: 16px; font-weight: 700; direction: ltr; text-align: left; }
+.ar2-price input:focus { border-color: #6d28d9; outline: none; box-shadow: 0 0 0 3px rgba(109, 40, 217, .12); }
+.ar2-total { margin-inline-start: auto; font-size: 14px; color: #475569; }
+.ar2-total b { font-size: 17px; color: #15803d; direction: ltr; display: inline-block; }
+.ar2-foot { display: flex; align-items: center; gap: 10px; padding: 12px 20px 16px; border-top: 1px solid #eef0f3; }
+.ar2-save { padding: 11px 32px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #6d28d9, #4c1d95); color: #fff; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; box-shadow: 0 6px 16px rgba(76, 29, 149, .28); }
+.ar2-save:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+.ar2-cancel { padding: 11px 22px; border: 1.5px solid #d0d7de; border-radius: 12px; background: #fff; color: #334155; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+/* the chart's «ئیشی ئەرک» button */
+.chart-arch-btn { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border: 0; border-radius: 999px; background: linear-gradient(135deg, #6d28d9, #4c1d95); color: #fff; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(76, 29, 149, .28); transition: transform .15s, box-shadow .15s; }
+.chart-arch-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(76, 29, 149, .36); }
+.chart-arch-btn .chart-arch-ico { width: 30px; height: 30px; border-radius: 50%; background: #fff; display: grid; place-items: center; padding: 3px; }
+.chart-arch-btn small { font-weight: 500; opacity: .85; font-size: 11px; }

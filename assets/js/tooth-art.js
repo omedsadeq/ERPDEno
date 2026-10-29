@@ -548,3 +548,31 @@ function initToothHold(chart, o) {
 
     return { held: () => Date.now() - heldAt < 1200 };
 }
+
+// ── «ئیشی ئەرک» dialog art, on the case and the treatment plan alike ──
+/** One arch from above, in the treatment icons' gradients (assets/js/treatment-icons.js). */
+function arArchSvg(kind) {
+    const one = flip => {
+        let teeth = '';
+        const n = 14;
+        for (let i = 0; i < n; i++) {
+            const deg = 168 - i * (156 / (n - 1)), t = deg * Math.PI / 180;
+            const fromFront = Math.min(i, n - 1 - i);          // 0 = a back molar … 6 = a front incisor
+            const w = 10.6 - fromFront * 0.55, h = 12.4 - fromFront * 0.35;
+            const x = 60 + 43 * Math.cos(t), y = 62 - 47 * Math.sin(t);
+            teeth += `<rect x="${(-w / 2).toFixed(2)}" y="${(-h / 2).toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" rx="3.2"
+                transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${(90 - deg).toFixed(1)})" fill="url(#ti-enamel)" stroke="#aab4c2" stroke-width=".8"/>`;
+        }
+        const gum = `<path d="M4,62 A56,60 0 0 1 116,62 L91,62 A31,35 0 0 0 29,62 Z" fill="url(#ti-gum)" stroke="#b83f47" stroke-opacity=".35" stroke-width=".9"/>`
+            + `<path d="M12,52 C18,30 34,13 58,8" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="2.2" stroke-linecap="round"/>`;
+        return `<g${flip ? ' transform="translate(0 66) scale(1 -1)"' : ''}>${gum}${teeth}</g>`;
+    };
+    const body = kind === 'lower' ? one(true)
+        : kind === 'both' ? `<g transform="translate(60 0) scale(.55) translate(-60 0)">${one(false)}</g><g transform="translate(60 36) scale(.55) translate(-60 0)">${one(true)}</g>`
+        : one(false);
+    return `<svg viewBox="0 0 120 66" aria-hidden="true">${body}</svg>`;
+}
+function arDrawArches() {
+    if (window.TreatmentIcons) TreatmentIcons.ensureDefs();
+    document.querySelectorAll('.ar2-art[data-art]').forEach(el => { if (!el.firstChild) el.innerHTML = arArchSvg(el.dataset.art); });
+}

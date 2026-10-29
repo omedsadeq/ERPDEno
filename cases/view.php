@@ -7495,58 +7495,6 @@ body.bulk-mode-on .smart-dental-chart .tooth { cursor: cell; }
         </form>
     </div>
 </div>
-<style>
-.ar2-dialog { max-width: 1000px; width: 100%; border-radius: 18px; overflow: hidden; }
-.ar2-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: linear-gradient(135deg, #6d28d9, #4c1d95); color: #fff; }
-.ar2-head h4 { margin: 0; font-size: 17px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
-.ar2-head h4 small { font-size: 12px; font-weight: 500; opacity: .8; }
-.ar2-close { width: 34px; height: 34px; border: 0; border-radius: 50%; background: rgba(255,255,255,.18); color: #fff; cursor: pointer; }
-.ar2-body { padding: 10px 20px 6px; max-height: 82vh; overflow-y: auto; }
-.ar2-step { display: flex; align-items: center; gap: 8px; margin: 8px 0 6px; font-size: 13px; font-weight: 800; color: #4c1d95; }
-.ar2-num { width: 22px; height: 22px; border-radius: 50%; background: #ede9fe; color: #5b21b6; display: grid; place-items: center; font-size: 12px; }
-.ar2-arches { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.ar2-arch {
-    position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 10px 10px;
-    border: 2px solid #e8e5f3; border-radius: 16px; background: linear-gradient(180deg, #fff, #fbfaff);
-    cursor: pointer; font: inherit; transition: border-color .18s, background-color .18s, box-shadow .18s, transform .18s;
-}
-.ar2-art { display: block; width: 128px; height: 66px; transition: transform .25s, filter .25s, opacity .25s; filter: saturate(.55); opacity: .8; }
-.ar2-art svg { display: block; width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 3px 4px rgba(76, 29, 149, .14)); }
-.ar2-arch-text { display: flex; flex-direction: column; align-items: center; line-height: 1.25; }
-.ar2-arch b { font-size: 15px; font-weight: 800; color: #1f2937; }
-.ar2-arch small { font-size: 11px; color: #94a3b8; }
-.ar2-arch-badge { position: absolute; top: 8px; right: 10px; padding: 1px 8px; border-radius: 999px; background: #ede9fe; color: #5b21b6; font-size: 11.5px; font-weight: 800; }
-.ar2-arch-check { position: absolute; top: 8px; left: 8px; width: 22px; height: 22px; border-radius: 50%; background: #6d28d9; color: #fff;
-    font-size: 10px; display: grid; place-items: center; transform: scale(0); transition: transform .18s; box-shadow: 0 2px 6px rgba(109, 40, 217, .4); }
-.ar2-arch:hover { border-color: #c4b5fd; transform: translateY(-2px); box-shadow: 0 8px 20px rgba(76, 29, 149, .1); }
-.ar2-arch:hover .ar2-art { filter: none; opacity: 1; }
-.ar2-arch.on { border-color: #6d28d9; background: linear-gradient(180deg, #faf7ff, #f1ecff); box-shadow: 0 0 0 4px rgba(109, 40, 217, .13), 0 10px 22px rgba(76, 29, 149, .14); }
-.ar2-arch.on .ar2-art { filter: none; opacity: 1; transform: scale(1.06); }
-.ar2-arch.on .ar2-arch-check { transform: scale(1); }
-.ar2-arch.on b { color: #4c1d95; }
-.ar2-arch:focus-visible { outline: 2px solid #6d28d9; outline-offset: 2px; }
-.ar2-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
-.ar2-cards .tp-card { min-height: 118px; padding: 9px 6px 8px; }
-.ar2-cards .tp-card.on { border-color: #6d28d9; background: #f5f3ff; box-shadow: 0 0 0 3px rgba(109, 40, 217, .14); }
-.ar2-cards .tp-card.on .tp-card-check { background: #6d28d9; }
-.ar2-cards .tp-card.on .tp-card-price { background: #ede9fe; color: #5b21b6; }
-.ar2-empty { grid-column: 1 / -1; padding: 18px; text-align: center; color: #94a3b8; font-size: 13px; }
-.ar2-hint { font-weight: 500; color: #94a3b8; font-size: 12px; }
-.ar2-price { display: flex; align-items: center; gap: 12px; }
-.ar2-price input { width: 180px; padding: 10px 12px; border: 1.5px solid #e5e7eb; border-radius: 10px; font: inherit; font-size: 16px; font-weight: 700; direction: ltr; text-align: left; }
-.ar2-price input:focus { border-color: #6d28d9; outline: none; box-shadow: 0 0 0 3px rgba(109, 40, 217, .12); }
-.ar2-total { margin-inline-start: auto; font-size: 14px; color: #475569; }
-.ar2-total b { font-size: 17px; color: #15803d; direction: ltr; display: inline-block; }
-.ar2-foot { display: flex; align-items: center; gap: 10px; padding: 12px 20px 16px; border-top: 1px solid #eef0f3; }
-.ar2-save { padding: 11px 32px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #6d28d9, #4c1d95); color: #fff; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; box-shadow: 0 6px 16px rgba(76, 29, 149, .28); }
-.ar2-save:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
-.ar2-cancel { padding: 11px 22px; border: 1.5px solid #d0d7de; border-radius: 12px; background: #fff; color: #334155; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
-/* the chart's «ئیشی ئەرک» button */
-.chart-arch-btn { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border: 0; border-radius: 999px; background: linear-gradient(135deg, #6d28d9, #4c1d95); color: #fff; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(76, 29, 149, .28); transition: transform .15s, box-shadow .15s; }
-.chart-arch-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(76, 29, 149, .36); }
-.chart-arch-btn .chart-arch-ico { width: 30px; height: 30px; border-radius: 50%; background: #fff; display: grid; place-items: center; padding: 3px; }
-.chart-arch-btn small { font-weight: 500; opacity: .85; font-size: 11px; }
-</style>
 
 <?php if ($isArchCase): ?>
 <!-- Procedure Log Dialog -->
@@ -13538,33 +13486,6 @@ const ARCH_TREATMENTS = <?= json_encode(array_map(function ($t) {
         'icon' => $t['icon'] ?? null, 'price' => (float)$t['default_price']];
 }, $archTreatments), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
 let arArch = '', arPicked = [];     // the arch, and the picked cards: [{id, name, icon, category, price}]
-
-/** One arch from above, in the treatment icons' gradients (assets/js/treatment-icons.js). */
-function arArchSvg(kind) {
-    const one = flip => {
-        let teeth = '';
-        const n = 14;
-        for (let i = 0; i < n; i++) {
-            const deg = 168 - i * (156 / (n - 1)), t = deg * Math.PI / 180;
-            const fromFront = Math.min(i, n - 1 - i);          // 0 = a back molar … 6 = a front incisor
-            const w = 10.6 - fromFront * 0.55, h = 12.4 - fromFront * 0.35;
-            const x = 60 + 43 * Math.cos(t), y = 62 - 47 * Math.sin(t);
-            teeth += `<rect x="${(-w / 2).toFixed(2)}" y="${(-h / 2).toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" rx="3.2"
-                transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${(90 - deg).toFixed(1)})" fill="url(#ti-enamel)" stroke="#aab4c2" stroke-width=".8"/>`;
-        }
-        const gum = `<path d="M4,62 A56,60 0 0 1 116,62 L91,62 A31,35 0 0 0 29,62 Z" fill="url(#ti-gum)" stroke="#b83f47" stroke-opacity=".35" stroke-width=".9"/>`
-            + `<path d="M12,52 C18,30 34,13 58,8" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="2.2" stroke-linecap="round"/>`;
-        return `<g${flip ? ' transform="translate(0 66) scale(1 -1)"' : ''}>${gum}${teeth}</g>`;
-    };
-    const body = kind === 'lower' ? one(true)
-        : kind === 'both' ? `<g transform="translate(60 0) scale(.55) translate(-60 0)">${one(false)}</g><g transform="translate(60 36) scale(.55) translate(-60 0)">${one(true)}</g>`
-        : one(false);
-    return `<svg viewBox="0 0 120 66" aria-hidden="true">${body}</svg>`;
-}
-function arDrawArches() {
-    if (window.TreatmentIcons) TreatmentIcons.ensureDefs();
-    document.querySelectorAll('.ar2-art[data-art]').forEach(el => { if (!el.firstChild) el.innerHTML = arArchSvg(el.dataset.art); });
-}
 
 function openArchTreatmentDialog() {
     arDrawArches();

@@ -1,11 +1,13 @@
 <?php
 /**
- * پلانی چارەسەر tab — data, the new-plan dialog, look and behaviour. The
- * markup it fills is patients/_plans_tab.php.
+ * پلانی چارەسەر tab — data, look and behaviour. The markup it fills is
+ * patients/_plans_tab.php.
  *
  * The tab lists the patient's plans as cards; each plan lives on its own page,
  * treatment-plans/view.php (chart, the work table, routing, the appointment
- * and the transfer to a case). A new plan opens straight on that page.
+ * and the transfer to a case). «پلانی نوێ» makes one in a click and opens it
+ * on that page (TreatmentPlan::quickOpen) — the admin and reception only say
+ * whose examination it is.
  * Nothing here is money — see classes/TreatmentPlan.php.
  */
 if (empty($canViewPlans)) {
@@ -69,72 +71,30 @@ foreach ($treatmentPlans as $tp) {
     ];
 }
 $tpwJson = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE;
-?>
 
-<?php if ($canWritePlans): ?>
-<!-- ═══ پلانی چارەسەری نوێ ═══ -->
-<div class="dialog-overlay" id="tpNewPlanDialog">
-    <div class="dialog" style="max-width: 500px;">
-        <div class="dialog-header">
-            <h4 class="dialog-title">پلانی چارەسەری نوێ</h4>
-            <button type="button" class="dialog-close" onclick="closeDialog('tpNewPlanDialog')">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <div class="dialog-body">
-            <?php if ($hasFullAccess): ?>
-            <div class="form-group">
-                <label class="form-label required">دکتۆر</label>
-                <select id="tpNewDoctor" class="form-control" required>
-                    <?php foreach ($doctorOptions as $doctor): ?>
-                    <?php if (empty($doctor['is_active'])) continue; ?>
-                    <option value="<?= (int)$doctor['id'] ?>" <?= (int)$doctor['id'] === (int)$currentUser['id'] ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($doctor['full_name']) ?>
-                    </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <?php endif; ?>
-            <div class="form-group">
-                <label class="form-label required">جۆری بوار</label>
-                <div class="tpw-scope">
-                    <label class="tp-radio"><input type="radio" name="tpNewScope" value="tooth" checked onchange="tpScopeChanged()">
-                        <i class="fas fa-tooth" style="color: #4caf50;"></i> ددان</label>
-                    <label class="tp-radio"><input type="radio" name="tpNewScope" value="arch" onchange="tpScopeChanged()">
-                        <i class="fas fa-teeth" style="color: #9c27b0;"></i> ئەرک (جاو)</label>
-                </div>
-            </div>
-            <div class="form-group" id="tpNewArchBox" style="display: none;">
-                <label class="form-label required">ئەرک</label>
-                <div class="tpw-scope">
-                    <label class="tp-radio"><input type="radio" name="tpNewArch" value="upper"> سەرەوە</label>
-                    <label class="tp-radio"><input type="radio" name="tpNewArch" value="lower"> خوارەوە</label>
-                    <label class="tp-radio"><input type="radio" name="tpNewArch" value="both" checked> هەردوو</label>
-                </div>
-            </div>
-            <div class="form-group">
-                <label class="form-label">سکاڵای سەرەکی</label>
-                <textarea id="tpNewComplaint" class="form-control" rows="2" placeholder="چی ئازاری هەیە؟"></textarea>
-            </div>
-            <div class="form-group">
-                <label class="form-label">ماوەی پێویست بۆ چارەسەر</label>
-                <input type="text" id="tpNewDuration" class="form-control" placeholder="نمونە: ٢ هەفتە / ٣ سەردان">
-            </div>
-            <div class="form-group">
-                <label class="form-label">تێبینی</label>
-                <textarea id="tpNewNotes" class="form-control" rows="2"></textarea>
-            </div>
-            <div class="tp-dialog-msg" id="tpNewMsg"></div>
-        </div>
-        <div class="dialog-footer">
-            <button type="button" class="btn btn-secondary" onclick="closeDialog('tpNewPlanDialog')">هەڵوەشاندنەوە</button>
-            <button type="button" class="btn btn-primary" id="tpNewSave" onclick="tpCreatePlan()">
-                <i class="fas fa-plus"></i> دروستکردن و کردنەوە
-            </button>
-        </div>
-    </div>
-</div>
-<?php endif; ?>
+// «پلانی نوێ»: a doctor's own plan; anyone else names the doctor, offered
+// today's waiting-room doctor first, else the doctor of the patient's last folder.
+$tpwPickDoctor = !($auth->isDoctor() && !$auth->isAdmin());
+$tpwDoctors = [];
+$tpwLead = 0;
+if ($canWritePlans && $tpwPickDoctor) {
+    foreach ($doctorOptions as $doctor) {
+        if (!empty($doctor['is_active'])) {
+            $tpwDoctors[] = ['id' => (int)$doctor['id'], 'name' => (string)$doctor['full_name']];
+        }
+    }
+    $tpwLeadRow = Database::getInstance()->fetch(
+        "SELECT doctor_id FROM waiting_room WHERE patient_id = :pid AND DATE(check_in_time) = CURDATE()
+           AND doctor_id IS NOT NULL AND status NOT IN ('cancelled', 'rejected')
+         ORDER BY check_in_time DESC LIMIT 1",
+        ['pid' => (int)$patientId]
+    ) ?: Database::getInstance()->fetch(
+        "SELECT doctor_id FROM patient_folders WHERE patient_id = :pid ORDER BY created_at DESC, id DESC LIMIT 1",
+        ['pid' => (int)$patientId]
+    );
+    $tpwLead = (int)($tpwLeadRow['doctor_id'] ?? 0);
+}
+?>
 
 <style>
 /* ── پلانی چارەسەر tab: the list of plans ─────────────────────────── */
@@ -227,6 +187,9 @@ $tpwJson = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UN
     const PRINT_PAGE = '<?= APP_URL ?>/treatment-plans/print.php?id=';
     const CAN_CREATE = <?= $canWritePlans ? 'true' : 'false' ?>;
     const PLANS = <?= json_encode($tpwPlans, $tpwJson) ?>;
+    const TP_PICK_DOCTOR = <?= $tpwPickDoctor ? 'true' : 'false' ?>;
+    const TP_DOCTORS = <?= json_encode($tpwDoctors, $tpwJson) ?>;
+    const TP_LEAD = <?= (int)$tpwLead ?>;
     const PLAN_STATUS = {
         open: ['چاوەڕوانی بڕیاری نەخۆش', 'is-open'], partial: ['بەشێکی گوازراوەتەوە', 'is-partial'],
         transferred: ['تەواو گوازراوەتەوە', 'is-done'], cancelled: ['هەڵوەشێنراوەتەوە', 'is-cancelled']
@@ -291,7 +254,7 @@ $tpwJson = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UN
             host.innerHTML = '<div class="tpw-empty"><span class="tpw-empty-ico"><i class="fas fa-clipboard-list"></i></span>'
                 + '<b>هێشتا پلانی چارەسەر نییە</b>'
                 + '<p>دوای پشکنین پلانێک دروست بکە؛ پلانەکە لە پەڕەی خۆیدا دەکرێتەوە بۆ دیاریکردنی ددان و چارەسەرەکان.</p>'
-                + (CAN_CREATE ? '<button type="button" class="btn btn-primary" onclick="tpNewPlan()"><i class="fas fa-plus-circle"></i> دروستکردنی پلان</button>' : '')
+                + (CAN_CREATE ? '<button type="button" class="btn btn-primary" onclick="tpNewPlan(this)"><i class="fas fa-plus-circle"></i> دروستکردنی پلان</button>' : '')
                 + '</div>';
             return;
         }
@@ -312,41 +275,28 @@ $tpwJson = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UN
             .catch(() => ({ success: false, error: 'هەڵە لە پەیوەندی' }));
     }
 
-    window.tpNewPlan = function () {
-        const m = $('tpNewMsg');
-        if (m) { m.textContent = ''; m.className = 'tp-dialog-msg'; }
-        openDialog('tpNewPlanDialog');
-    };
-    window.tpScopeChanged = function () {
-        const scope = (document.querySelector('input[name="tpNewScope"]:checked') || {}).value || 'tooth';
-        const box = $('tpNewArchBox');
-        if (box) box.style.display = scope === 'arch' ? '' : 'none';
-    };
-    window.tpCreatePlan = function () {
-        const btn = $('tpNewSave'), m = $('tpNewMsg');
-        m.className = 'tp-dialog-msg';
-        const scope = (document.querySelector('input[name="tpNewScope"]:checked') || {}).value || 'tooth';
-        const data = {
-            patient_id: PATIENT_ID,
-            scope_type: scope,
-            chief_complaint: $('tpNewComplaint').value.trim(),
-            duration_text: $('tpNewDuration').value.trim(),
-            notes: $('tpNewNotes').value.trim()
+    // «پلانی نوێ» in one click: made (or today's reopened) and opened on its
+    // own page, ready for the chart. Only whose plan it is may be asked.
+    window.tpNewPlan = function (btn) {
+        const go = doctorId => {
+            if (btn) btn.disabled = true;
+            post('quick_plan', { patient_id: PATIENT_ID, doctor_id: doctorId || '' }).then(res => {
+                if (!res || !res.success) {
+                    if (btn) btn.disabled = false;
+                    if (typeof showToast === 'function') showToast('error', (res && (res.error || res.message)) || 'هەڵە');
+                    return;
+                }
+                location.href = PLAN_PAGE + res.plan_id;
+            });
         };
-        if (scope === 'arch') data.selected_arch = (document.querySelector('input[name="tpNewArch"]:checked') || {}).value || 'both';
-        const doc = $('tpNewDoctor');
-        if (doc && doc.value) data.doctor_id = doc.value;
-        btn.disabled = true;
-        post('create_plan', data).then(res => {
-            if (!res || !res.success) {
-                btn.disabled = false;
-                m.textContent = (res && (res.error || res.message)) || 'هەڵە';
-                m.classList.add('is-error');
-                return;
-            }
-            // The new plan opens on its own page, ready for its chart and work.
-            location.href = PLAN_PAGE + res.plan_id;
-        });
+        if (!TP_PICK_DOCTOR) { go(); return; }
+        const docs = new Map(TP_DOCTORS.map(d => [String(d.id), d.name]));
+        Swal.fire({
+            title: 'پلان بۆ کام دکتۆر؟', input: 'select', inputOptions: docs, inputPlaceholder: 'دکتۆر هەڵبژێرە',
+            inputValue: docs.has(String(TP_LEAD)) ? String(TP_LEAD) : '',
+            showCancelButton: true, confirmButtonText: 'دروستکردن', cancelButtonText: 'نەخێر', confirmButtonColor: '#0d9488',
+            inputValidator: v => v ? null : 'دکتۆر هەڵبژێرە'
+        }).then(r => { if (r.isConfirmed && r.value) go(r.value); });
     };
 
     render();

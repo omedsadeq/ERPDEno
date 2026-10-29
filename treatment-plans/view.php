@@ -73,8 +73,10 @@ if (!empty($plan['visit_id'])) {
         ['id' => (int)$plan['visit_id']]
     ) ?: null;
 }
-$isArch      = ($plan['scope_type'] ?? 'tooth') === 'arch';
-$selectedArch = $plan['selected_arch'] ?: null;
+// Every plan holds both kinds of work, as every case does: teeth on the
+// chart, whole-arch work from «ئیشی ئەرک» on its jaw. The scope an old ئەرک
+// plan was made with only names the case its work is moved into.
+$planScope = ($plan['scope_type'] ?? 'tooth') === 'arch' ? 'arch' : 'tooth';
 
 $items = $plans->getItems($planId);
 $pendingCount = 0;
@@ -104,7 +106,7 @@ $caseNames = [];
 $caseTargets = [];
 if ($canTransfer) {
     foreach ((new CaseNamePreset())->all() as $n) {
-        if (CaseNamePreset::scope($n['scope_type'] ?? '') === ($isArch ? 'arch' : 'tooth')) {
+        if (CaseNamePreset::scope($n['scope_type'] ?? '') === $planScope) {
             $caseNames[] = $n['name'];
         }
     }
@@ -132,7 +134,6 @@ $statusMeta = [
 ];
 $statusLabel = $statusMeta[$plan['status']][0] ?? $plan['status'];
 $statusBadge = $statusMeta[$plan['status']][1] ?? 'badge-secondary';
-$archLabel = $selectedArch === 'both' ? 'هەردوو ئەرک' : ($selectedArch === 'upper' ? 'ئەرکی سەرەوە' : ($selectedArch === 'lower' ? 'ئەرکی خوارەوە' : 'ئەرک'));
 
 $pageTitle = $plan['plan_number'];
 // The plan header carries the number and the way back to the patient.
@@ -163,14 +164,11 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
 <div class="case-hero tp-hero">
     <div class="ch-top">
         <div class="ch-id">
-            <div class="ch-icon"><i class="fas <?= $isArch ? 'fa-teeth' : 'fa-clipboard-list' ?>"></i></div>
+            <div class="ch-icon"><i class="fas fa-clipboard-list"></i></div>
             <div class="ch-id-text">
                 <div class="ch-title-row">
                     <h2 class="ch-number"><?= htmlspecialchars($plan['plan_number']) ?></h2>
                     <span class="ch-pill <?= $statusPill ?>" id="pvStatusBadge"><?= $statusLabel ?></span>
-                    <?php if ($isArch): ?>
-                    <span class="ch-pill"><i class="fas fa-teeth"></i> <span id="pvArchLabel"><?= $archLabel ?></span></span>
-                    <?php endif; ?>
                 </div>
                 <div class="ch-meta">
                     <a class="ch-meta-item ch-patient" href="<?= APP_URL ?>/patients/view.php?id=<?= (int)$plan['patient_id'] ?>&tab=plans">
@@ -295,8 +293,8 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
 <div class="panel tp-clinical-panel">
     <div class="tabs-container" role="tablist" aria-label="پیشاندانی پلان">
         <button type="button" class="tab tab--chart active" id="pvTab-chart" role="tab" aria-controls="tab-chart" aria-selected="true" onclick="showTab('chart', this)">
-            <i class="fas <?= $isArch ? 'fa-teeth' : 'fa-tooth' ?>" aria-hidden="true"></i>
-            <span class="tab-label"><?= $isArch ? 'چارتی ئەرک' : 'چارتی ددان' ?></span>
+            <i class="fas fa-tooth" aria-hidden="true"></i>
+            <span class="tab-label">چارتی ددان</span>
         </button>
         <button type="button" class="tab tab--treat" id="pvTab-items" role="tab" aria-controls="tab-items" aria-selected="false" onclick="showTab('items', this)">
             <i class="fas fa-tasks" aria-hidden="true"></i>
@@ -309,7 +307,6 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
     <div class="tab-content active" id="tab-chart" role="tabpanel" aria-labelledby="pvTab-chart" style="display: block;">
         <div class="panel-body" style="padding: 12px;">
             <div class="ph-bar" id="pvChartToolbar">
-                <?php if (!$isArch): ?>
                 <div class="pv-chart-tools">
                 <div id="dentitionForm" class="dentition-switch" role="group" aria-label="پیشاندانی چارتەکان">
                     <button type="button" data-dentition="permanent" class="dentition-opt is-active" aria-pressed="true"
@@ -327,44 +324,21 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
                         <i class="fas fa-volume-up"></i>
                     </button>
                 </div>
-                <?php else: ?><span></span><?php endif; ?>
-                <?php if ($isEditable): ?>
-                <button class="btn btn-primary btn-sm" onclick="<?= $isArch ? 'pvOpenArchDialog()' : 'pvOpenItemDialog({})' ?>" title="<?= $isArch ? '' : 'یان ددان هەڵبژێرە (کلیک یان ڕاکێشان) و کلیکی ڕاست بکە' ?>">
+                <?php if ($isEditable): // tooth work from the chart (or «زیادکردن»), whole-arch work from «ئیشی ئەرک» — as on a case ?>
+                <div class="pv-chart-adds">
+                <button type="button" class="chart-arch-btn" onclick="pvOpenArchDialog()" title="ئیشی هەموو ئەرکێک: زنجیر، تاخم …">
+                    <span class="chart-arch-ico"></span> ئیشی ئەرک <small>زنجیر · تاخم</small>
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="pvOpenItemDialog({})" title="یان ددان هەڵبژێرە (کلیک یان ڕاکێشان) و کلیکی ڕاست بکە">
                     <i class="fas fa-plus"></i> زیادکردن
                 </button>
+                </div>
                 <?php endif; ?>
             </div>
 
             <!-- Whole-arch / toothless jobs strip (part of the chart) -->
             <div id="chartServiceWork" class="chart-service-work" aria-live="polite"></div>
 
-            <?php if ($isArch): ?>
-            <div class="arch-view-chart">
-                <div class="arch-occ-panel" id="archPanel-upper" <?= in_array($selectedArch, ['upper', 'both', null], true) ? '' : 'hidden' ?>>
-                    <div class="arch-occ-chart" data-arch="upper"></div>
-                    <div class="arch-occ-info">
-                        <div class="arch-occ-title">
-                            <span class="arch-occ-mouth arch-occ-mouth--upper"></span>
-                            <div><h4>ئەرکی سەرەوە (Maxilla)</h4><small>قەوسی سەرەوە — 16 ددان</small></div>
-                        </div>
-                        <div class="arch-occ-stats" data-arch-stats="upper"></div>
-                        <div class="arch-occ-statusbar" data-arch-status="upper"></div>
-                    </div>
-                </div>
-                <div class="arch-occ-panel" id="archPanel-lower" <?= in_array($selectedArch, ['lower', 'both', null], true) ? '' : 'hidden' ?>>
-                    <div class="arch-occ-chart" data-arch="lower"></div>
-                    <div class="arch-occ-info">
-                        <div class="arch-occ-title">
-                            <span class="arch-occ-mouth arch-occ-mouth--lower"></span>
-                            <div><h4>ئەرکی خوارەوە (Mandible)</h4><small>قەوسی خوارەوە — 16 ددان</small></div>
-                        </div>
-                        <div class="arch-occ-stats" data-arch-stats="lower"></div>
-                        <div class="arch-occ-statusbar" data-arch-status="lower"></div>
-                    </div>
-                </div>
-                <div class="arch-occ-legend" id="archOccLegend"></div>
-            </div>
-            <?php else: ?>
             <div class="dental-chart-container smart-dental-chart" id="smartDentalChart">
                 <?php
                 $dentitionPaneMeta = [
@@ -408,7 +382,6 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
                 <?php endforeach; ?>
                 <div class="chart-legend" id="smartChartLegend"></div>
             </div>
-            <?php endif; ?>
         </div>
     </div>
 
@@ -419,9 +392,14 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
             <?php if ($isEditable): ?>
             <div class="ph-bar">
                 <span></span>
-                <button class="btn btn-primary btn-sm" onclick="<?= $isArch ? 'pvOpenArchDialog()' : 'pvOpenItemDialog({})' ?>">
+                <div class="pv-chart-adds">
+                <button type="button" class="chart-arch-btn" onclick="pvOpenArchDialog()" title="ئیشی هەموو ئەرکێک: زنجیر، تاخم …">
+                    <span class="chart-arch-ico"></span> ئیشی ئەرک <small>زنجیر · تاخم</small>
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="pvOpenItemDialog({})">
                     <i class="fas fa-plus"></i> زیادکردن
                 </button>
+                </div>
             </div>
             <?php endif; ?>
             <div class="vt-pane tp-estimate-receipt">
@@ -447,6 +425,7 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
     box-shadow: 0 0 0 3px rgba(13,148,136,.22), 0 10px 22px rgba(13,148,136,.14);
 }
 .smart-dental-chart .tooth.bulk-selected .tooth-number { background: #0d9488 !important; color: #fff !important; }
+.pv-chart-adds { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 </style>
 <?php require __DIR__ . '/_view_script.php'; ?>
 <?php require __DIR__ . '/_view_routing.php'; ?>
