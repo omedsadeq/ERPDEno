@@ -114,6 +114,18 @@
         return `<path d="M5.5,52 A26.5,38 0 0 1 58.5,52 L46.5,52 A14.5,25 0 0 0 17.5,52 Z" fill="url(#ti-gum)" stroke="#b83f47" stroke-opacity=".35" stroke-width=".8"/>` + teeth;
     }
 
+    /** A horseshoe (an arch seen from above) between two half-ellipses round (32, cy). */
+    const arch = (cy, rx, ry, rx2, ry2) => `M${32 - rx},${cy} A${rx},${ry} 0 0 1 ${32 + rx},${cy} L${32 + rx2},${cy} A${rx2},${ry2} 0 0 0 ${32 - rx2},${cy} Z`;
+    /** Eight teeth round an arch from above (a retainer, a night guard). */
+    function archTeeth(cy) {
+        let teeth = '';
+        for (let i = 0; i < 8; i++) {
+            const deg = 160 - i * (140 / 7), t = deg * Math.PI / 180;
+            teeth += `<rect x="-3.7" y="-4.4" width="7.4" height="8.8" rx="2.6" transform="translate(${(32 + 20.5 * Math.cos(t)).toFixed(1)} ${(cy - 31 * Math.sin(t)).toFixed(1)}) rotate(${(90 - deg).toFixed(1)})" fill="url(#ti-enamel)" stroke="#aeb8c4" stroke-width=".7"/>`;
+        }
+        return teeth;
+    }
+
     // ── the set, in the order the chooser shows it ──
     const ICONS = [
         { key: 'exam', label: 'پشکنین', body: () => molar('translate(-3,4) scale(.94)') +
@@ -183,6 +195,77 @@
             `<rect x="9" y="6" width="46" height="52" rx="5" fill="url(#ti-film)"/>` +
             `<rect x="12" y="9" width="40" height="46" rx="3" fill="none" stroke="#fff" stroke-opacity=".14"/>` +
             g(`<path d="${MOLAR}" fill="#e8f1f7" opacity=".92"/><path d="${PULP}" fill="#6f8798" opacity=".7"/>`, 'translate(32 33) scale(.72) translate(-32 -33)') },
+        { key: 'sealant', label: 'داخستنی شیار (سیلەنت)', body: () => molar() +
+            `<path d="${OCCLUSAL}" fill="none" stroke="#38bdf8" stroke-width="3.4" stroke-linecap="round" opacity=".95"/>` +
+            `<path d="${OCCLUSAL}" fill="none" stroke="#e0f2fe" stroke-width="1" stroke-linecap="round"/>` +
+            `<path d="M52,3 C55,7 57,9.6 57,12 A5,5 0 0 1 47,12 C47,9.6 49,7 52,3 Z" fill="url(#ti-blue)"/>` },
+        { key: 'fluoride', label: 'فلۆراید', body: () => molar('translate(-3,4) scale(.94)') +
+            `<path d="M14,40 Q32,46 50,40" fill="none" stroke="#5eead4" stroke-width="2.4" stroke-linecap="round" opacity=".9"/>` +
+            `<circle cx="50" cy="13" r="10" fill="url(#ti-mint)" stroke="#fff" stroke-width="1.6"/>` +
+            `<text x="50" y="17.6" font-size="13" font-weight="800" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif">F</text>` },
+        { key: 'pulpotomy', label: 'پڵپۆتۆمی (منداڵ)', body: () => molar('translate(32 36) scale(.92) translate(-32 -36)') +
+            `<ellipse cx="32" cy="27" rx="8.5" ry="5" fill="url(#ti-pulp)" stroke="#b42c3a" stroke-opacity=".5" stroke-width=".7"/>` +
+            `<circle cx="51" cy="11" r="8.5" fill="#fde68a" stroke="#f59e0b" stroke-width="1"/>` +
+            `<circle cx="48.4" cy="10" r="1.1" fill="#3d2f2b"/><circle cx="53.6" cy="10" r="1.1" fill="#3d2f2b"/>` +
+            `<path d="M48,13.4 Q51,16.4 54,13.4" fill="none" stroke="#3d2f2b" stroke-width="1.3" stroke-linecap="round"/>` },
+        { key: 'inlay', label: 'ئینلەی / ئۆنلەی', body: () => molar() +
+            `<path d="M23,12.5 L41,12.5 L44.5,19.5 L32,24.5 L19.5,19.5 Z" fill="url(#ti-gold)" stroke="#b7791f" stroke-width="1" stroke-linejoin="round"/>` +
+            `<path d="M23,12.5 L32,17 L41,12.5 M32,17 L32,24.5" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width=".8"/>` },
+        { key: 'apicoectomy', label: 'بڕینی سەری ڕەگ', body: () => incisor('translate(-3,0)') +
+            `<path d="M20,48 L42,43.5" fill="none" stroke="#dc2626" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="3.4 2.2"/>` +
+            `<g transform="rotate(-24 50 14)"><rect x="47" y="2" width="6" height="16" rx="3" fill="url(#ti-metal)" stroke="#8d97a3" stroke-width=".6"/>` +
+            `<path d="M47.5,18 H52.5 L51.2,28 Q50,31 48.8,28 Z" fill="#eef2f6" stroke="#8d97a3" stroke-width=".7"/></g>` },
+        { key: 'partial_denture', label: 'تاخمی بەشی', body: () =>
+            `<rect x="9" y="32" width="46" height="17" rx="8.5" fill="url(#ti-gum)" stroke="#b83f47" stroke-opacity=".35" stroke-width=".8"/>` +
+            [16, 32, 48].map(x => `<g transform="translate(${x - 32} 0)">` + `<path d="${MOLAR_CROWN}" transform="translate(32 34) scale(.42) translate(-32 -36)" fill="url(#ti-enamel)" stroke="#aeb8c4" stroke-width="2"/></g>`).join('') +
+            `<path d="M9,36 C2,36 2,48 9,48 M55,36 C62,36 62,48 55,48" fill="none" stroke="#8d97a3" stroke-width="2.6" stroke-linecap="round"/>` },
+        { key: 'night_guard', label: 'پارێزەری شەو', body: () => archTeeth(54) +
+            `<path d="${arch(54, 27, 39, 14.5, 25)}" fill="#a5b4fc" fill-opacity=".55" stroke="#6366f1" stroke-width="1.5"/>` +
+            `<path d="M53,2.5 A8.5,8.5 0 1 0 61.5,14 A6.5,6.5 0 1 1 53,2.5 Z" fill="#fbbf24"/>` },
+        { key: 'splint', label: 'بەستنەوەی ددان', body: () =>
+            incisor('translate(-11,4) scale(.82) translate(7,0)') + incisor('translate(11,4) scale(.82) translate(7,0)') +
+            `<rect x="9" y="17" width="46" height="5.5" rx="2.75" fill="url(#ti-metal)" stroke="#7d8894" stroke-width=".7"/>` +
+            [18, 32, 46].map(x => `<circle cx="${x}" cy="19.75" r="1.8" fill="#7cc0ff"/>`).join('') },
+        { key: 'space_maintainer', label: 'پاراستنی بۆشایی', body: () =>
+            molar('translate(-2,14) scale(.55)') + molar('translate(30.6,14) scale(.55)') +
+            `<path d="M22,32 C25,52 40,52 43,32" fill="none" stroke="url(#ti-steel)" stroke-width="2.8" stroke-linecap="round"/>` +
+            `<rect x="5" y="26" width="21" height="5" rx="2" fill="url(#ti-metal)" stroke="#7d8894" stroke-width=".6"/>` +
+            `<path d="M28,16 H36 M28,16 L31,13 M28,16 L31,19 M36,16 L33,13 M36,16 L33,19" fill="none" stroke="#3b82f6" stroke-width="1.6" stroke-linecap="round"/>` },
+        { key: 'gum_surgery', label: 'نەشتەرگەری پووک', body: () => molar() + gum() +
+            `<path d="M8,45 C14,40 19,42 22,45 C28,49 36,49 42,45 C45,42 50,40 56,45" fill="none" stroke="#dc2626" stroke-width="1.8" stroke-dasharray="3 2" stroke-linecap="round"/>` +
+            `<g transform="rotate(38 51 18)"><rect x="47.8" y="-1" width="6.4" height="19" rx="3.2" fill="url(#ti-metal)" stroke="#8d97a3" stroke-width=".6"/>` +
+            `<path d="M48.4,18 H53.6 L52.2,29 Q51,32.6 49.8,29 Z" fill="#eef2f6" stroke="#8d97a3" stroke-width=".7"/></g>` },
+        { key: 'bone_graft', label: 'چاندنی ئێسک', body: () => gum() +
+            `<path d="M26,26 L38,26 L36.6,46 Q32,52 27.4,46 Z" fill="url(#ti-steel)" stroke="#6f7a86" stroke-width=".6"/>` +
+            [30, 34, 38, 42].map((y, i) => `<path d="M${26.6 + i * .3},${y} L${37.4 - i * .3},${y - 1.6}" stroke="#6f7a86" stroke-width="1"/>`).join('') +
+            [[14, 48, 2.4], [19, 53, 2], [12, 54, 1.8], [45, 49, 2.4], [50, 53, 2], [52, 47, 1.7], [22, 47, 1.6], [42, 54, 1.6]].map(([x, y, r]) =>
+                `<circle cx="${x}" cy="${y}" r="${r}" fill="#fdf3dc" stroke="#c9a96b" stroke-width=".7"/>`).join('') +
+            sparkle(32, 12, 6, 'url(#ti-blue)') },
+        { key: 'anesthesia', label: 'بەنج', body: () => `<g transform="rotate(-38 32 32)">` +
+            `<rect x="6" y="28.5" width="3" height="7" rx="1" fill="#94a3b8"/><rect x="9" y="30" width="9" height="4" fill="#cbd5e1"/>` +
+            `<rect x="18" y="25" width="26" height="14" rx="3" fill="url(#ti-glass)" stroke="#64748b" stroke-width="1"/>` +
+            `<rect x="29" y="27.5" width="13" height="9" rx="1.5" fill="#7dd3fc"/>` +
+            [23, 27, 31, 35, 39].map(x => `<path d="M${x},25 V28" stroke="#64748b" stroke-width=".8"/>`).join('') +
+            `<rect x="44" y="29" width="5" height="6" rx="1" fill="#94a3b8"/><path d="M49,32 H62" stroke="#64748b" stroke-width="1.4" stroke-linecap="round"/></g>` +
+            `<path d="M51,43 C53.6,46.4 55,48.6 55,50.6 A4,4 0 0 1 47,50.6 C47,48.6 48.4,46.4 51,43 Z" fill="#7dd3fc"/>` },
+        { key: 'laser', label: 'لێزەر', body: () => molar('translate(-4,6) scale(.92)') +
+            `<path d="M61,2 L38,22" stroke="url(#ti-laser)" stroke-width="4.5" stroke-linecap="round"/>` +
+            `<path d="M61,2 L38,22" stroke="#fff" stroke-width="1.2" stroke-linecap="round" opacity=".8"/>` +
+            `<circle cx="37" cy="23" r="5" fill="#f472b6" opacity=".35"/>` + sparkle(37, 23, 4.5, '#ec4899') },
+        { key: 'impression', label: 'قاڵب گرتن', body: () => {
+            let marks = '';
+            for (let i = 0; i < 7; i++) {
+                const t = (160 - i * (140 / 6)) * Math.PI / 180;
+                marks += `<ellipse cx="${(32 + 20.25 * Math.cos(t)).toFixed(1)}" cy="${(55 - 28.5 * Math.sin(t)).toFixed(1)}" rx="2.3" ry="1.7" fill="#6d28d9" opacity=".35"/>`;
+            }
+            return `<rect x="27.5" y="3" width="9" height="18" rx="2.5" fill="url(#ti-metal)" stroke="#8d97a3" stroke-width=".7"/>` +
+                `<path d="${arch(55, 27, 36, 13.5, 21)}" fill="url(#ti-metal)" stroke="#8d97a3" stroke-width=".7"/>` +
+                `<path d="${arch(55, 23.5, 32.5, 17, 24.5)}" fill="url(#ti-alginate)"/>` + marks; } },
+        { key: 'retainer', label: 'ریتێنەر', body: () => {
+            return archTeeth(52) + `<path d="${arch(52, 25.5, 36.5, 15.5, 25.5)}" fill="#bae6fd" fill-opacity=".5" stroke="#38bdf8" stroke-width="1.2"/>` +
+                sparkle(54, 10, 5, 'url(#ti-blue)'); } },
+        { key: 'wisdom', label: 'ددانی ئەقڵ', body: () => molar('translate(35 31) rotate(28) scale(.9) translate(-32 -32)') + gum() +
+            `<circle cx="12" cy="12" r="8.5" fill="url(#ti-blue)"/><text x="12" y="15.8" font-size="11" font-weight="700" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif">8</text>` },
         { key: 'other', label: 'تر', body: () =>
             `<circle cx="32" cy="32" r="22" fill="#eef2f7"/>` +
             `<circle cx="22.5" cy="32" r="3.8" fill="#475569"/><circle cx="32" cy="32" r="3.8" fill="#475569"/><circle cx="41.5" cy="32" r="3.8" fill="#475569"/>` }
@@ -192,8 +275,6 @@
     const bolt = transform => `<path transform="${transform}" d="M3,0 L10,0 L6.5,7.5 L11,7.5 L2,21 L4.5,11 L0,11 Z" fill="url(#ti-bolt)" stroke="#be123c" stroke-width=".6" stroke-linejoin="round"/>`;
     const drop = (cx, cy, s) => `<g transform="translate(${cx} ${cy}) scale(${s})"><path d="M0,-6.5 C2.6,-2.8 4.2,-.4 4.2,2.2 A4.2,4.2 0 0 1 -4.2,2.2 C-4.2,-.4 -2.6,-2.8 0,-6.5 Z" fill="url(#ti-blood)"/>` +
         `<ellipse cx="-1.5" cy="1" rx="1" ry="1.6" fill="#fff" opacity=".55"/></g>`;
-    /** A horseshoe (an arch seen from above) between two half-ellipses round (32, cy). */
-    const arch = (cy, rx, ry, rx2, ry2) => `M${32 - rx},${cy} A${rx},${ry} 0 0 1 ${32 + rx},${cy} L${32 + rx2},${cy} A${rx2},${ry2} 0 0 0 ${32 - rx2},${cy} Z`;
     const VISIT_ICONS = [
         { key: 'pain', label: 'ئازار', body: () => `<circle cx="32" cy="27" r="29" fill="url(#ti-ache)"/>` +
             molar('translate(32 36) scale(.9) translate(-32 -36)') + bolt('translate(1.5 5)') + bolt('translate(62.5 5) scale(-1 1)') },
@@ -215,8 +296,6 @@
             `<path d="M-2.4,-6.6 L0,-4.4 L2.4,-6.6 M-2.4,6.6 L0,4.4 L2.4,6.6" stroke-width="1.4" stroke-linejoin="round"/></g>` +
             `<path d="M53,1.5 C57.5,6.5 61,10.5 60.2,15.5 A7.2,7.2 0 0 1 45.8,15.8 C45.6,12 48,9.6 49.6,7 C50.4,9.2 51.4,10.4 52.6,11.2 C53.6,8.4 54,5 53,1.5 Z" fill="url(#ti-flame)"/>` +
             `<path d="M53,10.5 C55.4,13 56.6,15 56,17 A3.2,3.2 0 0 1 49.8,17 C49.8,15 51.4,13.4 53,10.5 Z" fill="#ffe08a"/>` },
-        { key: 'wisdom', label: 'ددانی ئەقڵ', body: () => molar('translate(35 31) rotate(28) scale(.9) translate(-32 -32)') + gum() +
-            `<circle cx="12" cy="12" r="8.5" fill="url(#ti-blue)"/><text x="12" y="15.8" font-size="11" font-weight="700" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif">8</text>` },
         { key: 'followup', label: 'مراجعە', body: () =>
             `<rect x="19" y="5" width="4" height="10" rx="2" fill="#64748b"/><rect x="41" y="5" width="4" height="10" rx="2" fill="#64748b"/>` +
             `<rect x="8" y="10" width="48" height="47" rx="6" fill="#fff" stroke="#cbd5e1" stroke-width="1.2"/>` +
@@ -224,23 +303,6 @@
             `<circle cx="21" cy="16.5" r="1.6" fill="#fff" opacity=".8"/><circle cx="43" cy="16.5" r="1.6" fill="#fff" opacity=".8"/>` +
             molar('translate(30 40) scale(.46) translate(-32 -33)') +
             `<circle cx="49" cy="50" r="9" fill="#22c55e" stroke="#fff" stroke-width="2"/><path d="M44.6,50 L47.8,53.2 L53.4,46.8" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>` },
-        { key: 'impression', label: 'قاڵب گرتن', body: () => {
-            let marks = '';
-            for (let i = 0; i < 7; i++) {
-                const t = (160 - i * (140 / 6)) * Math.PI / 180;
-                marks += `<ellipse cx="${(32 + 20.25 * Math.cos(t)).toFixed(1)}" cy="${(55 - 28.5 * Math.sin(t)).toFixed(1)}" rx="2.3" ry="1.7" fill="#6d28d9" opacity=".35"/>`;
-            }
-            return `<rect x="27.5" y="3" width="9" height="18" rx="2.5" fill="url(#ti-metal)" stroke="#8d97a3" stroke-width=".7"/>` +
-                `<path d="${arch(55, 27, 36, 13.5, 21)}" fill="url(#ti-metal)" stroke="#8d97a3" stroke-width=".7"/>` +
-                `<path d="${arch(55, 23.5, 32.5, 17, 24.5)}" fill="url(#ti-alginate)"/>` + marks; } },
-        { key: 'retainer', label: 'ریتێنەر', body: () => {
-            let teeth = '';
-            for (let i = 0; i < 8; i++) {
-                const deg = 160 - i * (140 / 7), t = deg * Math.PI / 180;
-                teeth += `<rect x="-3.7" y="-4.4" width="7.4" height="8.8" rx="2.6" transform="translate(${(32 + 20.5 * Math.cos(t)).toFixed(1)} ${(52 - 31 * Math.sin(t)).toFixed(1)}) rotate(${(90 - deg).toFixed(1)})" fill="url(#ti-enamel)" stroke="#aeb8c4" stroke-width=".7"/>`;
-            }
-            return teeth + `<path d="${arch(52, 25.5, 36.5, 15.5, 25.5)}" fill="#bae6fd" fill-opacity=".5" stroke="#38bdf8" stroke-width="1.2"/>` +
-                sparkle(54, 10, 5, 'url(#ti-blue)'); } },
         { key: 'consult', label: 'پرسیار / ڕاوێژ', body: () =>
             `<path d="M11,7 H53 Q59,7 59,13 V37 Q59,43 53,43 H31 L19,54 L21,43 H11 Q5,43 5,37 V13 Q5,7 11,7 Z" fill="url(#ti-blue)"/>` +
             `<path d="M11,9.5 H40" stroke="#fff" stroke-opacity=".35" stroke-width="2" stroke-linecap="round"/>` +
@@ -275,6 +337,9 @@
         <radialGradient id="ti-abscess" cx=".42" cy=".38" r=".7"><stop offset="0" stop-color="#fff3b0"/><stop offset=".45" stop-color="#fdba74"/><stop offset="1" stop-color="#dc2626"/></radialGradient>
         <linearGradient id="ti-flame" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbbf24"/><stop offset=".55" stop-color="#f97316"/><stop offset="1" stop-color="#ef4444"/></linearGradient>
         <linearGradient id="ti-alginate" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ede9fe"/><stop offset="1" stop-color="#a78bfa"/></linearGradient>
+        <linearGradient id="ti-mint" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5eead4"/><stop offset="1" stop-color="#0d9488"/></linearGradient>
+        <linearGradient id="ti-gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fde68a"/><stop offset=".55" stop-color="#f2c14e"/><stop offset="1" stop-color="#c58b1a"/></linearGradient>
+        <linearGradient id="ti-laser" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f472b6"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient>
         <clipPath id="ti-chipped" clipPathUnits="userSpaceOnUse"><path clip-rule="evenodd" d="M-8,-8 H72 V72 H-8 Z M40,1 L62,1 L62,26 L50.7,21 L48.5,15.5 L44.5,14 L41.4,7.9 Z"/></clipPath>`;
 
     const CSS = `
@@ -314,6 +379,20 @@
     }
     const RULES = [
         [/دوبارە|دووبارە|retreat|re-?endo/, 'retreatment'],
+        [/پلپوتومی|pulpotomy/, 'pulpotomy'],
+        [/سەری رەگ|apico/, 'apicoectomy'],
+        [/سیلەنت|سیلانت|sealant|شیار/, 'sealant'],
+        [/فلوراید|فلور|fluor/, 'fluoride'],
+        [/inlay|onlay|ئینلەی|ئونلەی/, 'inlay'],
+        [/تاخمی بەشی|partial/, 'partial_denture'],
+        [/پاریزەری شەو|night ?guard|guard/, 'night_guard'],
+        [/بوشایی|space/, 'space_maintainer'],
+        [/splint|بەستنەوەی ددان/, 'splint'],
+        [/ئیسک|bone|graft/, 'bone_graft'],
+        [/بەنج|anesth/, 'anesthesia'],
+        [/ئەقل|عەقل|wisdom/, 'wisdom'],
+        [/ریتینەر|retainer/, 'retainer'],
+        [/قالب|impression/, 'impression'],
         [/دەمار|endo|pulp|rct|root canal/, 'root_canal'],
         [/تاخم|denture/, 'denture'],
         [/میتەل|metal|pfm/, 'crown_metal'],
@@ -329,12 +408,14 @@
         [/(کیشان|extract).*(نەشتەرگەری|surg)|(نەشتەرگەری|surg).*(کیشان|extract)/, 'surgical_extraction'],
         [/کیشان|extract/, 'extraction'],
         [/شوشتن|پاککردنەوە|clean|scal|polish/, 'cleaning'],
+        [/پووک|gingiv|gum/, 'gum_surgery'],
         [/نەشتەرگەری|surg/, 'surgery'],
         [/(پرکردنەوە|fill).*(جوانکاری|کومپوزیت|composite)|کومپوزیت|composite/, 'filling_cosmetic'],
         [/پرکردنەوە|fill|amalgam/, 'filling'],
         [/تیشک|x-?ray|opg/, 'xray'],
         [/مندال|child|pedo/, 'pediatric'],
         [/پشکنین|exam|check|consult/, 'exam'],
+        [/لیزەر|laser/, 'laser'],
         [/جوانکاری|cosmetic/, 'veneer']
     ];
     const BY_CATEGORY = {
@@ -354,7 +435,7 @@
     // A work type is often what the patient says («ئازاری هەیە», «ددانی شکاوە»):
     // complaints first, then the treatment words, then the vague ones.
     const WORK_RULES = [
-        [/ئەقلی|عەقلی|wisdom/, 'wisdom'],
+        [/ئەقل|عەقل|wisdom/, 'wisdom'],
         [/ریتینەر|retainer/, 'retainer'],
         [/قالب|impression/, 'impression'],
         [/خوین|bleed/, 'bleeding'],
@@ -383,13 +464,14 @@
      * The icon grid for a treatment-type form. opts: {value, onChange(key)}.
      * suggest(key) rings the icon the name points at, without choosing it
      * («other» — the name matched nothing — rings nothing).
-     * opts.set 'work' offers the complaint icons too, before the treatments.
+     * opts.set 'work' offers the complaint icons too, before the treatments;
+     * opts.noOther leaves «تر» out, so a real icon has to be chosen.
      */
     function chooser(el, opts) {
         opts = opts || {};
-        let value = BY_KEY[opts.value] ? opts.value : '';
+        let value = BY_KEY[opts.value] && !(opts.noOther && opts.value === 'other') ? opts.value : '';
         el.classList.add('ti-chooser');
-        el.innerHTML = (opts.set === 'work' ? VISIT_ICONS.concat(ICONS) : ICONS).map(i =>
+        el.innerHTML = (opts.set === 'work' ? VISIT_ICONS.concat(ICONS) : ICONS).filter(i => !(opts.noOther && i.key === 'other')).map(i =>
             `<button type="button" class="ti-tile" data-icon="${i.key}" title="${i.label}" aria-label="${i.label}">${svg(i.key)}</button>`).join('');
         const paint = () => el.querySelectorAll('.ti-tile').forEach(b => b.classList.toggle('on', b.dataset.icon === value));
         el.addEventListener('click', e => {

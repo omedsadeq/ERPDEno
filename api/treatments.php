@@ -56,6 +56,10 @@ if ($action === 'add') {
         echo json_encode(['success' => false, 'message' => 'ناوی چارەسەر داواکراوە']);
         exit;
     }
+    if (!Treatment::iconChosen($icon)) {
+        echo json_encode(['success' => false, 'message' => 'تکایە ئایکۆنێک بۆ چارەسەرەکە هەڵبژێرە']);
+        exit;
+    }
     $price = is_numeric($priceRaw) ? floatval($priceRaw) : 0;
     if ($price < 0) $price = 0;
 
@@ -116,6 +120,10 @@ if ($action === 'update') {
     }
     if ($name === '') {
         echo json_encode(['success' => false, 'message' => 'ناوی چارەسەر داواکراوە']);
+        exit;
+    }
+    if (!Treatment::iconChosen($icon)) {
+        echo json_encode(['success' => false, 'message' => 'تکایە ئایکۆنێک بۆ چارەسەرەکە هەڵبژێرە']);
         exit;
     }
     $price = is_numeric($priceRaw) ? floatval($priceRaw) : 0;

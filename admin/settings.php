@@ -193,6 +193,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             . (isset($autoResult['skipped']) ? 'busy' : (int)$autoResult['approved']));
         exit;
     } elseif ($action === 'add_treatment') {
+        if (!Treatment::iconChosen($_POST['icon'] ?? '')) {
+            header('Location: ' . APP_URL . '/admin/settings.php?tab=treatments&icon_missing=1');
+            exit;
+        }
         $treatmentManager->create([
             'treatment_code' => '',
             'treatment_name' => trim($_POST['treatment_name']),
@@ -207,6 +211,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         header('Location: ' . APP_URL . '/admin/settings.php?tab=treatments&added=1');
         exit;
     } elseif ($action === 'update_treatment') {
+        if (!Treatment::iconChosen($_POST['icon'] ?? '')) {
+            header('Location: ' . APP_URL . '/admin/settings.php?tab=treatments&icon_missing=1');
+            exit;
+        }
         $treatmentManager->update(intval($_POST['treatment_id']), [
             'treatment_name' => trim($_POST['treatment_name']),
             'treatment_name_en' => trim($_POST['treatment_name_en'] ?? ''),
@@ -627,6 +635,9 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="alert alert-success" data-auto-hide><i class="fas fa-robot alert-icon"></i>
     <?= $_GET['auto_ran'] === 'busy' ? 'پەسەندکردنی خۆکار لە ئێستادا کار دەکات — چەند چرکەیەکی تر سەیر بکەرەوە' : (int)$_GET['auto_ran'] . ' وەسڵ خۆکار پەسەندکرا' ?>
 </div>
+<?php endif; ?>
+<?php if (isset($_GET['icon_missing'])): ?>
+<div class="alert alert-danger" data-auto-hide><i class="fas fa-exclamation-circle alert-icon"></i> تکایە ئایکۆنێک بۆ چارەسەرەکە هەڵبژێرە</div>
 <?php endif; ?>
 <?php if (isset($_GET['added'])): ?>
 <div class="alert alert-success" data-auto-hide><i class="fas fa-check-circle alert-icon"></i> چارەسەر زیادکرا</div>
@@ -1378,7 +1389,7 @@ require_once __DIR__ . '/../includes/header.php';
             <h4 class="dialog-title">دەستکاری چارەسەر</h4>
             <button class="dialog-close" onclick="closeDialog('editTreatmentDialog')"><i class="fas fa-times"></i></button>
         </div>
-        <form method="POST" action="">
+        <form method="POST" action="" onsubmit="return checkTreatmentIcon('edit_t')">
             <input type="hidden" name="action" value="update_treatment">
             <input type="hidden" name="treatment_id" id="edit_t_id">
             <input type="hidden" name="icon" id="edit_t_icon">
@@ -1415,8 +1426,9 @@ require_once __DIR__ . '/../includes/header.php';
                     <small style="color: #666; font-size: 11px;">کام جۆری کەیس ئەم چارەسەرە پیشان دەدرێت</small>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">ئایکۆن <span class="tr-icon-name" id="edit_t_icon_name"></span></label>
+                    <label class="form-label required">ئایکۆن <span class="tr-icon-name" id="edit_t_icon_name"></span></label>
                     <div id="edit_t_icons"></div>
+                    <small id="edit_t_icon_err" style="display: none; color: #dc2626; font-size: 12px;">تکایە ئایکۆنێک بۆ چارەسەرەکە هەڵبژێرە</small>
                 </div>
                 <div class="form-group">
                     <label class="form-label">وەسف</label>
@@ -1453,8 +1465,10 @@ function treatmentIconChooser(prefix, value) {
     const input = document.getElementById(prefix + '_icon'), name = document.getElementById(prefix + '_icon_name');
     input.value = value || '';
     name.textContent = value ? TreatmentIcons.label(value) : '';
+    if (value === 'other') { value = ''; input.value = ''; name.textContent = ''; }   // «تر» is not a choice: say what it is
     return TreatmentIcons.chooser(document.getElementById(prefix + '_icons'), {
         value: value,
+        noOther: true,
         onChange: k => {
             input.value = k;
             name.textContent = TreatmentIcons.label(k);
@@ -1464,13 +1478,17 @@ function treatmentIconChooser(prefix, value) {
     });
 }
 const addTreatmentIcons = treatmentIconChooser('add_t', '');
+let editTreatmentIcons = null;
 document.querySelector('#addTreatmentDialog [name="treatment_name"]')?.addEventListener('input', function () {
     addTreatmentIcons.suggest(this.value.trim() ? TreatmentIcons.guess(this.value, '') : '');
 });
-function checkTreatmentIcon() {
-    if (document.getElementById('add_t_icon').value) return true;
-    document.getElementById('add_t_icon_err').style.display = 'block';
-    addTreatmentIcons.missing();
+function checkTreatmentIcon(prefix) {
+    prefix = prefix || 'add_t';
+    if (document.getElementById(prefix + '_icon').value) return true;
+    const err = document.getElementById(prefix + '_icon_err');
+    if (err) err.style.display = 'block';
+    if (prefix === 'add_t') addTreatmentIcons.missing();
+    else if (editTreatmentIcons) editTreatmentIcons.missing();
     return false;
 }
 
@@ -1489,7 +1507,7 @@ function editTreatment(t) {
     document.getElementById('edit_t_price').value = t.default_price;
     document.getElementById('edit_t_desc').value = t.description || '';
     document.getElementById('edit_t_active').checked = t.is_active == 1;
-    treatmentIconChooser('edit_t', TreatmentIcons.keyFor({ icon: t.icon, name: t.treatment_name, category: t.category }));
+    editTreatmentIcons = treatmentIconChooser('edit_t', TreatmentIcons.keyFor({ icon: t.icon, name: t.treatment_name, category: t.category }));
     openDialog('editTreatmentDialog');
 }
 

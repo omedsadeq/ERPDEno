@@ -369,9 +369,11 @@ define('WORK_TYPE_SCOPES', [
 // keeps the two lists the same).
 define('WORK_TYPE_ICONS', [
     'exam', 'filling', 'filling_cosmetic', 'temporary', 'cleaning', 'extraction', 'surgical_extraction',
-    'root_canal', 'retreatment', 'post', 'crown', 'crown_metal', 'cementation', 'bridge', 'implant',
-    'orthodontic', 'whitening', 'veneer', 'gem', 'pediatric', 'surgery', 'denture', 'xray', 'other',
-    'pain', 'broken', 'loose', 'bleeding', 'swelling', 'sensitive', 'wisdom', 'followup', 'impression', 'retainer', 'consult',
+    'root_canal', 'retreatment', 'post', 'crown', 'crown_metal', 'cementation', 'bridge', 'implant', 'orthodontic',
+    'whitening', 'veneer', 'gem', 'pediatric', 'surgery', 'denture', 'xray', 'sealant', 'fluoride', 'pulpotomy',
+    'inlay', 'apicoectomy', 'partial_denture', 'night_guard', 'splint', 'space_maintainer', 'gum_surgery',
+    'bone_graft', 'anesthesia', 'laser', 'impression', 'retainer', 'wisdom', 'other', 'pain', 'broken', 'loose',
+    'bleeding', 'swelling', 'sensitive', 'followup', 'consult',
 ]);
 
 /** A known work-type icon key, or null (the form then guesses one from the name). */
