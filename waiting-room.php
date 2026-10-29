@@ -30,8 +30,9 @@ $isDoctorRole = $auth->isDoctor();
 $hasFullAccess = $isAdmin || $isReceptionist; // Receptionist sees all like admin
 // What a doctor may do to their OWN queue: put a patient into it (add_walk_in —
 // always onto their own name), CALL one in to چارەسەر (call), finish them
-// (complete), send them to the accountant (send_accounting), and edit the
-// waiting-room ENTRY (work type / visit type / priority / notes).
+// (complete), send them to the accountant (send_accounting), edit the
+// waiting-room ENTRY (work type / visit type / priority / notes), and go into
+// their case on the patient (open_case, «کەیس»).
 //
 // `call` is included so a doctor does not have to wait for reception to move
 // their own patient into treatment — the common case when the doctor is ready
@@ -44,7 +45,7 @@ $hasFullAccess = $isAdmin || $isReceptionist; // Receptionist sees all like admi
 // delete, return_doctor, return_waiting, and the full VISIT edit
 // (edit_visit.php). Those either affect other doctors' queues or undo a
 // handoff, which stays a front-desk decision.
-$doctorWaitingActions = ['call', 'complete', 'send_accounting', 'edit_waiting', 'add_walk_in'];
+$doctorWaitingActions = ['call', 'complete', 'send_accounting', 'edit_waiting', 'add_walk_in', 'open_case'];
 // ڕێکخستنەکان › دەستگەیشتن › «بانگکردنی نەخۆش»: the admin may limit `call` to
 // chosen doctors; the others leave calling to reception.
 $doctorMayCall = !$isDoctorRole || $isAdmin || Settings::doctorMayCallPatients((int)$currentUser['id']);
@@ -1651,6 +1652,35 @@ $waitingRoomRejectReasons = $db->fetchAll("
     box-shadow: 0 2px 8px rgba(251, 140, 0, 0.35);
 }
 
+/* A card's actions: the day's two or three in sight — «کەیس» first — and the
+   rest behind ⋯ (wrToggleMore), so a card reads at a glance */
+.wr-patient-actions { align-items: center; gap: 6px; }
+.wr-patient-actions > form > .wr-btn, .wr-patient-actions > .wr-btn,
+.wr-patient-actions > .wr-more > .wr-btn { min-height: 34px; padding: 6px 12px; font-size: 12.5px; border-radius: 8px; }
+.wr-patient-actions > form > .wr-btn-case { min-height: 38px; padding: 8px 18px; font-size: 14px; border-radius: 10px; }
+.wr-btn-complete { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.wr-btn-complete:hover { background: #dbeafe; box-shadow: none; }
+.wr-btn-accounting { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+.wr-btn-accounting:hover { background: #d1fae5; box-shadow: none; }
+.wr-patient-actions > .wr-btn-xray { background: #f5f3ff; color: #5b21b6; border: 1px solid #ddd6fe; }
+.wr-patient-actions > .wr-btn-xray:hover { background: #ede9fe; box-shadow: none; }
+.wr-more { margin-inline-start: auto; }
+.wr-patient-actions > .wr-more > .wr-more-btn { width: 36px; padding: 0; justify-content: center; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; font-size: 15px; }
+.wr-more-btn:hover, .wr-more-btn.is-open { background: #e2e8f0; color: #0f172a; }
+.wr-more-menu { display: none; position: fixed; z-index: 3000; min-width: 200px; padding: 6px; direction: rtl;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 14px 36px rgba(15, 23, 42, .18); }
+.wr-more-menu.is-open { display: block; }
+.wr-more-menu form { margin: 0; }
+.wr-more-menu form:not([style*="none"]) { display: block !important; }
+.wr-more-menu .wr-btn { display: flex; width: 100%; min-height: 36px; padding: 8px 10px; gap: 10px; justify-content: flex-start;
+    background: none; color: #1f2937; border: 0; border-radius: 8px; font-size: 13px; font-weight: 600; text-decoration: none; box-shadow: none; }
+.wr-more-menu .wr-btn:hover { background: #f1f5f9; box-shadow: none; transform: none; }
+.wr-more-menu .wr-btn i { width: 18px; text-align: center; color: #64748b; }
+.wr-more-menu .wr-btn-reject, .wr-more-menu .wr-btn-delete { color: #b91c1c; }
+.wr-more-menu .wr-btn-reject i, .wr-more-menu .wr-btn-delete i { color: #dc2626; }
+.wr-more-menu .wr-btn-reject:hover, .wr-more-menu .wr-btn-delete:hover { background: #fef2f2; }
+.wr-more-menu form:has(.wr-btn-delete) { margin-top: 4px; padding-top: 4px; border-top: 1px solid #eef2f7; }
+
 /* Clickable Card Styles */
 .wr-patient-card.clickable {
     cursor: pointer;
@@ -3127,37 +3157,42 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
                         <i class="fas fa-x-ray"></i> ناردن بۆ ئێکسڕەی
                     </a>
                     <?php endif; ?>
-                    <form method="POST" style="display: inline;">
-                        <input type="hidden" name="action" value="hold">
-                        <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
-                        <button type="submit" class="wr-btn wr-btn-hold">
-                            <i class="fas fa-pause"></i> وەستاندن
-                        </button>
-                    </form>
-                    <button type="button" class="wr-btn wr-btn-priority" onclick="openPriorityDialog(<?= $w['id'] ?>, '<?= htmlspecialchars($w['full_name']) ?>')">
-                        <i class="fas fa-arrow-up"></i>
-                    </button>
-                    <?php if (!$isDoctorRole && !empty($w['edit_visit_id'])): // doctors always get the entry dialog, never the visit editor ?>
-                    <a href="<?= APP_URL ?>/edit_visit.php?id=<?= (int)$w['edit_visit_id'] ?>" class="wr-btn wr-btn-edit" style="text-decoration: none;">
-                        <i class="fas fa-edit"></i>
-                    </a>
-                    <?php else: ?>
-                    <button type="button" class="wr-btn wr-btn-edit" onclick="openEditDialog(<?= $w['id'] ?>, <?= json_encode($w['full_name']) ?>, <?= (int)($w['doctor_id'] ?? 0) ?>, <?= json_encode($w['display_visit_type'] ?? 'treatment') ?>, <?= json_encode((string)($w['display_work_type_id'] ?? '')) ?>, <?= (int)($w['priority'] ?? 0) ?>, <?= json_encode($w['notes'] ?? '') ?>)">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <?php endif; ?>
-                    <button type="button" class="wr-btn wr-btn-reject" onclick="openRejectDialog(<?= $w['id'] ?>, <?= $w['appointment_id'] ?? 'null' ?>, '<?= htmlspecialchars($w['full_name']) ?>')">
-                        <i class="fas fa-ban"></i>
-                    </button>
-                    <?php if ($hasFullAccess): ?>
-                    <form method="POST" style="display: inline;" onsubmit="return confirm('دڵنیایت لە سڕینەوەی ئەم تۆمارە بە یەکجاری؟');">
-                        <input type="hidden" name="action" value="delete">
-                        <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
-                        <button type="submit" class="wr-btn wr-btn-delete" title="سڕینەوە بە یەکجاری">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </form>
-                    <?php endif; ?>
+                    <div class="wr-more">
+                        <button type="button" class="wr-btn wr-more-btn" onclick="wrToggleMore(this, event)" title="کرداری تر" aria-label="کرداری تر" aria-haspopup="menu"><i class="fas fa-ellipsis-h"></i></button>
+                        <div class="wr-more-menu" role="menu">
+                            <form method="POST" style="display: inline;">
+                                <input type="hidden" name="action" value="hold">
+                                <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
+                                <button type="submit" class="wr-btn wr-btn-hold">
+                                    <i class="fas fa-pause"></i> وەستاندن
+                                </button>
+                            </form>
+                            <button type="button" class="wr-btn wr-btn-priority" onclick="openPriorityDialog(<?= $w['id'] ?>, '<?= htmlspecialchars($w['full_name']) ?>')">
+                                <i class="fas fa-arrow-up"></i> پێشخستن
+                            </button>
+                            <?php if (!$isDoctorRole && !empty($w['edit_visit_id'])): // doctors always get the entry dialog, never the visit editor ?>
+                            <a href="<?= APP_URL ?>/edit_visit.php?id=<?= (int)$w['edit_visit_id'] ?>" class="wr-btn wr-btn-edit" style="text-decoration: none;">
+                                <i class="fas fa-edit"></i> دەستکاری
+                            </a>
+                            <?php else: ?>
+                            <button type="button" class="wr-btn wr-btn-edit" onclick="openEditDialog(<?= $w['id'] ?>, <?= json_encode($w['full_name']) ?>, <?= (int)($w['doctor_id'] ?? 0) ?>, <?= json_encode($w['display_visit_type'] ?? 'treatment') ?>, <?= json_encode((string)($w['display_work_type_id'] ?? '')) ?>, <?= (int)($w['priority'] ?? 0) ?>, <?= json_encode($w['notes'] ?? '') ?>)">
+                                <i class="fas fa-edit"></i> دەستکاری
+                            </button>
+                            <?php endif; ?>
+                            <button type="button" class="wr-btn wr-btn-reject" onclick="openRejectDialog(<?= $w['id'] ?>, <?= $w['appointment_id'] ?? 'null' ?>, '<?= htmlspecialchars($w['full_name']) ?>')">
+                                <i class="fas fa-ban"></i> ڕەتکردنەوە
+                            </button>
+                            <?php if ($hasFullAccess): ?>
+                            <form method="POST" style="display: inline;" onsubmit="return confirm('دڵنیایت لە سڕینەوەی ئەم تۆمارە بە یەکجاری؟');">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
+                                <button type="submit" class="wr-btn wr-btn-delete" title="سڕینەوە بە یەکجاری">
+                                    <i class="fas fa-trash"></i> سڕینەوە
+                                </button>
+                            </form>
+                            <?php endif; ?>
+                        </div>
+                    </div>
                 </div>
             </div>
             <?php endforeach; ?>
@@ -3248,6 +3283,9 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
                         </button>
                     </form>
                     <?php endif; ?>
+                    <a href="<?= APP_URL ?>/xray/request.php?patient_id=<?= $w['patient_id'] ?>" class="wr-btn wr-btn-xray" style="text-decoration: none;" title="داواکاری ئێکسڕەی">
+                        <i class="fas fa-x-ray"></i> ئێکسڕەی
+                    </a>
                     <form method="POST" style="display: inline;">
                         <input type="hidden" name="action" value="complete">
                         <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
@@ -3256,49 +3294,51 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
                             <i class="fas fa-check"></i> تەواوبوو
                         </button>
                     </form>
-                    <form method="POST" style="display: inline;">
-                        <input type="hidden" name="action" value="send_accounting">
-                        <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
-                        <button type="submit" class="wr-btn wr-btn-accounting" title="ناردن بۆ ژمێریاری بۆ پارەدان">
-                            <i class="fas fa-cash-register"></i> بۆ ژمێریاری
-                        </button>
-                    </form>
-                    <a href="<?= APP_URL ?>/xray/request.php?patient_id=<?= $w['patient_id'] ?>" class="wr-btn wr-btn-xray" style="text-decoration: none;" title="داواکاری ئێکسڕەی">
-                        <i class="fas fa-x-ray"></i> ئێکسڕەی
-                    </a>
-                    <form method="POST" style="display: inline;">
-                        <input type="hidden" name="action" value="hold">
-                        <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
-                        <button type="submit" class="wr-btn wr-btn-hold">
-                            <i class="fas fa-pause"></i> وەستاندن
-                        </button>
-                    </form>
-                    <form method="POST" style="display: inline;">
-                        <input type="hidden" name="action" value="return_waiting">
-                        <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
-                        <input type="hidden" name="appointment_id" value="<?= $w['appointment_id'] ?>">
-                        <button type="submit" class="wr-btn wr-btn-return">
-                            <i class="fas fa-undo"></i> گەڕاندنەوە
-                        </button>
-                    </form>
-                    <?php if (!$isDoctorRole && !empty($w['edit_visit_id'])): // doctors always get the entry dialog, never the visit editor ?>
-                    <a href="<?= APP_URL ?>/edit_visit.php?id=<?= (int)$w['edit_visit_id'] ?>" class="wr-btn wr-btn-edit" style="text-decoration: none;">
-                        <i class="fas fa-edit"></i>
-                    </a>
-                    <?php else: ?>
-                    <button type="button" class="wr-btn wr-btn-edit" onclick="openEditDialog(<?= $w['id'] ?>, <?= json_encode($w['full_name']) ?>, <?= (int)($w['doctor_id'] ?? 0) ?>, <?= json_encode($w['display_visit_type'] ?? 'treatment') ?>, <?= json_encode((string)($w['display_work_type_id'] ?? '')) ?>, <?= (int)($w['priority'] ?? 0) ?>, <?= json_encode($w['notes'] ?? '') ?>)">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <?php endif; ?>
-                    <?php if ($hasFullAccess): ?>
-                    <form method="POST" style="display: inline;" onsubmit="return confirm('دڵنیایت لە سڕینەوەی ئەم تۆمارە بە یەکجاری؟');">
-                        <input type="hidden" name="action" value="delete">
-                        <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
-                        <button type="submit" class="wr-btn wr-btn-delete" title="سڕینەوە بە یەکجاری">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </form>
-                    <?php endif; ?>
+                    <div class="wr-more">
+                        <button type="button" class="wr-btn wr-more-btn" onclick="wrToggleMore(this, event)" title="کرداری تر" aria-label="کرداری تر" aria-haspopup="menu"><i class="fas fa-ellipsis-h"></i></button>
+                        <div class="wr-more-menu" role="menu">
+                            <form method="POST" style="display: inline;">
+                                <input type="hidden" name="action" value="send_accounting">
+                                <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
+                                <button type="submit" class="wr-btn wr-btn-accounting" title="ناردن بۆ ژمێریاری بۆ پارەدان">
+                                    <i class="fas fa-cash-register"></i> بۆ ژمێریاری
+                                </button>
+                            </form>
+                            <form method="POST" style="display: inline;">
+                                <input type="hidden" name="action" value="hold">
+                                <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
+                                <button type="submit" class="wr-btn wr-btn-hold">
+                                    <i class="fas fa-pause"></i> وەستاندن
+                                </button>
+                            </form>
+                            <form method="POST" style="display: inline;">
+                                <input type="hidden" name="action" value="return_waiting">
+                                <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
+                                <input type="hidden" name="appointment_id" value="<?= $w['appointment_id'] ?>">
+                                <button type="submit" class="wr-btn wr-btn-return">
+                                    <i class="fas fa-undo"></i> گەڕاندنەوە بۆ چاوەڕوانی
+                                </button>
+                            </form>
+                            <?php if (!$isDoctorRole && !empty($w['edit_visit_id'])): // doctors always get the entry dialog, never the visit editor ?>
+                            <a href="<?= APP_URL ?>/edit_visit.php?id=<?= (int)$w['edit_visit_id'] ?>" class="wr-btn wr-btn-edit" style="text-decoration: none;">
+                                <i class="fas fa-edit"></i> دەستکاری
+                            </a>
+                            <?php else: ?>
+                            <button type="button" class="wr-btn wr-btn-edit" onclick="openEditDialog(<?= $w['id'] ?>, <?= json_encode($w['full_name']) ?>, <?= (int)($w['doctor_id'] ?? 0) ?>, <?= json_encode($w['display_visit_type'] ?? 'treatment') ?>, <?= json_encode((string)($w['display_work_type_id'] ?? '')) ?>, <?= (int)($w['priority'] ?? 0) ?>, <?= json_encode($w['notes'] ?? '') ?>)">
+                                <i class="fas fa-edit"></i> دەستکاری
+                            </button>
+                            <?php endif; ?>
+                            <?php if ($hasFullAccess): ?>
+                            <form method="POST" style="display: inline;" onsubmit="return confirm('دڵنیایت لە سڕینەوەی ئەم تۆمارە بە یەکجاری؟');">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
+                                <button type="submit" class="wr-btn wr-btn-delete" title="سڕینەوە بە یەکجاری">
+                                    <i class="fas fa-trash"></i> سڕینەوە
+                                </button>
+                            </form>
+                            <?php endif; ?>
+                        </div>
+                    </div>
                 </div>
             </div>
             <?php endforeach; ?>
@@ -3385,27 +3425,32 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
                     </button>
                 </form>
                 <?php endif; ?>
-                <button type="button" class="wr-btn wr-btn-reject" onclick="openRejectDialog(<?= $w['id'] ?>, <?= $w['appointment_id'] ?? 'null' ?>, '<?= htmlspecialchars($w['full_name']) ?>')">
-                    <i class="fas fa-ban"></i>
-                </button>
-                <?php if (!empty($w['edit_visit_id'])): ?>
-                <a href="<?= APP_URL ?>/edit_visit.php?id=<?= (int)$w['edit_visit_id'] ?>" class="wr-btn wr-btn-edit" style="text-decoration: none;">
-                    <i class="fas fa-edit"></i>
-                </a>
-                <?php else: ?>
-                <button type="button" class="wr-btn wr-btn-edit" onclick="openEditDialog(<?= $w['id'] ?>, <?= json_encode($w['full_name']) ?>, <?= (int)($w['doctor_id'] ?? 0) ?>, <?= json_encode($w['display_visit_type'] ?? 'treatment') ?>, <?= json_encode((string)($w['display_work_type_id'] ?? '')) ?>, <?= (int)($w['priority'] ?? 0) ?>, <?= json_encode($w['notes'] ?? '') ?>)">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <?php endif; ?>
-                <?php if ($hasFullAccess): ?>
-                <form method="POST" style="display: inline;" onsubmit="return confirm('دڵنیایت لە سڕینەوەی ئەم تۆمارە بە یەکجاری؟');">
-                    <input type="hidden" name="action" value="delete">
-                    <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
-                    <button type="submit" class="wr-btn wr-btn-delete" title="سڕینەوە بە یەکجاری">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </form>
-                <?php endif; ?>
+                <div class="wr-more">
+                    <button type="button" class="wr-btn wr-more-btn" onclick="wrToggleMore(this, event)" title="کرداری تر" aria-label="کرداری تر" aria-haspopup="menu"><i class="fas fa-ellipsis-h"></i></button>
+                    <div class="wr-more-menu" role="menu">
+                        <button type="button" class="wr-btn wr-btn-reject" onclick="openRejectDialog(<?= $w['id'] ?>, <?= $w['appointment_id'] ?? 'null' ?>, '<?= htmlspecialchars($w['full_name']) ?>')">
+                            <i class="fas fa-ban"></i> ڕەتکردنەوە
+                        </button>
+                        <?php if (!empty($w['edit_visit_id'])): ?>
+                        <a href="<?= APP_URL ?>/edit_visit.php?id=<?= (int)$w['edit_visit_id'] ?>" class="wr-btn wr-btn-edit" style="text-decoration: none;">
+                            <i class="fas fa-edit"></i> دەستکاری
+                        </a>
+                        <?php else: ?>
+                        <button type="button" class="wr-btn wr-btn-edit" onclick="openEditDialog(<?= $w['id'] ?>, <?= json_encode($w['full_name']) ?>, <?= (int)($w['doctor_id'] ?? 0) ?>, <?= json_encode($w['display_visit_type'] ?? 'treatment') ?>, <?= json_encode((string)($w['display_work_type_id'] ?? '')) ?>, <?= (int)($w['priority'] ?? 0) ?>, <?= json_encode($w['notes'] ?? '') ?>)">
+                            <i class="fas fa-edit"></i> دەستکاری
+                        </button>
+                        <?php endif; ?>
+                        <?php if ($hasFullAccess): ?>
+                        <form method="POST" style="display: inline;" onsubmit="return confirm('دڵنیایت لە سڕینەوەی ئەم تۆمارە بە یەکجاری؟');">
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
+                            <button type="submit" class="wr-btn wr-btn-delete" title="سڕینەوە بە یەکجاری">
+                                <i class="fas fa-trash"></i> سڕینەوە
+                            </button>
+                        </form>
+                        <?php endif; ?>
+                    </div>
+                </div>
             </div>
         </div>
         <?php endforeach; ?>
@@ -3584,22 +3629,6 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
                     <i class="fas fa-cash-register"></i> وێستگەی ژمێریاری
                 </a>
                 <?php endif; ?>
-                <?php if (!empty($w['doctor_id']) && ($w['doctor_role'] ?? '') !== 'xray_department'): ?>
-                <form method="POST" style="display: inline;">
-                    <input type="hidden" name="action" value="return_doctor">
-                    <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
-                    <button type="submit" class="wr-btn wr-btn-call">
-                        <i class="fas fa-undo"></i> گەڕاندنەوە بۆ دکتۆر
-                    </button>
-                </form>
-                <?php endif; ?>
-                <form method="POST" style="display: inline;">
-                    <input type="hidden" name="action" value="return_waiting">
-                    <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
-                    <button type="submit" class="wr-btn wr-btn-return">
-                        <i class="fas fa-chair"></i> بۆ چاوەڕوانی
-                    </button>
-                </form>
                 <form method="POST" style="display: inline;">
                     <input type="hidden" name="action" value="complete">
                     <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
@@ -3608,6 +3637,27 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
                         <i class="fas fa-check"></i> تەواوبوو
                     </button>
                 </form>
+                <div class="wr-more">
+                    <button type="button" class="wr-btn wr-more-btn" onclick="wrToggleMore(this, event)" title="کرداری تر" aria-label="کرداری تر" aria-haspopup="menu"><i class="fas fa-ellipsis-h"></i></button>
+                    <div class="wr-more-menu" role="menu">
+                        <?php if (!empty($w['doctor_id']) && ($w['doctor_role'] ?? '') !== 'xray_department'): ?>
+                        <form method="POST" style="display: inline;">
+                            <input type="hidden" name="action" value="return_doctor">
+                            <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
+                            <button type="submit" class="wr-btn wr-btn-call">
+                                <i class="fas fa-undo"></i> گەڕاندنەوە بۆ دکتۆر
+                            </button>
+                        </form>
+                        <?php endif; ?>
+                        <form method="POST" style="display: inline;">
+                            <input type="hidden" name="action" value="return_waiting">
+                            <input type="hidden" name="waiting_id" value="<?= $w['id'] ?>">
+                            <button type="submit" class="wr-btn wr-btn-return">
+                                <i class="fas fa-chair"></i> بۆ چاوەڕوانی
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
         <?php endforeach; ?>
@@ -4555,7 +4605,37 @@ function buildActionButtons(data) {
 // buttons, they are reached through their own dialogs.
 const IS_DOCTOR_ROLE = <?= $isDoctorRole ? 'true' : 'false' ?>;
 // 'call' drops out when the admin limited calling to other doctors ($doctorMayCall).
-const WR_ALLOWED_DOCTOR_ACTIONS = <?= json_encode(array_values(array_intersect(['call', 'complete', 'send_accounting'], $doctorWaitingActions))) ?>;
+const WR_ALLOWED_DOCTOR_ACTIONS = <?= json_encode(array_values(array_intersect(['call', 'complete', 'send_accounting', 'open_case'], $doctorWaitingActions))) ?>;
+// ⋯ on a card: the actions used now and then. The menu is lifted to <body>
+// while open — the card moves on hover and its panel scrolls — and put back
+// in its card when it closes.
+function wrCloseMore() {
+    document.querySelectorAll('.wr-more-menu.is-open').forEach(function (m) {
+        m.classList.remove('is-open');
+        if (m._home) { m._home.appendChild(m); m._home.querySelector('.wr-more-btn').classList.remove('is-open'); }
+    });
+}
+function wrToggleMore(btn, e) {
+    e.stopPropagation();
+    const home = btn.parentNode, menu = home.querySelector('.wr-more-menu');
+    const wasOpen = !!(menu && menu.classList.contains('is-open'));
+    wrCloseMore();
+    if (!menu || wasOpen) return;
+    menu._home = home;
+    document.body.appendChild(menu);
+    menu.classList.add('is-open');
+    btn.classList.add('is-open');
+    const r = btn.getBoundingClientRect(), w = menu.offsetWidth, h = menu.offsetHeight;
+    let top = r.bottom + 6;
+    if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
+    menu.style.top = top + 'px';
+    menu.style.left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8) + 'px';
+}
+document.addEventListener('click', function (e) { if (!e.target.closest('.wr-more-menu, .wr-more-btn')) wrCloseMore(); });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') wrCloseMore(); });
+window.addEventListener('scroll', wrCloseMore, true);
+window.addEventListener('resize', wrCloseMore);
+
 function hideDoctorDisallowed(root) {
     if (!IS_DOCTOR_ROLE || !root) return;
     // Forms carry a hidden action input — hide any that isn't allowed.
@@ -4577,6 +4657,11 @@ function hideDoctorDisallowed(root) {
 document.addEventListener('DOMContentLoaded', function () {
     if (IS_DOCTOR_ROLE) {
         document.querySelectorAll('.wr-patient-actions').forEach(hideDoctorDisallowed);
+        document.querySelectorAll('.wr-more').forEach(function (m) {
+            const shown = [...m.querySelectorAll('.wr-more-menu > form, .wr-more-menu > .wr-btn, .wr-more-menu > a')]
+                .some(function (el) { return el.style.display !== 'none' && (el.tagName !== 'FORM' || el.querySelector('.wr-btn')); });
+            if (!shown) m.style.display = 'none';
+        });
     }
 });
 
