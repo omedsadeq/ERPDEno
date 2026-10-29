@@ -478,8 +478,8 @@ function initToothHold(chart, o) {
     chart.addEventListener('contextmenu', cancel, true);     // a right click (or a touch's own hold) won first
 
     // Rest the mouse on a tooth: the same card, gone when the mouse leaves.
-    // The first one waits a moment, so passing over the teeth shows nothing;
-    // while a card is up, the next tooth's comes at once. Not on touch, not
+    // It comes fast (a tenth of a second, enough that a mouse crossing the
+    // chart does not flash cards); while one is up, the next tooth's comes at once. Not on touch, not
     // while a button is down (a sweep), not for a tooth with no work.
     let hoverT = null, hideT = null, hoverEl = null;
     const hoverCardUp = () => !!document.querySelector('.tw-pop.is-hover');
@@ -506,7 +506,7 @@ function initToothHold(chart, o) {
         hoverT = setTimeout(() => {
             if (hoverEl !== toothEl) return;
             toothWorkPopover(toothEl, num, list, { more: o.more, hover: true, onLeave: hoverLeave });
-        }, hoverCardUp() ? 60 : 450);
+        }, hoverCardUp() ? 0 : 120);
     });
     chart.addEventListener('pointerout', function (e) {
         if (e.pointerType !== 'mouse') return;
