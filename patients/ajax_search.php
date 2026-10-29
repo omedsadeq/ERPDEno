@@ -7,6 +7,8 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/Patient.php';
 require_once __DIR__ . '/../classes/XrayManager.php';
+require_once __DIR__ . '/../classes/AccessGuard.php';
+require_once __DIR__ . '/_case_button.php';
 
 // Check authentication
 $auth = new Auth();
@@ -245,6 +247,7 @@ try {
                 $html .= '</div>
                     </div>
                     <div class="patient-actions">
+                        ' . (patient_case_button_allowed($auth, (int)$patient['id']) ? patient_case_button((int)$patient['id']) : '') . '
                         <a href="' . APP_URL . '/patients/view.php?id=' . $patient['id'] . '" class="btn btn-secondary" title="بینینی پرۆفایل">
                             <i class="fas fa-eye"></i>
                         </a>
@@ -302,6 +305,7 @@ try {
                         </div>
                     </div>
                     <div class="patient-actions">
+                        ' . (patient_case_button_allowed($auth, (int)$patient['id']) ? patient_case_button((int)$patient['id']) : '') . '
                         <a href="' . APP_URL . '/patients/view.php?id=' . $patient['id'] . '" class="btn btn-primary" title="بینین">
                             <i class="fas fa-eye"></i>
                         </a>
