@@ -5,6 +5,7 @@
  */
 
 $pageTitle = 'داشبۆرد';
+$hidePageHeader = true;   // each view has its own heading: the greeting banner, or the receptionist's title
 
 require_once __DIR__ . '/includes/header.php';
 require_once __DIR__ . '/includes/case-button.php';
@@ -157,6 +158,80 @@ $waitingPatients = $db->fetchAll(
      ORDER BY wr.priority DESC, wr.check_in_time",
     $waitingParams
 );
+
+// ── The admin & doctor view's own figures (assets/css/dashboard.css) ──
+$dxHour = (int)date('G');
+$dxGreeting = $dxHour < 12 ? 'بەیانیت باش' : ($dxHour < 17 ? 'ڕۆژت باش' : 'ئێوارەت باش');
+$dxWeekdays = ['یەکشەممە', 'دووشەممە', 'سێشەممە', 'چوارشەممە', 'پێنجشەممە', 'هەینی', 'شەممە'];
+$dxAptStatus = [
+    'scheduled' => ['داڕێژراو', '#64748b'], 'confirmed' => ['پشتڕاستکراوە', '#2563eb'],
+    'waiting' => ['چاوەڕوان', '#d97706'], 'in_progress' => ['لە چارەسەردا', '#7c3aed'],
+    'completed' => ['تەواوبوو', '#16a34a'], 'cancelled' => ['هەڵوەشاوە', '#dc2626'],
+    'no_show' => ['نەهات', '#dc2626'], 'rescheduled' => ['دواخراو', '#d97706'],
+];
+// [label, value, icon, colour, page]
+$dxKpis = [
+    ['مەوعیدەکانی ئەمڕۆ', $stats['today_appointments'], 'fa-calendar-check', '#7c3aed', APP_URL . '/appointments.php'],
+    ['لە چاوەڕوانیدا', $stats['waiting'], 'fa-user-clock', '#ea580c', APP_URL . '/waiting-room.php'],
+    ['سەردانەکانی ئەمڕۆ', $stats['today_visits'], 'fa-clinic-medical', '#0d9488', APP_URL . '/visits.php?today=1'],
+    ['کەیسی کراوە', $stats['active_cases'] ?? 0, 'fa-folder-open', '#db2777', APP_URL . '/cases/index.php'],
+    ['کۆی نەخۆشەکان', $stats['total_patients'] ?? 0, 'fa-users', '#2563eb', APP_URL . '/patients/index.php'],
+];
+// [page, icon, colour, label, line]
+$dxQuick = [
+    [APP_URL . '/patients/add.php', 'fa-user-plus', '#0d9488', 'زیادکردنی نەخۆش', 'تۆمارکردنی نەخۆشی نوێ'],
+    [APP_URL . '/appointments.php?action=add', 'fa-calendar-plus', '#16a34a', 'مەوعیدی نوێ', 'داڕشتنی مەوعید'],
+    [APP_URL . '/waiting-room.php', 'fa-users', '#ea580c', 'ژووری چاوەڕوانی', 'بەڕێوەبردنی چاوەڕوانی'],
+];
+if ($isAdmin) {
+    array_push($dxQuick,
+        [APP_URL . '/admin/payments.php?action=add', 'fa-money-bill-wave', '#2563eb', 'وەرگرتنی پارە', 'تۆمارکردنی پارەدان'],
+        [APP_URL . '/admin/reports.php', 'fa-chart-bar', '#7c3aed', 'ڕاپۆرتەکان', 'ڕاپۆرتی دارایی'],
+        [APP_URL . '/admin/treatments.php', 'fa-tooth', '#dc2626', 'چارەسەرەکان', 'لیستی چارەسەر'],
+        [APP_URL . '/admin/expenses-general.php', 'fa-receipt', '#d97706', 'خەرجی گشتی', 'بەڕێوەبردنی خەرجی'],
+        [APP_URL . '/admin/expenses-lab.php', 'fa-flask', '#db2777', 'خەرجی تاقیگە', 'خەرجییەکانی تاقیگە'],
+        [APP_URL . '/admin/expenses-inventory.php', 'fa-boxes-stacked', '#4f46e5', 'خەرجی کۆگا', 'خەرجییەکانی کۆگا'],
+        [APP_URL . '/admin/expense-groups.php', 'fa-folder', '#475569', 'گرووپەکانی خەرجی', 'بەڕێوەبردنی گرووپەکان']
+    );
+}
+/** 1,800,000 → 1.8M — for the chart's axis and labels. */
+function dx_compact($n) {
+    $n = (float)$n;
+    foreach ([[1e9, 'B'], [1e6, 'M'], [1e3, 'K']] as [$size, $unit]) {
+        if (abs($n) >= $size) {
+            return rtrim(rtrim(number_format($n / $size, 1, '.', ''), '0'), '.') . $unit;
+        }
+    }
+    return number_format($n);
+}
+// Admin: the last seven days' approved income, a column a day — the same
+// rows Payment::getDailyTotal sums for «داهاتی ئەمڕۆ».
+$dxIncomeDays = [];
+$dxIncomeWeek = 0;
+$dxIncomeTop = 0;
+$dxIncomePeak = -1;
+if ($isAdmin) {
+    $dxIncomeByDay = array_column($db->fetchAll(
+        "SELECT DATE(payment_date) AS d, COALESCE(SUM(amount), 0) AS t FROM payments
+         WHERE status = 'approved' AND payment_date >= CURDATE() - INTERVAL 6 DAY
+         GROUP BY DATE(payment_date)"
+    ), 't', 'd');
+    for ($i = 6; $i >= 0; $i--) {
+        $day = date('Y-m-d', strtotime("-{$i} days"));
+        $dxIncomeDays[] = ['day' => $day, 'name' => $dxWeekdays[(int)date('w', strtotime($day))], 'total' => (float)($dxIncomeByDay[$day] ?? 0)];
+    }
+    $totals = array_column($dxIncomeDays, 'total');
+    $dxIncomeWeek = array_sum($totals);
+    $peak = max($totals);
+    $dxIncomePeak = $peak > 0 ? array_search($peak, $totals, true) : -1;
+    // a clean top for the axis: 1, 2, 2.5 or 5 × a power of ten, just above the peak
+    if ($peak > 0) {
+        $mag = pow(10, floor(log10($peak)));
+        foreach ([1, 2, 2.5, 5, 10] as $step) {
+            if ($step * $mag >= $peak) { $dxIncomeTop = $step * $mag; break; }
+        }
+    }
+}
 ?>
 
 <style>
@@ -1026,535 +1101,319 @@ $waitingPatients = $db->fetchAll(
 
 <?php else: ?>
 <!-- ==================== NORMAL DASHBOARD (Admin/Doctor) ==================== -->
+<link rel="stylesheet" href="<?= asset_url('assets/css/dashboard.css') ?>">
+<div class="dx">
 
-<!-- Page Header -->
-<div class="page-header">
-    <div class="page-title">
-        <div class="icon">
-            <i class="fas fa-chart-line"></i>
-        </div>
-        <div>
-            <h2>داشبۆرد</h2>
-            <span style="font-size: 12px; color: #888;">بەخێربێیت، <?= htmlspecialchars($currentUser['full_name']) ?></span>
+<!-- The greeting, the day in a line, and where to go next -->
+<section class="dx-hero">
+    <div class="dx-hero-text">
+        <h2 class="dx-hero-hi"><?= $dxGreeting ?>، <span><?= htmlspecialchars($currentUser['full_name']) ?></span></h2>
+        <div class="dx-hero-date"><i class="far fa-calendar"></i> <?= $dxWeekdays[(int)date('w')] ?> · <bdi><?= date('Y/m/d') ?></bdi></div>
+        <div class="dx-hero-sum">
+            <span><i class="fas fa-calendar-check"></i> <b><?= number_format($stats['today_appointments']) ?></b> مەوعیدی ئەمڕۆ</span>
+            <span><i class="fas fa-user-clock"></i> <b><?= number_format($stats['waiting']) ?></b> لە چاوەڕوانیدا</span>
+            <span><i class="fas fa-clinic-medical"></i> <b><?= number_format($stats['today_visits']) ?></b> سەردان</span>
         </div>
     </div>
-    <div>
-        <span style="font-size: 13px; color: #666;"><i class="fas fa-calendar-alt"></i> <?= date('Y-m-d') ?></span>
+    <div class="dx-hero-actions">
+        <?php if ($permission->can('page.new_visit')): ?>
+        <button type="button" class="dx-hero-btn dx-hero-btn--primary" onclick="openNewVisitDialog()"><i class="fas fa-door-open"></i> سەردانی نوێ</button>
+        <?php endif; ?>
+        <a href="<?= APP_URL ?>/patients/add.php" class="dx-hero-btn"><i class="fas fa-user-plus"></i> نەخۆشی نوێ</a>
+        <a href="<?= APP_URL ?>/appointments.php?action=add" class="dx-hero-btn"><i class="fas fa-calendar-plus"></i> مەوعید</a>
+        <a href="<?= APP_URL ?>/waiting-room.php" class="dx-hero-btn"><i class="fas fa-users"></i> ژووری چاوەڕوانی</a>
     </div>
-</div>
+</section>
 
-<!-- Statistics Cards -->
-<div class="stats-overview">
-    <div class="stat-card">
-        <div class="stat-icon icon-blue">
-            <i class="fas fa-users"></i>
-        </div>
-        <div class="stat-info">
-            <div class="stat-value"><?= number_format($stats['total_patients']) ?></div>
-            <div class="stat-label">کۆی نەخۆشەکان</div>
-        </div>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-icon icon-green">
-            <i class="fas fa-calendar-check"></i>
-        </div>
-        <div class="stat-info">
-            <div class="stat-value"><?= number_format($stats['today_appointments']) ?></div>
-            <div class="stat-label">مەوعیدەکانی ئەمڕۆ</div>
-        </div>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-icon icon-orange">
-            <i class="fas fa-user-clock"></i>
-        </div>
-        <div class="stat-info">
-            <div class="stat-value"><?= number_format($stats['waiting']) ?></div>
-            <div class="stat-label">لە چاوەڕوانیدا</div>
-        </div>
-    </div>
-
-    <a href="<?= APP_URL ?>/visits.php?today=1" class="stat-card" style="text-decoration: none; color: inherit;">
-        <div class="stat-icon icon-teal">
-            <i class="fas fa-clinic-medical"></i>
-        </div>
-        <div class="stat-info">
-            <div class="stat-value"><?= number_format($stats['today_visits']) ?></div>
-            <div class="stat-label">سەردانەکانی ئەمڕۆ</div>
-        </div>
+<!-- The day's figures: each opens its own page -->
+<div class="dx-kpis">
+    <?php foreach ($dxKpis as [$kLabel, $kValue, $kIcon, $kColor, $kUrl]): ?>
+    <a href="<?= $kUrl ?>" class="dx-kpi" style="--k: <?= $kColor ?>">
+        <span class="dx-kpi-ico"><i class="fas <?= $kIcon ?>"></i></span>
+        <span class="dx-kpi-text">
+            <span class="dx-kpi-val"><?= number_format((float)$kValue) ?></span>
+            <span class="dx-kpi-label"><?= $kLabel ?></span>
+        </span>
+        <i class="fas fa-arrow-left dx-kpi-go"></i>
     </a>
-
-    <div class="stat-card">
-        <div class="stat-icon icon-purple">
-            <i class="fas fa-folder-open"></i>
-        </div>
-        <div class="stat-info">
-            <div class="stat-value"><?= number_format($stats['active_cases'] ?? 0) ?></div>
-            <div class="stat-label">کەیسی کراوە</div>
-        </div>
-    </div>
-
-    <?php if ($isAdmin): ?>
-    <div class="stat-card">
-        <div class="stat-icon icon-green">
-            <i class="fas fa-money-bill-wave"></i>
-        </div>
-        <div class="stat-info">
-            <div class="stat-value"><?= number_format($stats['today_income']) ?></div>
-            <div class="stat-label">داهاتی ئەمڕۆ</div>
-        </div>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-icon icon-blue">
-            <i class="fas fa-chart-line"></i>
-        </div>
-        <div class="stat-info">
-            <div class="stat-value"><?= number_format($stats['monthly_income']) ?></div>
-            <div class="stat-label">داهاتی ئەم مانگە</div>
-        </div>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-icon icon-orange">
-            <i class="fas fa-clock"></i>
-        </div>
-        <div class="stat-info">
-            <div class="stat-value"><?= number_format($stats['pending_payments']) ?></div>
-            <div class="stat-label">پارەدانی چاوەڕوان</div>
-        </div>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-icon icon-red">
-            <i class="fas fa-exclamation-triangle"></i>
-        </div>
-        <div class="stat-info">
-            <div class="stat-value"><?= number_format($stats['overdue_installments']) ?></div>
-            <div class="stat-label">قیستی دواکەوتوو</div>
-        </div>
-    </div>
-    <?php endif; ?>
+    <?php endforeach; ?>
 </div>
 
 <?php if ($auth->isDoctor()): ?>
-<!-- Doctor's Current Patient & Waiting Queue -->
-<div class="grid-2" style="margin-bottom: 16px;">
-    <!-- Current Patient Card -->
-    <div>
-        <?php if ($currentPatient): ?>
-        <div class="current-patient-box">
-            <div class="patient-label"><i class="fas fa-user"></i> نەخۆشی ئێستا</div>
-            <div class="patient-name"><?= htmlspecialchars($currentPatient['full_name']) ?></div>
-            <div class="patient-info">
-                <span><i class="fas fa-id-card"></i> <?= htmlspecialchars($currentPatient['patient_code']) ?></span>
-                <span><i class="fas fa-phone"></i> <?= htmlspecialchars($currentPatient['phone']) ?></span>
-                <span><i class="fas fa-clock"></i> <?= $currentPatient['waiting_minutes'] ?> خولەک چاوەڕوانی</span>
-            </div>
-            <div style="margin-top: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                <?php if (case_button_allowed($auth, (int)$currentPatient['patient_id'])): ?>
-                <?= case_button((int)$currentPatient['patient_id'], ['size' => 'lg']) ?>
-                <?php endif; ?>
-                <a href="<?= APP_URL ?>/patients/view.php?id=<?= $currentPatient['patient_id'] ?>" class="btn btn-light btn-sm">
-                    <i class="fas fa-eye"></i> بینینی پڕۆفایل
-                </a>
-            </div>
+<!-- Who is in the doctor's chair now -->
+<?php if ($currentPatient): ?>
+<section class="dx-now">
+    <span class="dx-now-ico"><i class="fas fa-user-injured"></i></span>
+    <div class="dx-main">
+        <small>نەخۆشی ئێستا لە ژوورەکەت</small>
+        <b><?= htmlspecialchars($currentPatient['full_name']) ?></b>
+        <div class="dx-sub">
+            <span><i class="fas fa-id-card"></i><?= htmlspecialchars($currentPatient['patient_code']) ?></span>
+            <span class="ltr"><i class="fas fa-phone"></i><?= htmlspecialchars($currentPatient['phone']) ?></span>
+            <span><i class="fas fa-clock"></i><?= (int)$currentPatient['waiting_minutes'] ?> خولەک</span>
         </div>
-        <?php else: ?>
-        <div class="current-patient-box" style="background: linear-gradient(135deg, #5c5c5c 0%, #3d3d3d 100%); text-align: center;">
-            <i class="fas fa-user-clock" style="font-size: 40px; opacity: 0.5; margin-bottom: 12px;"></i>
-            <div class="patient-name" style="font-size: 16px; opacity: 0.8;">هیچ نەخۆشێک لە چاوپێکەوتندا نییە</div>
-            <div style="margin-top: 14px;">
-                <a href="<?= APP_URL ?>/waiting-room.php" class="btn btn-light btn-sm">
-                    <i class="fas fa-users"></i> ڕۆیشتن بۆ ژووری چاوەڕوانی
-                </a>
-            </div>
-        </div>
-        <?php endif; ?>
     </div>
-
-    <!-- Waiting Queue Mini -->
-    <div class="waiting-queue-box">
-        <div class="queue-header">
-            <h4>
-                <i class="fas fa-user-clock"></i>
-                ڕیزی چاوەڕوانی
-                <?php if (!empty($waitingQueue)): ?>
-                <span class="queue-count"><?= count($waitingQueue) ?></span>
-                <?php endif; ?>
-            </h4>
-            <a href="<?= APP_URL ?>/waiting-room.php" class="btn btn-sm btn-secondary">
-                <i class="fas fa-external-link-alt"></i>
-            </a>
-        </div>
-        <?php if (!empty($waitingQueue)): ?>
-        <div>
-            <?php $position = 1; foreach ($waitingQueue as $queueItem): ?>
-            <div class="queue-item">
-                <div class="queue-num"><?= $position ?></div>
-                <div class="queue-name"><?= htmlspecialchars($queueItem['full_name']) ?></div>
-                <div class="queue-time"><i class="fas fa-clock"></i> <?= $queueItem['waiting_minutes'] ?> خولەک</div>
-                <?php if (case_button_allowed($auth, (int)$queueItem['patient_id'])): ?>
-                <?= case_button((int)$queueItem['patient_id'], ['size' => 'sm']) ?>
-                <?php endif; ?>
-            </div>
-            <?php $position++; endforeach; ?>
-        </div>
-        <?php else: ?>
-        <div class="empty-state-mini">
-            <i class="fas fa-check-circle" style="color: #4caf50;"></i>
-            <p>هیچ کەسێک لە چاوەڕوانیدا نییە</p>
-        </div>
+    <div class="dx-acts">
+        <?php if (case_button_allowed($auth, (int)$currentPatient['patient_id'])): ?>
+        <?= case_button((int)$currentPatient['patient_id'], ['size' => 'lg']) ?>
         <?php endif; ?>
+        <a href="<?= APP_URL ?>/patients/view.php?id=<?= (int)$currentPatient['patient_id'] ?>" class="dx-now-link"><i class="fas fa-id-badge"></i> پرۆفایل</a>
     </div>
-</div>
+</section>
+<?php else: ?>
+<section class="dx-now dx-now--idle">
+    <span class="dx-now-ico"><i class="fas fa-user-clock"></i></span>
+    <div class="dx-main">
+        <b style="font-size: 15px; color: var(--dx-ink);">هیچ نەخۆشێک لە ژوورەکەتدا نییە</b>
+        <small style="opacity: 1; color: var(--dx-ink-3);">نەخۆشی دواتر لە ژووری چاوەڕوانییەوە بانگ بکە</small>
+    </div>
+    <a href="<?= APP_URL ?>/waiting-room.php" class="dx-now-link"><i class="fas fa-bullhorn"></i> ژووری چاوەڕوانی</a>
+</section>
+<?php endif; ?>
 <?php endif; ?>
 
-<!-- Main Content Grid -->
-<div class="grid-2">
-    <!-- Today's Appointments -->
-    <div class="form-card">
-        <div class="form-card-header">
-            <div class="header-title">
-                <div class="card-icon icon-purple">
-                    <i class="fas fa-calendar-day"></i>
-                </div>
-                <h3>مەوعیدەکانی ئەمڕۆ</h3>
+<?php if ($isAdmin): ?>
+<!-- Income: today as the figure, the week as columns -->
+<section class="dx-card dx-fin">
+    <div class="dx-fin-chart">
+        <div class="dx-card-head" style="padding-inline: 0;">
+            <span class="dx-card-ico" style="--k: #2563eb"><i class="fas fa-chart-column"></i></span>
+            <div>
+                <h3 class="dx-card-title">داهاتی ٧ ڕۆژی ڕابردوو</h3>
+                <span class="dx-card-sub">کۆ: <bdi><?= number_format($dxIncomeWeek) ?></bdi> — پارەی پەسەندکراو</span>
             </div>
-            <a href="<?= APP_URL ?>/appointments.php" class="btn btn-sm btn-secondary">هەموو</a>
+            <a href="<?= APP_URL ?>/admin/reports.php" class="dx-more">ڕاپۆرت</a>
         </div>
-        <div class="form-card-body" style="padding: 0;">
-            <?php if (empty($todayAppointments)): ?>
-            <div class="empty-state-mini">
-                <i class="fas fa-calendar-check"></i>
-                <p>هیچ مەوعیدێک نییە</p>
-            </div>
-            <?php else: ?>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>کات</th>
-                        <th>نەخۆش</th>
-                        <th>دۆخ</th>
-                        <th>کردار</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($todayAppointments as $apt): ?>
-                    <tr>
-                        <td><strong><?= date('H:i', strtotime($apt['appointment_time'])) ?></strong></td>
-                        <td>
-                            <a href="<?= APP_URL ?>/patients/view.php?id=<?= $apt['patient_id'] ?>">
-                                <?= htmlspecialchars($apt['patient_name']) ?>
-                            </a>
-                        </td>
-                        <td>
-                            <?php
-                            $statusLabels = [
-                                'scheduled' => ['', 'داڕێژراو'],
-                                'confirmed' => ['blue', 'پشتڕاستکراوە'],
-                                'waiting' => ['orange', 'چاوەڕوان'],
-                                'in_progress' => ['blue', 'لە چارەسەردا'],
-                                'completed' => ['green', 'تەواوبوو'],
-                                'cancelled' => ['red', 'هەڵوەشاوە'],
-                                'no_show' => ['red', 'نەهات']
-                            ];
-                            $status = $statusLabels[$apt['status']] ?? ['', $apt['status']];
-                            ?>
-                            <span class="badge-sm <?= $status[0] ?>"><?= $status[1] ?></span>
-                        </td>
-                        <td style="white-space: nowrap;">
-                            <?php if (case_button_allowed($auth, (int)$apt['patient_id'])): ?>
-                            <?= case_button((int)$apt['patient_id'], ['size' => 'sm', 'doctor' => (int)$apt['doctor_id']]) ?>
-                            <?php endif; ?>
-                            <a href="<?= APP_URL ?>/appointments.php?action=check-in&id=<?= $apt['id'] ?>"
-                               class="btn btn-sm btn-success" title="هات">
-                                <i class="fas fa-check"></i>
-                            </a>
-                        </td>
-                    </tr>
+        <div class="dx-chart" role="img" aria-label="داهاتی ٧ ڕۆژی ڕابردوو، هەر ڕۆژێک ستوونێک">
+            <div class="dx-plot">
+                <div class="dx-gl" style="bottom: 100%"><span><?= dx_compact($dxIncomeTop) ?></span></div>
+                <div class="dx-gl" style="bottom: 50%"><span><?= dx_compact($dxIncomeTop / 2) ?></span></div>
+                <div class="dx-gl dx-gl--base" style="bottom: 0"><span>0</span></div>
+                <div class="dx-cols">
+                    <?php foreach ($dxIncomeDays as $i => $d):
+                        $isToday = $i === count($dxIncomeDays) - 1;
+                        $h = $dxIncomeTop > 0 ? round($d['total'] / $dxIncomeTop * 100, 2) : 0;
+                        $tip = $d['name'] . ' ' . date('m/d', strtotime($d['day'])) . ' — ' . number_format($d['total']);
+                    ?>
+                    <div class="dx-col<?= $isToday ? ' is-today' : '' ?>" style="--h: <?= $h ?>%" tabindex="0" data-tip="<?= htmlspecialchars($tip) ?>" aria-label="<?= htmlspecialchars($tip) ?>">
+                        <?php if (($isToday || $i === $dxIncomePeak) && $d['total'] > 0): // label the peak and today only ?>
+                        <span class="dx-col-val"><?= dx_compact($d['total']) ?></span>
+                        <?php endif; ?>
+                        <span class="dx-bar"></span>
+                    </div>
                     <?php endforeach; ?>
-                </tbody>
-            </table>
+                </div>
+            </div>
+            <div class="dx-days">
+                <?php foreach ($dxIncomeDays as $i => $d): ?>
+                <span<?= $i === count($dxIncomeDays) - 1 ? ' class="is-today"' : '' ?>><b><?= $i === count($dxIncomeDays) - 1 ? 'ئەمڕۆ' : $d['name'] ?></b><small><?= date('m/d', strtotime($d['day'])) ?></small></span>
+                <?php endforeach; ?>
+            </div>
+            <?php if ($dxIncomeWeek <= 0): ?>
+            <div class="dx-chart-note">لەم حەوت ڕۆژەدا هیچ پارەیەکی پەسەندکراو وەرنەگیراوە</div>
             <?php endif; ?>
         </div>
     </div>
-
-    <!-- Waiting Room -->
-    <div class="form-card">
-        <div class="form-card-header">
-            <div class="header-title">
-                <div class="card-icon icon-teal">
-                    <i class="fas fa-users"></i>
-                </div>
-                <h3>ژووری چاوەڕوانی</h3>
-            </div>
-            <a href="<?= APP_URL ?>/waiting-room.php" class="btn btn-sm btn-secondary">هەموو</a>
+    <div class="dx-fin-side">
+        <div>
+            <div class="dx-fig-label">داهاتی ئەمڕۆ</div>
+            <div class="dx-fig"><?= number_format($stats['today_income']) ?></div>
         </div>
-        <div class="form-card-body" style="padding: 0;">
-            <?php if (empty($waitingPatients)): ?>
-            <div class="empty-state-mini">
-                <i class="fas fa-chair"></i>
-                <p>ژووری چاوەڕوانی بەتاڵە</p>
-            </div>
-            <?php else: ?>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>نەخۆش</th>
-                        <th>کاتی هاتن</th>
-                        <th>دکتۆر</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($waitingPatients as $index => $wp): ?>
-                    <tr>
-                        <td><strong><?= $index + 1 ?></strong></td>
-                        <td><?= htmlspecialchars($wp['full_name']) ?></td>
-                        <td><?= date('H:i', strtotime($wp['check_in_time'])) ?></td>
-                        <td><?= htmlspecialchars($wp['doctor_name']) ?></td>
-                        <td>
-                            <?php if (case_button_allowed($auth, (int)$wp['patient_id'])): ?>
-                            <?= case_button((int)$wp['patient_id'], ['size' => 'sm', 'doctor' => (int)($wp['doctor_id'] ?? 0)]) ?>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-            <?php endif; ?>
-        </div>
+        <a href="<?= APP_URL ?>/admin/payments.php" class="dx-fin-stat" style="--k: #2563eb">
+            <i class="fas fa-chart-line"></i><span>داهاتی ئەم مانگە</span><b class="dx-amount"><?= number_format($stats['monthly_income']) ?></b>
+        </a>
+        <a href="<?= APP_URL ?>/admin/payments.php" class="dx-fin-stat" style="--k: #f59e0b">
+            <i class="fas fa-hourglass-half"></i><span>پارەدانی چاوەڕوان</span><b class="dx-amount"><?= number_format($stats['pending_payments']) ?></b>
+        </a>
+        <a href="<?= APP_URL ?>/installments.php?status=overdue" class="dx-fin-stat" style="--k: #dc2626">
+            <i class="fas fa-triangle-exclamation"></i><span>قیستی دواکەوتوو</span><b class="dx-amount"><?= number_format($stats['overdue_installments']) ?></b>
+        </a>
     </div>
+</section>
+<?php endif; ?>
 
-    <!-- Recent Patients -->
+<!-- The day's lists -->
+<div class="dx-grid">
+    <!-- Today's appointments -->
+    <section class="dx-card">
+        <div class="dx-card-head">
+            <span class="dx-card-ico" style="--k: #7c3aed"><i class="fas fa-calendar-day"></i></span>
+            <div>
+                <h3 class="dx-card-title">مەوعیدەکانی ئەمڕۆ</h3>
+                <span class="dx-card-sub"><?= $dxWeekdays[(int)date('w')] ?></span>
+            </div>
+            <?php if (!empty($todayAppointments)): ?><span class="dx-count" style="--k: #7c3aed"><?= count($todayAppointments) ?></span><?php endif; ?>
+            <a href="<?= APP_URL ?>/appointments.php" class="dx-more">هەموو</a>
+        </div>
+        <?php if (empty($todayAppointments)): ?>
+        <div class="dx-empty"><i class="fas fa-calendar-check"></i><b>هیچ مەوعیدێک نییە</b>ئەمڕۆ هیچ مەوعیدێک دانەنراوە</div>
+        <?php else: ?>
+        <div class="dx-list">
+            <?php foreach ($todayAppointments as $apt):
+                $st = $dxAptStatus[$apt['status']] ?? [$apt['status'], '#64748b'];
+            ?>
+            <div class="dx-row">
+                <span class="dx-time"><?= date('H:i', strtotime($apt['appointment_time'])) ?></span>
+                <div class="dx-main">
+                    <a href="<?= APP_URL ?>/patients/view.php?id=<?= (int)$apt['patient_id'] ?>" class="dx-name"><?= htmlspecialchars($apt['patient_name']) ?></a>
+                    <div class="dx-sub">
+                        <?php if (!empty($apt['doctor_name'])): ?><span><i class="fas fa-user-doctor"></i>د. <?= htmlspecialchars($apt['doctor_name']) ?></span><?php endif; ?>
+                    </div>
+                </div>
+                <span class="dx-chip" style="--c: <?= $st[1] ?>"><?= htmlspecialchars($st[0]) ?></span>
+                <div class="dx-acts">
+                    <?php if (case_button_allowed($auth, (int)$apt['patient_id'])): ?>
+                    <?= case_button((int)$apt['patient_id'], ['size' => 'sm', 'doctor' => (int)$apt['doctor_id']]) ?>
+                    <?php endif; ?>
+                    <?php if (in_array($apt['status'], ['scheduled', 'confirmed'], true)): // هات: into the waiting room (appointments.php check_in) ?>
+                    <form method="POST" action="<?= APP_URL ?>/appointments.php">
+                        <?= Csrf::field() ?>
+                        <input type="hidden" name="action" value="check_in">
+                        <input type="hidden" name="appointment_id" value="<?= (int)$apt['id'] ?>">
+                        <button type="submit" class="dx-ok" title="هات — ناردن بۆ ژووری چاوەڕوانی"><i class="fas fa-check"></i></button>
+                    </form>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+    </section>
+
+    <!-- The waiting room -->
+    <section class="dx-card">
+        <div class="dx-card-head">
+            <span class="dx-card-ico" style="--k: #ea580c"><i class="fas fa-couch"></i></span>
+            <div>
+                <h3 class="dx-card-title">ژووری چاوەڕوانی</h3>
+                <span class="dx-card-sub"><?= ($isDoctor && !$isAdmin) ? 'ڕیزی نەخۆشەکانی خۆت' : 'هەموو دکتۆرەکان' ?></span>
+            </div>
+            <?php if (!empty($waitingPatients)): ?><span class="dx-count" style="--k: #ea580c"><?= count($waitingPatients) ?></span><?php endif; ?>
+            <a href="<?= APP_URL ?>/waiting-room.php" class="dx-more">هەموو</a>
+        </div>
+        <?php if (empty($waitingPatients)): ?>
+        <div class="dx-empty"><i class="fas fa-mug-hot"></i><b>کەس چاوەڕوان نییە</b>ژووری چاوەڕوانی بەتاڵە</div>
+        <?php else: ?>
+        <div class="dx-list">
+            <?php foreach ($waitingPatients as $index => $wp):
+                $waitMin = max(0, (int)round((time() - strtotime($wp['check_in_time'])) / 60));
+            ?>
+            <div class="dx-row">
+                <span class="dx-num"><?= $index + 1 ?></span>
+                <div class="dx-main">
+                    <a href="<?= APP_URL ?>/patients/view.php?id=<?= (int)$wp['patient_id'] ?>" class="dx-name"><?= htmlspecialchars($wp['full_name']) ?></a>
+                    <div class="dx-sub">
+                        <?php if (!empty($wp['doctor_name'])): ?><span><i class="fas fa-user-doctor"></i>د. <?= htmlspecialchars($wp['doctor_name']) ?></span><?php endif; ?>
+                        <span><i class="far fa-clock"></i><?= date('H:i', strtotime($wp['check_in_time'])) ?> · <?= $waitMin ?> خولەک</span>
+                    </div>
+                </div>
+                <div class="dx-acts">
+                    <?php if (case_button_allowed($auth, (int)$wp['patient_id'])): ?>
+                    <?= case_button((int)$wp['patient_id'], ['size' => 'sm', 'doctor' => (int)($wp['doctor_id'] ?? 0)]) ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+    </section>
+
     <?php if (isset($recentPatients)): ?>
-    <div class="form-card">
-        <div class="form-card-header">
-            <div class="header-title">
-                <div class="card-icon icon-blue">
-                    <i class="fas fa-user-plus"></i>
+    <!-- The newest patients -->
+    <section class="dx-card">
+        <div class="dx-card-head">
+            <span class="dx-card-ico" style="--k: #2563eb"><i class="fas fa-user-plus"></i></span>
+            <div>
+                <h3 class="dx-card-title">نەخۆشە نوێیەکان</h3>
+                <span class="dx-card-sub">دوایین تۆمارکراوەکان</span>
+            </div>
+            <a href="<?= APP_URL ?>/patients/index.php" class="dx-more">هەموو</a>
+        </div>
+        <?php if (empty($recentPatients)): ?>
+        <div class="dx-empty"><i class="fas fa-users"></i><b>هیچ نەخۆشێک نییە</b></div>
+        <?php else: ?>
+        <div class="dx-list">
+            <?php foreach ($recentPatients as $patient): ?>
+            <div class="dx-row">
+                <span class="dx-avatar<?= ($patient['gender'] ?? '') === 'female' ? ' dx-avatar--f' : '' ?>"><?= htmlspecialchars(mb_substr($patient['full_name'], 0, 1, 'UTF-8')) ?></span>
+                <div class="dx-main">
+                    <a href="<?= APP_URL ?>/patients/view.php?id=<?= (int)$patient['id'] ?>" class="dx-name"><?= htmlspecialchars($patient['full_name']) ?></a>
+                    <div class="dx-sub">
+                        <span><i class="fas fa-id-card"></i><?= htmlspecialchars($patient['patient_code']) ?></span>
+                        <span class="ltr"><i class="fas fa-phone"></i><?= htmlspecialchars($patient['phone']) ?></span>
+                        <span><i class="far fa-calendar"></i><?= date('Y/m/d', strtotime($patient['created_at'])) ?></span>
+                    </div>
                 </div>
-                <h3>نەخۆشە نوێکان</h3>
+                <div class="dx-acts">
+                    <?php if (case_button_allowed($auth, (int)$patient['id'])): ?>
+                    <?= case_button((int)$patient['id'], ['size' => 'sm']) ?>
+                    <?php endif; ?>
+                </div>
             </div>
-            <a href="<?= APP_URL ?>/patients/index.php" class="btn btn-sm btn-secondary">هەموو</a>
+            <?php endforeach; ?>
         </div>
-        <div class="form-card-body" style="padding: 0;">
-            <?php if (empty($recentPatients)): ?>
-            <div class="empty-state-mini">
-                <i class="fas fa-users"></i>
-                <p>هیچ نەخۆشێک نییە</p>
-            </div>
-            <?php else: ?>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>کۆد</th>
-                        <th>ناو</th>
-                        <th>مۆبایل</th>
-                        <th>بەروار</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($recentPatients as $patient): ?>
-                    <tr>
-                        <td>
-                            <a href="<?= APP_URL ?>/patients/view.php?id=<?= $patient['id'] ?>">
-                                <?= $patient['patient_code'] ?>
-                            </a>
-                        </td>
-                        <td><?= htmlspecialchars($patient['full_name']) ?></td>
-                        <td><?= $patient['phone'] ?></td>
-                        <td><?= date('Y-m-d', strtotime($patient['created_at'])) ?></td>
-                        <td>
-                            <?php if (case_button_allowed($auth, (int)$patient['id'])): ?>
-                            <?= case_button((int)$patient['id'], ['size' => 'sm']) ?>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-            <?php endif; ?>
-        </div>
-    </div>
+        <?php endif; ?>
+    </section>
     <?php endif; ?>
 
-    <?php if ($isAdmin && !empty($overdueInstallments)): ?>
-    <!-- Overdue Installments -->
-    <div class="form-card">
-        <div class="form-card-header">
-            <div class="header-title">
-                <div class="card-icon icon-red">
-                    <i class="fas fa-exclamation-triangle"></i>
-                </div>
-                <h3>قیستە دواکەوتووەکان</h3>
+    <?php if ($isAdmin && (!empty($overdueInstallments) || !empty($upcomingInstallments))): ?>
+    <!-- Installments: overdue first, then this week's -->
+    <section class="dx-card">
+        <div class="dx-card-head">
+            <span class="dx-card-ico" style="--k: #dc2626"><i class="fas fa-file-invoice-dollar"></i></span>
+            <div>
+                <h3 class="dx-card-title">قیستەکان</h3>
+                <span class="dx-card-sub">دواکەوتوو و ئەم هەفتەیە</span>
             </div>
-            <a href="<?= APP_URL ?>/installments.php?status=overdue" class="btn btn-sm btn-danger">هەموو</a>
+            <a href="<?= APP_URL ?>/installments.php?status=overdue" class="dx-more">هەموو</a>
         </div>
-        <div class="form-card-body" style="padding: 0;">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>نەخۆش</th>
-                        <th>مۆبایل</th>
-                        <th>بڕ</th>
-                        <th>بەرواری دوا</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach (array_slice($overdueInstallments, 0, 5) as $inst): ?>
-                    <tr>
-                        <td><?= htmlspecialchars($inst['patient_name']) ?></td>
-                        <td>
-                            <a href="tel:<?= $inst['patient_phone'] ?>"><?= $inst['patient_phone'] ?></a>
-                        </td>
-                        <td style="color: #f44336; font-weight: 600;">
-                            <?= number_format($inst['amount'] - $inst['paid_amount']) ?>
-                        </td>
-                        <td><?= date('Y-m-d', strtotime($inst['due_date'])) ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <?php if (isset($upcomingInstallments) && !empty($upcomingInstallments)): ?>
-    <!-- Upcoming Installments -->
-    <div class="form-card">
-        <div class="form-card-header">
-            <div class="header-title">
-                <div class="card-icon icon-teal">
-                    <i class="fas fa-calendar-alt"></i>
+        <div class="dx-list">
+            <?php foreach (array_slice($overdueInstallments ?? [], 0, 5) as $inst): ?>
+            <div class="dx-row">
+                <span class="dx-avatar" style="color: #dc2626; background: #fee2e2;"><i class="fas fa-triangle-exclamation" style="font-size: 14px;"></i></span>
+                <div class="dx-main">
+                    <span class="dx-name"><?= htmlspecialchars($inst['patient_name']) ?></span>
+                    <div class="dx-sub">
+                        <a href="tel:<?= htmlspecialchars($inst['patient_phone']) ?>" class="ltr" style="color: inherit; text-decoration: none;"><i class="fas fa-phone"></i><?= htmlspecialchars($inst['patient_phone']) ?></a>
+                        <span><i class="far fa-calendar-xmark"></i><?= date('Y/m/d', strtotime($inst['due_date'])) ?></span>
+                    </div>
                 </div>
-                <h3>قیستەکانی ئەم هەفتەیە</h3>
+                <b class="dx-amount dx-amount--due"><?= number_format($inst['amount'] - $inst['paid_amount']) ?></b>
             </div>
+            <?php endforeach; ?>
+            <?php foreach (array_slice($upcomingInstallments ?? [], 0, 5) as $inst): ?>
+            <div class="dx-row">
+                <span class="dx-avatar" style="color: #0f766e; background: #ccfbf1;"><i class="far fa-calendar" style="font-size: 14px;"></i></span>
+                <div class="dx-main">
+                    <span class="dx-name"><?= htmlspecialchars($inst['patient_name']) ?></span>
+                    <div class="dx-sub"><span><i class="far fa-calendar"></i><?= date('Y/m/d', strtotime($inst['due_date'])) ?> — ئەم هەفتەیە</span></div>
+                </div>
+                <b class="dx-amount"><?= number_format($inst['amount']) ?></b>
+            </div>
+            <?php endforeach; ?>
         </div>
-        <div class="form-card-body" style="padding: 0;">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>نەخۆش</th>
-                        <th>بڕ</th>
-                        <th>بەروار</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach (array_slice($upcomingInstallments, 0, 5) as $inst): ?>
-                    <tr>
-                        <td><?= htmlspecialchars($inst['patient_name']) ?></td>
-                        <td><?= number_format($inst['amount']) ?></td>
-                        <td><?= date('Y-m-d', strtotime($inst['due_date'])) ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
+    </section>
     <?php endif; ?>
 </div>
 
-<!-- Quick Actions Panel -->
-<div class="form-card">
-    <div class="form-card-header">
-        <div class="header-title">
-            <div class="card-icon icon-blue">
-                <i class="fas fa-bolt"></i>
-            </div>
-            <h3>کردارە خێراکان</h3>
-        </div>
+<!-- Quick actions -->
+<section class="dx-card">
+    <div class="dx-card-head">
+        <span class="dx-card-ico" style="--k: #0ea5e9"><i class="fas fa-bolt"></i></span>
+        <div><h3 class="dx-card-title">کردارە خێراکان</h3></div>
     </div>
-    <div class="form-card-body">
-        <div class="quick-actions-grid">
-            <a href="<?= APP_URL ?>/patients/add.php" class="quick-action-card">
-                <div class="action-icon icon-teal">
-                    <i class="fas fa-user-plus"></i>
-                </div>
-                <div class="action-label">زیادکردنی نەخۆش</div>
-                <div class="action-desc">تۆمارکردنی نەخۆشی نوێ</div>
-            </a>
-
-            <a href="<?= APP_URL ?>/appointments.php?action=add" class="quick-action-card">
-                <div class="action-icon icon-green">
-                    <i class="fas fa-calendar-plus"></i>
-                </div>
-                <div class="action-label">مەوعیدی نوێ</div>
-                <div class="action-desc">داڕشتنی مەوعید</div>
-            </a>
-
-            <a href="<?= APP_URL ?>/waiting-room.php" class="quick-action-card">
-                <div class="action-icon icon-orange">
-                    <i class="fas fa-users"></i>
-                </div>
-                <div class="action-label">ژووری چاوەڕوانی</div>
-                <div class="action-desc">بەڕێوەبردنی چاوەڕوانی</div>
-            </a>
-
-            <?php if ($isAdmin): ?>
-            <a href="<?= APP_URL ?>/admin/payments.php?action=add" class="quick-action-card">
-                <div class="action-icon icon-blue">
-                    <i class="fas fa-money-bill-wave"></i>
-                </div>
-                <div class="action-label">وەرگرتنی پارە</div>
-                <div class="action-desc">تۆمارکردنی پارەدان</div>
-            </a>
-
-            <a href="<?= APP_URL ?>/admin/reports.php" class="quick-action-card">
-                <div class="action-icon icon-purple">
-                    <i class="fas fa-chart-bar"></i>
-                </div>
-                <div class="action-label">ڕاپۆرتەکان</div>
-                <div class="action-desc">ڕاپۆرتی دارایی</div>
-            </a>
-
-            <a href="<?= APP_URL ?>/admin/treatments.php" class="quick-action-card">
-                <div class="action-icon icon-red">
-                    <i class="fas fa-tooth"></i>
-                </div>
-                <div class="action-label">چارەسەرەکان</div>
-                <div class="action-desc">لیستی چارەسەر</div>
-            </a>
-
-            <a href="<?= APP_URL ?>/admin/expenses-general.php" class="quick-action-card">
-                <div class="action-icon icon-orange">
-                    <i class="fas fa-receipt"></i>
-                </div>
-                <div class="action-label">خەرجی گشتی</div>
-                <div class="action-desc">بەڕێوەبردنی خەرجی</div>
-            </a>
-
-            <a href="<?= APP_URL ?>/admin/expenses-lab.php" class="quick-action-card">
-                <div class="action-icon icon-pink">
-                    <i class="fas fa-flask"></i>
-                </div>
-                <div class="action-label">خەرجی تاقیگە</div>
-                <div class="action-desc">خەرجییەکانی تاقیگە</div>
-            </a>
-
-            <a href="<?= APP_URL ?>/admin/expenses-inventory.php" class="quick-action-card">
-                <div class="action-icon icon-indigo">
-                    <i class="fas fa-boxes"></i>
-                </div>
-                <div class="action-label">خەرجی کۆگا</div>
-                <div class="action-desc">خەرجییەکانی کۆگا</div>
-            </a>
-
-            <a href="<?= APP_URL ?>/admin/expense-groups.php" class="quick-action-card">
-                <div class="action-icon" style="background: linear-gradient(135deg, #607d8b, #455a64);">
-                    <i class="fas fa-folder"></i>
-                </div>
-                <div class="action-label">گرووپەکانی خەرجی</div>
-                <div class="action-desc">بەڕێوەبردنی گرووپەکان</div>
-            </a>
-            <?php endif; ?>
-        </div>
+    <div class="dx-quick">
+        <?php foreach ($dxQuick as [$qUrl, $qIcon, $qColor, $qLabel, $qDesc]): ?>
+        <a href="<?= $qUrl ?>" class="dx-q" style="--k: <?= $qColor ?>">
+            <span class="dx-q-ico"><i class="fas <?= $qIcon ?>"></i></span>
+            <b><?= $qLabel ?></b>
+            <small><?= $qDesc ?></small>
+        </a>
+        <?php endforeach; ?>
     </div>
-</div>
+</section>
+
+</div><!-- .dx -->
 <?php endif; ?>
 
 </div>

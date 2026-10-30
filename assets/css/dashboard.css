@@ -1,0 +1,286 @@
+/* ══════════════════════════════════════════════════════════════
+   Dashboard (index.php — the admin and doctor view): a greeting
+   banner, the day's figures as cards, the week's income (admin),
+   and the day's lists as soft cards of rows.
+   ══════════════════════════════════════════════════════════════ */
+.dx {
+    --dx-ink: #0f172a;
+    --dx-ink-2: #475569;
+    --dx-ink-3: #94a3b8;
+    --dx-line: #e8edf3;
+    --dx-surface: #fff;
+    --dx-r: 18px;
+    --dx-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px rgba(15, 23, 42, .06);
+    --dx-accent: var(--win-accent, #0078d4);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+.dx > * { animation: dx-rise .45s ease both; }
+.dx > *:nth-child(2) { animation-delay: .05s; }
+.dx > *:nth-child(3) { animation-delay: .1s; }
+.dx > *:nth-child(4) { animation-delay: .15s; }
+.dx > *:nth-child(n+5) { animation-delay: .2s; }
+@keyframes dx-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .dx > * { animation: none; } }
+
+/* ── The greeting banner ── */
+.dx-hero {
+    position: relative; overflow: hidden; display: flex; align-items: center; justify-content: space-between;
+    gap: 20px; flex-wrap: wrap; padding: 26px 28px; border-radius: 22px; color: #fff;
+    background:
+        radial-gradient(900px 260px at 100% 0%, rgba(255, 255, 255, .16), transparent 60%),
+        linear-gradient(135deg, #1e3a8a 0%, #4338ca 55%, #7c3aed 100%);
+    box-shadow: 0 18px 40px rgba(67, 56, 202, .26);
+}
+.dx-hero::before, .dx-hero::after {
+    content: ''; position: absolute; border-radius: 50%; pointer-events: none;
+    background: rgba(255, 255, 255, .07);
+}
+.dx-hero::before { width: 260px; height: 260px; inset-inline-end: -70px; top: -120px; }
+.dx-hero::after { width: 180px; height: 180px; inset-inline-end: 120px; bottom: -110px; }
+.dx-hero-text { position: relative; z-index: 1; min-width: 0; }
+.dx-hero-hi { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -.01em; color: #fff; }
+.dx-hero-hi span { opacity: .8; font-weight: 600; }
+.dx-hero-date { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13.5px; opacity: .85; }
+.dx-hero-sum { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.dx-hero-sum span {
+    display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px;
+    background: rgba(255, 255, 255, .14); border: 1px solid rgba(255, 255, 255, .22); font-size: 12.5px; font-weight: 600;
+}
+.dx-hero-sum b { font-size: 14px; }
+.dx-hero-actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 10px; }
+.dx-hero-btn {
+    display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 12px;
+    background: rgba(255, 255, 255, .14); border: 1px solid rgba(255, 255, 255, .26); color: #fff;
+    font: inherit; font-size: 13.5px; font-weight: 700; text-decoration: none; cursor: pointer;
+    transition: background .15s, transform .15s;
+}
+.dx-hero-btn:hover { background: rgba(255, 255, 255, .24); color: #fff; transform: translateY(-1px); }
+.dx-hero-btn--primary { background: #fff; border-color: #fff; color: #3730a3; box-shadow: 0 6px 16px rgba(15, 23, 42, .18); }
+.dx-hero-btn--primary:hover { background: #eef2ff; color: #312e81; }
+
+/* ── The day's figures ── */
+.dx-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+.dx-kpi {
+    position: relative; display: flex; align-items: center; gap: 14px; padding: 16px 18px; overflow: hidden;
+    background: var(--dx-surface); border: 1px solid var(--dx-line); border-radius: 16px; box-shadow: var(--dx-shadow);
+    color: inherit; text-decoration: none; transition: transform .18s, box-shadow .18s, border-color .18s;
+}
+.dx-kpi::after { content: ''; position: absolute; inset-inline-start: 0; top: 16px; bottom: 16px; width: 4px; border-radius: 4px; background: var(--k); }
+.dx-kpi:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15, 23, 42, .10); border-color: color-mix(in srgb, var(--k) 35%, var(--dx-line)); color: inherit; }
+.dx-kpi-ico {
+    width: 46px; height: 46px; flex-shrink: 0; display: grid; place-items: center; border-radius: 14px;
+    font-size: 19px; color: var(--k); background: color-mix(in srgb, var(--k) 12%, #fff);
+}
+.dx-kpi-text { flex: 1; min-width: 0; }
+.dx-kpi-val { display: block; font-size: 26px; font-weight: 800; line-height: 1.1; color: var(--dx-ink); font-variant-numeric: tabular-nums; }
+.dx-kpi-label { display: block; margin-top: 3px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12.5px; font-weight: 600; color: var(--dx-ink-2); }
+.dx-kpi-go { position: absolute; top: 12px; inset-inline-end: 12px; font-size: 12px; color: var(--dx-ink-3); opacity: 0; transition: opacity .15s; }
+.dx-kpi:hover .dx-kpi-go { opacity: 1; }
+
+/* ── Cards ── */
+/* grid and flex children may shrink below their content (long names, the chart's days) */
+.dx-grid > *, .dx-fin > *, .dx-kpis > *, .dx-col { min-width: 0; }
+.dx-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; align-items: start; }
+@media (max-width: 1100px) { .dx-grid { grid-template-columns: 1fr; } }
+.dx-card { background: var(--dx-surface); border: 1px solid var(--dx-line); border-radius: var(--dx-r); box-shadow: var(--dx-shadow); overflow: hidden; }
+.dx-card-head { display: flex; align-items: center; gap: 12px; padding: 16px 18px 10px; }
+.dx-card-ico {
+    width: 38px; height: 38px; flex-shrink: 0; display: grid; place-items: center; border-radius: 12px;
+    font-size: 16px; color: var(--k); background: color-mix(in srgb, var(--k) 12%, #fff);
+}
+.dx-card-title { margin: 0; font-size: 15.5px; font-weight: 800; color: var(--dx-ink); }
+.dx-card-sub { display: block; margin-top: 1px; font-size: 12px; font-weight: 500; color: var(--dx-ink-3); }
+.dx-count { padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; color: var(--k); background: color-mix(in srgb, var(--k) 12%, #fff); }
+.dx-more {
+    margin-inline-start: auto; padding: 6px 12px; border-radius: 10px; background: #f1f5f9;
+    font-size: 12.5px; font-weight: 700; color: var(--dx-ink-2); text-decoration: none; white-space: nowrap; transition: background .15s, color .15s;
+}
+.dx-more:hover { background: color-mix(in srgb, var(--dx-accent) 10%, #fff); color: var(--dx-accent); }
+
+/* rows */
+.dx-list { padding: 2px 10px 12px; max-height: 440px; overflow-y: auto; }
+.dx-row { display: flex; align-items: center; gap: 12px; padding: 10px 8px; border-radius: 12px; transition: background .15s; }
+.dx-row + .dx-row { border-top: 1px solid #f1f5f9; }
+.dx-row:hover { background: #f8fafc; }
+.dx-time {
+    min-width: 58px; padding: 6px 8px; border-radius: 10px; text-align: center; direction: ltr;
+    background: #eef2ff; color: #3730a3; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.dx-avatar {
+    width: 38px; height: 38px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%;
+    font-size: 15px; font-weight: 800; color: #1d4ed8; background: #dbeafe;
+}
+.dx-avatar--f { color: #be185d; background: #fce7f3; }
+.dx-num {
+    width: 30px; height: 30px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%;
+    font-size: 13px; font-weight: 800; color: #c2410c; background: #fff7ed;
+}
+.dx-main { flex: 1; min-width: 0; }
+.dx-name { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; font-weight: 700; color: var(--dx-ink); text-decoration: none; }
+a.dx-name:hover { color: var(--dx-accent); }
+.dx-sub { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; font-size: 12px; color: var(--dx-ink-3); }
+.dx-sub i { margin-inline-end: 4px; }
+.dx-sub .ltr { direction: ltr; unicode-bidi: isolate; }
+.dx-chip { padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; color: var(--c, #475569); background: color-mix(in srgb, var(--c, #475569) 12%, #fff); }
+.dx-acts { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.dx-acts form { margin: 0; }
+.dx-ok {
+    width: 32px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 8px; cursor: pointer;
+    background: #dcfce7; color: #15803d; font-size: 13px; transition: background .15s;
+}
+.dx-ok:hover { background: #bbf7d0; }
+.dx-amount { font-weight: 800; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; color: var(--dx-ink); white-space: nowrap; }
+.dx-amount--due { color: #dc2626; }
+.dx-empty { padding: 34px 16px; text-align: center; color: var(--dx-ink-3); font-size: 13px; }
+.dx-empty > i {
+    width: 56px; height: 56px; display: grid; place-items: center; margin: 0 auto 10px; border-radius: 50%;
+    background: #f1f5f9; color: #94a3b8; font-size: 22px;
+}
+.dx-empty b { display: block; margin-bottom: 2px; font-size: 14px; color: var(--dx-ink-2); }
+
+/* ── The doctor's chair: who is in now ── */
+.dx-now {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 18px 20px; border-radius: var(--dx-r); color: #fff;
+    background: linear-gradient(135deg, #0f766e, #0d9488 60%, #14b8a6); box-shadow: 0 14px 30px rgba(13, 148, 136, .24);
+}
+.dx-now-ico { width: 52px; height: 52px; flex-shrink: 0; display: grid; place-items: center; border-radius: 16px; background: rgba(255, 255, 255, .18); font-size: 22px; }
+.dx-now small { display: block; font-size: 12px; font-weight: 600; opacity: .85; }
+.dx-now b { display: block; margin-top: 2px; font-size: 19px; font-weight: 800; }
+.dx-now .dx-sub { color: rgba(255, 255, 255, .85); }
+.dx-now--idle { color: var(--dx-ink-2); background: var(--dx-surface); border: 1px dashed #cbd5e1; box-shadow: none; }
+.dx-now--idle .dx-now-ico { background: #f1f5f9; color: #94a3b8; }
+.dx-now-link {
+    display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 10px; font-size: 13px; font-weight: 700;
+    text-decoration: none; color: #fff; background: rgba(255, 255, 255, .18); border: 1px solid rgba(255, 255, 255, .3);
+}
+.dx-now-link:hover { background: rgba(255, 255, 255, .28); color: #fff; }
+.dx-now--idle .dx-now-link { color: var(--dx-accent); background: color-mix(in srgb, var(--dx-accent) 8%, #fff); border-color: color-mix(in srgb, var(--dx-accent) 25%, #fff); }
+
+/* ── Income: the last seven days (admin) ── */
+.dx-fin { display: grid; grid-template-columns: 1fr 330px; }
+@media (max-width: 960px) { .dx-fin { grid-template-columns: 1fr; } }
+.dx-fin-chart { padding: 4px 20px 18px; min-width: 0; }
+.dx-fin-side {
+    display: flex; flex-direction: column; gap: 10px; padding: 18px;
+    border-inline-start: 1px solid var(--dx-line); background: linear-gradient(180deg, #fafbff, #fff);
+}
+@media (max-width: 960px) { .dx-fin-side { border-inline-start: 0; border-top: 1px solid var(--dx-line); } }
+.dx-fig-label { font-size: 12.5px; font-weight: 700; color: var(--dx-ink-2); }
+.dx-fig { display: inline-block; margin: 2px 0 4px; font-size: 48px; font-weight: 800; line-height: 1.05; color: var(--dx-ink); direction: ltr; font-variant-numeric: tabular-nums; }
+.dx-fin-stat {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--dx-line);
+    background: #fff; color: inherit; text-decoration: none; transition: border-color .15s, background .15s;
+}
+.dx-fin-stat:hover { border-color: color-mix(in srgb, var(--k) 40%, var(--dx-line)); background: color-mix(in srgb, var(--k) 4%, #fff); color: inherit; }
+.dx-fin-stat i { width: 32px; height: 32px; flex-shrink: 0; display: grid; place-items: center; border-radius: 10px; color: var(--k); background: color-mix(in srgb, var(--k) 12%, #fff); }
+.dx-fin-stat span { flex: 1; font-size: 12.5px; font-weight: 600; color: var(--dx-ink-2); }
+
+/* the column chart: one series, a column a day, today in the accent */
+.dx-chart { --plot: 190px; --axis: 44px; }
+.dx-plot { position: relative; height: var(--plot); margin-top: 26px; }
+.dx-gl { position: absolute; inset-inline: 0; height: 0; border-top: 1px solid #eef2f6; }
+.dx-gl span {
+    position: absolute; inset-inline-start: 0; top: -9px; width: calc(var(--axis) - 8px); text-align: end;
+    font-size: 11px; color: var(--dx-ink-3); font-variant-numeric: tabular-nums; unicode-bidi: isolate;
+}
+.dx-gl--base { border-top-color: #cbd5e1; }
+.dx-cols { position: absolute; inset: 0; padding-inline-start: var(--axis); display: flex; align-items: stretch; }
+.dx-col { position: relative; flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; cursor: default; outline: none; }
+.dx-bar {
+    width: 100%; max-width: 24px; height: var(--h); min-height: 0; border-radius: 4px 4px 0 0;
+    background: color-mix(in srgb, var(--dx-accent) 32%, #fff); transition: background .15s;
+}
+.dx-col.is-today .dx-bar { background: var(--dx-accent); }
+.dx-col:hover .dx-bar, .dx-col:focus-visible .dx-bar { background: color-mix(in srgb, var(--dx-accent) 70%, #fff); }
+.dx-col.is-today:hover .dx-bar, .dx-col.is-today:focus-visible .dx-bar { background: color-mix(in srgb, var(--dx-accent) 85%, #000); }
+.dx-col-val {
+    position: absolute; bottom: calc(var(--h) + 4px); font-size: 11.5px; font-weight: 800; color: var(--dx-ink-2);
+    direction: ltr; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.dx-col::after {
+    content: attr(data-tip); position: absolute; bottom: calc(var(--h) + 24px); z-index: 2; padding: 6px 10px; border-radius: 8px;
+    background: #0f172a; color: #fff; font-size: 12px; font-weight: 600; white-space: nowrap; pointer-events: none;
+    opacity: 0; transform: translateY(4px); transition: opacity .12s, transform .12s;
+}
+.dx-col:hover::after, .dx-col:focus-visible::after { opacity: 1; transform: none; }
+.dx-days { display: flex; padding-inline-start: var(--axis); margin-top: 8px; }
+.dx-days span { flex: 1; min-width: 0; text-align: center; font-size: 11.5px; font-weight: 600; color: var(--dx-ink-2); line-height: 1.3; }
+.dx-days span.is-today { color: var(--dx-accent); font-weight: 800; }
+.dx-days b { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: inherit; }
+.dx-days small { display: block; font-weight: 500; color: var(--dx-ink-3); direction: ltr; }
+.dx-chart-note { margin-top: 10px; font-size: 12px; color: var(--dx-ink-3); text-align: center; }
+
+/* ── Quick actions ── */
+.dx-quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; padding: 4px 18px 18px; }
+.dx-q {
+    display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 10px; border-radius: 16px;
+    border: 1px solid var(--dx-line); background: #fff; color: inherit; text-align: center; text-decoration: none;
+    transition: transform .18s, box-shadow .18s, border-color .18s;
+}
+.dx-q:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--k) 40%, var(--dx-line)); box-shadow: 0 12px 26px rgba(15, 23, 42, .09); color: inherit; }
+.dx-q-ico {
+    width: 48px; height: 48px; display: grid; place-items: center; border-radius: 15px; color: #fff; font-size: 19px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--k) 78%, #fff), var(--k));
+    box-shadow: 0 8px 16px color-mix(in srgb, var(--k) 30%, transparent);
+}
+.dx-q b { font-size: 13.5px; color: var(--dx-ink); }
+.dx-q small { font-size: 11.5px; color: var(--dx-ink-3); }
+
+@media (max-width: 640px) {
+    .dx-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .dx-kpi { padding: 14px 12px; gap: 10px; }
+    .dx-kpi-ico { width: 38px; height: 38px; border-radius: 12px; font-size: 16px; }
+    .dx-days span:not(.is-today) b { display: none; }   /* the date is enough on a phone */
+    .dx-hero { padding: 20px; }
+    .dx-hero-hi { font-size: 21px; }
+    .dx-hero-actions { width: 100%; }
+    .dx-hero-btn { flex: 1 1 auto; justify-content: center; }
+    .dx-fig { font-size: 40px; }
+    .dx-chart { --axis: 36px; }
+}
+
+/* The app's text-size setting (body.app-font-scaled, style.css) sets every
+   div and span to one size; the dashboard keeps its own sizes, scaled the same way. */
+body.app-font-scaled .dx { --s: var(--app-font-scale, 1); }
+body.app-font-scaled .dx .dx-hero-hi { font-size: calc(26px * var(--s)) !important; }
+body.app-font-scaled .dx .dx-hero-hi span,
+body.app-font-scaled .dx .dx-hero-sum b,
+body.app-font-scaled .dx .dx-days small,
+body.app-font-scaled .dx .dx-sub > *,
+body.app-font-scaled .dx .dx-amount { font-size: inherit !important; }
+body.app-font-scaled .dx .dx-hero-date,
+body.app-font-scaled .dx .dx-hero-btn { font-size: calc(13.5px * var(--s)) !important; }
+body.app-font-scaled .dx .dx-hero-sum span,
+body.app-font-scaled .dx .dx-kpi-label,
+body.app-font-scaled .dx .dx-more,
+body.app-font-scaled .dx .dx-fig-label,
+body.app-font-scaled .dx .dx-fin-stat span { font-size: calc(12.5px * var(--s)) !important; }
+body.app-font-scaled .dx .dx-kpi-val { font-size: calc(26px * var(--s)) !important; }
+body.app-font-scaled .dx .dx-card-title { font-size: calc(15.5px * var(--s)) !important; }
+body.app-font-scaled .dx .dx-card-sub,
+body.app-font-scaled .dx .dx-count,
+body.app-font-scaled .dx .dx-sub,
+body.app-font-scaled .dx .dx-now small,
+body.app-font-scaled .dx .dx-chart-note { font-size: calc(12px * var(--s)) !important; }
+body.app-font-scaled .dx .dx-time,
+body.app-font-scaled .dx .dx-num,
+body.app-font-scaled .dx .dx-now-link,
+body.app-font-scaled .dx .dx-empty { font-size: calc(13px * var(--s)) !important; }
+body.app-font-scaled .dx .dx-name,
+body.app-font-scaled .dx .dx-empty b { font-size: calc(14px * var(--s)) !important; }
+body.app-font-scaled .dx .dx-avatar { font-size: calc(15px * var(--s)) !important; }
+body.app-font-scaled .dx .dx-now b { font-size: calc(19px * var(--s)) !important; }
+body.app-font-scaled .dx .dx-fig { font-size: calc(48px * var(--s)) !important; }
+body.app-font-scaled .dx .dx-chip,
+body.app-font-scaled .dx .dx-col-val,
+body.app-font-scaled .dx .dx-days span,
+body.app-font-scaled .dx .dx-q small { font-size: calc(11.5px * var(--s)) !important; }
+body.app-font-scaled .dx .dx-gl span { font-size: calc(11px * var(--s)) !important; }
+body.app-font-scaled .dx .dx-q b { font-size: calc(13.5px * var(--s)) !important; }
+@media (max-width: 640px) {
+    body.app-font-scaled .dx .dx-hero-hi { font-size: calc(21px * var(--s)) !important; }
+    body.app-font-scaled .dx .dx-kpi-val { font-size: calc(22px * var(--s)) !important; }
+    body.app-font-scaled .dx .dx-fig { font-size: calc(40px * var(--s)) !important; }
+}
