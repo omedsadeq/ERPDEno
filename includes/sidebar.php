@@ -324,7 +324,7 @@ if (in_array($currentPage, ['appointments', 'reception-call-lists', 'doctor-sche
         <?php endif; ?>
 
         <!-- Doctors Section - Collapsible -->
-        <?php if ($permission->can('page.doctors') || $permission->can('page.doctor_profile') || $permission->can('page.doctor_report') || ($isDoctor && $permission->can('page.cashboxes'))): ?>
+        <?php if ($permission->can('page.doctors') || $permission->can('page.doctor_profile') || $permission->can('page.doctor_report') || ($isDoctor && $permission->can('page.cashboxes')) || $permission->can('erp.material_request.create')): ?>
         <div class="nav-group <?= $activeSection === 'doctors' ? 'open' : '' ?>">
             <div class="nav-group-header" onclick="toggleNavGroup(this)">
                 <span class="nav-item-icon icon-doctors"><i class="fas fa-user-md"></i></span>
@@ -356,6 +356,12 @@ if (in_array($currentPage, ['appointments', 'reception-call-lists', 'doctor-sche
                 <a href="<?= APP_URL ?>/doctors/cashbox.php" class="nav-item <?= ($currentDir === 'doctors' && $currentPage === 'cashbox') ? 'active' : '' ?>">
                     <span class="nav-item-icon" style="color:#0f766e;background:#e6f5f0;"><i class="fas fa-vault"></i></span>
                     <span class="nav-item-text">سندوقی من</span>
+                </a>
+                <?php endif; ?>
+                <?php if ($permission->can('erp.material_request.create')): // the doctor's own request to the store ?>
+                <a href="<?= APP_URL ?>/doctors/material-requests.php" class="nav-item <?= ($currentDir === 'doctors' && $currentPage === 'material-requests') ? 'active' : '' ?>">
+                    <span class="nav-item-icon" style="color:#0d9488;background:#e6f7f5;"><i class="fas fa-boxes-stacked"></i></span>
+                    <span class="nav-item-text">داواکاری مەواد</span>
                 </a>
                 <?php endif; ?>
             </div>

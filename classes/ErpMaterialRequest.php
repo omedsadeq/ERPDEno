@@ -1,8 +1,9 @@
 <?php
 /**
- * داواکاری مەواد لە کۆگا — a doctor's request for store materials, made from a
- * case (cases/view.php «مەواد» dialog) and decided by the store
- * (erp/material-requests.php).
+ * داواکاری مەواد لە کۆگا — a doctor's request for store materials, made on
+ * doctors/material-requests.php (not tied to a case: the materials are the
+ * doctor's) and decided by the store (erp/material-requests.php). Requests
+ * filed from a case before keep their case.
  *
  * pending → approved: the store may trim the quantities; approval creates the
  *           ordinary مەواد بۆ دکتۆر voucher (ErpDoctorIssue::create), which
@@ -72,27 +73,21 @@ class ErpMaterialRequest
     }
 
     /**
-     * File a request. The doctor is the user when they are a doctor, otherwise
-     * the case's doctor — the one the materials are charged to on approval.
+     * File a request. A doctor files in their own name; anyone else (the
+     * admin) names the doctor — the one the materials are charged to on approval.
      */
-    public static function create(int $caseId, array $items, ?string $notes, int $actorId): array
+    public static function create(int $doctorId, array $items, ?string $notes, int $actorId): array
     {
         $db = Database::getInstance();
-        $case = $db->fetch(
-            "SELECT c.id, c.case_number, c.status, pf.patient_id, pf.doctor_id
-             FROM cases c JOIN patient_folders pf ON pf.id = c.folder_id WHERE c.id = :id",
-            ['id' => $caseId]
-        );
-        if (!$case) {
-            throw new RuntimeException('کەیس نەدۆزرایەوە');
-        }
-        if (($case['status'] ?? '') !== 'open') {
-            throw new RuntimeException('کەیسەکە داخراوە');
-        }
         $actor = $db->fetch("SELECT id, role FROM users WHERE id = :id AND is_active = 1", ['id' => $actorId]);
-        $doctorId = ($actor['role'] ?? '') === 'doctor' ? (int)$actor['id'] : (int)($case['doctor_id'] ?? 0);
-        if ($doctorId <= 0) {
-            throw new RuntimeException('دکتۆری ئەم کەیسە دیاری نەکراوە');
+        if (($actor['role'] ?? '') === 'doctor') {
+            $doctorId = (int)$actor['id'];
+        }
+        $doctor = $doctorId > 0
+            ? $db->fetch("SELECT id, full_name FROM users WHERE id = :id AND role = 'doctor' AND is_active = 1", ['id' => $doctorId])
+            : null;
+        if (!$doctor) {
+            throw new RuntimeException('دکتۆر دیاری نەکراوە');
         }
 
         $lines = [];
@@ -123,8 +118,6 @@ class ErpMaterialRequest
         $db->beginTransaction();
         try {
             $id = (int)$db->insert('erp_material_requests', [
-                'case_id'      => $caseId,
-                'patient_id'   => $case['patient_id'] ? (int)$case['patient_id'] : null,
                 'doctor_id'    => $doctorId,
                 'warehouse_id' => $warehouseId,
                 'status'       => 'pending',
@@ -139,7 +132,7 @@ class ErpMaterialRequest
                     'quantity'     => $qty,
                 ]);
             }
-            ErpAudit::log('material_request', 'MATERIAL_REQUEST', $id, '#' . $id, null, ['case_id' => $caseId, 'items' => $lines]);
+            ErpAudit::log('material_request', 'MATERIAL_REQUEST', $id, '#' . $id, null, ['doctor_id' => $doctorId, 'items' => $lines]);
             $db->commit();
         } catch (Throwable $e) {
             $db->rollback();
@@ -155,8 +148,8 @@ class ErpMaterialRequest
             $roles[] = 'admin';
             (new Notification())->notifyRole(array_values(array_unique($roles)), 'material_request',
                 'داواکاری مەوادی نوێ',
-                'کەیس ' . $case['case_number'] . ' — ' . count($lines) . ' مەواد چاوەڕوانی پەسەندکردنە',
-                ['request_id' => $id, 'case_id' => $caseId],
+                $doctor['full_name'] . ' — ' . count($lines) . ' مەواد چاوەڕوانی پەسەندکردنە',
+                ['request_id' => $id, 'doctor_id' => $doctorId],
                 APP_URL . '/erp/material-requests.php', $actorId);
         } catch (Throwable $e) {
             error_log('ErpMaterialRequest notify: ' . $e->getMessage());
@@ -164,16 +157,17 @@ class ErpMaterialRequest
         return ['id' => $id, 'lines' => count($lines)];
     }
 
-    /** Requests of one case, newest first, with their lines. */
-    public static function forCase(int $caseId): array
+    /** One doctor's requests, newest first, with their lines. */
+    public static function forDoctor(int $doctorId, int $limit = 60): array
     {
         return self::withItems(Database::getInstance()->fetchAll(
             "SELECT r.*, d.full_name AS doctor_name, i.issue_number
              FROM erp_material_requests r
              LEFT JOIN users d ON d.id = r.doctor_id
              LEFT JOIN erp_doctor_issues i ON i.id = r.issue_id
-             WHERE r.case_id = :c ORDER BY r.id DESC",
-            ['c' => $caseId]
+             WHERE r.doctor_id = :d ORDER BY r.id DESC
+             LIMIT " . max(1, min(200, $limit)),
+            ['d' => $doctorId]
         ));
     }
 
@@ -354,8 +348,8 @@ class ErpMaterialRequest
         try {
             (new Notification())->notifyUsers([(int)$req['doctor_id']], 'material_request_decision',
                 'داواکاری مەواد ' . $title, $message,
-                ['request_id' => (int)$req['id'], 'case_id' => (int)$req['case_id']],
-                APP_URL . '/cases/view.php?id=' . (int)$req['case_id'], $actorId);
+                ['request_id' => (int)$req['id']],
+                APP_URL . '/doctors/material-requests.php', $actorId);
         } catch (Throwable $e) {
             error_log('ErpMaterialRequest notify doctor: ' . $e->getMessage());
         }

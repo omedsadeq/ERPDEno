@@ -1,13 +1,12 @@
 <?php
 /**
- * داواکاری مەواد API — the case dialog (sheet, case_list, save, cancel) and the
- * store's queue (list, approve, reject). All rules live in ErpMaterialRequest;
+ * داواکاری مەواد API — the doctor's page, doctors/material-requests.php
+ * (sheet, mine, save, cancel), and the store's queue (list, approve, reject). All rules live in ErpMaterialRequest;
  * approval goes through ErpDoctorIssue, which owns stock and the doctor charge.
  */
 
 require_once __DIR__ . '/../_bootstrap.php';
 require_once __DIR__ . '/../../classes/Csrf.php';
-require_once __DIR__ . '/../../classes/AccessGuard.php';
 require_once __DIR__ . '/../../classes/ErpMaterialRequest.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -27,17 +26,10 @@ $isAdmin  = ($_SESSION['role'] ?? '') === 'admin';
 $canAsk   = erp_can(ErpMaterialRequest::CREATE_PERMISSION);
 $canStore = erp_can(ErpMaterialRequest::APPROVE_PERMISSION);
 
-/** A restricted doctor only reaches cases of patients they may see. */
-function erp_mr_case_allowed(int $caseId): bool
+/** Whose requests: a doctor's own; the admin names the doctor. */
+function erp_mr_doctor(int $asked): int
 {
-    $row = Database::getInstance()->fetch(
-        "SELECT pf.patient_id FROM cases c JOIN patient_folders pf ON pf.id = c.folder_id WHERE c.id = :id",
-        ['id' => $caseId]
-    );
-    if (!$row) {
-        return false;
-    }
-    return !(AccessGuard::isRestrictedDoctor() && !AccessGuard::doctorCanViewPatient((int)$row['patient_id']));
+    return ($_SESSION['role'] ?? '') === 'doctor' ? (int)($_SESSION['user_id'] ?? 0) : $asked;
 }
 
 try {
@@ -47,10 +39,10 @@ try {
                 if (!$canAsk && !$canStore) erp_mr_json(['ok' => false, 'error' => 'Forbidden'], 403);
                 erp_mr_json(['ok' => true, 'groups' => ErpMaterialRequest::sheet()]);
 
-            case 'case_list': {
-                $caseId = (int)($_GET['case_id'] ?? 0);
-                if ((!$canAsk && !$canStore) || !erp_mr_case_allowed($caseId)) erp_mr_json(['ok' => false, 'error' => 'Forbidden'], 403);
-                erp_mr_json(['ok' => true, 'requests' => ErpMaterialRequest::forCase($caseId)]);
+            case 'mine': {
+                if (!$canAsk) erp_mr_json(['ok' => false, 'error' => 'Forbidden'], 403);
+                $doctorId = erp_mr_doctor((int)($_GET['doctor_id'] ?? 0));
+                erp_mr_json(['ok' => true, 'requests' => $doctorId > 0 ? ErpMaterialRequest::forDoctor($doctorId) : []]);
             }
 
             case 'list':
@@ -64,10 +56,9 @@ try {
     switch ($action) {
         case 'save': {
             if (!$canAsk) erp_mr_json(['ok' => false, 'error' => 'ڕێگەت پێنەدراوە داواکاری مەواد بکەیت'], 403);
-            $caseId = (int)($_POST['case_id'] ?? 0);
-            if (!erp_mr_case_allowed($caseId)) erp_mr_json(['ok' => false, 'error' => 'Forbidden'], 403);
             $items = json_decode((string)($_POST['items'] ?? '[]'), true);
-            $res = ErpMaterialRequest::create($caseId, is_array($items) ? $items : [], (string)($_POST['notes'] ?? ''), $actorId);
+            $res = ErpMaterialRequest::create(erp_mr_doctor((int)($_POST['doctor_id'] ?? 0)), is_array($items) ? $items : [],
+                (string)($_POST['notes'] ?? ''), $actorId);
             erp_mr_json(['ok' => true] + $res);
         }
 

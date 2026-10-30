@@ -1,9 +1,9 @@
 <?php // tests/cases/ErpMaterialRequestTest.php
-// داواکاری مەواد — a doctor asks the store for materials from a case; the
-// store approves (creating the مەواد بۆ دکتۆر voucher: stock out, doctor
-// charged) or rejects; the doctor may cancel while pending. Pinned: who the
-// request is for, merged lines, partial approval, all-or-nothing on a
-// shortage, no double approval, reject/cancel rules, closed cases refused.
+// داواکاری مەواد — a doctor asks the store for materials (their own, not a
+// case's); the store approves (creating the مەواد بۆ دکتۆر voucher: stock
+// out, doctor charged) or rejects; the doctor may cancel while pending.
+// Pinned: who the request is for, merged lines, partial approval,
+// all-or-nothing on a shortage, no double approval, reject/cancel rules.
 require_once __DIR__ . '/../../classes/ErpMaterialRequest.php';
 
 $db = Database::getInstance();
@@ -13,12 +13,6 @@ $otherDoctor = fx_user('doctor');
 $admin = fx_user('admin');
 $storeUser = fx_user('accountant');
 $_SESSION['user_id'] = $storeUser;
-
-$patient = fx_patient();
-$case = fx_case(fx_folder($patient, $doctor));
-$db->update('cases', ['status' => 'open'], 'id = :id', ['id' => $case]);
-$closedCase = fx_case(fx_folder(fx_patient(), $doctor));
-$db->update('cases', ['status' => 'closed'], 'id = :id', ['id' => $closedCase]);
 
 ErpDoctorIssue::setPriceMode('cost');
 $wh = ErpMaterialRequest::warehouseId();
@@ -38,30 +32,35 @@ $status = fn($id) => $db->fetch('SELECT status FROM erp_material_requests WHERE 
 $throws = function (callable $fn) { try { $fn(); return false; } catch (Throwable $e) { return true; } };
 
 // ── filing ──
-$t->assertTrue($throws(fn() => ErpMaterialRequest::create($case, [], null, $doctor)), 'an empty request is refused');
-$t->assertTrue($throws(fn() => ErpMaterialRequest::create($closedCase, [['product_id' => $gloves, 'quantity' => 1]], null, $doctor)),
-    'a closed case cannot request materials');
+$t->assertTrue($throws(fn() => ErpMaterialRequest::create($doctor, [], null, $doctor)), 'an empty request is refused');
+$t->assertTrue($throws(fn() => ErpMaterialRequest::create(0, [['product_id' => $gloves, 'quantity' => 1]], null, $admin)),
+    'filed by an admin without a doctor, it is refused');
 $sheet = ErpMaterialRequest::sheet();
 $found = false;
 foreach ($sheet as $g) foreach ($g['items'] as $it) if ($it['id'] === $gloves) { $found = $it; }
 $t->assertTrue($found && (float)$found['stock'] === 10.0, 'the sheet lists the material with its warehouse stock');
 
-$r1 = ErpMaterialRequest::create($case, [
+$r1 = ErpMaterialRequest::create($doctor, [
     ['product_id' => $gloves, 'quantity' => 2], ['product_id' => $gloves, 'quantity' => 1], ['product_id' => $bur, 'quantity' => 1],
 ], 'for crown prep', $doctor);
 $req1 = $db->fetch('SELECT * FROM erp_material_requests WHERE id = :id', ['id' => $r1['id']]);
 $t->assertSame('pending', $req1['status'], 'a new request is pending');
 $t->assertSame($doctor, (int)$req1['doctor_id'], 'a doctor files the request in their own name');
-$t->assertSame($patient, (int)$req1['patient_id'], 'the request carries the case\'s patient');
+$t->assertSame([null, null], [$req1['case_id'], $req1['patient_id']], 'the request is the doctor\'s, not a case\'s');
 $lines = $db->fetchAll('SELECT product_id, quantity FROM erp_material_request_items WHERE request_id = :id ORDER BY product_id', ['id' => $r1['id']]);
 $t->assertSame(2, count($lines), 'the same material twice is one line');
 $t->assertSame(3.0, (float)$lines[0]['quantity'], 'its quantities are summed');
 $t->assertSame(10.0, $level($gloves), 'nothing is reserved while pending');
 
-$r2 = ErpMaterialRequest::create($case, [['product_id' => $bur, 'quantity' => 1]], null, $admin);
+$r2 = ErpMaterialRequest::create($doctor, [['product_id' => $bur, 'quantity' => 1]], null, $admin);
 $t->assertSame($doctor, (int)$db->fetch('SELECT doctor_id FROM erp_material_requests WHERE id = :id', ['id' => $r2['id']])['doctor_id'],
-    'filed by an admin, the request is for the case\'s doctor');
-$t->assertSame(2, count(ErpMaterialRequest::forCase($case)), 'the case lists its requests');
+    'filed by an admin, the request is for the doctor they named');
+$own = ErpMaterialRequest::create($otherDoctor, [['product_id' => $bur, 'quantity' => 1]], null, $doctor);
+$t->assertSame($doctor, (int)$db->fetch('SELECT doctor_id FROM erp_material_requests WHERE id = :id', ['id' => $own['id']])['doctor_id'],
+    'a doctor always files in their own name, whoever they name');
+ErpMaterialRequest::cancel($own['id'], $doctor, false);
+$t->assertSame(3, count(ErpMaterialRequest::forDoctor($doctor)), 'the doctor lists their requests');
+$t->assertSame(0, count(ErpMaterialRequest::forDoctor($otherDoctor)), '… and another doctor none of them');
 $queueIds = array_map(fn($r) => (int)$r['id'], ErpMaterialRequest::queue('pending'));
 $t->assertTrue(in_array($r1['id'], $queueIds, true) && in_array($r2['id'], $queueIds, true), 'both wait in the store\'s queue');
 
@@ -101,7 +100,7 @@ $t->assertSame('rejected', $req2['status'], 'rejected');
 $t->assertSame('out of season', $req2['decision_note'], 'with the store\'s reason');
 $t->assertTrue($throws(fn() => ErpMaterialRequest::approve($r2['id'], [], 'normal', $storeUser)), 'a rejected request cannot be approved');
 
-$r3 = ErpMaterialRequest::create($case, [['product_id' => $gloves, 'quantity' => 1]], null, $doctor);
+$r3 = ErpMaterialRequest::create($doctor, [['product_id' => $gloves, 'quantity' => 1]], null, $doctor);
 $t->assertTrue($throws(fn() => ErpMaterialRequest::cancel($r3['id'], $otherDoctor, false)), 'another doctor cannot cancel it');
 ErpMaterialRequest::cancel($r3['id'], $doctor, false);
 $t->assertSame('cancelled', $status($r3['id']), 'the doctor cancels their own pending request');

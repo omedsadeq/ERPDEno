@@ -1145,6 +1145,9 @@ class Notification {
                 AND NOT EXISTS (SELECT 1 FROM waiting_room w WHERE w.id = " . $j('waiting_id') . " AND w.status IN ('waiting', 'called', 'in_progress'))",
             $done . "n.type = 'patient_accounting' AND " . $j('waiting_id') . " IS NOT NULL
                 AND NOT EXISTS (SELECT 1 FROM waiting_room w WHERE w.id = " . $j('waiting_id') . " AND w.status = 'at_accounting')",
+            // a doctor's materials request: done for the store once decided or cancelled
+            $done . "n.type = 'material_request' AND " . $j('request_id') . " IS NOT NULL
+                AND NOT EXISTS (SELECT 1 FROM erp_material_requests m WHERE m.id = " . $j('request_id') . " AND m.status = 'pending')",
             // a day's call list or an appointment: done once its day is over
             $done . "n.type IN ('reception_call_list', 'appointment_reminder', 'appointment_new', 'appointment_updated', 'appointment_cancelled')
                 AND " . $j('date') . " < CURDATE()",

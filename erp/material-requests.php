@@ -75,9 +75,11 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="mrq-head">
         <b>#<?= $rid ?></b>
         <span class="mrq-meta"><i class="fas fa-user-doctor"></i><?= erp_esc($r['doctor_name'] ?? '—') ?></span>
+        <?php if (!empty($r['case_id'])): // filed from a case, before requests were the doctor's own ?>
         <span class="mrq-meta"><i class="fas fa-user"></i><?= erp_esc($r['patient_name'] ?? '—') ?></span>
         <span class="mrq-meta"><i class="fas fa-folder-open"></i>
             <a href="<?= APP_URL ?>/cases/view.php?id=<?= (int)$r['case_id'] ?>" target="_blank" rel="noopener"><?= erp_esc($r['case_number'] ?? ('#' . (int)$r['case_id'])) ?></a></span>
+        <?php endif; ?>
         <span class="mrq-meta" dir="ltr"><i class="fas fa-clock"></i><?= erp_esc(substr((string)$r['created_at'], 0, 16)) ?></span>
         <?php if ($r['status'] !== 'pending'): ?>
         <span class="mrq-meta"><i class="fas fa-user-check"></i><?= erp_esc($r['decided_by_name'] ?? '—') ?> · <span dir="ltr"><?= erp_esc(substr((string)$r['decided_at'], 0, 16)) ?></span></span>
