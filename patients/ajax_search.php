@@ -9,6 +9,7 @@ require_once __DIR__ . '/../classes/Patient.php';
 require_once __DIR__ . '/../classes/XrayManager.php';
 require_once __DIR__ . '/../classes/AccessGuard.php';
 require_once __DIR__ . '/../includes/case-button.php';
+require_once __DIR__ . '/../includes/plan-button.php';
 
 // Check authentication
 $auth = new Auth();
@@ -129,6 +130,8 @@ try {
         $totalPatients = $patientManager->count($search, $filters);
     }
     $totalPages = ceil($totalPatients / ITEMS_PER_PAGE);
+    // «پلانی چارەسەر» on the rows of patients who have a plan (one query for the page)
+    $planSummaries = plan_button_summaries($auth, array_column($patients, 'id'));
 
     // Get statistics based on filters
     $statistics = [
@@ -248,6 +251,7 @@ try {
                     </div>
                     <div class="patient-actions">
                         ' . (case_button_allowed($auth, (int)$patient['id']) ? case_button((int)$patient['id'], ['size' => 'sm']) : '') . '
+                        ' . plan_button((int)$patient['id'], $planSummaries) . '
                         <a href="' . APP_URL . '/patients/view.php?id=' . $patient['id'] . '" class="btn btn-secondary" title="بینینی پرۆفایل">
                             <i class="fas fa-eye"></i>
                         </a>
@@ -306,6 +310,7 @@ try {
                     </div>
                     <div class="patient-actions">
                         ' . (case_button_allowed($auth, (int)$patient['id']) ? case_button((int)$patient['id'], ['size' => 'sm']) : '') . '
+                        ' . plan_button((int)$patient['id'], $planSummaries) . '
                         <a href="' . APP_URL . '/patients/view.php?id=' . $patient['id'] . '" class="btn btn-primary" title="بینین">
                             <i class="fas fa-eye"></i>
                         </a>

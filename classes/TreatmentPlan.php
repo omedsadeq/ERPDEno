@@ -203,6 +203,37 @@ class TreatmentPlan
         return $row ?: null;
     }
 
+    /**
+     * The plans of a page of patients at once (the patients list): for each
+     * patient who has one, how many and the newest. Cancelled plans do not
+     * count; a doctor sees only the plans getByPatient() would show them.
+     *
+     * @return array patient id => ['count' => int, 'latest' => [id, plan_number, status]]
+     */
+    public function summaryForPatients(array $patientIds, ?int $doctorUserId = null): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $patientIds))));
+        if (!$ids) {
+            return [];
+        }
+        $sql = "SELECT tp.id, tp.patient_id, tp.plan_number, tp.status FROM treatment_plans tp
+                WHERE tp.patient_id IN (" . implode(',', $ids) . ") AND tp.status <> 'cancelled'";
+        $params = [];
+        if ($doctorUserId !== null) {
+            $sql .= " AND (tp.doctor_id = :did OR tp.treating_doctor_id = :did2)";
+            $params = ['did' => $doctorUserId, 'did2' => $doctorUserId];
+        }
+        $out = [];
+        foreach ($this->db->fetchAll($sql . " ORDER BY tp.created_at DESC, tp.id DESC", $params) as $row) {
+            $pid = (int)$row['patient_id'];
+            if (!isset($out[$pid])) {
+                $out[$pid] = ['count' => 0, 'latest' => $row];
+            }
+            $out[$pid]['count']++;
+        }
+        return $out;
+    }
+
     /** Every plan for a patient, newest first, with a live item count. */
     public function getByPatient(int $patientId, ?int $doctorUserId = null): array
     {
