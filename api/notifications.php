@@ -96,6 +96,8 @@ try {
             // Retention sweep — self-throttled to once an hour across all
             // pollers, so the table cannot grow without bound again.
             $notification->cleanupExpiredThrottled();
+            // Handled notifications leave the bell for everyone (once a minute)
+            $notification->resolveHandledThrottled();
 
             // Get new notifications since last check (for polling)
             $lastCheck = $_GET['last_check'] ?? null;
@@ -179,7 +181,8 @@ try {
                 'module' => notification_module($n['type']),
                 'related' => $related,
                 'created_at_formatted' => date('Y/m/d - H:i', strtotime($n['created_at'])),
-                'unread_count' => $notification->getUnreadCount($userId, $typeFilter)
+                'unread_count' => $notification->getUnreadCount($userId, $typeFilter),
+                'unseen_count' => $notification->getUnseenCount($userId, $typeFilter)
             ]);
             break;
 
@@ -199,7 +202,8 @@ try {
                 $notification->markAsRead($notificationId, $userId);
                 echo json_encode([
                     'success' => true,
-                    'unread_count' => $notification->getUnreadCount($userId, $typeFilter)
+                    'unread_count' => $notification->getUnreadCount($userId, $typeFilter),
+                    'unseen_count' => $notification->getUnseenCount($userId, $typeFilter)
                 ]);
             } else {
                 echo json_encode(['success' => false, 'error' => 'Invalid notification ID']);
@@ -209,7 +213,7 @@ try {
         case 'mark_all_read':
             // Mark all notifications as read
             $notification->markAllAsRead($userId);
-            echo json_encode(['success' => true, 'unread_count' => 0]);
+            echo json_encode(['success' => true, 'unread_count' => 0, 'unseen_count' => 0]);
             break;
 
         case 'mark_all_seen':

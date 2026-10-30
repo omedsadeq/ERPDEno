@@ -78,9 +78,10 @@ if ($permission->can('page.waiting_room')) {
 }
 $pendingXrayCount = 0;
 if ($permission->can('page.xray')) {
+    // today's still open, as the title bar counts them (includes/header.php)
     $pendingXrayCount = $badgeDoctorUid
-        ? $db->count('xray_requests', "status = 'pending' AND requested_by = :uid", ['uid' => $badgeDoctorUid])
-        : $db->count('xray_requests', "status = 'pending'");
+        ? $db->count('xray_requests', "status = 'pending' AND created_at >= CURDATE() AND requested_by = :uid", ['uid' => $badgeDoctorUid])
+        : $db->count('xray_requests', "status = 'pending' AND created_at >= CURDATE()");
 }
 
 // Count X-Ray requests awaiting payment processing by accountant

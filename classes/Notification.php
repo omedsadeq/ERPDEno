@@ -1085,6 +1085,88 @@ class Notification {
         return $deleted;
     }
 
+    // ── Handled notifications ─────────────────────────────────────────────
+    // A notification asks someone to act, or tells them something. Once the
+    // thing it is about has been dealt with — the receipt approved, the
+    // payment decided, the x-ray moved on, the patient seen — it is done for
+    // everyone it went to, whether or not they opened it. A note nobody acted
+    // on is done after a few days. Done = read and seen: it leaves the bell.
+    const STALE_DAYS = 3;
+
+    /**
+     * resolveHandled() at most once per $minIntervalSeconds across all
+     * requests (the same file marker as cleanupExpiredThrottled). Fail-soft.
+     *
+     * @return int Notifications resolved (0 when throttled).
+     */
+    public function resolveHandledThrottled($minIntervalSeconds = 60) {
+        $marker = APP_ROOT . '/storage/notifications_resolve.at';
+        if (is_file($marker) && (time() - (int)@filemtime($marker)) < $minIntervalSeconds) {
+            return 0;
+        }
+        if (@touch($marker) === false) {
+            return 0;
+        }
+        return $this->resolveHandled();
+    }
+
+    /**
+     * Mark read every unread notification whose subject no longer waits on
+     * anyone. Each pass is its own statement, so one that fails (an old row
+     * with odd data) never stops the others.
+     *
+     * @return int Notifications resolved.
+     */
+    public function resolveHandled() {
+        $j = function ($key) {
+            return "JSON_UNQUOTE(JSON_EXTRACT(n.data, '$." . $key . "'))";
+        };
+        $done = "UPDATE notifications n SET n.is_read = 1, n.is_seen = 1, n.read_at = NOW()
+                 WHERE n.is_read = 0 AND n.data IS NOT NULL AND JSON_VALID(n.data) AND ";
+        $passes = [
+            // a receipt sent to accounting: done once it no longer waits there
+            // (the approval centre's own rule: accounting_status = 'sent')
+            $done . "n.type = 'invoice_sent' AND " . $j('action') . " = 'invoice_sent'
+                AND NOT EXISTS (SELECT 1 FROM case_invoices ci
+                                WHERE ci.invoice_no = " . $j('invoice_no') . " AND ci.accounting_status = 'sent')",
+            // a payment awaiting approval: done once approved or rejected
+            $done . "n.type = 'payment_pending' AND " . $j('payment_id') . " IS NOT NULL
+                AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.id = " . $j('payment_id') . " AND p.status = 'pending')",
+            // an x-ray request: done once it has moved on since the note was
+            // written — paid, scanned, finished or cancelled (or gone)
+            $done . "n.type IN ('xray', 'xray_payment', 'xray_payment_ready') AND " . $j('xray_id') . " IS NOT NULL
+                AND NOT EXISTS (SELECT 1 FROM xray_requests x
+                                WHERE x.id = " . $j('xray_id') . " AND x.updated_at <= n.created_at + INTERVAL 5 SECOND)",
+            // a patient in the waiting room: done once they are no longer
+            // where the note said — waiting, in the chair, at the accountant
+            $done . "n.type = 'patient_waiting' AND " . $j('waiting_id') . " IS NOT NULL
+                AND NOT EXISTS (SELECT 1 FROM waiting_room w WHERE w.id = " . $j('waiting_id') . " AND w.status = 'waiting')",
+            $done . "n.type = 'patient_called' AND " . $j('waiting_id') . " IS NOT NULL
+                AND NOT EXISTS (SELECT 1 FROM waiting_room w WHERE w.id = " . $j('waiting_id') . " AND w.status IN ('waiting', 'called', 'in_progress'))",
+            $done . "n.type = 'patient_accounting' AND " . $j('waiting_id') . " IS NOT NULL
+                AND NOT EXISTS (SELECT 1 FROM waiting_room w WHERE w.id = " . $j('waiting_id') . " AND w.status = 'at_accounting')",
+            // a day's call list or an appointment: done once its day is over
+            $done . "n.type IN ('reception_call_list', 'appointment_reminder', 'appointment_new', 'appointment_updated', 'appointment_cancelled')
+                AND " . $j('date') . " < CURDATE()",
+            // the installment digest: a new one comes every day
+            "UPDATE notifications n SET n.is_read = 1, n.is_seen = 1, n.read_at = NOW()
+              WHERE n.is_read = 0 AND n.type = 'installment_due' AND n.created_at < CURDATE()",
+            // anything else nobody acted on (the nightly reports among them):
+            // done after a few days — it stays in the list and on notifications.php
+            "UPDATE notifications n SET n.is_read = 1, n.is_seen = 1, n.read_at = NOW()
+              WHERE n.is_read = 0 AND n.created_at < NOW() - INTERVAL " . self::STALE_DAYS . " DAY",
+        ];
+        $resolved = 0;
+        foreach ($passes as $sql) {
+            try {
+                $resolved += $this->db->query($sql . ' LIMIT ' . self::CLEANUP_BATCH)->rowCount();
+            } catch (Exception $e) {
+                error_log('Notification::resolveHandled: ' . $e->getMessage());
+            }
+        }
+        return $resolved;
+    }
+
     /**
      * Get all notifications for a user (paginated)
      */

@@ -214,7 +214,7 @@ class NotificationSystem {
 
             if (data.success) {
                 this.lastCheck = data.server_time;
-                this.updateBadge(data.unread_count);
+                this.updateBadge(data.unseen_count);
 
                 const fresh = data.notifications || [];
 
@@ -310,8 +310,10 @@ class NotificationSystem {
         const isShowing = dropdown.classList.toggle('show');
 
         if (isShowing) {
+            // The bell counts what is new: once the list is open, nothing is
+            this.updateBadge(0);
+            this.markAllAsSeen();
             await this.loadNotifications();
-            this.markAllAsSeen(); // "new" indicator only; unread badge stays
         }
     }
 
@@ -326,7 +328,6 @@ class NotificationSystem {
             const data = await response.json();
 
             if (data.success) {
-                this.updateBadge(data.unread_count);
                 if (data.notifications.length === 0) {
                     list.innerHTML = `
                         <div class="notification-empty">
@@ -375,7 +376,7 @@ class NotificationSystem {
             if (!data.success) return;
 
             const n = data.notification;
-            this.updateBadge(data.unread_count);
+            this.updateBadge(data.unseen_count);
 
             // Reflect read state in the open dropdown, if visible
             const item = document.querySelector(`.notification-item[data-id="${CSS.escape(String(n.id))}"]`);
@@ -457,8 +458,8 @@ class NotificationSystem {
                 body: `action=mark_read&notification_id=${encodeURIComponent(notificationId)}`
             });
             const data = await response.json();
-            if (data.success && typeof data.unread_count !== 'undefined') {
-                this.updateBadge(data.unread_count);
+            if (data.success && typeof data.unseen_count !== 'undefined') {
+                this.updateBadge(data.unseen_count);
             }
         } catch (error) {
             console.error('Error marking notification as read:', error);

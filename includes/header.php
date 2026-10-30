@@ -104,17 +104,20 @@ $xrayPaymentsCount = $badgeDoctorUid
     ? $db->count('xray_requests', "status = 'completed' AND payment_status = 'pending' AND requested_by = :uid", ['uid' => $badgeDoctorUid])
     : $db->count('xray_requests', "status = 'completed' AND payment_status = 'pending'");
 
-// Pending X-Ray requests
+// X-ray requests still open from today — one left open from an earlier day
+// is no longer today's work, and xray/index.php lists every one
 $xrayRequestsCount = $badgeDoctorUid
-    ? $db->count('xray_requests', "status IN ('pending', 'in_progress') AND requested_by = :uid", ['uid' => $badgeDoctorUid])
-    : $db->count('xray_requests', "status IN ('pending', 'in_progress')");
+    ? $db->count('xray_requests', "status IN ('pending', 'in_progress') AND created_at >= CURDATE() AND requested_by = :uid", ['uid' => $badgeDoctorUid])
+    : $db->count('xray_requests', "status IN ('pending', 'in_progress') AND created_at >= CURDATE()");
 
 $totalNotifications = $pendingPayments + $overdueInstallments;
 
-// Real-time notification badge = unread count
-// (financial types are visible to admins & accountants only)
+// The bell = notifications new since the list was last opened (opening it
+// clears the bell); handled ones resolve themselves first (Notification::
+// resolveHandled). Financial types are visible to admins & accountants only.
 $notificationObj = new Notification();
-$realtimeNotifCount = $notificationObj->getUnreadCount(
+$notificationObj->resolveHandledThrottled();
+$realtimeNotifCount = $notificationObj->getUnseenCount(
     $currentUser['id'],
     ($isAdmin || $isAccountant) ? null : Notification::FINANCIAL_TYPES
 );
@@ -258,7 +261,7 @@ $realtimeNotifCount = $notificationObj->getUnreadCount(
                     <!-- Real-time Notification Bell -->
                     <div class="titlebar-notif notification-bell-wrapper" id="notification-bell" title="ئاگادارکردنەوەکان">
                         <i class="fas fa-bell"></i>
-                        <span class="notif-badge notification-badge" id="notification-badge" style="<?= $realtimeNotifCount > 0 ? '' : 'display:none;' ?>"><?= $realtimeNotifCount ?></span>
+                        <span class="notif-badge notification-badge" id="notification-badge" style="<?= $realtimeNotifCount > 0 ? '' : 'display:none;' ?>"><?= $realtimeNotifCount > 99 ? '99+' : $realtimeNotifCount ?></span>
                     </div>
                     <a href="<?= APP_URL ?>/appointments.php" class="titlebar-notif" title="مەوعیدەکان">
                         <i class="fas fa-calendar-check"></i>
