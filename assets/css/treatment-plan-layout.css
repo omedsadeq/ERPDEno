@@ -18,6 +18,11 @@
 .tp-workspace .tp-items .rt-c-desc { min-width:165px; }
 .tp-workspace .tp-items .rt-c-qty { width:55px; }
 .tp-workspace .tp-items .rt-c-unit,.tp-workspace .tp-items .rt-c-total { width:95px; }
+/* داشکاندن: typed straight in the row (pvSetGroupDiscount), a cut in red */
+.tp-workspace .tp-items .rt-c-disc { width:95px; color:#dc2626; font-weight:700; }
+.tp-workspace .tp-items input.rt-in-disc { width:100%; text-align:center; color:#dc2626; font-weight:700; -moz-appearance:textfield; }
+.tp-workspace .tp-items input.rt-in-disc::-webkit-outer-spin-button,
+.tp-workspace .tp-items input.rt-in-disc::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
 .tp-workspace .tp-items .rt-c-act { width:72px; }
 .tp-workspace .tp-items .tp-num { text-align:center; }
 .tp-workspace .tp-items tr.is-transferred { background:#f2faf5; }

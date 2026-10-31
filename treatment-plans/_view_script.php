@@ -173,7 +173,6 @@ function groupRow(g, no, editable) {
         `<a href="<?= APP_URL ?>/cases/view.php?id=${id}" class="tp-case-link"><i class="fas fa-arrow-left"></i> ${escapeHtml(g.cases[id])}</a>`).join('');
     const desc = `${escapeHtml(g.name)}
         ${surfaces.length ? `<div class="treatment-surface-tags">${surfaces.map(s => `<span class="treatment-surface-tag">${SURFACE_LABELS[s] || s}</span>`).join('')}</div>` : ''}
-        ${g.discount > 0 ? `<small class="tp-line-note">داشکاندن: ${numberFormat(g.discount)}</small>` : ''}
         ${transferred ? `<div class="tp-line-state"><span class="tp-item-state transferred">گوازراوە</span>${caseLinks}</div>` : ''}`;
     let act = '';
     if (editable && !transferred) {
@@ -193,6 +192,11 @@ function groupRow(g, no, editable) {
         <td class="rt-c-teeth">${teethCell(g)}</td>
         <td class="rt-c-qty">${numberFormat(g.qty)}</td>
         <td class="rt-c-unit">${numberFormat(g.unit)}</td>
+        <td class="rt-c-disc">${editable && !transferred
+            ? `<input type="number" class="rt-field rt-in-disc" value="${g.discount > 0 ? g.discount : ''}" placeholder="0" min="0" step="any"
+                 onchange="pvSetGroupDiscount(${gi}, this.value)" onkeydown="if (event.key === 'Enter') this.blur()"
+                 title="${many ? 'داشکاندنی ئەم هێڵە — بەسەر ' + g.items.length + ' ددانەکەدا دابەش دەکرێت' : 'داشکاندنی ئەم هێڵە'}">`
+            : (g.discount > 0 ? numberFormat(g.discount) : '—')}</td>
         <td class="rt-c-total">${numberFormat(g.total)}</td>
         <td class="rt-c-act">${act}</td>
     </tr>`;
@@ -214,7 +218,7 @@ function groupDetailRow(g, editable) {
             <button type="button" class="tp-icon-btn danger" title="سڕینەوە" onclick="pvRemoveItem(${it.id})"><i class="fas fa-trash"></i></button>
         </div>` : ''}</td>
     </tr>`).join('');
-    return `<tr class="tp-group-detail"><td></td><td colspan="6"><table class="tp-detail-table"><thead><tr>
+    return `<tr class="tp-group-detail"><td></td><td colspan="7"><table class="tp-detail-table"><thead><tr>
         <th>ددان</th><th>ڕووەکان</th><th>داشکاندن</th><th>کات</th><th>کۆ</th><th>تێبینی</th><th></th>
     </tr></thead><tbody>${lines}</tbody></table></td></tr>`;
 }
@@ -242,6 +246,7 @@ function addRowHtml() {
         <td class="rt-c-teeth">${teeth}</td>
         <td class="rt-c-qty"><input type="number" class="rt-field rt-in-qty is-auto" id="pvAddQty" value="1" min="1" step="1" title="بۆ ددان: ژمارەی ددانەکان"></td>
         <td class="rt-c-unit"><input type="number" class="rt-field rt-in-price" id="pvAddPrice" value="0" min="0" step="any"></td>
+        <td class="rt-c-disc"><input type="number" class="rt-field rt-in-disc" id="pvAddDisc" value="" placeholder="0" min="0" step="any" title="داشکاندنی ئەم هێڵە — بەسەر ددانەکاندا دابەش دەکرێت"></td>
         <td class="rt-c-total"><span class="rt-in-total" id="pvAddTotal">0</span></td>
         <td class="rt-c-act">
             <button type="button" class="rt-act-btn is-save" id="pvAddSaveBtn" onclick="pvAddSave()" title="زیادکردن (Enter)"><i class="fas fa-check"></i></button>
@@ -260,20 +265,47 @@ function renderItemsTable() {
     let body = groups.map((g, i) => groupRow(g, i + 1, editable)).join('');
     if (editable) body += addRowHtml();
     if (!groups.length && !editable) {
-        body = `<tr><td colspan="7"><div class="tp-empty-items"><i class="fas fa-clipboard-list"></i><strong>هێشتا هیچ چارەسەرێک نییە</strong></div></td></tr>`;
+        body = `<tr><td colspan="8"><div class="tp-empty-items"><i class="fas fa-clipboard-list"></i><strong>هێشتا هیچ چارەسەرێک نییە</strong></div></td></tr>`;
     }
     // Ruled to six lines, like the receipt pad.
     for (let n = groups.length + (editable ? 1 : 0) + 1; n <= 6; n++) {
-        body += `<tr class="rt-blank-row"><td class="rt-c-no">${n}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+        body += `<tr class="rt-blank-row"><td class="rt-c-no">${n}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
     }
     root.innerHTML = `<div class="table-container tp-items-wrap"><table class="table rcpt-table tp-items no-responsive"><thead><tr>
         <th class="rt-c-no">ژ</th><th class="rt-c-desc">ناوەڕۆک<span class="en">Description</span></th>
         <th class="rt-c-teeth">چارتی ددان<span class="en">Teeth</span></th>
         <th class="rt-c-qty">ژمارە<span class="en">Quantity</span></th><th class="rt-c-unit">نرخی تاک<span class="en">Unit Price</span></th>
+        <th class="rt-c-disc">داشکاندن<span class="en">Discount</span></th>
         <th class="rt-c-total">نرخی کۆ<span class="en">Total Price</span></th><th class="rt-c-act">کردارەکان</th>
     </tr></thead><tbody>${body}</tbody></table></div>`;
     if (editable) pvAddBind(keep);
 }
+
+/** A share of `amount` for each of `totals`, in proportion; the last takes the rounding. */
+function pvSplit(amount, totals) {
+    const sum = totals.reduce((a, b) => a + b, 0);
+    let given = 0;
+    return totals.map((t, i) => {
+        const share = i === totals.length - 1 ? amount - given : (sum > 0 ? Math.round(amount * t / sum) : 0);
+        given += share;
+        return Math.max(0, share);
+    });
+}
+window.pvSetGroupDiscount = async function (i, raw) {
+    const g = pvGroups[i];
+    if (!g) return;
+    const value = Math.max(0, Math.round(Number(raw) || 0));
+    const gross = g.items.reduce((sum, it) => sum + (Number(it.total_price) || 0), 0);
+    if (value > gross) { toast('error', 'داشکاندن لە نرخی هێڵەکە (' + numberFormat(gross) + ') زیاترە'); renderItemsTable(); return; }
+    const shares = pvSplit(value, g.items.map(it => Number(it.total_price) || 0));
+    for (let k = 0; k < g.items.length; k++) {
+        if (Number(g.items[k].discount) === shares[k]) continue;
+        const res = await post('update_item', { item_id: g.items[k].id, discount: shares[k] });
+        if (!res || !res.success) { toast('error', (res && (res.error || res.message)) || 'هەڵە'); renderItemsTable(); return; }
+        applyResponse(res);
+    }
+    toast('success', value > 0 ? 'داشکاندن تۆمارکرا' : 'داشکاندن لابرا');
+};
 
 window.pvToggleGroup = function (i) {
     const g = pvGroups[i];
@@ -309,7 +341,8 @@ function pvAddState() {
     const row = pvAddRow();
     if (!row) return null;
     const s = { name: row.querySelector('#pvAddName').value, id: pvAddTreatmentId,
-        qty: row.querySelector('#pvAddQty').value, price: row.querySelector('#pvAddPrice').value, teeth: {} };
+        qty: row.querySelector('#pvAddQty').value, price: row.querySelector('#pvAddPrice').value,
+        disc: row.querySelector('#pvAddDisc').value, teeth: {} };
     row.querySelectorAll('.rt-tooth-in').forEach(i => { s.teeth[i.dataset.q] = i.value; });
     const arch = row.querySelector('#pvAddArch');
     if (arch) s.arch = arch.value;
@@ -342,7 +375,8 @@ function pvAddCalc() {
         qty.value = n || 1;
     }
     const total = (Number(qty.value) || 0) * (Number(row.querySelector('#pvAddPrice').value) || 0);
-    row.querySelector('#pvAddTotal').textContent = numberFormat(total);
+    const disc = Math.max(0, Number(row.querySelector('#pvAddDisc').value) || 0);
+    row.querySelector('#pvAddTotal').textContent = numberFormat(Math.max(0, total - disc));
 }
 function pvAddBind(keep) {
     const row = pvAddRow();
@@ -353,6 +387,7 @@ function pvAddBind(keep) {
         name.classList.toggle('is-chosen', !!keep.id);
         row.querySelector('#pvAddQty').value = keep.qty;
         row.querySelector('#pvAddPrice').value = keep.price;
+        row.querySelector('#pvAddDisc').value = keep.disc || '';
         row.querySelectorAll('.rt-tooth-in').forEach(i => { i.value = keep.teeth[i.dataset.q] || ''; });
         if (keep.arch && row.querySelector('#pvAddArch')) row.querySelector('#pvAddArch').value = keep.arch;
     }
@@ -367,6 +402,7 @@ function pvAddBind(keep) {
     }));
     row.querySelector('#pvAddQty').addEventListener('input', () => { pvQtyManual = true; row.querySelector('#pvAddQty').classList.remove('is-auto'); pvAddCalc(); });
     row.querySelector('#pvAddPrice').addEventListener('input', pvAddCalc);
+    row.querySelector('#pvAddDisc').addEventListener('input', pvAddCalc);
     const arch = row.querySelector('#pvAddArch');
     if (arch) arch.addEventListener('change', pvAddCalc);
     row.addEventListener('keydown', e => {
@@ -462,6 +498,7 @@ window.pvAddClear = function () {
     row.querySelector('#pvAddQty').value = 1;
     row.querySelector('#pvAddQty').classList.add('is-auto');
     row.querySelector('#pvAddPrice').value = 0;
+    row.querySelector('#pvAddDisc').value = '';
     pvAddTreatmentId = '';
     pvQtyManual = false;
     if (pvComboMenu) pvComboMenu.hidden = true;
@@ -487,6 +524,11 @@ window.pvAddSave = async function () {
     } else {
         calls.push(Object.assign({}, base, { quantity: Math.max(1, parseInt(row.querySelector('#pvAddQty').value, 10) || 1) }));
     }
+    // The row's discount, shared over its teeth (the last one takes the rounding)
+    const disc = Math.max(0, Math.round(Number(row.querySelector('#pvAddDisc').value) || 0));
+    const gross = calls.reduce((sum, c) => sum + c.unit_price * c.quantity, 0);
+    if (disc > gross) { toast('error', 'داشکاندن لە نرخی هێڵەکە (' + numberFormat(gross) + ') زیاترە'); return; }
+    if (disc > 0) pvSplit(disc, calls.map(c => c.unit_price * c.quantity)).forEach((share, k) => { calls[k].discount = share; });
     btn.disabled = true;
     let added = 0;
     try {
