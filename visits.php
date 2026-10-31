@@ -72,9 +72,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'sync_
 
 $pageTitle = 'سەردانەکان';
 $breadcrumb = [['title' => 'سەردانەکان']];
+// No title row: the page's two buttons sit at the end of the summary strip.
+$hidePageHeader = true;
+require_once __DIR__ . '/classes/Permission.php';
+$vvHeadButtons = '<a href="' . APP_URL . '/visits-report.php" class="vv-head-btn is-report" title="ڕاپۆرتی سەردانەکان"><i class="fas fa-chart-line"></i><span>ڕاپۆرت</span></a>'
+    . (Permission::getInstance()->can('page.new_visit')
+        ? '<a href="' . APP_URL . '/new_visit.php" data-new-visit-dialog class="vv-head-btn is-new"><i class="fas fa-plus"></i><span>سەردانی نوێ</span></a>'
+        : '');
 
 require_once __DIR__ . '/includes/header.php';
 require_once __DIR__ . '/includes/case-button.php';
+
+// «پلانی چارەسەر» on a checkup row (ajax/treatment_plan.php quick_plan): a doctor's
+// own plan; the admin and reception name the doctor, the visit's offered first.
+$vvCanPlan = Permission::getInstance()->can('treatment_plan.write');
+$vvPlanPickDoctor = !($isDoctor && !$isAdmin);
+$vvPlanDoctors = [];
+if ($vvCanPlan && $vvPlanPickDoctor) {
+    foreach ($auth->getDoctors() as $d) {
+        if (!empty($d['is_active'])) {
+            $vvPlanDoctors[] = ['id' => (int)$d['id'], 'name' => (string)$d['full_name']];
+        }
+    }
+}
 
 $db = Database::getInstance();
 
@@ -247,51 +267,8 @@ $countResult = $db->fetch($countQuery, $params);
 $totalVisits = $countResult['total'] ?? 0;
 $totalPages = ceil($totalVisits / $perPage);
 
-$visitDoctorSelect = $hasVisitDoctorCols
-    ? "d5.name as checkup_doctor_name, d6.name as treatment_doctor_name,"
-    : "NULL as checkup_doctor_name, NULL as treatment_doctor_name,";
-$visitDoctorJoins = $hasVisitDoctorCols
-    ? "LEFT JOIN doctors d5 ON v.checkup_doctor_id = d5.id
-       LEFT JOIN doctors d6 ON v.treatment_doctor_id = d6.id"
-    : "";
-
-// Get visits with filters and pagination
-$query = "
-    SELECT v.*,
-           $visitDoctorSelect
-           d1.name as requested_doctor_name,
-           d2.name as assigned_doctor_name,
-           d3.name as appointment_doctor_name,
-           d4.name as referring_doctor_name,
-           u.full_name as receptionist_name,
-           DATE_FORMAT(v.appointment_date, '%Y-%m-%d') as appointment,
-           pp.id           AS linked_patient_id,
-           pp.patient_code AS linked_patient_code,
-           (SELECT pmm.id FROM patients pmm WHERE pmm.phone = v.mobile_number LIMIT 1) AS phone_match_patient_id,
-           (
-              SELECT CONCAT(a.appointment_date, '|', a.appointment_time, '|', a.status, '|', COALESCE(ud.full_name, ''))
-              FROM appointments a
-              LEFT JOIN users ud ON a.doctor_id = ud.id
-              WHERE a.patient_id = v.patient_id
-                AND a.appointment_date >= CURDATE()
-                AND a.status NOT IN ('cancelled','no_show','completed')
-              ORDER BY a.appointment_date ASC, a.appointment_time ASC
-              LIMIT 1
-           ) AS upcoming_apt
-    FROM visits v
-    LEFT JOIN doctors d1 ON v.requested_doctor_id = d1.id
-    LEFT JOIN doctors d2 ON v.assigned_doctor_id = d2.id
-    LEFT JOIN doctors d3 ON v.appointment_doctor_id = d3.id
-    LEFT JOIN doctors d4 ON v.referring_doctor_id = d4.id
-    $visitDoctorJoins
-    LEFT JOIN users u ON v.receptionist_id = u.id
-    LEFT JOIN patients pp ON pp.id = v.patient_id
-    WHERE $where
-    ORDER BY v.visit_date DESC, v.arrival_time DESC
-    LIMIT $perPage OFFSET $offset
-";
-
-$visits = $db->fetchAll($query, $params);
+// The rows themselves come from ajax/ts_visits.php (renderTable() below), for
+// the first page too; the count above only seeds the pager.
 
 // Get doctors for filter dropdown
 $doctors = $db->fetchAll("SELECT id, name FROM doctors WHERE is_active = 1 ORDER BY name");
@@ -437,505 +414,10 @@ if ($show_today) {
     }
 }
 
-// Helper functions
-function formatVisitTime($time) {
-    if (empty($time)) return '-';
-    return date('h:i A', strtotime($time));
-}
-
-function formatVisitDate($date) {
-    if (empty($date)) return '-';
-    return date('Y-m-d', strtotime($date));
-}
-
-function formatVisitPrice($price, $visitType = 'checkup') {
-    if ($visitType === 'treatment') return '-';
-    return number_format((float)($price ?? 0), 2);
-}
-
-// Build pagination URL
-function buildPaginationUrl($pageNum) {
-    $params = $_GET;
-    $params['page'] = $pageNum;
-    return '?' . http_build_query($params);
-}
 ?>
 
 <style>
-/* Visits Page Styles - Matching Debts Design */
-.page-content {
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-}
-
-.visits-container {
-    width: 100%;
-    max-width: none;
-    margin: 0;
-    box-sizing: border-box;
-}
-
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-    gap: 16px;
-}
-
-.page-title {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.page-title h2 {
-    margin: 0;
-    font-size: 22px;
-    color: #1a1a1a;
-}
-
-.page-title .icon {
-    width: 50px;
-    height: 50px;
-    background: linear-gradient(135deg, #2196f3, #1976d2);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 22px;
-    box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
-}
-
-.page-actions {
-    display: flex;
-    gap: 10px;
-}
-
-.btn-add {
-    padding: 10px 20px;
-    background: linear-gradient(135deg, #4caf50, #388e3c);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 14px;
-    font-family: inherit;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    transition: all 0.2s;
-    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
-}
-
-.btn-add:hover {
-    background: linear-gradient(135deg, #388e3c, #2e7d32);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
-}
-
-/* Filters */
-.filters-section {
-    background: white;
-    border-radius: 12px;
-    padding: 16px 20px;
-    margin-bottom: 20px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-}
-
-.filters-row {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.filter-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.filter-group label {
-    font-size: 13px;
-    color: #666;
-    font-weight: 600;
-    white-space: nowrap;
-}
-
-.filter-group select,
-.filter-group input {
-    padding: 8px 12px;
-    border: 1.5px solid #e0e0e0;
-    border-radius: 6px;
-    font-size: 13px;
-    font-family: inherit;
-    min-width: 150px;
-}
-
-.filter-group select:focus,
-.filter-group input:focus {
-    border-color: #2196f3;
-    outline: none;
-}
-
-.btn-filter {
-    padding: 8px 16px;
-    background: linear-gradient(135deg, #2196f3, #1976d2);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-    font-family: inherit;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: all 0.2s;
-}
-
-.btn-filter:hover {
-    background: linear-gradient(135deg, #1976d2, #1565c0);
-}
-
-.btn-today {
-    padding: 8px 16px;
-    background: linear-gradient(135deg, #4caf50, #388e3c);
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-    font-family: inherit;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    text-decoration: none;
-    transition: all 0.2s;
-}
-
-.btn-today:hover {
-    background: linear-gradient(135deg, #388e3c, #2e7d32);
-}
-
-.btn-reset {
-    padding: 8px 16px;
-    background: #6c757d;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-    font-family: inherit;
-    text-decoration: none;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.btn-reset:hover {
-    background: #5a6268;
-}
-
-/* Visits Table */
-.visits-table-section {
-    background: white;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-}
-
-.table-header {
-    background: linear-gradient(135deg, #f5f5f5, #eeeeee);
-    padding: 16px 20px;
-    border-bottom: 2px solid #e0e0e0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.table-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: #333;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.table-count {
-    background: #2196f3;
-    color: white;
-    padding: 2px 10px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
-}
-
-.table-actions {
-    display: flex;
-    gap: 8px;
-}
-
-.btn-print {
-    padding: 8px 14px;
-    background: #607d8b;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 12px;
-    font-family: inherit;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: all 0.2s;
-}
-
-.btn-print:hover {
-    background: #546e7a;
-}
-
-/* overflow-y:clip keeps this a horizontal-only scroller, so the sticky <th>
-   below anchors to the viewport instead of this box (plain overflow-x:auto
-   would compute overflow-y:auto and kill the stick). Older browsers that
-   don't know `clip` simply drop the line and lose only the sticky header. */
-.visits-table-scroll {
-    overflow-x: auto;
-    overflow-y: clip;
-}
-
-.visits-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    font-size: 13px;
-}
-
-.visits-table thead {
-    background: transparent;
-}
-
-.visits-table th {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    padding: 11px 10px;
-    text-align: center;
-    font-weight: 700;
-    font-size: 11.5px;
-    color: #64748b;
-    background: #f8fafc;
-    border-bottom: 1px solid #e2e8f0;
-    white-space: nowrap;
-}
-
-.visits-table td {
-    padding: 9px 10px;
-    border-bottom: 1px solid #f1f5f9;
-    vertical-align: middle;
-    text-align: center;
-}
-
-.visits-table tbody tr {
-    transition: background 0.15s;
-}
-
-.visits-table tbody tr:nth-child(even) {
-    background: #fcfdfe;
-}
-
-.visits-table tbody tr:hover {
-    background: #f0f7ff;
-}
-
-.patient-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    justify-content: flex-start;
-}
-
-.patient-avatar {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #2196f3, #1976d2);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 14px;
-    flex-shrink: 0;
-}
-
-.patient-details {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    text-align: right;
-}
-
-.patient-name {
-    font-weight: 600;
-    color: #333;
-}
-
-.patient-phone {
-    font-size: 12px;
-    color: #666;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.patient-phone i {
-    color: #4caf50;
-    font-size: 11px;
-}
-
-.status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 600;
-}
-
-.status-badge.new {
-    background: #e8f5e9;
-    color: #2e7d32;
-}
-
-.status-badge.old {
-    background: #e3f2fd;
-    color: #1976d2;
-}
-
-.status-badge.treated-yes {
-    background: #e8f5e9;
-    color: #2e7d32;
-}
-
-.status-badge.treated-no {
-    background: #fff3e0;
-    color: #f57c00;
-}
-
-.status-badge.visit-checkup {
-    background: #e0f2fe;
-    color: #0369a1;
-}
-
-.status-badge.visit-treatment {
-    background: #f3e8ff;
-    color: #7e22ce;
-}
-
-.doctor-name {
-    font-size: 12px;
-    color: #555;
-}
-
-/* د. فەحس / ئیش — one merged column, thin chips with distinct backgrounds */
-.doc-chips {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    align-items: center;
-}
-.doc-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 9px;
-    border-radius: 10px;
-    font-size: 11px;
-    font-weight: 600;
-    white-space: nowrap;
-    line-height: 1.7;
-}
-.doc-chip i {
-    font-size: 9px;
-    opacity: 0.75;
-}
-.doc-chip-checkup {
-    background: #e0f2fe;
-    color: #0369a1;
-    border: 1px solid #bae6fd;
-}
-.doc-chip-treatment {
-    background: #f3e8ff;
-    color: #7e22ce;
-    border: 1px solid #e9d5ff;
-}
-
-.time-cell {
-    font-family: var(--app-font-family);
-    font-size: 12px;
-    color: #666;
-}
-
-.procedure-cell {
-    max-width: 120px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: 12px;
-}
-
-.price-cell {
-    font-family: var(--app-font-family);
-    font-size: 12px;
-    color: #444;
-    white-space: nowrap;
-}
-
-.action-buttons {
-    display: flex;
-    gap: 6px;
-    justify-content: center;
-}
-
-.btn-action {
-    padding: 6px 12px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 12px;
-    font-family: inherit;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    transition: all 0.2s;
-}
-
-.btn-edit {
-    background: #2196f3;
-    color: white;
-}
-
-.btn-edit:hover {
-    background: #1976d2;
-}
-
-.btn-delete {
-    background: #f44336;
-    color: white;
-}
-
-.btn-delete:hover {
-    background: #d32f2f;
-}
-
-/* Pagination */
+/* Modals, search suggestions, load-more / pagination (kept from the old sheet) */
 .pagination-section {
     padding: 16px 20px;
     background: #fafafa;
@@ -946,22 +428,18 @@ function buildPaginationUrl($pageNum) {
     flex-wrap: wrap;
     gap: 12px;
 }
-
 .pagination-info {
     font-size: 13px;
     color: #666;
 }
-
 .pagination-info strong {
     color: #333;
 }
-
 .pagination-controls {
     display: flex;
     gap: 4px;
     align-items: center;
 }
-
 .pagination-btn {
     padding: 8px 12px;
     border: 1px solid #e0e0e0;
@@ -977,302 +455,23 @@ function buildPaginationUrl($pageNum) {
     gap: 4px;
     transition: all 0.2s;
 }
-
 .pagination-btn:hover:not(.disabled):not(.active) {
     background: #f5f5f5;
     border-color: #2196f3;
 }
-
 .pagination-btn.active {
     background: linear-gradient(135deg, #2196f3, #1976d2);
     color: white;
     border-color: #2196f3;
 }
-
 .pagination-btn.disabled {
     opacity: 0.5;
     cursor: not-allowed;
     pointer-events: none;
 }
-
 .pagination-ellipsis {
     padding: 8px 12px;
     color: #999;
-}
-
-/* Empty State */
-.empty-state {
-    text-align: center;
-    padding: 60px 20px;
-    color: #999;
-}
-
-.empty-state i {
-    font-size: 64px;
-    color: #ddd;
-    margin-bottom: 16px;
-}
-
-.empty-state h3 {
-    font-size: 18px;
-    color: #666;
-    margin: 0 0 8px;
-}
-
-.empty-state p {
-    font-size: 14px;
-    color: #999;
-    margin: 0;
-}
-
-/* Today Stats */
-.today-stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 12px;
-    margin-bottom: 16px;
-}
-
-.today-stat-card {
-    padding: 16px;
-    border-radius: 10px;
-    color: white;
-    text-align: center;
-}
-
-.today-stat-card.stat-total {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.today-stat-card.stat-new {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-}
-
-.today-stat-card.stat-old {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-}
-
-.today-stat-label {
-    font-size: 12px;
-    opacity: 0.9;
-    margin-bottom: 4px;
-}
-
-.today-stat-value {
-    font-size: 28px;
-    font-weight: 700;
-}
-
-/* Report Table */
-.report-section {
-    background: white;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-    margin-bottom: 20px;
-}
-
-.report-header {
-    background: linear-gradient(135deg, #673ab7, #512da8);
-    padding: 14px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.report-title {
-    font-size: 15px;
-    font-weight: 700;
-    color: white;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.report-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-}
-
-.report-table thead {
-    background: #fafafa;
-}
-
-.report-table th {
-    padding: 12px 10px;
-    font-weight: 600;
-    text-align: center;
-    white-space: nowrap;
-    border-bottom: 2px solid #e0e0e0;
-}
-
-.report-table tbody tr {
-    border-bottom: 1px solid #f0f0f0;
-}
-
-.report-table tbody tr:hover {
-    background: #fafafa;
-}
-
-.report-table td {
-    padding: 12px 10px;
-    text-align: center;
-    vertical-align: middle;
-}
-
-.chip-group {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    justify-content: center;
-    max-width: 180px;
-    margin: 0 auto;
-}
-
-.chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 8px;
-    background: #f5f5f5;
-    border-radius: 6px;
-    font-size: 11px;
-    color: #333;
-}
-
-.chip-count {
-    background: #2196f3;
-    color: white;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 10px;
-    font-weight: 600;
-}
-
-/* ── Quick date ranges ───────────────────────────────────── */
-.range-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid #eef2f6;
-}
-.range-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
-    border: 1px solid #dbe3ea;
-    border-radius: 18px;
-    background: #fff;
-    color: #475569;
-    font-size: 12.5px;
-    font-weight: 600;
-    text-decoration: none;
-    transition: all 0.15s;
-}
-.range-chip i { font-size: 11px; opacity: 0.7; }
-.range-chip:hover {
-    border-color: #2196f3;
-    color: #1976d2;
-    background: #f5faff;
-}
-.range-chip.is-active {
-    background: linear-gradient(135deg, #2196f3, #1976d2);
-    border-color: #1976d2;
-    color: #fff;
-}
-.range-chip.is-active i { opacity: 1; }
-.range-dates {
-    font-size: 11.5px;
-    color: #94a3b8;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-}
-.range-dates i { font-size: 10px; }
-
-/* ── Summary strip — describes the CURRENT filter, not a fixed day ── */
-.summary-strip {
-    display: flex;
-    align-items: stretch;
-    gap: 2px;
-    flex-wrap: wrap;
-    background: #fff;
-    border: 1px solid #e8eef4;
-    border-radius: 10px;
-    padding: 4px 6px;
-    margin-bottom: 16px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-}
-.summary-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1px;
-    padding: 7px 16px;
-    border-radius: 7px;
-    min-width: 74px;
-}
-.summary-value {
-    font-size: 17px;
-    font-weight: 700;
-    color: #1e293b;
-    line-height: 1.1;
-}
-.summary-label {
-    font-size: 10.5px;
-    color: #94a3b8;
-    font-weight: 600;
-}
-.summary-sep {
-    width: 1px;
-    background: #eef2f6;
-    margin: 7px 5px;
-}
-.summary-total          { background: #eff6ff; }
-.summary-total .summary-value { color: #1d4ed8; }
-.summary-checkup .summary-value   { color: #0369a1; }
-.summary-treatment .summary-value { color: #7e22ce; }
-.summary-new .summary-value       { color: #2e7d32; }
-.summary-old .summary-value       { color: #1976d2; }
-.summary-treated .summary-value   { color: #b45309; }
-.summary-print {
-    margin-right: auto;
-    align-self: center;
-    background: none;
-    border: 1px solid #e2e8f0;
-    color: #94a3b8;
-    border-radius: 7px;
-    padding: 7px 11px;
-    cursor: pointer;
-    font-size: 13px;
-    transition: all 0.15s;
-}
-.summary-print:hover { background: #f8fafc; color: #475569; }
-
-@media (max-width: 767px) {
-    .summary-strip { justify-content: space-around; }
-    .summary-item { min-width: 62px; padding: 6px 8px; }
-    .summary-sep { display: none; }
-    .summary-print { margin-right: 0; }
-    .range-chip { flex: 1 1 calc(50% - 6px); justify-content: center; }
-    .range-dates { flex: 1 1 100%; justify-content: center; }
-}
-
-/* ── Live Search Suggestions ─────────────────────────────── */
-.search-fg { position: relative; }
-
-/* Independent search: filters visibly locked while a search term is active */
-.filter-group.filter-locked { opacity: 0.45; }
-.filter-group.filter-locked select,
-.filter-group.filter-locked input {
-    pointer-events: none;
-    background: #f3f4f6;
 }
 .visits-search-hint {
     display: block;
@@ -1281,7 +480,6 @@ function buildPaginationUrl($pageNum) {
     color: #2196f3;
     font-weight: 600;
 }
-
 .visits-suggestions-box {
     position: absolute;
     top: calc(100% + 4px);
@@ -1310,8 +508,6 @@ function buildPaginationUrl($pageNum) {
 .visits-suggestion-item .sug-icon { color: #2196f3; font-size: 12px; }
 .visits-suggestion-item .sug-name { font-weight: 600; font-size: 13px; color: #1a1a1a; flex: 1; }
 .visits-suggestion-item .sug-phone { font-size: 12px; color: #999; }
-
-/* ── Load More / Infinite Scroll ─────────────────────────── */
 #visits-load-section {
     text-align: center;
     padding: 18px 0 8px;
@@ -1330,7 +526,6 @@ function buildPaginationUrl($pageNum) {
 }
 #btn-load-more:hover { background: #2196f3; color: #fff; }
 #btn-load-more:disabled { opacity: .5; cursor: default; }
-
 #visits-spinner {
     display: flex;
     justify-content: center;
@@ -1347,124 +542,8 @@ function buildPaginationUrl($pageNum) {
     animation: ts-spin 0.7s linear infinite;
 }
 @keyframes ts-spin { to { transform: rotate(360deg); } }
-
 #visits-end-msg { color: #bbb; font-size: 13px; margin: 0; }
-
-/* ── Responsive ───────────────────────────────────────────── */
-/* Tablet (768–1024px) — refine but keep horizontal layout */
-@media (min-width: 768px) and (max-width: 1024px) {
-    .filter-group select,
-    .filter-group input { min-width: 130px; }
-    .visits-table th,
-    .visits-table td { padding: 10px 8px; font-size: 12px; }
-    .today-stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-
-/* Mobile (≤767px) */
 @media (max-width: 767px) {
-    /* Page header — title + actions stack, actions become 2-col grid */
-    .page-header {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 12px;
-        padding: 12px;
-    }
-    .page-title h2 { font-size: 18px; }
-    .page-actions {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-        width: 100%;
-    }
-    .btn-add {
-        justify-content: center;
-        padding: 11px 8px;
-        font-size: 13px;
-        min-height: 42px;
-        text-align: center;
-    }
-
-    /* Filters: stack vertically, full-width controls */
-    .filters-section { padding: 12px; }
-    .filters-row {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 10px;
-    }
-    .filter-group {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 4px;
-        width: 100%;
-    }
-    .filter-group label { font-size: 12px; }
-    .filter-group select,
-    .filter-group input {
-        width: 100%;
-        min-width: 0 !important;
-        font-size: 16px; /* prevent iOS zoom on focus */
-        padding: 10px 12px;
-        min-height: 42px;
-    }
-    .btn-filter,
-    .btn-today,
-    .btn-reset {
-        justify-content: center;
-        min-height: 42px;
-        flex: 1 1 calc(33.333% - 6px);
-        font-size: 13px;
-    }
-
-    /* Today stats: 1 column */
-    .today-stats-grid { grid-template-columns: 1fr; }
-    .today-stat-value { font-size: 24px; }
-
-    /* Table-header (title + print button) stacks */
-    .table-header {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 10px;
-        padding: 12px;
-    }
-    .table-actions {
-        width: 100%;
-        flex-wrap: wrap;
-    }
-    .btn-print {
-        flex: 1;
-        justify-content: center;
-        min-height: 38px;
-    }
-
-    /* Report header (purple bar) stacks */
-    .report-header {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 8px;
-        padding: 12px;
-    }
-
-    /* Visits table — global initResponsiveTables() converts to cards.
-       Remove the font-size shrink so card rows render at normal size. */
-    .visits-table { font-size: 13px; }
-    .visits-table th,
-    .visits-table td { padding: 8px 12px; }
-
-    /* Action buttons inside table cards: full-width grid for thumb taps */
-    .action-buttons {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 6px;
-        justify-content: stretch;
-    }
-    .btn-action {
-        padding: 9px 8px;
-        font-size: 12px;
-        justify-content: center;
-        min-height: 38px;
-    }
-
-    /* Pagination */
     .pagination-section {
         flex-direction: column;
         text-align: center;
@@ -1482,8 +561,6 @@ function buildPaginationUrl($pageNum) {
         justify-content: center;
         padding: 7px 10px;
     }
-
-    /* Search suggestions stay full-width */
     .visits-suggestions-box {
         right: 0;
         left: 0;
@@ -1492,114 +569,6 @@ function buildPaginationUrl($pageNum) {
         overflow-y: auto;
     }
 }
-
-/* Small mobile (≤480px) — tighten further */
-@media (max-width: 480px) {
-    .page-actions { grid-template-columns: 1fr; }
-    .btn-filter,
-    .btn-today,
-    .btn-reset { flex: 1 1 100%; }
-    .table-title { font-size: 14px; }
-    .visits-table th,
-    .visits-table td { padding: 6px 10px; font-size: 12px; }
-}
-
-/* Print styles */
-@media print {
-    .filters-section,
-    .page-header .page-actions,
-    .action-buttons,
-    .pagination-section,
-    .btn-print {
-        display: none !important;
-    }
-
-    .visits-table-section {
-        box-shadow: none !important;
-        border: 1px solid #ddd !important;
-    }
-}
-
-/* Add to Waiting Button */
-.btn-waiting {
-    background: linear-gradient(135deg, #9c27b0, #7b1fa2);
-    color: white;
-}
-
-.btn-waiting:hover {
-    background: linear-gradient(135deg, #7b1fa2, #6a1b9a);
-}
-
-.btn-waiting.in-waiting {
-    background: #e0e0e0;
-    color: #999;
-    cursor: not-allowed;
-}
-
-/* "Send to Waiting Room" action button (cyan) */
-.btn-to-waiting {
-    background: linear-gradient(135deg, #00bcd4, #0097a7);
-    color: white;
-}
-.btn-to-waiting:hover {
-    background: linear-gradient(135deg, #0097a7, #006064);
-}
-
-/* Sync to patients */
-.btn-sync-patient {
-    background: linear-gradient(135deg, #f44336, #c62828);
-    color: white;
-}
-.btn-sync-patient:hover {
-    background: linear-gradient(135deg, #c62828, #8e0000);
-}
-.btn-sync-patient.has-match {
-    background: linear-gradient(135deg, #ff9800, #ef6c00);
-}
-.btn-sync-patient.has-match:hover {
-    background: linear-gradient(135deg, #ef6c00, #b53d00);
-}
-.btn-view-patient {
-    background: linear-gradient(135deg, #4caf50, #2e7d32);
-    color: white;
-    text-decoration: none;
-}
-.btn-view-patient:hover {
-    background: linear-gradient(135deg, #2e7d32, #1b5e20);
-    color: white;
-}
-
-/* Share status badge inside patient cell */
-.share-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    margin-top: 4px;
-    padding: 2px 8px;
-    font-size: 10px;
-    font-weight: 600;
-    border-radius: 10px;
-    border: 1px solid;
-    white-space: nowrap;
-}
-.patient-details .visit-case-btn { margin-inline-start: 6px; vertical-align: middle; }
-.share-badge.share-linked {
-    background: #e8f5e9;
-    color: #2e7d32;
-    border-color: #a5d6a7;
-}
-.share-badge.share-match {
-    background: #fff3e0;
-    color: #ef6c00;
-    border-color: #ffcc80;
-}
-.share-badge.share-none {
-    background: #ffebee;
-    color: #c62828;
-    border-color: #ef9a9a;
-}
-
-/* Waiting Room Modal Styles */
 .waiting-modal {
     position: fixed;
     top: 0;
@@ -1616,7 +585,6 @@ function buildPaginationUrl($pageNum) {
 .waiting-modal.open {
     display: flex;
 }
-
 .waiting-modal-content {
     background: white;
     border-radius: 16px;
@@ -1625,7 +593,6 @@ function buildPaginationUrl($pageNum) {
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     animation: modalSlideIn 0.3s ease;
 }
-
 @keyframes modalSlideIn {
     from {
         opacity: 0;
@@ -1636,13 +603,11 @@ function buildPaginationUrl($pageNum) {
         transform: translateY(0);
     }
 }
-
 .waiting-modal-header {
     text-align: center;
     padding: 24px 24px 16px;
     border-bottom: 1px solid #f0f0f0;
 }
-
 .waiting-modal-icon {
     width: 60px;
     height: 60px;
@@ -1654,40 +619,32 @@ function buildPaginationUrl($pageNum) {
     margin: 0 auto 16px;
     box-shadow: 0 4px 15px rgba(156, 39, 176, 0.3);
 }
-
 .waiting-modal-icon i {
     font-size: 28px;
     color: white;
 }
-
 .waiting-modal-header h3 {
     margin: 0 0 8px;
     font-size: 18px;
     color: #333;
 }
-
 .waiting-modal-header p {
     margin: 0;
     color: #666;
     font-size: 14px;
 }
-
 .waiting-modal-header strong {
     color: #9c27b0;
 }
-
 .waiting-modal-body {
     padding: 20px 24px;
 }
-
 .waiting-form-group {
     margin-bottom: 16px;
 }
-
 .waiting-form-group:last-child {
     margin-bottom: 0;
 }
-
 .waiting-form-group label {
     display: block;
     font-size: 13px;
@@ -1695,12 +652,10 @@ function buildPaginationUrl($pageNum) {
     color: #555;
     margin-bottom: 8px;
 }
-
 .waiting-form-group label i {
     margin-left: 6px;
     color: #888;
 }
-
 .waiting-form-group select,
 .waiting-form-group textarea {
     width: 100%;
@@ -1711,28 +666,23 @@ function buildPaginationUrl($pageNum) {
     font-family: inherit;
     transition: all 0.2s;
 }
-
 .waiting-form-group select:focus,
 .waiting-form-group textarea:focus {
     border-color: #9c27b0;
     outline: none;
     box-shadow: 0 0 0 3px rgba(156, 39, 176, 0.1);
 }
-
 .priority-options {
     display: flex;
     gap: 10px;
 }
-
 .priority-option {
     flex: 1;
     cursor: pointer;
 }
-
 .priority-option input {
     display: none;
 }
-
 .priority-label {
     display: block;
     padding: 10px;
@@ -1743,41 +693,33 @@ function buildPaginationUrl($pageNum) {
     font-weight: 600;
     transition: all 0.2s;
 }
-
 .priority-label.normal {
     color: #4caf50;
 }
-
 .priority-label.important {
     color: #ff9800;
 }
-
 .priority-label.urgent {
     color: #f44336;
 }
-
 .priority-option input:checked + .priority-label.normal {
     background: #e8f5e9;
     border-color: #4caf50;
 }
-
 .priority-option input:checked + .priority-label.important {
     background: #fff3e0;
     border-color: #ff9800;
 }
-
 .priority-option input:checked + .priority-label.urgent {
     background: #ffebee;
     border-color: #f44336;
 }
-
 .waiting-modal-footer {
     display: flex;
     gap: 12px;
     padding: 16px 24px 24px;
     border-top: 1px solid #f0f0f0;
 }
-
 .waiting-modal-footer button {
     flex: 1;
     padding: 12px 16px;
@@ -1793,26 +735,21 @@ function buildPaginationUrl($pageNum) {
     transition: all 0.2s;
     font-family: inherit;
 }
-
 .btn-skip {
     background: #f5f5f5;
     color: #666;
 }
-
 .btn-skip:hover {
     background: #e0e0e0;
 }
-
 .btn-add-waiting {
     background: linear-gradient(135deg, #9c27b0, #7b1fa2);
     color: white;
     box-shadow: 0 3px 10px rgba(156, 39, 176, 0.3);
 }
-
 .btn-add-waiting:hover {
     background: linear-gradient(135deg, #7b1fa2, #6a1b9a);
 }
-
 @media (max-width: 500px) {
     .waiting-modal-footer {
         flex-direction: column;
@@ -1820,6 +757,220 @@ function buildPaginationUrl($pageNum) {
     .priority-options {
         flex-direction: column;
     }
+}
+
+/* ══ سەردانەکان — layout (vv-*) ═══════════════════════════════════════
+   One toolbar, one summary strip, one classic table. Tight on purpose:
+   a desk screen shows a full page of visits; a phone shows each as a card. */
+.vv { --vv-line: #e6eaef; --vv-head: #f4f6f9; --vv-ink: #1e293b; --vv-mute: #64748b; --vv-accent: var(--win-accent, #0078d4);
+      display: flex; flex-direction: column; gap: 10px; color: var(--vv-ink); }
+.vv-muted { color: #94a3b8; font-weight: 400; }
+
+/* Title-row buttons (in the app's page header) */
+.vv-head-btn { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: 8px;
+               font-size: 13px; font-weight: 700; text-decoration: none; color: #fff; white-space: nowrap; }
+.vv-head-btn.is-new { background: #16a34a; }
+.vv-head-btn.is-new:hover { background: #15803d; color: #fff; }
+.vv-head-btn.is-report { background: #fff; color: #5b21b6; border: 1px solid #ddd6fe; }
+.vv-head-btn.is-report:hover { background: #f5f3ff; color: #4c1d95; }
+
+/* Toolbar */
+.vv-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; background: #fff;
+              border: 1px solid var(--vv-line); border-radius: 10px; }
+.vv-search { position: relative; flex: 1 1 190px; min-width: 170px; }
+.vv-search > i { position: absolute; top: 50%; inset-inline-start: 11px; transform: translateY(-50%); color: #94a3b8; font-size: 13px; pointer-events: none; }
+.vv-search input { width: 100%; height: 36px; padding: 0 34px 0 10px; padding-inline-start: 34px; padding-inline-end: 10px;
+                   border: 1px solid #d5dbe3; border-radius: 8px; font: inherit; font-size: 13.5px; background: #fbfcfd; }
+.vv-search input:focus { outline: none; border-color: var(--vv-accent); background: #fff; box-shadow: 0 0 0 3px rgba(0, 120, 212, .12); }
+.vv-dates { display: flex; gap: 6px; }
+.vv-date { display: flex; align-items: center; height: 36px; border: 1px solid #d5dbe3; border-radius: 8px; overflow: hidden; background: #fbfcfd; margin: 0; }
+.vv-date span { padding: 0 9px; font-size: 12px; font-weight: 700; color: var(--vv-mute); background: var(--vv-head); align-self: stretch; display: flex; align-items: center; border-inline-end: 1px solid #e2e8f0; }
+.vv-date input { border: 0; height: 100%; padding: 0 8px; font: inherit; font-size: 13px; background: transparent; width: 122px; }
+.vv-date input:focus { outline: none; }
+.vv-ranges { display: flex; border: 1px solid #d5dbe3; border-radius: 8px; overflow: hidden; height: 36px; }
+.vv-range { display: flex; align-items: center; padding: 0 11px; font-size: 12.5px; font-weight: 600; color: #475569; text-decoration: none; white-space: nowrap; background: #fff; }
+.vv-range + .vv-range { border-inline-start: 1px solid #e2e8f0; }
+.vv-range:hover { background: #f1f5f9; color: var(--vv-ink); }
+.vv-range.is-active { background: var(--vv-accent); color: #fff; }
+.vv-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid #d5dbe3;
+          border-radius: 8px; background: #fff; color: #334155; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; }
+.vv-btn:hover { background: #f1f5f9; color: var(--vv-ink); }
+.vv-btn[aria-expanded="true"] { background: #eef6fc; border-color: #9cc7ec; color: #005a9e; }
+.vv-btn.vv-icon { width: 36px; padding: 0; }
+.vv-badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--vv-accent); color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
+.vv-badge:empty { display: none; }
+.vv-filters { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; border-top: 1px dashed var(--vv-line); }
+.vv-filters[hidden] { display: none; }
+.vv-field { display: flex; align-items: center; height: 34px; border: 1px solid #d5dbe3; border-radius: 8px; overflow: hidden; background: #fff; margin: 0; }
+.vv-field span { padding: 0 9px; font-size: 12px; font-weight: 700; color: var(--vv-mute); background: var(--vv-head); align-self: stretch; display: flex; align-items: center; border-inline-end: 1px solid #e2e8f0; }
+.vv-field select { border: 0; height: 100%; padding: 0 8px; font: inherit; font-size: 13px; background: transparent; min-width: 120px; }
+.vv-field select:focus { outline: none; }
+.vv-lockable.is-locked { opacity: .45; pointer-events: none; }
+.vv-toolbar .visits-search-hint { flex-basis: 100%; margin: 0; }
+
+/* Summary strip */
+.vv-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; padding: 6px 10px; background: #fff; border: 1px solid var(--vv-line); border-radius: 10px; transition: opacity .15s; }
+.vv-stat { display: inline-flex; align-items: baseline; gap: 5px; padding: 3px 9px; border-radius: 7px; font-size: 12.5px; color: var(--vv-mute); white-space: nowrap; }
+.vv-stat b { font-size: 15px; font-weight: 800; color: var(--vv-ink); font-variant-numeric: tabular-nums; }
+.vv-stat.is-total { background: #eef6fc; } .vv-stat.is-total b { color: #005a9e; }
+.vv-stat.is-checkup b { color: #0369a1; } .vv-stat.is-treatment b { color: #7c3aed; }
+.vv-stat.is-new b { color: #15803d; } .vv-stat.is-old b { color: #b45309; } .vv-stat.is-treated b { color: #0f766e; }
+.vv-sep { width: 1px; height: 18px; background: var(--vv-line); }
+.vv-summary-actions, .vv-tool-actions { margin-inline-start: auto; display: flex; align-items: center; gap: 6px; }
+.vv-tool-actions { display: none; }
+.vv-print, .vv-summary-actions .vv-head-btn { height: 32px; }
+.vv-tool-actions .vv-head-btn { height: 36px; }
+.vv-tool-actions .vv-head-btn.is-report { width: 36px; }
+.vv-print { width: 32px; }
+
+/* Doctors' report (folded) */
+.vv-report { background: #fff; border: 1px solid var(--vv-line); border-radius: 10px; overflow: hidden; }
+.vv-report > summary { cursor: pointer; padding: 9px 12px; font-size: 13px; font-weight: 700; list-style: none; display: flex; align-items: center; gap: 8px; }
+.vv-report > summary::-webkit-details-marker { display: none; }
+.vv-report > summary::after { content: ''; width: 7px; height: 7px; border: solid #94a3b8; border-width: 0 2px 2px 0; transform: rotate(45deg); margin-inline-start: auto; transition: transform .2s; }
+.vv-report[open] > summary::after { transform: rotate(-135deg); }
+.vv-report[open] > summary { border-bottom: 1px solid var(--vv-line); }
+.vv-tag { display: inline-flex; gap: 4px; margin: 1px 2px; padding: 1px 7px; border-radius: 6px; background: #f1f5f9; font-size: 11.5px; white-space: nowrap; }
+
+/* The table — classic: ruled, striped, sticky head, one or two lines a row */
+.vv-card { background: #fff; border: 1px solid var(--vv-line); border-radius: 10px; }
+.vv-results { transition: opacity .15s; }
+.vv-scroll { overflow-x: auto; }
+.vv-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.vv-table th { position: sticky; top: 0; z-index: 2; background: var(--vv-head); color: #334155; font-size: 12px; font-weight: 800; text-align: start;
+               padding: 8px 6px; border-bottom: 1px solid #d9e0e8; white-space: nowrap; }
+.vv-table th:first-child { border-start-start-radius: 10px; }
+.vv-table th:last-child { border-start-end-radius: 10px; }
+.vv-table td { padding: 6px; border-bottom: 1px solid #eef1f4; vertical-align: middle; line-height: 1.45; }
+.vv-table tbody tr:nth-child(even) td { background: #fafbfc; }
+.vv-table tbody tr:hover td { background: #f2f8fe; }
+.vv-table tbody tr:last-child td { border-bottom: 0; }
+.vv-table .c-no { width: 1%; color: #94a3b8; font-size: 12px; text-align: center; font-variant-numeric: tabular-nums;
+                  border-inline-start: 3px solid transparent; }
+.vv-table tr.is-checkup .c-no { border-inline-start-color: #38bdf8; }
+.vv-table tr.is-treatment .c-no { border-inline-start-color: #a78bfa; }
+.vv-num { text-align: center; font-variant-numeric: tabular-nums; }
+.vv-sub { display: block; font-size: 11.5px; color: var(--vv-mute); white-space: nowrap; }
+
+.vv-pt { display: flex; align-items: center; gap: 8px; min-width: 150px; }
+.vv-name { font-weight: 700; color: var(--vv-ink); white-space: nowrap; }
+.vv-link { flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 9.5px; color: #fff; }
+.vv-link.is-linked { background: #16a34a; }
+.vv-link.is-match { background: #f59e0b; }
+.vv-link.is-none { background: #cbd5e1; }
+
+.vv-chip { display: inline-block; padding: 1px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 700; white-space: nowrap; margin: 1px 0; }
+.vv-chip.is-checkup { background: #e0f2fe; color: #0369a1; }
+.vv-chip.is-treatment { background: #ede9fe; color: #6d28d9; }
+.vv-chip.is-new { background: #dcfce7; color: #15803d; }
+.vv-chip.is-old { background: #fef3c7; color: #b45309; }
+.vv-chip.is-treated { background: #ccfbf1; color: #0f766e; }
+.vv-doc { font-weight: 600; }
+.vv-table .c-doc { min-width: 110px; max-width: 160px; }
+.vv-table .c-work { max-width: 190px; }
+.vv-table .c-doc .vv-sub, .vv-table .c-work .vv-sub { white-space: normal; }
+.vv-work { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.vv-price { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+.vv-apt { display: inline-flex; flex-direction: column; padding: 2px 6px; border-radius: 7px; font-size: 11px; font-weight: 700; white-space: nowrap;
+          color: var(--c, #16a34a); background: color-mix(in srgb, var(--c, #16a34a) 10%, #fff); border: 1px solid color-mix(in srgb, var(--c, #16a34a) 35%, #fff); }
+.vv-apt small { font-weight: 500; opacity: .85; }
+
+.vv-actions { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
+.vv-act { width: 30px; height: 30px; border: 1px solid #e2e8f0; border-radius: 7px; background: #fff; color: #475569; display: inline-flex;
+          align-items: center; justify-content: center; cursor: pointer; font-size: 13px; text-decoration: none; }
+.vv-act:hover { background: #f1f5f9; color: var(--vv-ink); }
+.vv-act.is-waiting:hover { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.vv-act.is-link { color: #b45309; border-color: #fde68a; background: #fffbeb; }
+.vv-act.is-more.is-open { background: #e2e8f0; }
+.vv-actions .case-go-btn { height: 30px; }
+.vv-actions .plan-go-btn { height: 30px; font-size: 12px; }
+
+.vv-menu { position: fixed; z-index: 3000; min-width: 210px; padding: 6px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+           box-shadow: 0 12px 32px rgba(15, 23, 42, .16); direction: rtl; }
+.vv-menu[hidden] { display: none; }
+.vv-menu button, .vv-menu a { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 7px 10px; border: 0; border-radius: 7px;
+           background: none; font: inherit; font-size: 13px; color: var(--vv-ink); text-align: start; cursor: pointer; text-decoration: none; }
+.vv-menu button:hover, .vv-menu a:hover { background: #f1f5f9; }
+.vv-menu i { width: 18px; text-align: center; color: #64748b; }
+.vv-menu .is-danger, .vv-menu .is-danger i { color: #dc2626; }
+.vv-menu hr { border: 0; border-top: 1px solid #eef1f4; margin: 4px 2px; }
+
+.vv-loading, .vv-empty { padding: 34px 12px; text-align: center; color: #94a3b8; font-size: 13.5px; }
+.vv-empty i { display: block; font-size: 28px; margin-bottom: 8px; color: #cbd5e1; }
+.vv-empty b { display: block; color: #475569; margin-bottom: 3px; }
+
+/* The breakpoints follow the page's own width (container queries), not the
+   screen's: an open or closed sidebar changes the room the table really has. */
+.vv { container: vv / inline-size; }
+.vv-pt-meta, .vv-when-line { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; }
+.vv-table .vv-chip { font-size: 10.5px; padding: 0 6px; margin: 0; }
+/* A tight table breaks the time after «→» instead of pushing the table wider */
+.vv-table .vv-when-time { white-space: normal; }
+.vv-when-time > span { white-space: nowrap; }
+
+/* Narrower desks: no «#», «کەیس» and «پلان» are icon-only */
+@container vv (max-width: 1000px) {
+    .vv-scroll-main { overflow-x: auto; }
+    .vv-table th { position: static; }
+    .vv-results .vv-table .c-no { display: none; }
+    .vv-results .vv-table tr.is-checkup .c-patient { box-shadow: inset -3px 0 0 #38bdf8; }
+    .vv-results .vv-table tr.is-treatment .c-patient { box-shadow: inset -3px 0 0 #a78bfa; }
+    .vv-actions .case-go-btn span, .vv-actions .plan-go-btn span { display: none; }
+    .vv-actions .plan-go-btn { width: 30px; padding: 0; }
+    .vv-toolbar { gap: 6px; }
+    .vv-search { flex-basis: 140px; min-width: 140px; }
+    .vv-range { padding: 0 9px; }
+    .vv-head-btn.is-report { width: 34px; padding: 0; justify-content: center; }
+    .vv-head-btn.is-report span { display: none; }
+}
+
+/* Tablets and phones: each visit is a card, as many side by side as fit */
+@container vv (max-width: 820px) {
+    .vv-results .vv-table thead { display: none; }
+    .vv-results .vv-table { display: block; }
+    .vv-results .vv-table tbody { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; padding: 8px; }
+    .vv-results .vv-table tr { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; padding: 10px 12px;
+                               align-content: start; border: 1px solid var(--vv-line); border-inline-start: 3px solid #cbd5e1; border-radius: 9px; background: #fff; }
+    .vv-results .vv-table tr.is-checkup { border-inline-start-color: #38bdf8; }
+    .vv-results .vv-table tr.is-treatment { border-inline-start-color: #a78bfa; }
+    .vv-results .vv-table td { display: block; padding: 0; border: 0; background: none !important; box-shadow: none !important; min-width: 0; max-width: none; }
+    .vv-results .vv-table td.c-patient { grid-column: 1 / -1; padding-inline-end: 118px; min-height: 34px; }
+    .vv-results .vv-table td.c-act { position: absolute; top: 9px; inset-inline-end: 10px; }
+    .vv-results .vv-table td[data-label]::before { content: attr(data-label); display: block; color: #94a3b8; font-size: 10.5px; font-weight: 700; margin-bottom: 1px; }
+    .vv-results .vv-table td.is-empty { display: none; }
+    .vv-results .vv-table td.c-work { grid-column: 1 / -1; }
+    .vv-results .vv-table .vv-sub { white-space: normal; }
+    .vv-name { white-space: normal; }
+    .vv-work { max-width: none; white-space: normal; }
+    .vv-pt { min-width: 0; }
+    .vv-card { background: #f6f8fa; }
+    .vv-tool-actions { display: flex; }
+    .vv-summary-actions .vv-head-btn { display: none; }
+}
+
+/* Phones: the toolbar stacks, the numbers wrap */
+@container vv (max-width: 640px) {
+    .vv-toolbar { padding: 8px; }
+    .vv-search { flex-basis: 100%; }
+    .vv-dates { flex: 1 1 100%; }
+    .vv-date { flex: 1; }
+    .vv-date input { width: 100%; min-width: 0; }
+    .vv-ranges { flex: 1 1 auto; }
+    .vv-range { flex: 1; justify-content: center; padding: 0 6px; }
+    .vv-filters .vv-field { flex: 1 1 calc(50% - 4px); }
+    .vv-field select { min-width: 0; width: 100%; }
+    .vv-sep, .vv-print { display: none; }
+    .vv-tool-actions { order: -1; flex-basis: 100%; margin: 0; }
+    .vv-tool-actions .vv-head-btn { flex: 1; width: auto; padding: 0 12px; justify-content: center; height: 36px; }
+    .vv-head-btn.is-report span { display: inline; }
+    .vv-stat { padding: 2px 6px; }
+    .vv-results .vv-table tbody { padding: 6px; gap: 6px; }
+}
+
+@media print {
+    .vv-toolbar, .vv-actions, .vv-print, .c-act, #visits-load-section, .pagination-section, .vv-head-btn { display: none !important; }
+    .vv-card, .vv-summary { border: 0; }
+    .vv-table th { position: static; }
 }
 </style>
 
@@ -1844,472 +995,137 @@ function buildPaginationUrl($pageNum) {
 </div>
 <?php endif; ?>
 
-<div class="visits-container">
-    <!-- Page Header -->
-    <div class="page-header">
-        <div class="page-title">
-            <div class="icon"><i class="fas fa-calendar-check"></i></div>
-            <div>
-                <h2>سەردانەکان</h2>
-                <small style="color: #888;">بەڕێوەبردنی سەردانی نەخۆشەکان</small>
-            </div>
+<div class="vv">
+    <!-- Toolbar: search · dates · quick ranges · the rest of the filters behind «فلتەر» -->
+    <form method="GET" action="" id="visits-filter-form" class="vv-toolbar" autocomplete="off">
+        <div class="vv-search">
+            <i class="fas fa-search"></i>
+            <input type="search" id="visits-search-input" name="search" value="<?= htmlspecialchars($search) ?>"
+                   placeholder="گەڕان بە ناو یان ژمارەی مۆبایل..." autocomplete="off" aria-label="گەڕان">
+            <div id="visits-suggestions" class="visits-suggestions-box" style="display:none;"></div>
         </div>
-        <div class="page-actions">
-            <a href="<?= APP_URL ?>/visits-report.php" class="btn-add" style="background: linear-gradient(135deg, #7c3aed, #5b21b6); border-color: #7c3aed;">
-                <i class="fas fa-chart-line"></i>
-                ڕاپۆرت
-            </a>
-            <?php if ($permission->can('page.new_visit')): ?>
-            <a href="<?= APP_URL ?>/new_visit.php" data-new-visit-dialog class="btn-add">
-                <i class="fas fa-plus"></i>
-                سەردانی نوێ
-            </a>
-            <?php endif; ?>
+
+        <div class="vv-dates vv-lockable">
+            <label class="vv-date"><span>لە</span><input type="date" name="date_from" value="<?= htmlspecialchars($date_from) ?>"></label>
+            <label class="vv-date"><span>بۆ</span><input type="date" name="date_to" value="<?= htmlspecialchars($date_to) ?>"></label>
         </div>
-    </div>
 
-    <!-- Filters -->
-    <div class="filters-section">
-        <form method="GET" action="" id="visits-filter-form">
-            <div class="filters-row">
-                <div class="filter-group search-fg">
-                    <label><i class="fas fa-search"></i> گەڕان:</label>
-                    <input type="text" id="visits-search-input" name="search" value="<?= htmlspecialchars($search) ?>" placeholder="ناو یان ژمارەی مۆبایل..." autocomplete="off">
-                    <div id="visits-suggestions" class="visits-suggestions-box" style="display:none;"></div>
-                    <small id="visits-search-hint" class="visits-search-hint" style="display:none;"><i class="fas fa-globe"></i> گەڕان لە هەموو سەردانەکاندایە — فلتەرەکان ناچالاکن</small>
-                </div>
-
-                <div class="filter-group">
-                    <label><i class="fas fa-calendar"></i> لە:</label>
-                    <input type="date" name="date_from" value="<?= htmlspecialchars($date_from) ?>">
-                </div>
-
-                <div class="filter-group">
-                    <label><i class="fas fa-calendar-check"></i> بۆ:</label>
-                    <input type="date" name="date_to" value="<?= htmlspecialchars($date_to) ?>">
-                </div>
-
-                <div class="filter-group">
-                    <label><i class="fas fa-user-md"></i> دکتۆر:</label>
-                <?php if (!$isDoctor): ?>
-                    <select name="doctor">
-                        <option value="">هەموو</option>
-                        <?php foreach ($doctors as $doctor): ?>
-                            <option value="<?= $doctor['id'] ?>" <?= $doctor_filter == $doctor['id'] ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($doctor['name']) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                <?php endif; ?>
-                </div>
-
-                <div class="filter-group">
-                    <label><i class="fas fa-user-tag"></i> بەپێی:</label>
-                    <select name="doctor_field">
-                        <option value="">هەموو ڕۆڵەکان</option>
-                        <option value="assigned" <?= $doctor_field_filter === 'assigned' ? 'selected' : '' ?>>د. بینراو</option>
-                        <?php if ($hasVisitDoctorCols): ?>
-                        <option value="checkup" <?= $doctor_field_filter === 'checkup' ? 'selected' : '' ?>>د. فەحس</option>
-                        <option value="treatment" <?= $doctor_field_filter === 'treatment' ? 'selected' : '' ?>>د. ئیش</option>
-                        <?php endif; ?>
-                    </select>
-                </div>
-
-                <div class="filter-group">
-                    <label><i class="fas fa-toggle-on"></i> دۆخ:</label>
-                    <select name="status">
-                        <option value="">هەموو</option>
-                        <option value="new" <?= $status_filter === 'new' ? 'selected' : '' ?>>نوێ</option>
-                        <option value="old" <?= $status_filter === 'old' ? 'selected' : '' ?>>کۆن</option>
-                    </select>
-                </div>
-
-                <div class="filter-group">
-                    <label><i class="fas fa-notes-medical"></i> جۆری نەخۆش:</label>
-                    <select name="visit_type">
-                        <option value="">هەموو</option>
-                        <option value="checkup" <?= $visit_type_filter === 'checkup' ? 'selected' : '' ?>>پشکنین</option>
-                        <option value="treatment" <?= $visit_type_filter === 'treatment' ? 'selected' : '' ?>>ئیش</option>
-                    </select>
-                </div>
-
-                <button type="submit" class="btn-filter">
-                    <i class="fas fa-filter"></i>
-                    فلتەر
-                </button>
-                <a href="<?= APP_URL ?>/visits.php" class="btn-reset">
-                    <i class="fas fa-undo"></i>
-                    ڕیسێت
-                </a>
-            </div>
-
-            <!-- Quick ranges — plain links so they survive a reload/bookmark -->
-            <div class="range-row">
-                <?php
-                $ranges = [
-                    'today'     => ['ئەمڕۆ', 'fa-calendar-day'],
-                    'yesterday' => ['دوێنێ', 'fa-calendar-minus'],
-                    'week'      => ['ئەم هەفتەیە', 'fa-calendar-week'],
-                    'month'     => ['ئەم مانگە', 'fa-calendar-alt'],
-                ];
-                foreach ($ranges as $key => [$label, $icon]):
-                ?>
-                    <a href="<?= APP_URL ?>/visits.php?range=<?= $key ?>"
-                       class="range-chip <?= $range_filter === $key ? 'is-active' : '' ?>">
-                        <i class="fas <?= $icon ?>"></i> <?= $label ?>
-                    </a>
-                <?php endforeach; ?>
-                <?php if ($range_filter !== ''): ?>
-                    <span class="range-dates">
-                        <i class="fas fa-arrow-left"></i>
-                        <?= htmlspecialchars($range_from) ?><?= $range_to !== $range_from ? ' — ' . htmlspecialchars($range_to) : '' ?>
-                    </span>
-                <?php endif; ?>
-            </div>
-        </form>
-    </div>
-
-    <!-- Summary of whatever is currently filtered -->
-    <?php if (!empty($summary_stats)): ?>
-    <div class="summary-strip">
-        <div class="summary-item summary-total">
-            <span class="summary-value" data-summary="total_visits"><?= (int)$summary_stats['total_visits'] ?></span>
-            <span class="summary-label">کۆی سەردان</span>
+        <!-- Quick ranges — plain links so they survive a reload/bookmark -->
+        <div class="vv-ranges vv-lockable" role="group" aria-label="ماوەی خێرا">
+            <?php
+            $ranges = ['today' => 'ئەمڕۆ', 'yesterday' => 'دوێنێ', 'week' => 'ئەم هەفتەیە', 'month' => 'ئەم مانگە'];
+            foreach ($ranges as $key => $label):
+            ?>
+            <a href="<?= APP_URL ?>/visits.php?range=<?= $key ?>" class="vv-range <?= $range_filter === $key ? 'is-active' : '' ?>"><?= $label ?></a>
+            <?php endforeach; ?>
         </div>
-        <div class="summary-item">
-            <span class="summary-value" data-summary="unique_patients"><?= (int)$summary_stats['unique_patients'] ?></span>
-            <span class="summary-label">نەخۆش</span>
-        </div>
-        <div class="summary-sep"></div>
-        <div class="summary-item summary-checkup">
-            <span class="summary-value" data-summary="checkup_visits"><?= (int)$summary_stats['checkup_visits'] ?></span>
-            <span class="summary-label">پشکنین</span>
-        </div>
-        <div class="summary-item summary-treatment">
-            <span class="summary-value" data-summary="treatment_visits"><?= (int)$summary_stats['treatment_visits'] ?></span>
-            <span class="summary-label">ئیش</span>
-        </div>
-        <div class="summary-sep"></div>
-        <div class="summary-item summary-new">
-            <span class="summary-value" data-summary="new_patients"><?= (int)$summary_stats['new_patients'] ?></span>
-            <span class="summary-label">نوێ</span>
-        </div>
-        <div class="summary-item summary-old">
-            <span class="summary-value" data-summary="old_patients"><?= (int)$summary_stats['old_patients'] ?></span>
-            <span class="summary-label">کۆن</span>
-        </div>
-        <div class="summary-item summary-treated">
-            <span class="summary-value" data-summary="treated_visits"><?= (int)$summary_stats['treated_visits'] ?></span>
-            <span class="summary-label">چارەسەرکراو</span>
-        </div>
-        <button type="button" onclick="window.print()" class="summary-print" title="چاپکردن">
-            <i class="fas fa-print"></i>
+
+        <?php
+        $vvActiveFilters = (!$isDoctor && $doctor_filter !== '' && $doctor_filter !== null ? 1 : 0)
+            + ($doctor_field_filter !== '' ? 1 : 0) + ($status_filter !== '' ? 1 : 0) + ($visit_type_filter !== '' ? 1 : 0);
+        ?>
+        <button type="button" class="vv-btn" id="vvFiltersBtn" aria-expanded="<?= $vvActiveFilters ? 'true' : 'false' ?>" aria-controls="vvFilters">
+            <i class="fas fa-sliders-h"></i> فلتەر
+            <span class="vv-badge" id="vvFilterCount"><?= $vvActiveFilters ?: '' ?></span>
         </button>
-    </div>
-    <?php endif; ?>
+        <a href="<?= APP_URL ?>/visits.php" class="vv-btn vv-icon" title="پاککردنەوەی فلتەرەکان"><i class="fas fa-undo"></i></a>
+        <div class="vv-tool-actions"><?= $vvHeadButtons ?></div>
 
-    <!-- Doctor's Report -->
-    <?php if (!empty($doctors_report)): ?>
-    <div class="report-section">
-        <div class="report-header">
-            <div class="report-title">
-                <i class="fas fa-user-md"></i>
-                ڕاپۆرتی دکتۆرەکان - <?= date('d-m-Y') ?>
-            </div>
+        <div class="vv-filters vv-lockable" id="vvFilters" <?= $vvActiveFilters ? '' : 'hidden' ?>>
+            <?php if (!$isDoctor): ?>
+            <label class="vv-field"><span>دکتۆر</span>
+                <select name="doctor">
+                    <option value="">هەموو</option>
+                    <?php foreach ($doctors as $doctor): ?>
+                    <option value="<?= $doctor['id'] ?>" <?= $doctor_filter == $doctor['id'] ? 'selected' : '' ?>><?= htmlspecialchars($doctor['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+            <?php endif; ?>
+            <label class="vv-field"><span>بەپێی</span>
+                <select name="doctor_field">
+                    <option value="">هەموو ڕۆڵەکان</option>
+                    <option value="assigned" <?= $doctor_field_filter === 'assigned' ? 'selected' : '' ?>>د. بینراو</option>
+                    <?php if ($hasVisitDoctorCols): ?>
+                    <option value="checkup" <?= $doctor_field_filter === 'checkup' ? 'selected' : '' ?>>د. فەحس</option>
+                    <option value="treatment" <?= $doctor_field_filter === 'treatment' ? 'selected' : '' ?>>د. ئیش</option>
+                    <?php endif; ?>
+                </select>
+            </label>
+            <label class="vv-field"><span>دۆخ</span>
+                <select name="status">
+                    <option value="">هەموو</option>
+                    <option value="new" <?= $status_filter === 'new' ? 'selected' : '' ?>>نوێ</option>
+                    <option value="old" <?= $status_filter === 'old' ? 'selected' : '' ?>>کۆن</option>
+                </select>
+            </label>
+            <label class="vv-field"><span>جۆر</span>
+                <select name="visit_type">
+                    <option value="">هەموو</option>
+                    <option value="checkup" <?= $visit_type_filter === 'checkup' ? 'selected' : '' ?>>پشکنین</option>
+                    <option value="treatment" <?= $visit_type_filter === 'treatment' ? 'selected' : '' ?>>ئیش</option>
+                </select>
+            </label>
         </div>
-        <div style="overflow-x: auto;">
-            <table class="report-table">
+        <small id="visits-search-hint" class="visits-search-hint" style="display:none;"><i class="fas fa-globe"></i> گەڕان لە هەموو سەردانەکاندایە — بەروار و فلتەرەکان ناچالاکن</small>
+    </form>
+
+    <!-- Summary of whatever is currently filtered (numbers swapped in by the live search) -->
+    <div class="vv-summary summary-strip">
+        <?php if (!empty($summary_stats)): ?>
+        <span class="vv-stat is-total"><b data-summary="total_visits"><?= (int)$summary_stats['total_visits'] ?></b> سەردان</span>
+        <span class="vv-stat"><b data-summary="unique_patients"><?= (int)$summary_stats['unique_patients'] ?></b> نەخۆش</span>
+        <i class="vv-sep"></i>
+        <span class="vv-stat is-checkup"><b data-summary="checkup_visits"><?= (int)$summary_stats['checkup_visits'] ?></b> پشکنین</span>
+        <span class="vv-stat is-treatment"><b data-summary="treatment_visits"><?= (int)$summary_stats['treatment_visits'] ?></b> ئیش</span>
+        <i class="vv-sep"></i>
+        <span class="vv-stat is-new"><b data-summary="new_patients"><?= (int)$summary_stats['new_patients'] ?></b> نوێ</span>
+        <span class="vv-stat is-old"><b data-summary="old_patients"><?= (int)$summary_stats['old_patients'] ?></b> کۆن</span>
+        <span class="vv-stat is-treated"><b data-summary="treated_visits"><?= (int)$summary_stats['treated_visits'] ?></b> چارەسەرکراو</span>
+        <?php endif; ?>
+        <div class="vv-summary-actions">
+            <button type="button" class="vv-btn vv-icon vv-print" onclick="window.print()" title="چاپکردن"><i class="fas fa-print"></i></button>
+            <?= $vvHeadButtons ?>
+        </div>
+    </div>
+
+    <!-- Doctor's report — folded, it is a summary of the day, not the list -->
+    <?php if (!empty($doctors_report)): ?>
+    <details class="vv-report">
+        <summary><i class="fas fa-user-md"></i> ڕاپۆرتی دکتۆرەکان <span class="vv-muted">— <?= date('Y-m-d') ?> · <?= count($doctors_report) ?> دکتۆر</span></summary>
+        <div class="vv-scroll">
+            <table class="vv-table vv-report-table no-responsive">
                 <thead>
-                    <tr>
-                        <th>دکتۆر</th>
-                        <th>کۆی گشتی</th>
-                        <th>داواکراو</th>
-                        <th>بینراو</th>
-                        <th>نوێ</th>
-                        <th>کۆن</th>
-                        <th>نیشەکان</th>
-                        <th>سەرچاوەکان</th>
-                    </tr>
+                    <tr><th>دکتۆر</th><th>کۆ</th><th>داواکراو</th><th>بینراو</th><th>نوێ</th><th>کۆن</th><th>ئیشەکان</th><th>سەرچاوەکان</th></tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($doctors_report as $doctor_stat):
-                        $doctor_id = $doctor_stat['doctor_id'];
-                    ?>
+                    <?php foreach ($doctors_report as $doctor_stat): $doctor_id = $doctor_stat['doctor_id']; ?>
                     <tr>
-                        <td><strong><?= htmlspecialchars($doctor_stat['doctor_name']) ?></strong></td>
-                        <td style="font-weight: 600; color: #2196f3;"><?= $doctor_stat['total_patients'] ?></td>
-                        <td style="font-weight: 600; color: #5856d6;"><?= $doctor_stat['requested_patients'] ?></td>
-                        <td style="font-weight: 600; color: #4caf50;"><?= $doctor_stat['assigned_patients'] ?></td>
-                        <td style="font-weight: 600; color: #f44336;"><?= $doctor_stat['new_patients'] ?></td>
-                        <td style="font-weight: 600; color: #ff9800;"><?= $doctor_stat['old_patients'] ?></td>
-                        <td>
-                            <?php if (!empty($procedure_breakdown[$doctor_id])): ?>
-                            <div class="chip-group">
-                                <?php foreach ($procedure_breakdown[$doctor_id] as $proc): ?>
-                                <span class="chip">
-                                    <?= htmlspecialchars($proc['procedure_treatment']) ?>
-                                    <span class="chip-count"><?= $proc['count'] ?></span>
-                                </span>
-                                <?php endforeach; ?>
-                            </div>
-                            <?php else: ?>
-                            <span style="color: #999;">-</span>
-                            <?php endif; ?>
-                        </td>
-                        <td>
-                            <?php if (!empty($source_breakdown[$doctor_id])): ?>
-                            <div class="chip-group">
-                                <?php foreach ($source_breakdown[$doctor_id] as $source): ?>
-                                <span class="chip">
-                                    <?= htmlspecialchars($source['referral_source']) ?>
-                                    <span class="chip-count"><?= $source['count'] ?></span>
-                                </span>
-                                <?php endforeach; ?>
-                            </div>
-                            <?php else: ?>
-                            <span style="color: #999;">-</span>
-                            <?php endif; ?>
-                        </td>
+                        <td><b><?= htmlspecialchars($doctor_stat['doctor_name']) ?></b></td>
+                        <td class="vv-num"><b><?= (int)$doctor_stat['total_patients'] ?></b></td>
+                        <td class="vv-num"><?= (int)$doctor_stat['requested_patients'] ?></td>
+                        <td class="vv-num"><?= (int)$doctor_stat['assigned_patients'] ?></td>
+                        <td class="vv-num"><?= (int)$doctor_stat['new_patients'] ?></td>
+                        <td class="vv-num"><?= (int)$doctor_stat['old_patients'] ?></td>
+                        <td><?php foreach ($procedure_breakdown[$doctor_id] ?? [] as $proc): ?><span class="vv-tag"><?= htmlspecialchars($proc['procedure_treatment']) ?> <b><?= (int)$proc['count'] ?></b></span><?php endforeach; ?><?= empty($procedure_breakdown[$doctor_id]) ? '<span class="vv-muted">—</span>' : '' ?></td>
+                        <td><?php foreach ($source_breakdown[$doctor_id] ?? [] as $source): ?><span class="vv-tag"><?= htmlspecialchars($source['referral_source']) ?> <b><?= (int)$source['count'] ?></b></span><?php endforeach; ?><?= empty($source_breakdown[$doctor_id]) ? '<span class="vv-muted">—</span>' : '' ?></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
-    </div>
+    </details>
     <?php endif; ?>
 
-    <!-- Visits Table -->
-    <div class="visits-table-section">
-        <div class="table-header">
-            <div class="table-title">
-                <i class="fas fa-list"></i>
-                لیستی سەردانەکان
-                <span class="table-count" id="visits-count"><?= $totalVisits ?></span>
-            </div>
-            <div class="table-actions">
-                <button onclick="window.print()" class="btn-print">
-                    <i class="fas fa-print"></i>
-                    چاپکردن
-                </button>
-            </div>
+    <!-- The list: drawn by renderTable() below from ajax/ts_visits.php, the one
+         renderer for the first page, the filters and the search alike. -->
+    <div class="vv-card">
+        <div id="visits-results" class="vv-results">
+            <div class="vv-loading"><i class="fas fa-spinner fa-spin"></i> بار دەکرێت…</div>
         </div>
 
-        <div id="visits-results">
-        <div class="visits-table-scroll">
-            <?php if (empty($visits)): ?>
-            <div class="empty-state">
-                <i class="fas fa-calendar-times"></i>
-                <h3>هیچ سەردانێک نەدۆزرایەوە</h3>
-                <p>هیچ سەردانێک لەگەڵ ئەم فلتەرانە نییە</p>
-            </div>
-            <?php else: ?>
-            <table class="visits-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>نەخۆش</th>
-                        <th>بەروار</th>
-                        <th>نرخ</th>
-                        <th>چارەسەرکرا</th>
-                        <th>جۆری نەخۆش</th>
-                        <th>د. داواکراو</th>
-                        <th>د. بینراو</th>
-                        <th>د. فەحس / ئیش</th>
-                        <th>کاتی هاتن</th>
-                        <th>کاتی چوونەژوورەوە</th>
-                        <th>ئیش</th>
-                        <th>دۆخ</th>
-                        <th>سەرچاوە</th>
-                        <th>مەوعید</th>
-                        <th>کردارەکان</th>
-                    </tr>
-                </thead>
-                <tbody id="visits-tbody">
-                    <?php
-                    $rowNum = $offset + 1;
-                    foreach ($visits as $visit):
-                    ?>
-                    <?php
-                    $isLinked       = !empty($visit['linked_patient_id']);
-                    $hasPhoneMatch  = !$isLinked && !empty($visit['phone_match_patient_id']);
-                    if ($isLinked) {
-                        $shareClass = 'share-linked';
-                        $shareIcon  = 'fa-check-circle';
-                        $shareText  = 'بەشدارکراوە';
-                    } elseif ($hasPhoneMatch) {
-                        $shareClass = 'share-match';
-                        $shareIcon  = 'fa-exclamation-circle';
-                        $shareText  = 'هاوشێوە هەیە';
-                    } else {
-                        $shareClass = 'share-none';
-                        $shareIcon  = 'fa-times-circle';
-                        $shareText  = 'بەشدار نەکراوە';
-                    }
-                    ?>
-                    <tr>
-                        <td><?= $rowNum++ ?></td>
-                        <td>
-                            <div class="patient-info">
-                                <div class="patient-avatar">
-                                    <?= mb_substr($visit['patient_name'], 0, 1, 'UTF-8') ?>
-                                </div>
-                                <div class="patient-details">
-                                    <div class="patient-name"><?= htmlspecialchars($visit['patient_name']) ?></div>
-                                    <div class="patient-phone">
-                                        <i class="fas fa-phone"></i>
-                                        <?= htmlspecialchars($visit['mobile_number']) ?>
-                                    </div>
-                                    <span class="share-badge <?= $shareClass ?>" title="<?= $shareText ?>">
-                                        <i class="fas <?= $shareIcon ?>"></i> <?= $shareText ?>
-                                    </span>
-                                    <?php if ($isLinked && case_button_allowed($auth, (int)$visit['linked_patient_id'])): ?>
-                                    <?= case_button((int)$visit['linked_patient_id'], ['size' => 'sm', 'class' => 'visit-case-btn']) ?>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        </td>
-                        <td><?= formatVisitDate($visit['visit_date']) ?></td>
-                        <td><span class="price-cell"><?= htmlspecialchars(formatVisitPrice($visit['price'] ?? 0, $visit['visit_type'] ?? 'checkup')) ?></span></td>
-                        <td>
-                            <?php $treated = $visit['treated'] ?? 'no'; ?>
-                            <span class="status-badge <?= $treated === 'yes' ? 'treated-yes' : 'treated-no' ?>">
-                                <?= $treated === 'yes' ? 'بەڵێ' : 'نەخێر' ?>
-                            </span>
-                        </td>
-                        <td>
-                            <?php $visitType = $visit['visit_type'] ?? 'checkup'; ?>
-                            <span class="status-badge <?= $visitType === 'treatment' ? 'visit-treatment' : 'visit-checkup' ?>">
-                                <?= $visitType === 'treatment' ? 'ئیش' : 'پشکنین' ?>
-                            </span>
-                        </td>
-                        <td>
-                            <span class="doctor-name"><?= htmlspecialchars($visit['requested_doctor_name'] ?: '-') ?></span>
-                        </td>
-                        <td>
-                            <span class="doctor-name"><?= htmlspecialchars($visit['assigned_doctor_name'] ?: '-') ?></span>
-                        </td>
-                        <td>
-                            <?php
-                            $docChips = '';
-                            if (!empty($visit['checkup_doctor_name'])) {
-                                $docChips .= '<span class="doc-chip doc-chip-checkup"><i class="fas fa-stethoscope"></i> ' . htmlspecialchars($visit['checkup_doctor_name']) . '</span>';
-                            }
-                            if (!empty($visit['treatment_doctor_name'])) {
-                                $docChips .= '<span class="doc-chip doc-chip-treatment"><i class="fas fa-briefcase-medical"></i> ' . htmlspecialchars($visit['treatment_doctor_name']) . '</span>';
-                            }
-                            ?>
-                            <?= $docChips !== '' ? '<div class="doc-chips">' . $docChips . '</div>' : '<span class="doctor-name">-</span>' ?>
-                        </td>
-                        <td>
-                            <span class="time-cell"><?= formatVisitTime($visit['arrival_time']) ?></span>
-                        </td>
-                        <td>
-                            <span class="time-cell"><?= formatVisitTime($visit['checkin_time']) ?></span>
-                        </td>
-                        <td>
-                            <span class="procedure-cell" title="<?= htmlspecialchars($visit['procedure_treatment'] ?: '') ?>">
-                                <?= htmlspecialchars($visit['procedure_treatment'] ?: '-') ?>
-                            </span>
-                        </td>
-                        <td>
-                            <span class="status-badge <?= $visit['patient_status'] === 'new' ? 'new' : 'old' ?>">
-                                <?= $visit['patient_status'] === 'new' ? 'نوێ' : 'کۆن' ?>
-                            </span>
-                        </td>
-                        <td><?= htmlspecialchars($visit['referral_source'] ?: '-') ?></td>
-                        <td>
-                            <?php
-                            if (!empty($visit['upcoming_apt'])) {
-                                $parts = explode('|', $visit['upcoming_apt']);
-                                $aptDate   = $parts[0] ?? '';
-                                $aptTime   = $parts[1] ?? '';
-                                $aptStatus = $parts[2] ?? '';
-                                $aptDoctor = $parts[3] ?? '';
-                                $statusClrMap = [
-                                    'confirmed'   => '#0078d4',
-                                    'waiting'     => '#f57c00',
-                                    'in_progress' => '#2196f3',
-                                    'rescheduled' => '#ff9800',
-                                ];
-                                $statusClr = $statusClrMap[$aptStatus] ?? '#16a34a';
-                            ?>
-                                <span style="display:inline-flex;flex-direction:column;gap:2px;padding:4px 8px;background:<?= $statusClr ?>1a;color:<?= $statusClr ?>;border:1px solid <?= $statusClr ?>66;border-radius:8px;font-size:11px;font-weight:600;">
-                                    <span><i class="fas fa-calendar-check"></i> <?= htmlspecialchars($aptDate) ?></span>
-                                    <span style="font-size:10px;opacity:.9;"><i class="fas fa-clock"></i> <?= htmlspecialchars(substr($aptTime, 0, 5)) ?><?= $aptDoctor ? ' · د. ' . htmlspecialchars($aptDoctor) : '' ?></span>
-                                </span>
-                            <?php } else { ?>
-                                <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:#f1f5f9;color:#94a3b8;border:1px dashed #cbd5e1;border-radius:8px;font-size:11px;">
-                                    <i class="fas fa-calendar-times"></i> بێ مەوعید
-                                </span>
-                            <?php } ?>
-                        </td>
-                        <td>
-                            <div class="action-buttons">
-                                <?php if ($isLinked): ?>
-                                    <a href="<?= APP_URL ?>/patients/view.php?id=<?= (int)$visit['linked_patient_id'] ?>" class="btn-action btn-view-patient" title="بینین لە نەخۆشەکان">
-                                        <i class="fas fa-id-card"></i>
-                                    </a>
-                                <?php else: ?>
-                                    <button class="btn-action btn-sync-patient<?= $hasPhoneMatch ? ' has-match' : '' ?>"
-                                            onclick="openSyncPatientModal(<?= (int)$visit['id'] ?>, '<?= addslashes(htmlspecialchars($visit['patient_name'])) ?>', '<?= addslashes(htmlspecialchars($visit['mobile_number'])) ?>', <?= $hasPhoneMatch ? 'true' : 'false' ?>)"
-                                            title="<?= $hasPhoneMatch ? 'پەیوەستکردن بە نەخۆشێکی هەبوو' : 'زیادکردن بۆ نەخۆشەکان' ?>">
-                                        <i class="fas fa-user-plus"></i>
-                                    </button>
-                                <?php endif; ?>
-                                <button class="btn-action btn-to-waiting" onclick="openWaitingModal(<?= (int)($visit['patient_id'] ?? 0) ?>, '<?= addslashes(htmlspecialchars($visit['patient_name'])) ?>', '<?= addslashes(htmlspecialchars($visit['visit_type'] ?? '')) ?>', <?= !empty($visit['work_type_id']) ? (int)$visit['work_type_id'] : 'null' ?>, <?= (int)$visit['id'] ?>)" title="ناردن بۆ ژووری چاوەڕوانی">
-                                    <i class="fas fa-user-clock"></i>
-                                </button>
-                                <button class="btn-action btn-waiting" onclick="openAppointmentForPatient(<?= (int)($visit['patient_id'] ?? 0) ?>, '<?= addslashes(htmlspecialchars($visit['patient_name'])) ?>', '<?= addslashes(htmlspecialchars($visit['mobile_number'])) ?>')" title="مەوعیدێکی نوێ">
-                                    <i class="fas fa-calendar-plus"></i>
-                                </button>
-                                <?php if ($hasFullAccess): ?>
-                                <a href="<?= APP_URL ?>/edit_visit.php?id=<?= $visit['id'] ?>" class="btn-action btn-edit" title="دەستکاری">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                <button class="btn-action btn-delete" onclick="confirmDeleteVisit(<?= $visit['id'] ?>)" title="سڕینەوە">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                                <?php endif; ?>
-                            </div>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-            <?php endif; ?>
-        </div>
-
-        </div><!-- /#visits-results -->
-
-        <!-- Pagination (outside #visits-results so AJAX renders don't destroy it) -->
-        <div id="visits-pagination" class="pagination-section" style="<?= $totalPages > 1 ? '' : 'display:none;' ?>">
-            <?php if ($totalPages > 1): ?>
-            <div class="pagination-info">
-                پیشاندانی <strong><?= $offset + 1 ?></strong> - <strong><?= min($offset + $perPage, $totalVisits) ?></strong> لە <strong><?= $totalVisits ?></strong> سەردان
-            </div>
-            <div class="pagination-controls">
-                <a href="<?= buildPaginationUrl(1) ?>" class="pagination-btn <?= $page <= 1 ? 'disabled' : '' ?>"><i class="fas fa-angle-double-right"></i></a>
-                <a href="<?= buildPaginationUrl($page - 1) ?>" class="pagination-btn <?= $page <= 1 ? 'disabled' : '' ?>"><i class="fas fa-angle-right"></i></a>
-                <?php
-                $range = 2;
-                $startPage = max(1, $page - $range);
-                $endPage = min($totalPages, $page + $range);
-                if ($startPage > 1): ?>
-                    <a href="<?= buildPaginationUrl(1) ?>" class="pagination-btn">1</a>
-                    <?php if ($startPage > 2): ?><span class="pagination-ellipsis">...</span><?php endif; ?>
-                <?php endif; ?>
-                <?php for ($i = $startPage; $i <= $endPage; $i++): ?>
-                    <a href="<?= buildPaginationUrl($i) ?>" class="pagination-btn <?= $i === $page ? 'active' : '' ?>"><?= $i ?></a>
-                <?php endfor; ?>
-                <?php if ($endPage < $totalPages): ?>
-                    <?php if ($endPage < $totalPages - 1): ?><span class="pagination-ellipsis">...</span><?php endif; ?>
-                    <a href="<?= buildPaginationUrl($totalPages) ?>" class="pagination-btn"><?= $totalPages ?></a>
-                <?php endif; ?>
-                <a href="<?= buildPaginationUrl($page + 1) ?>" class="pagination-btn <?= $page >= $totalPages ? 'disabled' : '' ?>"><i class="fas fa-angle-left"></i></a>
-                <a href="<?= buildPaginationUrl($totalPages) ?>" class="pagination-btn <?= $page >= $totalPages ? 'disabled' : '' ?>"><i class="fas fa-angle-double-left"></i></a>
-            </div>
-            <?php endif; ?>
-        </div>
+        <!-- Pagination (outside #visits-results so renders don't destroy it) -->
+        <div id="visits-pagination" class="pagination-section" style="display:none;"></div>
 
         <!-- Load more / Infinite scroll sentinel -->
         <div id="visits-load-section">
@@ -2318,7 +1134,7 @@ function buildPaginationUrl($pageNum) {
                 <div class="spinner-ring"></div>
                 <span>بارکردن...</span>
             </div>
-            <button id="btn-load-more" style="display:<?= $totalPages > 1 ? 'inline-block' : 'none' ?>;">
+            <button id="btn-load-more" style="display:none;">
                 <i class="fas fa-chevron-down"></i> زیاتر بارکە
             </button>
             <p id="visits-end-msg" style="display:none;">
@@ -2327,6 +1143,9 @@ function buildPaginationUrl($pageNum) {
         </div>
     </div>
 </div>
+
+<!-- The row's ⋯ menu: one, filled for the row it is opened on -->
+<div class="vv-menu" id="vvMenu" role="menu" hidden></div>
 
 <!-- Sync Visit → Patients Modal -->
 <div id="syncPatientModal" class="waiting-modal">
@@ -2929,6 +1748,9 @@ document.getElementById('syncPatientModal').addEventListener('click', function(e
 (function () {
     const APP_URL       = <?= json_encode(APP_URL) ?>;
     const HAS_FULL_ACCESS = <?= json_encode($hasFullAccess) ?>;
+    const CAN_PLAN        = <?= json_encode($vvCanPlan) ?>;
+    const PLAN_PICK_DOCTOR = <?= json_encode($vvPlanPickDoctor) ?>;
+    const PLAN_DOCTORS    = <?= json_encode($vvPlanDoctors, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;
 
     // DOM refs
     const form        = document.getElementById('visits-filter-form');
@@ -3079,96 +1901,96 @@ document.getElementById('syncPatientModal').addEventListener('click', function(e
         });
     }
 
-    // د. فەحس / ئیش — merged cell, one thin chip per doctor that exists
-    function docChipsCell(v) {
-        let chips = '';
-        if (v.checkup_doctor_name) {
-            chips += `<span class="doc-chip doc-chip-checkup"><i class="fas fa-stethoscope"></i> ${esc(v.checkup_doctor_name)}</span>`;
-        }
-        if (v.treatment_doctor_name) {
-            chips += `<span class="doc-chip doc-chip-treatment"><i class="fas fa-briefcase-medical"></i> ${esc(v.treatment_doctor_name)}</span>`;
-        }
-        return chips ? `<div class="doc-chips">${chips}</div>` : `<span class="doctor-name">-</span>`;
+    // ── Rows ─────────────────────────────────────────────────
+    // The one renderer: the first page, the filters, the search and «زیاتر»
+    // all draw rows here from ajax/ts_visits.php. Buttons carry only the
+    // visit id; the click handler below looks the visit up in `rowsById`, so
+    // a name with an apostrophe can never break an onclick again.
+    const rowsById = new Map();
+    const APT_COLOURS = { confirmed: '#0078d4', waiting: '#f57c00', in_progress: '#2196f3', rescheduled: '#ff9800' };
+    const money = n => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+    const dash = '<span class="vv-muted">—</span>';
+
+    function doctorCell(v) {
+        const main = v.assigned_doctor_name || v.checkup_doctor_name || v.treatment_doctor_name || v.requested_doctor_name || '';
+        const extra = [];
+        if (v.requested_doctor_name && v.requested_doctor_name !== main) extra.push('داواکراو: ' + esc(v.requested_doctor_name));
+        if (v.checkup_doctor_name && v.checkup_doctor_name !== main) extra.push('فەحس: ' + esc(v.checkup_doctor_name));
+        if (v.treatment_doctor_name && v.treatment_doctor_name !== main) extra.push('ئیش: ' + esc(v.treatment_doctor_name));
+        if (!main) return '';
+        return `<span class="vv-doc">${esc(main)}</span>${extra.length ? `<span class="vv-sub">${extra.join(' · ')}</span>` : ''}`;
     }
 
-    // ── Row renderer ─────────────────────────────────────────
     function renderRow(v, rowNum) {
-        const avatar  = [...(v.patient_name || '?')][0];
-        const treated = v.treated === 'yes';
-        const isNew   = v.patient_status === 'new';
-        const isTreatmentVisit = v.visit_type === 'treatment';
-
-        let shareCls, shareIcon, shareTxt;
-        if (v.is_linked) {
-            shareCls = 'share-linked'; shareIcon = 'fa-check-circle'; shareTxt = 'بەشدارکراوە';
-        } else if (v.has_phone_match) {
-            shareCls = 'share-match';  shareIcon = 'fa-exclamation-circle'; shareTxt = 'هاوشێوە هەیە';
-        } else {
-            shareCls = 'share-none';   shareIcon = 'fa-times-circle'; shareTxt = 'بەشدار نەکراوە';
+        rowsById.set(Number(v.id), v);
+        const isTreatment = v.visit_type === 'treatment';
+        const link = v.is_linked
+            ? ['is-linked', 'fa-check', 'تۆمارکراوە لە نەخۆشەکان']
+            : (v.has_phone_match ? ['is-match', 'fa-exclamation', 'نەخۆشێکی هاوشێوە هەیە — پەیوەستی بکە'] : ['is-none', 'fa-minus', 'لە نەخۆشەکاندا نییە']);
+        let time = v.arrival_time_fmt && v.arrival_time_fmt !== '-' ? v.arrival_time_fmt : '';
+        const checkin = v.checkin_time_fmt && v.checkin_time_fmt !== '-' ? v.checkin_time_fmt : '';
+        // «10:02 → 10:17 PM»: the AM/PM once when both halves share it
+        if (time && checkin && time.slice(-2) === checkin.slice(-2)) time = time.slice(0, -3);
+        // The visit cell: its date and kind (and ✓ when treated), the times below
+        const when = `<span class="vv-when-line"><span class="vv-when-date">${esc(v.visit_date_fmt)}</span>`
+            + `<span class="vv-chip ${isTreatment ? 'is-treatment' : 'is-checkup'}">${isTreatment ? 'ئیش' : 'پشکنین'}</span>`
+            + (v.treated === 'yes' ? '<span class="vv-chip is-treated" title="چارەسەرکرا"><i class="fas fa-check"></i></span>' : '') + '</span>'
+            + (time ? `<span class="vv-sub vv-when-time" dir="ltr" title="هاتن → چوونە ژوورەوە"><span>${esc(time)}</span>${checkin ? ' → <span>' + esc(checkin) + '</span>' : ''}</span>` : '');
+        // new or returning belongs to the patient: beside the phone
+        const statusChip = `<span class="vv-chip ${v.patient_status === 'new' ? 'is-new' : 'is-old'}">${v.patient_status === 'new' ? 'نوێ' : 'کۆن'}</span>`;
+        const docs = doctorCell(v);
+        const workHtml = v.procedure_treatment ? `<span class="vv-work" title="${esc(v.procedure_treatment)}">${esc(v.procedure_treatment)}</span>` : '';
+        const srcHtml = v.referral_source ? `<span class="vv-sub">سەرچاوە: ${esc(v.referral_source)}</span>` : '';
+        const price = isTreatment || !Number(v.price) ? '' : `<span class="vv-price">${money(v.price)}</span>`;
+        let apt = '';
+        if (v.upcoming) {
+            const c = APT_COLOURS[v.upcoming.status] || '#16a34a';
+            apt = `<span class="vv-apt" style="--c:${c}" title="${v.upcoming.doctor ? 'د. ' + esc(v.upcoming.doctor) : ''}"><span><i class="fas fa-calendar-check"></i> ${esc(v.upcoming.date)}</span><small dir="ltr">${esc(v.upcoming.time)}</small></span>`;
         }
-        const shareBadge = `<span class="share-badge ${shareCls}" title="${shareTxt}"><i class="fas ${shareIcon}"></i> ${shareTxt}</span>`
-            // «کەیس» beside the name (includes/case-button.php draws the same in the PHP rows)
-            + (v.can_case ? `<button type="button" class="case-go-btn case-go-btn--sm visit-case-btn" onclick="event.stopPropagation(); openPatientCase(${parseInt(v.linked_patient_id, 10)}, this, 0)" title="ڕاستەوخۆ بۆ چارتی ددانی کەیسەکە — ئەگەر نەبێت، دروست دەبێت"><i class="fas fa-tooth"></i><span>کەیس</span></button>` : '');
-
-        let actions = '';
-        if (v.is_linked) {
-            actions += `<a href="${APP_URL}/patients/view.php?id=${v.linked_patient_id}" class="btn-action btn-view-patient" title="بینین لە نەخۆشەکان"><i class="fas fa-id-card"></i></a>`;
-        } else {
-            const matchCls = v.has_phone_match ? ' has-match' : '';
-            const matchTitle = v.has_phone_match ? 'پەیوەستکردن بە نەخۆشێکی هەبوو' : 'زیادکردن بۆ نەخۆشەکان';
-            actions += `<button class="btn-action btn-sync-patient${matchCls}" onclick="openSyncPatientModal(${v.id},'${esc(v.patient_name)}','${esc(v.mobile_number)}',${v.has_phone_match ? 'true' : 'false'})" title="${matchTitle}"><i class="fas fa-user-plus"></i></button>`;
-        }
-        actions += `<button class="btn-action btn-to-waiting" onclick="openWaitingModal(${v.patient_id},'${esc(v.patient_name)}','${esc(v.visit_type || '')}',${v.work_type_id ? parseInt(v.work_type_id, 10) : 'null'},${v.id})" title="ناردن بۆ ژووری چاوەڕوانی"><i class="fas fa-user-clock"></i></button>`;
-        actions += `<button class="btn-action btn-waiting" onclick="openAppointmentForPatient(${v.patient_id},'${esc(v.patient_name)}','${esc(v.mobile_number)}')" title="مەوعیدێکی نوێ"><i class="fas fa-calendar-plus"></i></button>`;
-        if (HAS_FULL_ACCESS) {
-            actions += `<a href="${APP_URL}/edit_visit.php?id=${v.id}" class="btn-action btn-edit"><i class="fas fa-edit"></i></a>`;
-            actions += `<button class="btn-action btn-delete" onclick="confirmDeleteVisit(${v.id})"><i class="fas fa-trash"></i></button>`;
-        }
-        return `<tr>
-            <td>${rowNum}</td>
-            <td><div class="patient-info"><div class="patient-avatar">${esc(avatar)}</div><div class="patient-details"><div class="patient-name">${esc(v.patient_name)}</div><div class="patient-phone"><i class="fas fa-phone"></i> ${esc(v.mobile_number)}</div>${shareBadge}</div></div></td>
-            <td>${esc(v.visit_date_fmt)}</td>
-            <td><span class="price-cell">${isTreatmentVisit ? '-' : esc(v.price_fmt || '0.00')}</span></td>
-            <td><span class="status-badge ${treated?'treated-yes':'treated-no'}">${treated?'بەڵێ':'نەخێر'}</span></td>
-            <td><span class="status-badge ${isTreatmentVisit?'visit-treatment':'visit-checkup'}">${isTreatmentVisit?'ئیش':'پشکنین'}</span></td>
-            <td><span class="doctor-name">${esc(v.requested_doctor_name||'-')}</span></td>
-            <td><span class="doctor-name">${esc(v.assigned_doctor_name||'-')}</span></td>
-            <td>${docChipsCell(v)}</td>
-            <td><span class="time-cell">${esc(v.arrival_time_fmt)}</span></td>
-            <td><span class="time-cell">${esc(v.checkin_time_fmt)}</span></td>
-            <td><span class="procedure-cell" title="${esc(v.procedure_treatment)}">${esc(v.procedure_treatment||'-')}</span></td>
-            <td><span class="status-badge ${isNew?'new':'old'}">${isNew?'نوێ':'کۆن'}</span></td>
-            <td>${esc(v.referral_source||'-')}</td>
-            <td><div class="action-buttons">${actions}</div></td>
+        const firstAct = v.can_case
+            ? `<button type="button" class="case-go-btn case-go-btn--sm" onclick="event.stopPropagation(); openPatientCase(${parseInt(v.linked_patient_id, 10)}, this, 0)" title="ڕاستەوخۆ بۆ چارتی ددانی کەیسەکە — ئەگەر نەبێت، دروست دەبێت"><i class="fas fa-tooth"></i><span>کەیس</span></button>`
+            : (!v.is_linked ? `<button type="button" class="vv-act is-link" data-act="sync" title="${v.has_phone_match ? 'پەیوەستکردن بە نەخۆشێکی هەبوو' : 'زیادکردن بۆ نەخۆشەکان'}"><i class="fas fa-user-plus"></i></button>` : '');
+        const planAct = CAN_PLAN && v.is_linked && v.visit_type === 'checkup'
+            ? `<button type="button" class="plan-go-btn" data-act="plan" title="پلانی چارەسەر — دروستکردن و کردنەوەی"><i class="fas fa-clipboard-list"></i><span>پلان</span></button>`
+            : '';
+        const cell = (cls, label, html) => `<td class="${cls}${html ? '' : ' is-empty'}" data-label="${label}">${html || dash}</td>`;
+        return `<tr class="${isTreatment ? 'is-treatment' : 'is-checkup'}" data-id="${v.id}">
+            <td class="c-no">${rowNum}</td>
+            <td class="c-patient"><div class="vv-pt"><span class="vv-link ${link[0]}" title="${link[2]}"><i class="fas ${link[1]}"></i></span>
+                <div><span class="vv-name">${esc(v.patient_name)}</span><span class="vv-pt-meta"><span class="vv-sub" dir="ltr">${esc(v.mobile_number)}</span>${statusChip}</span></div></div></td>
+            ${cell('c-when', 'سەردان', when)}
+            ${cell('c-doc', 'دکتۆر', docs)}
+            ${cell('c-work', 'ئیش', workHtml + srcHtml)}
+            ${cell('c-price', 'نرخ', price)}
+            ${cell('c-apt', 'مەوعید', apt)}
+            <td class="c-act"><div class="vv-actions">${firstAct}${planAct}
+                <button type="button" class="vv-act is-waiting" data-act="waiting" title="ناردن بۆ ژووری چاوەڕوانی"><i class="fas fa-user-clock"></i></button>
+                <button type="button" class="vv-act is-more" data-act="more" title="زیاتر" aria-haspopup="menu"><i class="fas fa-ellipsis-vertical"></i></button>
+            </div></td>
         </tr>`;
     }
 
     const TABLE_HEAD = `<thead><tr>
-        <th>#</th><th>نەخۆش</th><th>بەروار</th><th>نرخ</th><th>چارەسەرکرا</th>
-        <th>جۆری نەخۆش</th><th>د. داواکراو</th><th>د. بینراو</th><th>د. فەحس / ئیش</th><th>کاتی هاتن</th>
-        <th>کاتی چوونەژوورەوە</th><th>ئیش</th><th>دۆخ</th><th>سەرچاوە</th><th>کردارەکان</th>
+        <th class="c-no">#</th><th class="c-patient">نەخۆش</th><th class="c-when">سەردان</th>
+        <th class="c-doc">دکتۆر</th><th class="c-work">ئیش / سەرچاوە</th><th class="c-price">نرخ</th><th class="c-apt">مەوعید</th><th class="c-act"></th>
     </tr></thead>`;
 
-    // ── Full table replace (new search) ──────────────────────
+    // ── Full table replace (first paint, new filter or search) ─
     function renderTable(data) {
         if (countBadge) countBadge.textContent = data.total;
         applySummary(data.summary);
+        rowsById.clear();
+        state.page       = data.page || 1;
+        state.totalPages = data.total_pages || 0;
+        state.total      = data.total || 0;
         if (!data.visits || data.visits.length === 0) {
-            resultsDiv.innerHTML = `<div class="empty-state"><i class="fas fa-calendar-times"></i><h3>هیچ سەردانێک نەدۆزرایەوە</h3><p>هیچ سەردانێک لەگەڵ ئەم فلتەرانە نییە</p></div>`;
-            state.page       = data.page || 1;
-            state.totalPages = data.total_pages || 0;
-            state.total      = data.total || 0;
-            renderPagination(state.page, state.totalPages, state.total, data.per_page || 10);
-            syncLoadMore();
-            return;
+            resultsDiv.innerHTML = `<div class="vv-empty"><i class="fas fa-calendar-times"></i><b>هیچ سەردانێک نەدۆزرایەوە</b>بەروار یان فلتەرەکان بگۆڕە</div>`;
+        } else {
+            const offset = (data.page - 1) * data.per_page;
+            const rows   = data.visits.map((v, i) => renderRow(v, offset + i + 1)).join('');
+            resultsDiv.innerHTML = `<div class="vv-scroll-main"><table class="vv-table no-responsive">${TABLE_HEAD}<tbody id="visits-tbody">${rows}</tbody></table></div>`;
         }
-        const offset = (data.page - 1) * data.per_page;
-        const rows   = data.visits.map((v, i) => renderRow(v, offset + i + 1)).join('');
-        resultsDiv.innerHTML = `<div class="visits-table-scroll"><table class="visits-table">${TABLE_HEAD}<tbody id="visits-tbody">${rows}</tbody></table></div>`;
-        state.page       = data.page;
-        state.totalPages = data.total_pages;
-        state.total      = data.total;
-        renderPagination(state.page, state.totalPages, state.total, data.per_page);
+        renderPagination(state.page, state.totalPages, state.total, data.per_page || 10);
         syncLoadMore();
     }
 
@@ -3187,6 +2009,103 @@ document.getElementById('syncPatientModal').addEventListener('click', function(e
         state.total      = data.total;
         renderPagination(state.page, state.totalPages, state.total, data.per_page);
         syncLoadMore();
+    }
+
+    // ── Row buttons and the ⋯ menu ────────────────────────────
+    const menu = document.getElementById('vvMenu');
+    let menuFor = null;
+    function closeMenu() {
+        if (!menu || menu.hidden) return;
+        menu.hidden = true;
+        if (menuFor) menuFor.classList.remove('is-open');
+        menuFor = null;
+    }
+    function openMenu(btn, v) {
+        if (!menu) return;
+        if (menuFor === btn) { closeMenu(); return; }
+        closeMenu();
+        const items = [];
+        if (v.is_linked) {
+            items.push(`<a href="${APP_URL}/patients/view.php?id=${parseInt(v.linked_patient_id, 10)}"><i class="fas fa-id-card"></i> پرۆفایلی نەخۆش</a>`);
+        } else {
+            items.push(`<button type="button" data-act="sync"><i class="fas fa-user-plus"></i> ${v.has_phone_match ? 'پەیوەستکردن بە نەخۆشێکی هەبوو' : 'زیادکردن بۆ نەخۆشەکان'}</button>`);
+        }
+        items.push(`<button type="button" data-act="appointment"><i class="fas fa-calendar-plus"></i> مەوعیدێکی نوێ</button>`);
+        if (HAS_FULL_ACCESS) {
+            items.push('<hr>');
+            items.push(`<a href="${APP_URL}/edit_visit.php?id=${parseInt(v.id, 10)}"><i class="fas fa-pen"></i> دەستکاری</a>`);
+            items.push(`<button type="button" data-act="delete" class="is-danger"><i class="fas fa-trash"></i> سڕینەوە</button>`);
+        }
+        menu.innerHTML = items.join('');
+        menu.dataset.id = v.id;
+        menu.hidden = false;
+        const r = btn.getBoundingClientRect();
+        const left = Math.max(8, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 8));
+        const below = window.innerHeight - r.bottom;
+        menu.style.left = left + 'px';
+        menu.style.top = (below < menu.offsetHeight + 12 ? Math.max(8, r.top - menu.offsetHeight - 4) : r.bottom + 4) + 'px';
+        btn.classList.add('is-open');
+        menuFor = btn;
+    }
+    function runAction(act, v, btn) {
+        if (act === 'more') { openMenu(btn, v); return; }
+        closeMenu();
+        if (act === 'sync') openSyncPatientModal(v.id, v.patient_name, v.mobile_number, !!v.has_phone_match);
+        else if (act === 'waiting') openWaitingModal(v.patient_id, v.patient_name, v.visit_type || '', v.work_type_id ? parseInt(v.work_type_id, 10) : null, v.id);
+        else if (act === 'appointment') openAppointmentForPatient(v.patient_id, v.patient_name, v.mobile_number);
+        else if (act === 'delete') confirmDeleteVisit(v.id);
+        else if (act === 'plan') newPlan(v, btn);
+    }
+
+    // «پلانی چارەسەر» in one click, as on the patient's plans tab: made (or
+    // today's reopened) and opened on its own page. Only whose plan it is may be asked.
+    function newPlan(v, btn) {
+        const go = doctorId => {
+            btn.disabled = true;
+            const fd = new FormData();
+            fd.append('action', 'quick_plan');
+            fd.append('patient_id', parseInt(v.linked_patient_id, 10));
+            if (doctorId) fd.append('doctor_id', doctorId);
+            fetch(APP_URL + '/ajax/treatment_plan.php', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.json())
+                .catch(() => ({ success: false, error: 'هەڵە لە پەیوەندی' }))
+                .then(res => {
+                    if (!res || !res.success) {
+                        btn.disabled = false;
+                        const msg = (res && (res.error || res.message)) || 'هەڵە';
+                        if (typeof window.showToast === 'function') window.showToast('error', msg); else alert(msg);
+                        return;
+                    }
+                    location.href = APP_URL + '/treatment-plans/view.php?id=' + parseInt(res.plan_id, 10);
+                });
+        };
+        if (!PLAN_PICK_DOCTOR) { go(); return; }
+        const docs = new Map(PLAN_DOCTORS.map(d => [String(d.id), d.name]));
+        const lead = String(v.plan_doctor_id || '');
+        Swal.fire({
+            title: 'پلان بۆ کام دکتۆر؟', text: v.patient_name, input: 'select', inputOptions: docs, inputPlaceholder: 'دکتۆر هەڵبژێرە',
+            inputValue: docs.has(lead) ? lead : '',
+            showCancelButton: true, confirmButtonText: 'دروستکردن', cancelButtonText: 'نەخێر', confirmButtonColor: '#0d9488',
+            inputValidator: val => val ? null : 'دکتۆر هەڵبژێرە'
+        }).then(r => { if (r.isConfirmed && r.value) go(r.value); });
+    }
+    resultsDiv.addEventListener('click', function (e) {
+        const btn = e.target.closest('[data-act]');
+        if (!btn) return;
+        const tr = btn.closest('tr[data-id]');
+        const v = tr && rowsById.get(Number(tr.dataset.id));
+        if (v) runAction(btn.dataset.act, v, btn);
+    });
+    if (menu) {
+        menu.addEventListener('click', function (e) {
+            const btn = e.target.closest('[data-act]');
+            const v = rowsById.get(Number(menu.dataset.id));
+            if (btn && v) runAction(btn.dataset.act, v, btn);
+        });
+        document.addEventListener('click', e => { if (!e.target.closest('#vvMenu, [data-act="more"]')) closeMenu(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+        window.addEventListener('scroll', closeMenu, true);
+        window.addEventListener('resize', closeMenu);
     }
 
     // ── Core fetch ────────────────────────────────────────────
@@ -3266,12 +2185,27 @@ document.getElementById('syncPatientModal').addEventListener('click', function(e
     const searchHint = document.getElementById('visits-search-hint');
     function syncFilterLock() {
         const locked = searchInput.value.trim() !== '';
-        form.querySelectorAll('select, input[type="date"]').forEach(el => {
-            el.disabled = locked;
-            const fg = el.closest('.filter-group');
-            if (fg) fg.classList.toggle('filter-locked', locked);
-        });
+        form.querySelectorAll('select, input[type="date"]').forEach(el => { el.disabled = locked; });
+        form.querySelectorAll('.vv-lockable').forEach(el => el.classList.toggle('is-locked', locked));
         if (searchHint) searchHint.style.display = locked ? 'block' : 'none';
+    }
+
+    // «فلتەر» opens the doctor / role / status / type row; its badge counts
+    // the ones in use, so a closed row never hides an active filter.
+    const filtersBtn = document.getElementById('vvFiltersBtn');
+    const filtersBox = document.getElementById('vvFilters');
+    const filterCount = document.getElementById('vvFilterCount');
+    function syncFilterCount() {
+        if (!filtersBox || !filterCount) return;
+        const n = Array.from(filtersBox.querySelectorAll('select')).filter(s => s.value !== '').length;
+        filterCount.textContent = n ? n : '';
+    }
+    if (filtersBtn && filtersBox) {
+        filtersBtn.addEventListener('click', function () {
+            filtersBox.hidden = !filtersBox.hidden;
+            filtersBtn.setAttribute('aria-expanded', filtersBox.hidden ? 'false' : 'true');
+        });
+        filtersBox.addEventListener('change', syncFilterCount);
     }
 
     // ── Event listeners ───────────────────────────────────────
@@ -3328,9 +2262,11 @@ document.getElementById('syncPatientModal').addEventListener('click', function(e
         if (!searchInput.contains(e.target) && !(sugBox && sugBox.contains(e.target))) hideSuggestions();
     });
 
-    // Init load-more visibility + filter lock on first paint
-    syncLoadMore();
+    // First paint: the list comes from the same endpoint as every later
+    // render, so the page and the live search can never show different rows.
     syncFilterLock();
+    syncFilterCount();
+    fetchVisits(state.page, false);
 })();
 </script>
 

@@ -50,7 +50,9 @@ class TypesenseClient {
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlErr  = curl_error($ch);
-        curl_close($ch);
+        // curl_close() is a no-op since PHP 8.0 and deprecated in 8.5, where its
+        // notice landed in front of the JSON of ajax/ts_visits.php.
+        if (PHP_VERSION_ID < 80000) { curl_close($ch); }
 
         if ($curlErr) {
             throw new Exception("Typesense cURL error: $curlErr");
@@ -130,7 +132,9 @@ class TypesenseClient {
 
         $response = curl_exec($ch);
         $curlErr  = curl_error($ch);
-        curl_close($ch);
+        // curl_close() is a no-op since PHP 8.0 and deprecated in 8.5, where its
+        // notice landed in front of the JSON of ajax/ts_visits.php.
+        if (PHP_VERSION_ID < 80000) { curl_close($ch); }
 
         if ($curlErr) {
             throw new Exception("Typesense import cURL error: $curlErr");

@@ -291,8 +291,10 @@ foreach ($summary as $k => $_) {
 $total = $summary['total_visits'];
 
 $visitDoctorSelect = $hasVisitDoctorCols
-    ? "d5.name AS checkup_doctor_name, d6.name AS treatment_doctor_name,"
-    : "NULL AS checkup_doctor_name, NULL AS treatment_doctor_name,";
+    ? "d5.name AS checkup_doctor_name, d6.name AS treatment_doctor_name,
+       COALESCE(d5.user_id, d2.user_id, d1.user_id) AS plan_doctor_id,"
+    : "NULL AS checkup_doctor_name, NULL AS treatment_doctor_name,
+       COALESCE(d2.user_id, d1.user_id) AS plan_doctor_id,";
 $visitDoctorJoins = $hasVisitDoctorCols
     ? "LEFT JOIN doctors d5 ON v.checkup_doctor_id = d5.id
        LEFT JOIN doctors d6 ON v.treatment_doctor_id = d6.id"
@@ -306,7 +308,17 @@ $visits_raw = $db->fetchAll("
            d1.name AS requested_doctor_name,
            d2.name AS assigned_doctor_name,
            pp.id  AS linked_patient_id,
-           (SELECT pmm.id FROM patients pmm WHERE pmm.phone = v.mobile_number LIMIT 1) AS phone_match_patient_id
+           (SELECT pmm.id FROM patients pmm WHERE pmm.phone = v.mobile_number LIMIT 1) AS phone_match_patient_id,
+           (
+              SELECT CONCAT(a.appointment_date, '|', a.appointment_time, '|', a.status, '|', COALESCE(ud.full_name, ''))
+              FROM appointments a
+              LEFT JOIN users ud ON a.doctor_id = ud.id
+              WHERE a.patient_id = v.patient_id
+                AND a.appointment_date >= CURDATE()
+                AND a.status NOT IN ('cancelled','no_show','completed')
+              ORDER BY a.appointment_date ASC, a.appointment_time ASC
+              LIMIT 1
+           ) AS upcoming_apt
     FROM visits v
     LEFT JOIN doctors d1 ON v.requested_doctor_id = d1.id
     LEFT JOIN doctors d2 ON v.assigned_doctor_id = d2.id
@@ -329,6 +341,14 @@ $visits = array_map(function ($v) use ($auth) {
     $v['has_phone_match']   = !$v['is_linked'] && !empty($v['phone_match_patient_id']);
     $v['linked_patient_id'] = (int)($v['linked_patient_id'] ?? 0);
     $v['can_case']          = $v['is_linked'] && case_button_allowed($auth, $v['linked_patient_id']);   // «کەیس» on the row
+    $v['plan_doctor_id']    = (int)($v['plan_doctor_id'] ?? 0);   // whose examination: «پلانی چارەسەر» offers them first
+    // The patient's next appointment (the «مەوعید» column), or null.
+    $v['upcoming'] = null;
+    if (!empty($v['upcoming_apt'])) {
+        [$aDate, $aTime, $aStatus, $aDoctor] = array_pad(explode('|', $v['upcoming_apt']), 4, '');
+        $v['upcoming'] = ['date' => $aDate, 'time' => substr($aTime, 0, 5), 'status' => $aStatus, 'doctor' => $aDoctor];
+    }
+    unset($v['upcoming_apt']);
     return $v;
 }, $visits_raw);
 
