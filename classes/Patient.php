@@ -146,18 +146,14 @@ class Patient {
         $sql = "SELECT p.*,
                 (SELECT COUNT(*) FROM patient_folders pf WHERE pf.patient_id = p.id) as folder_count,
                 (COALESCE(s.case_balance, 0) +
-                 COALESCE((SELECT SUM(" . XrayManager::remainingAmountSql('xr', 'pxd') . ") FROM xray_requests xr " . XrayManager::remainingAmountJoinSql('xr', 'pxd') . " WHERE xr.patient_id = p.id AND xr.status = 'completed' AND xr.payment_status IN (" . XrayManager::debtStatusSqlList() . ")), 0)) as total_debt
+                 COALESCE((SELECT SUM(" . XrayManager::remainingAmountSql('xr', 'pxd') . ") FROM xray_requests xr " . XrayManager::remainingAmountJoinSql('xr', 'pxd') . " WHERE xr.patient_id = p.id AND xr.status = 'completed' AND xr.payment_status IN (" . XrayManager::debtStatusSqlList() . ")), 0)) as total_debt,
+                " . $this->searchRank($search, $params) . " as search_rank
                 FROM patients p
                 LEFT JOIN v_patient_financial_summary s ON s.patient_id = p.id
                 WHERE p.deleted_at IS NULL";
 
-        // Search filter
-        if (!empty($search)) {
-            $sql .= " AND (p.full_name LIKE :search OR p.phone LIKE :search2 OR p.patient_code LIKE :search3)";
-            $params['search'] = "%{$search}%";
-            $params['search2'] = "%{$search}%";
-            $params['search3'] = "%{$search}%";
-        }
+        // Search filter (best matches first — see searchRank)
+        $sql .= $this->searchWhere($search, $params);
 
         // Gender filter
         if (!empty($filters['gender'])) {
@@ -207,9 +203,97 @@ class Patient {
 
         // ORDER BY cannot be a bound parameter, so it is interpolated — every
         // value must therefore come from this whitelist, never from the request.
-        $sql .= " ORDER BY " . $this->safeOrderBy($orderBy) . " LIMIT {$limit} OFFSET {$offset}";
+        $sql .= " ORDER BY search_rank, " . $this->safeOrderBy($orderBy) . " LIMIT {$limit} OFFSET {$offset}";
 
         return $this->db->fetchAll($sql, $params);
+    }
+
+    /**
+     * The patients list's search box, read the way people actually type:
+     *  - every word must appear, in any order: «ئەحمەد محمد» finds «محمد کەریم ئەحمەد»;
+     *  - a number is one phone however it was typed or stored: spaces, dashes,
+     *    +964 / 00964, a leading 0, Arabic-Indic digits (٠٧٥٠…);
+     *  - Arabic ي ى ك are read as Kurdish ی ک (the columns' unicode_ci collation
+     *    already treats most other letter variants — ه/ە، ر/ڕ، و/ۆ — as one).
+     * Returns ['words' => [...], 'phone' => core digits or null, 'text' => the cleaned term].
+     */
+    public static function searchTerms($search) {
+        $s = strtr((string)$search, [
+            '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4', '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+            '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4', '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+            'ي' => 'ی', 'ى' => 'ی', 'ك' => 'ک', "\u{200C}" => ' ', "\u{0640}" => '',
+        ]);
+        $s = trim(preg_replace('/\s+/u', ' ', $s));
+        $digits = preg_replace('/[\s\-+().]/u', '', $s);
+        if ($digits !== '' && ctype_digit($digits) && strlen($digits) >= 4) {
+            // A phone typed with spaces or dashes is still one number
+            if (strpos($digits, '00964') === 0) {
+                $core = substr($digits, 5);
+            } elseif (strpos($digits, '964') === 0 && strlen($digits) > 6) {
+                $core = substr($digits, 3);
+            } else {
+                $core = $digits;
+            }
+            $core = ltrim($core, '0');
+            return ['words' => [$digits], 'phone' => $core !== '' ? $core : $digits, 'text' => $digits];
+        }
+        $words = array_values(array_unique(array_filter(explode(' ', $s), 'strlen')));
+        return ['words' => array_slice($words, 0, 6), 'phone' => null, 'text' => $s];
+    }
+
+    /** The stored phone without its spaces, dashes and plus, for matching typed numbers. */
+    private const PHONE_DIGITS_SQL = "REPLACE(REPLACE(REPLACE(REPLACE(p.phone, ' ', ''), '-', ''), '+', ''), '.', '')";
+
+    /** WHERE part for the search box (see searchTerms); every list and its count use it, so they agree. */
+    private function searchWhere($search, array &$params) {
+        $t = self::searchTerms($search);
+        if (!$t['words']) {
+            return '';
+        }
+        $like = fn($v) => '%' . addcslashes($v, '%_\\') . '%';
+        if ($t['phone'] !== null) {
+            $params['sq_phone'] = $like($t['phone']);
+            $params['sq_code'] = $like($t['words'][0]);
+            return " AND (" . self::PHONE_DIGITS_SQL . " LIKE :sq_phone OR p.patient_code LIKE :sq_code)";
+        }
+        $sql = '';
+        foreach ($t['words'] as $i => $w) {
+            $params["sq_n$i"] = $like($w);
+            $params["sq_c$i"] = $like($w);
+            $either = "p.full_name LIKE :sq_n$i OR p.patient_code LIKE :sq_c$i";
+            if (ctype_digit($w)) {
+                $params["sq_p$i"] = $like($w);
+                $either .= " OR " . self::PHONE_DIGITS_SQL . " LIKE :sq_p$i";
+            }
+            $sql .= " AND ($either)";
+        }
+        return $sql;
+    }
+
+    /**
+     * How well a row matches the search, best first: 0 the exact name, code or
+     * number; 1 the name starts with what was typed; 2 it contains it as typed;
+     * 3 only the words, in another order. '0' when there is no search.
+     */
+    private function searchRank($search, array &$params) {
+        $t = self::searchTerms($search);
+        if (!$t['words']) {
+            return '0';
+        }
+        $esc = fn($v) => addcslashes($v, '%_\\');
+        if ($t['phone'] !== null) {
+            $params['sr_phone_end'] = '%' . $esc($t['phone']);
+            $params['sr_code_eq'] = $t['words'][0];
+            return "(CASE WHEN " . self::PHONE_DIGITS_SQL . " LIKE :sr_phone_end OR p.patient_code = :sr_code_eq THEN 0 ELSE 1 END)";
+        }
+        $params['sr_name_eq'] = $t['text'];
+        $params['sr_code_eq'] = $t['text'];
+        $params['sr_name_start'] = $esc($t['text']) . '%';
+        $params['sr_name_has'] = '%' . $esc($t['text']) . '%';
+        return "(CASE WHEN p.full_name = :sr_name_eq OR p.patient_code = :sr_code_eq THEN 0
+                      WHEN p.full_name LIKE :sr_name_start THEN 1
+                      WHEN p.full_name LIKE :sr_name_has THEN 2
+                      ELSE 3 END)";
     }
 
     /** Map a requested sort to a known-safe ORDER BY clause. */
@@ -253,12 +337,7 @@ class Patient {
         $params = [];
 
         // Search filter
-        if (!empty($search)) {
-            $sql .= " AND (p.full_name LIKE :search OR p.phone LIKE :search2 OR p.patient_code LIKE :search3)";
-            $params['search'] = "%{$search}%";
-            $params['search2'] = "%{$search}%";
-            $params['search3'] = "%{$search}%";
-        }
+        $sql .= $this->searchWhere($search, $params);
 
         // Gender filter
         if (!empty($filters['gender'])) {
@@ -718,7 +797,8 @@ class Patient {
                  FROM cases cd
                  INNER JOIN patient_folders pfd ON pfd.id = cd.folder_id
                  INNER JOIN v_case_financial_summary vcs ON vcs.case_id = cd.id
-                 WHERE pfd.patient_id = p.id AND pfd.doctor_id = :doctor_id3) as total_debt
+                 WHERE pfd.patient_id = p.id AND pfd.doctor_id = :doctor_id3) as total_debt,
+                " . $this->searchRank($search, $params) . " as search_rank
                 FROM patients p
                 WHERE p.deleted_at IS NULL
                 AND (
@@ -731,18 +811,13 @@ class Patient {
         $params['doctor_id3'] = $doctorId;
         $params['doctor_id_reg'] = $doctorId;
 
-        // Search filter
-        if (!empty($search)) {
-            $sql .= " AND (p.full_name LIKE :search OR p.phone LIKE :search2 OR p.patient_code LIKE :search3)";
-            $params['search'] = "%{$search}%";
-            $params['search2'] = "%{$search}%";
-            $params['search3'] = "%{$search}%";
-        }
+        // Search filter (best matches first — see searchRank)
+        $sql .= $this->searchWhere($search, $params);
 
         // Apply additional filters
         $sql .= $this->buildFilterConditions($filters, $params, $doctorId);
 
-        $sql .= " ORDER BY p.created_at DESC LIMIT {$limit} OFFSET {$offset}";
+        $sql .= " ORDER BY search_rank, p.created_at DESC LIMIT {$limit} OFFSET {$offset}";
 
         return $this->db->fetchAll($sql, $params);
     }
@@ -765,12 +840,7 @@ class Patient {
         $params['doctor_id_reg'] = $doctorId;
 
         // Search filter
-        if (!empty($search)) {
-            $sql .= " AND (p.full_name LIKE :search OR p.phone LIKE :search2 OR p.patient_code LIKE :search3)";
-            $params['search'] = "%{$search}%";
-            $params['search2'] = "%{$search}%";
-            $params['search3'] = "%{$search}%";
-        }
+        $sql .= $this->searchWhere($search, $params);
 
         // Apply additional filters
         $sql .= $this->buildFilterConditions($filters, $params, $doctorId);
@@ -795,7 +865,8 @@ class Patient {
         $params = ['doctor_id' => $doctorId];
 
         $sql = "SELECT p.id, p.patient_code, p.full_name, p.phone, p.gender, p.date_of_birth, p.created_at,
-                (SELECT COUNT(*) FROM xray_requests xr WHERE xr.patient_id = p.id AND xr.status = 'completed') as xray_count
+                (SELECT COUNT(*) FROM xray_requests xr WHERE xr.patient_id = p.id AND xr.status = 'completed') as xray_count,
+                " . $this->searchRank($search, $params) . " as search_rank
                 FROM patients p
                 WHERE p.deleted_at IS NULL
                 AND NOT EXISTS (
@@ -804,19 +875,14 @@ class Patient {
                 )";
         $sql .= $this->unassignedDirectoryScope($params, $doctorId);
 
-        // Search filter
-        if (!empty($search)) {
-            $sql .= " AND (p.full_name LIKE :search OR p.phone LIKE :search2 OR p.patient_code LIKE :search3)";
-            $params['search'] = "%{$search}%";
-            $params['search2'] = "%{$search}%";
-            $params['search3'] = "%{$search}%";
-        }
+        // Search filter (best matches first — see searchRank)
+        $sql .= $this->searchWhere($search, $params);
 
         // Demographic filters only — buildFilterConditions() also handles debt and
         // folder-status filters, which must never widen this restricted view.
         $sql .= $this->buildRestrictedFilterConditions($filters, $params);
 
-        $sql .= " ORDER BY p.full_name ASC LIMIT {$limit} OFFSET {$offset}";
+        $sql .= " ORDER BY search_rank, p.full_name ASC LIMIT {$limit} OFFSET {$offset}";
 
         return $this->db->fetchAll($sql, $params);
     }
@@ -882,12 +948,7 @@ class Patient {
                 )";
         $sql .= $this->unassignedDirectoryScope($params, $doctorId);
 
-        if (!empty($search)) {
-            $sql .= " AND (p.full_name LIKE :search OR p.phone LIKE :search2 OR p.patient_code LIKE :search3)";
-            $params['search'] = "%{$search}%";
-            $params['search2'] = "%{$search}%";
-            $params['search3'] = "%{$search}%";
-        }
+        $sql .= $this->searchWhere($search, $params);
 
         $sql .= $this->buildRestrictedFilterConditions($filters, $params);
 

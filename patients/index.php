@@ -50,9 +50,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
 
 $pageTitle = 'نەخۆشەکان';
 $breadcrumb = [['title' => 'نەخۆشەکان']];
+$hidePageHeader = true;   // the toolbar and the figures strip head the page, as on سەردانەکان
 
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/../classes/Patient.php';
+require_once __DIR__ . '/_list.php';
 
 $patientManager = new Patient();
 $currentUser = $auth->getCurrentUser();
@@ -201,61 +203,102 @@ if (isset($_GET['updated'])) {
     --pt-ring:    0 0 0 3px rgba(var(--win-accent-rgb, 0, 120, 212), .16);
 }
 
-/* ── Toolbar: search + filters + primary action in one row ── */
+/* ── Toolbar: the search is the page's main tool — big, on a soft panel in
+      the accent's colours, with the buttons at the same height ── */
 .pt-toolbar {
-    background: var(--pt-bg);
-    border: 1px solid var(--pt-line);
-    border-radius: var(--pt-r);
-    padding: 8px;
+    background: linear-gradient(135deg, rgba(var(--win-accent-rgb, 0, 120, 212), .11), rgba(34, 195, 230, .07) 55%, #fff);
+    border: 1px solid rgba(var(--win-accent-rgb, 0, 120, 212), .2);
+    border-radius: 16px;
+    padding: 14px 14px 10px;
     margin-bottom: 10px;
     display: flex;
-    gap: 8px;
+    gap: 10px;
     align-items: center;
     flex-wrap: wrap;
-    box-shadow: var(--pt-shadow);
 }
 .pt-search {
     position: relative;
-    flex: 1 1 260px;
+    flex: 1 1 320px;
     min-width: 0;
     display: flex;
     align-items: center;
 }
+/* the magnifier sits in a tile at the start of the box */
 .pt-search > i {
     position: absolute;
-    inset-inline-start: 12px;
-    font-size: 13px;
-    color: var(--pt-ink-3);
+    inset-inline-start: 9px;
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    display: grid;
+    place-items: center;
+    font-size: 15px;
+    color: var(--pt-accent);
+    background: rgba(var(--win-accent-rgb, 0, 120, 212), .1);
     pointer-events: none;
-    transition: color .15s ease;
+    transition: color .15s ease, background .15s ease;
 }
 .pt-search input {
     width: 100%;
-    border: 1px solid var(--pt-line-2);
-    border-radius: var(--pt-r-sm);
-    padding: 9px 36px 9px 12px;
-    font-size: 13.5px;
+    height: 56px;
+    border: 2px solid #d3deea;
+    border-radius: 14px;
+    padding: 0;
+    padding-inline: 58px 46px;
+    font-size: 16.5px;
+    font-weight: 600;
     font-family: inherit;
     color: var(--pt-ink);
-    background: var(--pt-tint);
-    transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
+    background: #fff;
+    unicode-bidi: plaintext;   /* a typed number keeps its order: 0750 123 4567 */
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .05);
+    transition: border-color .15s ease, box-shadow .15s ease;
 }
-.pt-search input::placeholder { color: var(--pt-ink-3); }
+.pt-search input::placeholder { color: #94a3b8; font-weight: 500; }
 .pt-search input:focus {
-    background: var(--pt-bg);
     border-color: var(--pt-accent);
-    box-shadow: var(--pt-ring);
+    box-shadow: 0 0 0 5px rgba(var(--win-accent-rgb, 0, 120, 212), .14);
     outline: none;
 }
-.pt-search input:focus ~ i,
-.pt-search:focus-within > i { color: var(--pt-accent); }
+.pt-search:focus-within > i { color: #fff; background: var(--pt-accent); }
+/* «/» opens the search from anywhere on the page */
+.pt-kbd {
+    position: absolute;
+    inset-inline-end: 12px;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 6px;
+    border: 1px solid #d3deea;
+    border-bottom-width: 2px;
+    border-radius: 6px;
+    background: #f8fafc;
+    color: #64748b;
+    font: 700 12px/20px inherit;
+    font-family: inherit;
+    text-align: center;
+    pointer-events: none;
+}
+.pt-search:focus-within .pt-kbd { display: none; }
+.pt-toolbar > .pt-btn, .pt-toolbar > .pl-new { height: 56px; border-radius: 14px; padding: 0 18px; font-size: 14px; }
+.pt-toolbar > .pt-btn i { font-size: 14px; }
+.pt-toolbar > .pt-btn--icon { width: 56px; padding: 0; justify-content: center; }
+.pt-search-go { font-weight: 800; }
+/* the line under the box: what it understands, and how many it found */
+.pt-search-meta { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 0 4px; font-size: 12px; color: #64748b; }
+.pt-hint { display: inline-flex; align-items: center; gap: 5px; }
+.pt-hint i { font-size: 11px; color: rgba(var(--win-accent-rgb, 0, 120, 212), .7); }
+.pt-found { padding: 2px 10px; border-radius: 999px; background: var(--pt-accent); color: #fff; font-weight: 600; }
+.pt-found b { font-weight: 800; }
+.pt-found[hidden] { display: none; }
+/* the matched part of a name, code or number in the results */
+.pl-table mark { background: #fff3a3; color: inherit; border-radius: 3px; padding: 0 1px; }
 /* Search in flight: a thin indeterminate bar under the field, no layout shift. */
 .pt-search input.searching { border-color: var(--pt-accent); }
 .pt-search input.searching + .pt-progress { opacity: 1; }
 .pt-progress {
     position: absolute;
-    inset-inline: 1px;
-    bottom: 1px;
+    inset-inline: 14px;
+    bottom: 2px;
     height: 2px;
     border-radius: 2px;
     overflow: hidden;
@@ -325,7 +368,7 @@ if (isset($_GET['updated'])) {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 30px;
+    height: 48px;   /* the segment then stands as tall as the search box */
     padding: 0 12px;
     border: 0;
     border-radius: 6px;
@@ -373,177 +416,161 @@ if (isset($_GET['updated'])) {
 .pt-note--purple { background: #f6effa; border-color: #e3d2ee; color: #6a3592; }
 .pt-note .pt-spacer { margin-inline-start: auto; }
 
-/* ── Stat strip: same grid contract, far less height ── */
-.stats-grid-patients {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-    gap: 6px;
-    margin-bottom: 10px;
-}
-.stat-card-patient {
-    position: relative;
-    background: var(--pt-bg);
-    border: 1px solid var(--pt-line);
-    border-radius: var(--pt-r-sm);
-    padding: 8px 10px;
-    transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
-    overflow: hidden;
-}
-.stat-card-patient[data-filter] { cursor: pointer; user-select: none; }
-.stat-card-patient[data-filter]:hover {
-    border-color: #c4d7ea;
-    box-shadow: var(--pt-shadow);
-    background: var(--pt-tint);
-}
-.stat-card-patient.active-filter {
-    border-color: var(--pt-accent);
-    background: rgba(var(--win-accent-rgb, 0, 120, 212), .05);
-}
-/* Accent rail marks the active facet without shifting anything. */
-.stat-card-patient.active-filter::before {
-    content: '';
-    position: absolute;
-    inset-block: 0;
-    inset-inline-start: 0;
-    width: 3px;
-    background: var(--pt-accent);
-}
-.stat-card-patient h4 {
-    font-size: 11px;
-    color: var(--pt-ink-2);
-    margin: 0 0 3px;
-    font-weight: 600;
+/* ── Summary strip: the figures in one line (as on سەردانەکان).
+      Each figure still filters the list. ── */
+.pl-summary {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    padding: 6px 10px;
+    margin-bottom: 10px;
+    background: var(--pt-bg);
+    border: 1px solid var(--pt-line);
+    border-radius: var(--pt-r);
+}
+.pl-stats { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; }
+.pl-stat {
+    display: inline-flex;
+    align-items: baseline;
     gap: 5px;
+    padding: 3px 9px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: none;
+    font: inherit;
+    font-size: 12.5px;
+    color: #64748b;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    cursor: pointer;
+    min-height: 0;   /* the phone layer gives every button a tall tap height */
 }
-.stat-card-patient h4 i { flex-shrink: 0; font-size: 10px; opacity: .7; }
-.stat-card-patient .stat-value {
-    font-size: 19px;
+.pl-stat b { font-size: 15px; font-weight: 800; color: var(--pt-ink); font-variant-numeric: tabular-nums; }
+.pl-stat:hover { background: var(--pt-tint); }
+.pl-stat.is-total { background: #eef6fc; }
+.pl-stat.is-total b { color: #005a9e; }
+.pl-stat.is-new b { color: #15803d; }
+.pl-stat.is-open b { color: #0f766e; }
+.pl-stat.is-closed b { color: #64748b; }
+.pl-stat.is-case b { color: #7c3aed; }
+.pl-stat.is-debt b { color: #b3261e; }
+.pl-stat.active-filter { border-color: var(--pt-accent); background: rgba(var(--win-accent-rgb, 0, 120, 212), .06); }
+.pl-sep { width: 1px; height: 18px; background: var(--pt-line); }
+/* «نەخۆشی نوێ» at the toolbar's end, green as «سەردانی نوێ» */
+.pl-new {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 8px;
+    background: #16a34a;
+    color: #fff;
+    font-size: 13px;
     font-weight: 700;
-    color: var(--pt-ink);
-    line-height: 1.15;
-    letter-spacing: -.01em;
-    font-variant-numeric: tabular-nums;
+    text-decoration: none;
+    white-space: nowrap;
 }
-/* Tone lives on the icon; the number stays near-black so the row of figures
-   reads as one scale instead of seven competing colours. */
-.stat-card-patient[data-tone="blue"]  h4 i { color: #0b5da8; }
-.stat-card-patient[data-tone="cyan"]  h4 i { color: #0e7490; }
-.stat-card-patient[data-tone="green"] h4 i { color: #147c47; }
-.stat-card-patient[data-tone="grey"]  h4 i { color: #8a939e; }
-.stat-card-patient[data-tone="amber"] h4 i { color: #a35b00; }
-.stat-card-patient[data-tone="pink"]  h4 i { color: #b0286b; }
-.stat-card-patient[data-tone="red"]   h4 i { color: #c0392b; }
-.stat-card-patient[data-tone="red"]   .stat-value,
-.stat-card-patient[data-tone="pink"]  .stat-value { color: #b3261e; }
+.pl-new:hover { background: #15803d; color: #fff; }
 
 /* ── Panel + loader ── */
 .pt-panel {
     background: var(--pt-bg);
     border: 1px solid var(--pt-line);
     border-radius: var(--pt-r);
-    box-shadow: var(--pt-shadow);
 }
-.pt-panel .panel-body { padding: 10px; }
+.pt-panel .panel-body { padding: 0; }
 #loadingIndicator { text-align: center; padding: 28px; }
 #loadingIndicator i { font-size: 26px; color: var(--pt-accent); }
 #loadingIndicator p { margin-top: 10px; font-size: 12.5px; font-weight: 600; color: var(--pt-ink-2); }
 
-/* ── Patient rows ── */
-.patient-card {
-    background: var(--pt-bg);
-    border: 1px solid var(--pt-line);
-    border-radius: var(--pt-r-sm);
-    padding: 8px 10px;
-    margin-bottom: 6px;
-    display: grid;
-    grid-template-columns: 36px minmax(0, 1fr) auto;
-    gap: 10px;
-    align-items: center;
-    transition: border-color .15s ease, box-shadow .15s ease;
-}
-.patient-card:hover {
-    border-color: #c4d7ea;
-    box-shadow: var(--pt-shadow);
-}
-.patient-card.has-alert { border-inline-start: 3px solid var(--pt-danger); }
-/* Restricted rows (another doctor's patient) carry an amber rail — set here
-   rather than inline in ajax_search.php so both renderers stay in sync. */
-.patient-card.restricted-view { border-inline-start: 3px solid #e8a33d; }
-.patient-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 9px;
-    background: #e8f1fb;
-    color: #0b5da8;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 15px;
-    font-weight: 700;
-}
-.patient-avatar.female { background: #fdecf3; color: #b0286b; }
-.patient-info { min-width: 0; }
-.patient-name {
-    font-size: 13.5px;
-    font-weight: 600;
-    color: var(--pt-ink);
-    margin-bottom: 2px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    line-height: 1.35;
-}
-.patient-name a { color: inherit; text-decoration: none; }
-.patient-name a:hover { color: var(--pt-accent); }
-.patient-meta {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
+/* ── The table (patients/_list.php): classic — ruled, striped, sticky head,
+      one line a patient ── */
+.pl-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.pl-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f4f6f9;
+    color: #334155;
     font-size: 12px;
-    color: var(--pt-ink-2);
+    font-weight: 800;
+    text-align: start;
+    padding: 8px 6px;
+    border-bottom: 1px solid #d9e0e8;
+    white-space: nowrap;
 }
-.patient-meta-item { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.patient-meta-item i { color: var(--pt-ink-3); font-size: 10.5px; }
-.patient-meta-item a { color: inherit; text-decoration: none; }
-.patient-meta-item a:hover { color: var(--pt-accent); }
-.patient-actions { display: flex; gap: 5px; flex-shrink: 0; }
-/* Row actions stay quiet until the row is hovered, so the list reads calmly. */
-.patient-actions .btn {
-    width: 30px;
-    height: 30px;
-    padding: 0;
+.pl-table th:first-child { border-start-start-radius: var(--pt-r); }
+.pl-table th:last-child { border-start-end-radius: var(--pt-r); }
+.pl-table td { padding: 6px; border-bottom: 1px solid #eef1f4; vertical-align: middle; line-height: 1.45; }
+.pl-table tbody tr:nth-child(even) td { background: #fafbfc; }
+.pl-table tbody tr:hover td { background: #f2f8fe; }
+.pl-table .c-no {
+    width: 1%;
+    color: #94a3b8;
+    font-size: 12px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    border-inline-start: 3px solid transparent;
+}
+/* a medical alert or another doctor's patient: a coloured line at the row's start */
+.pl-table tr.has-alert .c-no { border-inline-start-color: var(--pt-danger); }
+.pl-table tr.is-restricted .c-no { border-inline-start-color: #e8a33d; }
+.pl-num { text-align: center !important; font-variant-numeric: tabular-nums; }
+.pl-muted { color: #94a3b8; }
+.pl-pt { display: flex; align-items: center; gap: 8px; min-width: 170px; }
+.pl-avatar {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    font-size: 13px;
+    font-weight: 800;
+    text-decoration: none;
+    background: #e8f1fb;
+    color: #0b5da8;
+}
+.pl-avatar.is-female { background: #fdecf3; color: #b0286b; }
+.pl-who { min-width: 0; }
+.pl-line { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.pl-name { font-weight: 700; color: var(--pt-ink); text-decoration: none; }
+.pl-name:hover { color: var(--pt-accent); }
+.pl-alert { color: var(--pt-danger); font-size: 12px; }
+.pl-sub { display: block; font-size: 11.5px; color: #64748b; text-align: start; }
+.pl-xray { color: #00897b; }
+.pl-chip { display: inline-block; padding: 0 7px; border-radius: 6px; font-size: 10.5px; font-weight: 700; line-height: 18px; white-space: nowrap; }
+.pl-chip.is-male { background: #e8f1fb; color: #0b5da8; }
+.pl-chip.is-female { background: #fdecf3; color: #b0286b; }
+.pl-chip.is-locked { background: #fff3e0; color: #a35b00; }
+.pl-chip.is-locked i { font-size: 9px; }
+.pl-table .c-phone a { color: inherit; text-decoration: none; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pl-table .c-phone a:hover { color: var(--pt-accent); }
+.pl-table .c-date { white-space: nowrap; color: #475569; font-variant-numeric: tabular-nums; }
+.pl-debt { color: #b3261e; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pl-actions { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
+.pl-act {
+    width: 30px;
+    height: 30px;
+    border: 1px solid #e2e8f0;
     border-radius: 7px;
-    border: 1px solid var(--pt-line-2);
-    background: var(--pt-bg);
-    color: var(--pt-ink-2);
-    transition: background .15s ease, color .15s ease, border-color .15s ease;
+    background: #fff;
+    color: #475569;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12.5px;
+    text-decoration: none;
 }
-.patient-card:hover .patient-actions .btn { border-color: #cdd3da; }
-.patient-actions .btn:hover { background: var(--pt-accent); border-color: var(--pt-accent); color: #fff; }
-.patient-actions .btn.btn-danger:hover { background: var(--pt-danger); border-color: var(--pt-danger); }
-
-/* ── Badges ── */
-.badge {
-    font-size: 10.5px;
-    padding: 1px 7px;
-    border-radius: 20px;
-    font-weight: 600;
-    line-height: 1.6;
-}
-.badge-blue   { background: #e8f1fb; color: #0b5da8; }
-.badge-pink   { background: #fdecf3; color: #b0286b; }
-/* Restricted-view marker on AJAX-rendered cards (ajax_search.php). */
-.badge-orange { background: #fff3e0; color: #a35b00; }
-.badge-orange i { font-size: 9px; }
+.pl-act:hover { background: #f1f5f9; color: var(--pt-ink); }
+.pl-act.is-money { color: #0878d1; }
+.pl-act.is-danger:hover { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+.pl-actions .case-go-btn { height: 30px; }
+.pl-actions .plan-go-btn { height: 30px; font-size: 12px; }
 
 /* ── Advanced filters ── */
 #advancedFilters { animation: ptDrop .18s ease; }
@@ -626,8 +653,7 @@ if (isset($_GET['updated'])) {
     display: flex;
     gap: 4px;
     justify-content: center;
-    margin-top: 14px;
-    padding-top: 12px;
+    padding: 10px;
     border-top: 1px solid var(--pt-line);
 }
 .pagination-btn {
@@ -661,15 +687,49 @@ if (isset($_GET['updated'])) {
 .empty-state-title { font-size: 14px; font-weight: 700; color: var(--pt-ink); margin: 12px 0 4px; }
 .empty-state-text { font-size: 12.5px; color: var(--pt-ink-2); margin-bottom: 14px; }
 
-/* ── Small screens: keep it usable, not cramped ── */
-@media (max-width: 640px) {
-    .patient-card { grid-template-columns: 32px minmax(0, 1fr); gap: 8px; }
-    .patient-avatar { width: 32px; height: 32px; font-size: 13px; }
-    .patient-actions { grid-column: 1 / -1; justify-content: flex-end; }
-    .stats-grid-patients { grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); }
-    .pt-toolbar > .pt-btn { flex: 1 1 auto; justify-content: center; }
+/* The breakpoints follow the page's own width (container queries), not the
+   screen's: an open or closed sidebar changes the room the table really has. */
+.pt-scope { container: pl / inline-size; }
+
+/* Narrower desks: no «#», «کەیس» and «پلان» are icon-only */
+@container pl (max-width: 1000px) {
+    .pl-table .c-no { display: none; }
+    .pl-table tr.has-alert .c-patient { box-shadow: inset -3px 0 0 var(--pt-danger); }
+    .pl-table tr.is-restricted .c-patient { box-shadow: inset -3px 0 0 #e8a33d; }
+    .pl-actions .case-go-btn span, .pl-actions .plan-go-btn span { display: none; }
+    .pl-actions .plan-go-btn { width: 30px; padding: 0; justify-content: center; }
+}
+
+/* Tablets and phones: each patient is a card, as many side by side as fit */
+@container pl (max-width: 820px) {
+    .pl-table thead { display: none; }
+    .pl-table { display: block; }
+    .pl-table tbody { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; padding: 8px; }
+    .pl-table tr { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 12px; padding: 10px 12px; align-content: start;
+                   border: 1px solid var(--pt-line); border-inline-start: 3px solid #cbd5e1; border-radius: 9px; background: #fff; }
+    .pl-table tr.has-alert { border-inline-start-color: var(--pt-danger); }
+    .pl-table tr.is-restricted { border-inline-start-color: #e8a33d; }
+    .pl-table td { display: block; padding: 0; border: 0; background: none !important; box-shadow: none !important; min-width: 0; }
+    .pl-table td.c-patient, .pl-table td.c-act { grid-column: 1 / -1; }
+    .pl-table td[data-label]::before { content: attr(data-label); display: block; color: #94a3b8; font-size: 10.5px; font-weight: 700; margin-bottom: 1px; }
+    .pl-table td.is-empty { display: none; }
+    .pl-table .pl-num { text-align: start !important; }
+    .pl-pt { min-width: 0; }
+    .pl-actions { justify-content: flex-start; flex-wrap: wrap; padding-top: 8px; border-top: 1px dashed var(--pt-line); }
+    .pt-panel { background: var(--pt-tint); }
+}
+
+/* Phones: the toolbar and the figures wrap */
+@container pl (max-width: 640px) {
+    .pt-toolbar { padding: 10px; }
+    .pt-toolbar > .pt-btn, .pt-toolbar > .pl-new { flex: 1 1 auto; justify-content: center; height: 46px; }
+    .pt-search { flex-basis: 100%; }
+    .pt-search input { height: 52px; font-size: 16px; }
+    .pt-kbd, .pt-hint { display: none; }
     .pt-seg { width: 100%; }
     .view-mode-btn { flex: 1; justify-content: center; }
+    .pl-sep { display: none; }
+    .pl-stat { padding: 2px 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
     .pt-progress::after { animation: none; }
@@ -715,14 +775,15 @@ if (isset($_GET['updated'])) {
 
     <div class="pt-search">
         <input type="text" id="searchInput"
-               placeholder="<?= ($isDoctor && !$isAdmin && $viewMode === 'all') ? 'گەڕان لە نەخۆشەکانی تری کلینیک...' : 'گەڕان بە ناو، کۆد، یان ژمارە تەلەفۆن...' ?>"
-               value="<?= htmlspecialchars($search) ?>" autocomplete="off" aria-label="گەڕان">
+               placeholder="<?= ($isDoctor && !$isAdmin && $viewMode === 'all') ? 'گەڕان لە نەخۆشەکانی تری کلینیک...' : 'ناو، مۆبایل یان کۆدی نەخۆش بنووسە...' ?>"
+               value="<?= htmlspecialchars($search) ?>" autocomplete="off" aria-label="گەڕان" aria-describedby="searchMeta">
         <div class="pt-progress" aria-hidden="true"></div>
         <i class="fas fa-search"></i>
+        <kbd class="pt-kbd" title="کلیلی / بۆ گەڕان">/</kbd>
     </div>
 
-    <button type="button" class="pt-btn pt-btn--primary pt-btn--icon" id="searchBtn" title="گەڕان" aria-label="گەڕان">
-        <i class="fas fa-search"></i>
+    <button type="button" class="pt-btn pt-btn--primary pt-search-go" id="searchBtn" title="گەڕان" aria-label="گەڕان">
+        <i class="fas fa-search"></i> <span>گەڕان</span>
     </button>
     <?php /* Rendered in every mode: updateToggleButtonText() dereferences it
              unconditionally, so hiding it used to throw a TypeError that killed
@@ -733,9 +794,15 @@ if (isset($_GET['updated'])) {
     <button type="button" class="pt-btn pt-btn--icon" id="clearBtn" style="display: none;" title="پاککردنەوە" aria-label="پاککردنەوە">
         <i class="fas fa-times"></i>
     </button>
-    <a href="<?= APP_URL ?>/patients/add.php" class="pt-btn pt-btn--primary">
-        <i class="fas fa-plus"></i> نەخۆشی نوێ
-    </a>
+    <a href="<?= APP_URL ?>/patients/add.php" class="pl-new"><i class="fas fa-plus"></i> نەخۆشی نوێ</a>
+
+    <?php // what the box understands, then — while searching — how many were found ?>
+    <div class="pt-search-meta" id="searchMeta" aria-live="polite">
+        <span class="pt-found" id="searchFound"<?= $search === '' ? ' hidden' : '' ?>><b><?= number_format($totalPatients) ?></b> نەخۆش بۆ «<bdi id="searchFoundQ"><?= htmlspecialchars($search) ?></bdi>»</span>
+        <span class="pt-hint"><i class="fas fa-user"></i> ناو — هەر بەشێک، بە هەر ڕیزبەندییەک</span>
+        <span class="pt-hint"><i class="fas fa-mobile-alt"></i> مۆبایل — بە بۆشایی، 0 یان <bdi dir="ltr">+964</bdi></span>
+        <span class="pt-hint"><i class="fas fa-id-card"></i> کۆد</span>
+    </div>
 </div>
 
 <!-- Advanced Filters Panel -->
@@ -812,35 +879,32 @@ if (isset($_GET['updated'])) {
     </div>
 </div>
 
-<!-- Stats -->
-<div class="stats-grid-patients" id="statsContainer" style="<?= $search ? 'display: none;' : '' ?>">
-    <div class="stat-card-patient" data-filter="all" data-tone="blue" title="هەموو نەخۆشەکان">
-        <h4><i class="fas fa-users"></i> کۆی نەخۆشەکان</h4>
-        <div class="stat-value" id="statTotalPatients"><?= $search ? '0' : number_format($totalPatients) ?></div>
-    </div>
-    <div class="stat-card-patient" data-filter="new_month" data-tone="cyan" title="نەخۆشی نوێ ئەم مانگە">
-        <h4><i class="fas fa-user-plus"></i> نوێ ئەم مانگە</h4>
-        <div class="stat-value" id="statNewThisMonth"><?= $search ? '0' : number_format($newPatientsThisMonth) ?></div>
-    </div>
-    <div class="stat-card-patient" data-filter="active_folders" data-tone="green" title="نەخۆشانی دۆسیەی کراوە">
-        <h4><i class="fas fa-folder-open"></i> دۆسیەی کراوە</h4>
-        <div class="stat-value" id="statActiveFolders"><?= $search ? '0' : number_format($activeFoldersCount) ?></div>
-    </div>
-    <div class="stat-card-patient" data-filter="closed_folders" data-tone="grey" title="نەخۆشانی دۆسیەی داخراو">
-        <h4><i class="fas fa-folder"></i> دۆسیەی داخراو</h4>
-        <div class="stat-value" id="statClosedFolders"><?= $search ? '0' : number_format($closedFoldersCount) ?></div>
-    </div>
-    <div class="stat-card-patient" data-filter="active_cases" data-tone="amber" title="نەخۆشانی کەیسی کراوە">
-        <h4><i class="fas fa-briefcase-medical"></i> کەیسی کراوە</h4>
-        <div class="stat-value" id="statActiveCases"><?= $search ? '0' : number_format($activeCases) ?></div>
-    </div>
-    <div class="stat-card-patient" data-filter="has_debt" data-tone="pink" title="نەخۆشانی بە قەرز">
-        <h4><i class="fas fa-hand-holding-usd"></i> نەخۆش بە قەرز</h4>
-        <div class="stat-value" id="statPatientsWithDebt"><?= $search ? '0' : number_format($patientsWithDebt) ?></div>
-    </div>
-    <div class="stat-card-patient" data-filter="has_debt" data-tone="red" title="نەخۆشانی بە قەرز">
-        <h4><i class="fas fa-money-bill-wave"></i> کۆی پارەی قەرز</h4>
-        <div class="stat-value" id="statTotalDebt"><?= $search ? '0' : number_format($totalDebtAmount) ?> <small style="font-size: 14px;"></small></div>
+<!-- Figures strip: each figure filters the list -->
+<div class="pl-summary" id="statsContainer" style="<?= $search ? 'display: none;' : '' ?>">
+    <div class="pl-stats">
+        <button type="button" class="pl-stat is-total stat-card-patient" data-filter="all" title="هەموو نەخۆشەکان">
+            <b id="statTotalPatients"><?= $search ? '0' : number_format($totalPatients) ?></b> نەخۆش
+        </button>
+        <button type="button" class="pl-stat is-new stat-card-patient" data-filter="new_month" title="نەخۆشی نوێ ئەم مانگە">
+            <b id="statNewThisMonth"><?= $search ? '0' : number_format($newPatientsThisMonth) ?></b> نوێی ئەم مانگە
+        </button>
+        <i class="pl-sep"></i>
+        <button type="button" class="pl-stat is-open stat-card-patient" data-filter="active_folders" title="نەخۆشانی دۆسیەی کراوە">
+            <b id="statActiveFolders"><?= $search ? '0' : number_format($activeFoldersCount) ?></b> دۆسیەی کراوە
+        </button>
+        <button type="button" class="pl-stat is-closed stat-card-patient" data-filter="closed_folders" title="نەخۆشانی دۆسیەی داخراو">
+            <b id="statClosedFolders"><?= $search ? '0' : number_format($closedFoldersCount) ?></b> دۆسیەی داخراو
+        </button>
+        <button type="button" class="pl-stat is-case stat-card-patient" data-filter="active_cases" title="نەخۆشانی کەیسی کراوە">
+            <b id="statActiveCases"><?= $search ? '0' : number_format($activeCases) ?></b> کەیسی کراوە
+        </button>
+        <i class="pl-sep"></i>
+        <button type="button" class="pl-stat is-debt stat-card-patient" data-filter="has_debt" title="نەخۆشانی بە قەرز">
+            <b id="statPatientsWithDebt"><?= $search ? '0' : number_format($patientsWithDebt) ?></b> بە قەرز
+        </button>
+        <button type="button" class="pl-stat is-debt stat-card-patient" data-filter="has_debt" title="کۆی پارەی قەرز">
+            <b id="statTotalDebt"><?= $search ? '0' : number_format($totalDebtAmount) ?></b> کۆی قەرز
+        </button>
     </div>
 </div>
 
@@ -853,7 +917,7 @@ if (isset($_GET['updated'])) {
 <div class="panel pt-panel" id="patientsPanel">
     <div class="panel-body">
         <!-- Patient Cards -->
-        <div id="patientsList">
+        <div id="patientsList" class="pl-list">
         <?php
         // The clinic-wide directory loads nothing until the doctor types — show
         // the search prompt rather than a misleading "no patients found".
@@ -880,94 +944,14 @@ if (isset($_GET['updated'])) {
             </a>
         </div>
         <?php else: ?>
-            <?php foreach ($patients as $patient): ?>
-            <?php
-            // Check for medical conditions
-            $hasConditions = $patientManager->hasMedicalAlert($patient['id']);
-            // Get first letter of name for avatar
-            $firstLetter = mb_substr($patient['full_name'], 0, 1, 'UTF-8');
-            ?>
-            <div class="patient-card <?= $hasConditions ? 'has-alert' : '' ?>">
-                <!-- Avatar -->
-                <a href="<?= APP_URL ?>/patients/view.php?id=<?= $patient['id'] ?>">
-                    <div class="patient-avatar <?= $patient['gender'] === 'female' ? 'female' : '' ?>">
-                        <?= htmlspecialchars($firstLetter) ?>
-                    </div>
-                </a>
-
-                <!-- Patient Info -->
-                <div class="patient-info">
-                    <div class="patient-name">
-                        <a href="<?= APP_URL ?>/patients/view.php?id=<?= $patient['id'] ?>">
-                            <?= htmlspecialchars($patient['full_name']) ?>
-                        </a>
-                        <?php if ($hasConditions): ?>
-                        <i class="fas fa-exclamation-triangle" style="color: var(--pt-danger); font-size: 13px;" title="ئاگادارکردنەوەی پزیشکی"></i>
-                        <?php endif; ?>
-                        <span class="badge <?= $patient['gender'] === 'male' ? 'badge-blue' : 'badge-pink' ?>">
-                            <?= $patient['gender'] === 'male' ? 'نێر' : 'مێ' ?>
-                        </span>
-                    </div>
-                    <div class="patient-meta">
-                        <div class="patient-meta-item">
-                            <i class="fas fa-id-card"></i>
-                            <span><?= $patient['patient_code'] ?></span>
-                        </div>
-                        <div class="patient-meta-item">
-                            <i class="fas fa-phone"></i>
-                            <a href="tel:<?= $patient['phone'] ?>" style="color: inherit;"><?= $patient['phone'] ?></a>
-                        </div>
-                        <div class="patient-meta-item">
-                            <i class="fas fa-folder"></i>
-                            <span><?= $patient['folder_count'] ?? 0 ?> دۆسیە</span>
-                        </div>
-                        <?php if (($patient['total_debt'] ?? 0) > 0): ?>
-                        <div class="patient-meta-item" style="color: var(--pt-danger); font-weight: 600;">
-                            <i class="fas fa-exclamation-circle"></i>
-                            <span>قەرز: <?= number_format($patient['total_debt']) ?></span>
-                        </div>
-                        <?php endif; ?>
-                        <div class="patient-meta-item">
-                            <i class="fas fa-calendar"></i>
-                            <span><?= date('Y-m-d', strtotime($patient['created_at'])) ?></span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Actions -->
-                <div class="patient-actions">
-                    <?php if (case_button_allowed($auth, (int)$patient['id'])): ?>
-                    <?= case_button((int)$patient['id'], ['size' => 'sm']) ?>
-                    <?php endif; ?>
-                    <?= plan_button((int)$patient['id'], $planSummaries) ?>
-                    <a href="<?= APP_URL ?>/patients/view.php?id=<?= $patient['id'] ?>"
-                       class="btn btn-primary" title="بینین">
-                        <i class="fas fa-eye"></i>
-                    </a>
-                    <a href="<?= APP_URL ?>/patients/edit.php?id=<?= $patient['id'] ?>"
-                       class="btn btn-secondary" title="دەستکاری">
-                        <i class="fas fa-edit"></i>
-                    </a>
-                    <a href="<?= APP_URL ?>/patients/statement.php?patient_id=<?= $patient['id'] ?>"
-                       class="btn btn-secondary" title="کشف حساب" style="color:#0878d1;border-color:#0878d1;">
-                        <i class="fas fa-file-invoice-dollar"></i>
-                    </a>
-                    <?php
-                    // Every role may delete; a restricted doctor only sees the button
-                    // for patients they already have access to (server re-checks anyway).
-                    $canDeleteThis = !AccessGuard::isRestrictedDoctor()
-                        || AccessGuard::doctorCanViewPatient((int)$patient['id']);
-                    if ($canDeleteThis):
-                    ?>
-                    <button type="button"
-                            onclick="deletePatient(<?= (int)$patient['id'] ?>, <?= htmlspecialchars(json_encode($patient['full_name'], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES) ?>)"
-                            class="btn btn-danger" title="سڕینەوە">
-                        <i class="fas fa-trash-alt"></i>
-                    </button>
-                    <?php endif; ?>
-                </div>
-            </div>
-            <?php endforeach; ?>
+            <?= patients_list_table($patients, [
+                'restricted' => $isDoctor && !$isAdmin && !$isDoctorPatientFilter && $viewMode === 'all',
+                'start'      => ($page - 1) * ITEMS_PER_PAGE + 1,
+                'auth'       => $auth,
+                'plans'      => $planSummaries,
+                'manager'    => $patientManager,
+                'search'     => $search,
+            ]) ?>
         <?php endif; ?>
         </div><!-- End patientsList -->
 
@@ -1017,11 +1001,11 @@ if (isset($_GET['updated'])) {
         <?php if ($totalPages > 1): ?>
         <div class="pagination">
             <a href="?page=1<?= $search ? '&search=' . urlencode($search) : '' ?><?= $paginationContext ?>"
-               class="pagination-btn <?= $page <= 1 ? 'disabled' : '' ?>" <?= $page <= 1 ? 'disabled' : '' ?>>
+               data-page="1" class="pagination-btn <?= $page <= 1 ? 'disabled' : '' ?>" <?= $page <= 1 ? 'disabled' : '' ?>>
                 <i class="fas fa-angle-double-right"></i>
             </a>
             <a href="?page=<?= $page - 1 ?><?= $search ? '&search=' . urlencode($search) : '' ?><?= $paginationContext ?>"
-               class="pagination-btn <?= $page <= 1 ? 'disabled' : '' ?>" <?= $page <= 1 ? 'disabled' : '' ?>>
+               data-page="<?= $page - 1 ?>" class="pagination-btn <?= $page <= 1 ? 'disabled' : '' ?>" <?= $page <= 1 ? 'disabled' : '' ?>>
                 <i class="fas fa-angle-right"></i>
             </a>
 
@@ -1031,17 +1015,17 @@ if (isset($_GET['updated'])) {
             for ($i = $start; $i <= $end; $i++):
             ?>
             <a href="?page=<?= $i ?><?= $search ? '&search=' . urlencode($search) : '' ?><?= $paginationContext ?>"
-               class="pagination-btn <?= $i === $page ? 'active' : '' ?>">
+               data-page="<?= $i ?>" class="pagination-btn <?= $i === $page ? 'active' : '' ?>">
                 <?= $i ?>
             </a>
             <?php endfor; ?>
 
             <a href="?page=<?= $page + 1 ?><?= $search ? '&search=' . urlencode($search) : '' ?><?= $paginationContext ?>"
-               class="pagination-btn <?= $page >= $totalPages ? 'disabled' : '' ?>" <?= $page >= $totalPages ? 'disabled' : '' ?>>
+               data-page="<?= $page + 1 ?>" class="pagination-btn <?= $page >= $totalPages ? 'disabled' : '' ?>" <?= $page >= $totalPages ? 'disabled' : '' ?>>
                 <i class="fas fa-angle-left"></i>
             </a>
             <a href="?page=<?= $totalPages ?><?= $search ? '&search=' . urlencode($search) : '' ?><?= $paginationContext ?>"
-               class="pagination-btn <?= $page >= $totalPages ? 'disabled' : '' ?>" <?= $page >= $totalPages ? 'disabled' : '' ?>>
+               data-page="<?= $totalPages ?>" class="pagination-btn <?= $page >= $totalPages ? 'disabled' : '' ?>" <?= $page >= $totalPages ? 'disabled' : '' ?>>
                 <i class="fas fa-angle-double-left"></i>
             </a>
         </div>
@@ -1061,6 +1045,8 @@ const CACHE_DURATION = 60000; // Cache results for 60 seconds
 let currentViewMode = <?= json_encode($viewMode, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>; // Doctor view mode
 const profileDoctorId = <?= $profileDoctorId ?>;
 const isDoctor = <?= ($isDoctor && !$isAdmin) ? 'true' : 'false' ?>;
+// The clinic-wide figures the strip opened with (none when it opened on a search)
+const initialStats = <?= $search ? 'null' : 'Object.fromEntries(Array.from(document.querySelectorAll(\'#statsContainer b[id]\')).map(b => [b.id, b.textContent]))' ?>;
 
 // View mode toggle for doctors
 <?php if ($isDoctor && !$isAdmin && !$isDoctorPatientFilter): ?>
@@ -1275,22 +1261,34 @@ function updateUIWithResults(data, hasFilters) {
         // Update pagination
         document.getElementById('paginationContainer').innerHTML = data.pagination;
 
-        // Update statistics cards
-        if (data.statistics) {
+        // Update statistics cards. With nothing searched or filtered the strip
+        // goes back to the clinic-wide figures it opened with (the endpoint's
+        // own figures cover only the rows of one page).
+        if (!hasFilters && initialStats) {
+            Object.keys(initialStats).forEach(id => { document.getElementById(id).textContent = initialStats[id]; });
+            document.getElementById('statsContainer').style.display = 'flex';
+        } else if (data.statistics) {
             document.getElementById('statTotalPatients').textContent = data.statistics.totalPatients.toLocaleString();
             document.getElementById('statNewThisMonth').textContent = data.statistics.newThisMonth.toLocaleString();
             document.getElementById('statActiveFolders').textContent = data.statistics.activeFolders.toLocaleString();
             document.getElementById('statClosedFolders').textContent = data.statistics.closedFolders.toLocaleString();
             document.getElementById('statActiveCases').textContent = data.statistics.activeCases.toLocaleString();
             document.getElementById('statPatientsWithDebt').textContent = data.statistics.patientsWithDebt.toLocaleString();
-            document.getElementById('statTotalDebt').innerHTML = data.statistics.totalDebt.toLocaleString() + ' <small style="font-size: 14px;"></small>';
+            document.getElementById('statTotalDebt').textContent = data.statistics.totalDebt.toLocaleString();
 
             // Show stats container when filters are active
-            document.getElementById('statsContainer').style.display = hasFilters ? 'grid' : 'none';
+            document.getElementById('statsContainer').style.display = hasFilters ? 'flex' : 'none';
         }
 
         // Attach pagination click handlers
         attachPaginationHandlers();
+
+        // «12 نەخۆش بۆ "…"» under the box while a search is typed
+        const q = document.getElementById('searchInput').value.trim();
+        const found = document.getElementById('searchFound');
+        found.hidden = q === '';
+        found.querySelector('b').textContent = Number(data.total || 0).toLocaleString();
+        document.getElementById('searchFoundQ').textContent = q;
 
         currentPage = data.page;
 
@@ -1331,6 +1329,25 @@ document.getElementById('searchBtn').addEventListener('click', function() {
 // Search on Enter key
 document.getElementById('searchInput').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
+        performSearch(1);
+    }
+});
+
+// «/» anywhere on the page jumps to the search; Esc in it clears it
+document.addEventListener('keydown', function(e) {
+    const el = document.activeElement;
+    const typing = el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
+    if (e.key === '/' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        const box = document.getElementById('searchInput');
+        box.focus();
+        box.select();
+    }
+});
+document.getElementById('searchInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && this.value !== '') {
+        e.preventDefault();
+        this.value = '';
         performSearch(1);
     }
 });
@@ -1385,8 +1402,8 @@ function clearAllFilters() {
     updateActiveFilterCount();
     // Clear cache when filters are cleared
     searchCache.clear();
-    // Hide statistics container when clearing filters
-    document.getElementById('statsContainer').style.display = 'none';
+    // The strip comes back with the opening figures once the results arrive
+    if (!initialStats) document.getElementById('statsContainer').style.display = 'none';
     performSearch(1);
 }
 

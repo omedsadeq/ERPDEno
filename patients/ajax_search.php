@@ -10,6 +10,7 @@ require_once __DIR__ . '/../classes/XrayManager.php';
 require_once __DIR__ . '/../classes/AccessGuard.php';
 require_once __DIR__ . '/../includes/case-button.php';
 require_once __DIR__ . '/../includes/plan-button.php';
+require_once __DIR__ . '/_list.php';
 
 // Check authentication
 $auth = new Auth();
@@ -183,164 +184,37 @@ try {
         $statistics['totalDebt'] = ($folderDebtResult['total'] ?? 0) + ($xrayDebtResult['total'] ?? 0);
     }
 
-    // Generate HTML for patient cards
+    // Generate HTML for the patients table
     $html = '';
 
     if (!empty($needsSearchPrompt)) {
         // Directory idle state — the doctor has not typed enough yet.
-        $html = '<div class="empty-state" style="padding: 40px 20px;">
-            <i class="fas fa-search empty-state-icon" style="font-size: 64px; color: var(--text-secondary); opacity: 0.3;"></i>
-            <p class="empty-state-title" style="font-size: 18px; font-weight: 700; margin: 16px 0 8px;">گەڕان بۆ نەخۆشێکی کلینیک</p>
-            <p class="empty-state-text" style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
+        $html = '<div class="empty-state">
+            <i class="fas fa-search empty-state-icon"></i>
+            <p class="empty-state-title">گەڕان بۆ نەخۆشێکی کلینیک</p>
+            <p class="empty-state-text">
                 لانیکەم ' . DIRECTORY_SEARCH_MIN_CHARS . ' پیت بنووسە بە ناو، ژمارەی مۆبایل، یان کۆدی نەخۆش
             </p>
         </div>';
     } elseif (empty($patients)) {
         $emptyMessage = $isRestrictedView ? 'هیچ نەخۆشێکی تری کلینیک نەدۆزرایەوە' : 'هیچ نەخۆشێک نەدۆزرایەوە';
-        $html = '<div class="empty-state" style="padding: 40px 20px;">
-            <i class="fas fa-users empty-state-icon" style="font-size: 64px; color: var(--text-secondary); opacity: 0.3;"></i>
-            <p class="empty-state-title" style="font-size: 18px; font-weight: 700; margin: 16px 0 8px;">' . $emptyMessage . '</p>
-            <p class="empty-state-text" style="font-size: 14px; color: var(--text-secondary); margin-bottom: 20px;">
+        $html = '<div class="empty-state">
+            <i class="fas fa-users empty-state-icon"></i>
+            <p class="empty-state-title">' . $emptyMessage . '</p>
+            <p class="empty-state-text">
                 گەڕانەکەت ئەنجامی نەبوو
             </p>
         </div>';
     } else {
-        foreach ($patients as $patient) {
-            // Get first letter of name for avatar
-            $firstLetter = mb_substr($patient['full_name'], 0, 1, 'UTF-8');
-
-            if ($isRestrictedView) {
-                // RESTRICTED VIEW - Show only basic info for other doctors' patients
-                $html .= '<div class="patient-card restricted-view">
-                    <a href="' . APP_URL . '/patients/view.php?id=' . $patient['id'] . '">
-                        <div class="patient-avatar ' . ($patient['gender'] === 'female' ? 'female' : '') . '">
-                            ' . htmlspecialchars($firstLetter) . '
-                        </div>
-                    </a>
-                    <div class="patient-info">
-                        <div class="patient-name">
-                            <a href="' . APP_URL . '/patients/view.php?id=' . $patient['id'] . '">
-                                ' . htmlspecialchars($patient['full_name']) . '
-                            </a>
-                            <span class="badge badge-orange" style="font-size: 10px;">
-                                <i class="fas fa-lock" style="font-size: 9px;"></i> بینینی سنوورمەند
-                            </span>
-                            <span class="badge ' . ($patient['gender'] === 'male' ? 'badge-blue' : 'badge-pink') . '">
-                                ' . ($patient['gender'] === 'male' ? 'نێر' : 'مێ') . '
-                            </span>
-                        </div>
-                        <div class="patient-meta">
-                            <div class="patient-meta-item">
-                                <i class="fas fa-id-card"></i>
-                                <span>' . htmlspecialchars($patient['patient_code'] ?? '') . '</span>
-                            </div>
-                            <div class="patient-meta-item">
-                                <i class="fas fa-phone"></i>
-                                <span>' . htmlspecialchars($patient['phone'] ?? '') . '</span>
-                            </div>';
-
-                // Show X-ray count if available
-                if (isset($patient['xray_count']) && $patient['xray_count'] > 0) {
-                    $html .= '<div class="patient-meta-item" style="color: #00897b;">
-                                <i class="fas fa-x-ray"></i>
-                                <span>' . $patient['xray_count'] . ' ئێکسڕەی</span>
-                            </div>';
-                }
-
-                $html .= '</div>
-                    </div>
-                    <div class="patient-actions">
-                        ' . (case_button_allowed($auth, (int)$patient['id']) ? case_button((int)$patient['id'], ['size' => 'sm']) : '') . '
-                        ' . plan_button((int)$patient['id'], $planSummaries) . '
-                        <a href="' . APP_URL . '/patients/view.php?id=' . $patient['id'] . '" class="btn btn-secondary" title="بینینی پرۆفایل">
-                            <i class="fas fa-eye"></i>
-                        </a>
-                    </div>
-                </div>';
-            } else {
-                // FULL VIEW - Show complete info for own patients or admin
-                $hasConditions = $patientManager->hasMedicalAlert($patient['id']);
-
-                $html .= '<div class="patient-card ' . ($hasConditions ? 'has-alert' : '') . '">
-                    <a href="' . APP_URL . '/patients/view.php?id=' . $patient['id'] . '">
-                        <div class="patient-avatar ' . ($patient['gender'] === 'female' ? 'female' : '') . '">
-                            ' . htmlspecialchars($firstLetter) . '
-                        </div>
-                    </a>
-                    <div class="patient-info">
-                        <div class="patient-name">
-                            <a href="' . APP_URL . '/patients/view.php?id=' . $patient['id'] . '">
-                                ' . htmlspecialchars($patient['full_name']) . '
-                            </a>';
-
-                if ($hasConditions) {
-                    $html .= '<i class="fas fa-exclamation-triangle" style="color: var(--pt-danger); font-size: 13px;" title="ئاگادارکردنەوەی پزیشکی"></i>';
-                }
-
-                $html .= '<span class="badge ' . ($patient['gender'] === 'male' ? 'badge-blue' : 'badge-pink') . '">
-                                ' . ($patient['gender'] === 'male' ? 'نێر' : 'مێ') . '
-                            </span>
-                        </div>
-                        <div class="patient-meta">
-                            <div class="patient-meta-item">
-                                <i class="fas fa-id-card"></i>
-                                <span>' . htmlspecialchars($patient['patient_code'] ?? '') . '</span>
-                            </div>
-                            <div class="patient-meta-item">
-                                <i class="fas fa-phone"></i>
-                                <a href="tel:' . rawurlencode($patient['phone'] ?? '') . '" style="color: inherit;">' . htmlspecialchars($patient['phone'] ?? '') . '</a>
-                            </div>
-                            <div class="patient-meta-item">
-                                <i class="fas fa-folder"></i>
-                                <span>' . ($patient['folder_count'] ?? 0) . ' دۆسیە</span>
-                            </div>';
-
-                if (($patient['total_debt'] ?? 0) > 0) {
-                    $html .= '<div class="patient-meta-item" style="color: var(--pt-danger); font-weight: 600;">
-                                <i class="fas fa-exclamation-circle"></i>
-                                <span>قەرز: ' . number_format($patient['total_debt']) . '</span>
-                            </div>';
-                }
-
-                $html .= '<div class="patient-meta-item">
-                                <i class="fas fa-calendar"></i>
-                                <span>' . date('Y-m-d', strtotime($patient['created_at'])) . '</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="patient-actions">
-                        ' . (case_button_allowed($auth, (int)$patient['id']) ? case_button((int)$patient['id'], ['size' => 'sm']) : '') . '
-                        ' . plan_button((int)$patient['id'], $planSummaries) . '
-                        <a href="' . APP_URL . '/patients/view.php?id=' . $patient['id'] . '" class="btn btn-primary" title="بینین">
-                            <i class="fas fa-eye"></i>
-                        </a>
-                        <a href="' . APP_URL . '/patients/edit.php?id=' . $patient['id'] . '" class="btn btn-secondary" title="دەستکاری">
-                            <i class="fas fa-edit"></i>
-                        </a>
-                        <a href="' . APP_URL . '/patients/statement.php?patient_id=' . (int)$patient['id'] . '" class="btn btn-secondary" title="کشف حساب" style="color:#0878d1;border-color:#0878d1;">
-                            <i class="fas fa-file-invoice-dollar"></i>
-                        </a>';
-
-                if ($auth->isAdmin()) {
-                    // Must mirror the server-rendered delete in index.php: the handler
-                    // is POST + action=delete_patient + CSRF. The old '?delete=<id>'
-                    // GET link matched no handler at all, so delete silently did
-                    // nothing after any search. The CSRF token is attached by the
-                    // form-submit patch in includes/header.php.
-                    $pid = (int)$patient['id'];
-                    $html .= '<button type="button" onclick="confirmDelete(\'ئایا دڵنیایت لە سڕینەوەی ئەم نەخۆشە؟ زانیاری نەخۆش دەشاردرێتەوە بەڵام مێژووی دارایی و کەیسەکان دەمێننەوە.\', () => document.getElementById(\'deletePatientForm' . $pid . '\').submit())" class="btn btn-danger" title="سڕینەوە">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
-                            <form id="deletePatientForm' . $pid . '" method="POST" action="' . APP_URL . '/patients/index.php" style="display:none;">
-                                <input type="hidden" name="action" value="delete_patient">
-                                <input type="hidden" name="patient_id" value="' . $pid . '">
-                            </form>';
-                }
-
-                $html .= '</div>
-                </div>';
-            }
-        }
+        // The same table patients/index.php draws on load (patients/_list.php)
+        $html = patients_list_table($patients, [
+            'restricted' => $isRestrictedView,
+            'start'      => ($page - 1) * ITEMS_PER_PAGE + 1,
+            'auth'       => $auth,
+            'plans'      => $planSummaries,
+            'manager'    => $patientManager,
+            'search'     => $search,
+        ]);
     }
 
     // Generate pagination HTML
