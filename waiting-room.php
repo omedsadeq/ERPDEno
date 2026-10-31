@@ -654,6 +654,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // Now include header for output
 $pageTitle = 'ژووری چاوەڕوانی';
 $breadcrumb = [['title' => 'ژووری چاوەڕوانی']];
+$hidePageHeader = true;
 require_once __DIR__ . '/includes/header.php';
 require_once __DIR__ . '/classes/Appointment.php';
 
@@ -3086,14 +3087,11 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
                 <span class="wr-panel-badge"><?= count($waitingPatients) ?></span>
             </div>
             <div class="wr-panel-header-tools">
-                <div class="wr-type-summary">
-                    <span class="wr-type-count checkup"><i class="fas fa-stethoscope"></i> پشکنین <?= $waitingCheckupCount ?></span>
-                    <span class="wr-type-count treatment"><i class="fas fa-briefcase-medical"></i> ئیش <?= $waitingTreatmentCount ?></span>
-                </div>
+                <?php // each filter carries its own count, so the counts aren't shown twice ?>
                 <div class="wr-waiting-type-filters">
                     <button type="button" class="wr-type-filter-btn active" data-waiting-filter="all" onclick="setWaitingVisitTypeFilter('all')">هەموو</button>
-                    <button type="button" class="wr-type-filter-btn" data-waiting-filter="checkup" onclick="setWaitingVisitTypeFilter('checkup')">پشکنین</button>
-                    <button type="button" class="wr-type-filter-btn" data-waiting-filter="treatment" onclick="setWaitingVisitTypeFilter('treatment')">ئیش</button>
+                    <button type="button" class="wr-type-filter-btn" data-waiting-filter="checkup" onclick="setWaitingVisitTypeFilter('checkup')">پشکنین <?= $waitingCheckupCount ?></button>
+                    <button type="button" class="wr-type-filter-btn" data-waiting-filter="treatment" onclick="setWaitingVisitTypeFilter('treatment')">ئیش <?= $waitingTreatmentCount ?></button>
                 </div>
             </div>
         </div>
@@ -3392,11 +3390,11 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
             <?php endif; ?>
         </div>
     </div>
-</div>
 
+<?php // the stations below sit side by side in the same grid, not a full-width row each ?>
 <!-- On Hold Section -->
 <?php if (!empty($onHoldPatients)): ?>
-<div class="wr-panel" style="margin-top: 12px;">
+<div class="wr-panel">
     <div class="wr-panel-header on-hold">
         <div class="wr-panel-title">
             <i class="fas fa-pause-circle"></i>
@@ -3508,7 +3506,7 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
 
 <!-- X-Ray Queue Section: patients waiting to be CALLED into the scan room -->
 <?php if (!empty($atXrayPatients)): ?>
-<div class="wr-panel" style="margin-top: 12px;">
+<div class="wr-panel">
     <div class="wr-panel-header at-accounting" style="background:linear-gradient(135deg,#8764b8,#5c2d91);">
         <div class="wr-panel-title">
             <i class="fas fa-x-ray"></i>
@@ -3617,7 +3615,7 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
 
 <!-- At Accounting Station Section -->
 <?php if (!empty($atAccountingPatients)): ?>
-<div class="wr-panel" style="margin-top: 12px;">
+<div class="wr-panel">
     <div class="wr-panel-header at-accounting">
         <div class="wr-panel-title">
             <i class="fas fa-cash-register"></i>
@@ -3659,7 +3657,6 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
                         <a href="<?= APP_URL ?>/patients/view.php?id=<?= $w['patient_id'] ?>" onclick="event.stopPropagation();">
                             <?= htmlspecialchars($w['full_name']) ?>
                         </a>
-                        <span class="wr-priority-badge medium"><i class="fas fa-cash-register"></i> لە ژمێریاری</span>
                     </div>
                     <div class="wr-patient-meta">
                         <span><i class="fas fa-user-md"></i> <?= ($w['doctor_role'] ?? '') === 'xray_department' ? 'ئێکسڕەی — ' . htmlspecialchars($w['doctor_name']) : (!empty($w['doctor_name']) ? 'د. ' . htmlspecialchars($w['doctor_name']) : 'تەنها ئێکسڕەی') ?></span>
@@ -3712,6 +3709,7 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
     </div>
 </div>
 <?php endif; ?>
+</div><!-- /.wr-main-grid -->
 
 <!-- Completed/History Section -->
 <?php if (!empty($finishedPatients)): ?>
