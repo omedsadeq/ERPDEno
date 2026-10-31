@@ -42,7 +42,22 @@ $canSetPrice = erp_can('erp.settings');
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
+<!-- The voucher opens as a large dialog over the store page, so the list of
+     materials has the screen; closing goes back to where it was opened. -->
+<div class="did-overlay" id="didDialog">
+<div class="did-box" role="dialog" aria-modal="true" aria-labelledby="didTitle">
+    <div class="did-head">
+        <span class="did-ico"><i class="fas fa-hand-holding-medical"></i></span>
+        <h3 id="didTitle">پێدانی مەواد بە دکتۆر</h3>
+        <div class="did-tools">
+            <a class="did-btn" href="<?= APP_URL ?>/erp/doctor-issues.php" title="وەسڵەکان"><i class="fas fa-file-invoice"></i></a>
+            <button type="button" class="did-btn" onclick="diClose()" title="داخستن"><i class="fas fa-times"></i></button>
+        </div>
+    </div>
+    <div class="did-body">
+
 <div class="di" id="diRoot">
+  <div class="di-main">
     <!-- Who / what / where — filled by the start step, changed only through it -->
     <div class="di-head">
         <button type="button" class="di-kind-chip" id="diKindChip" onclick="DI.open()" title="گۆڕینی جۆر (F4)">
@@ -93,13 +108,9 @@ require_once __DIR__ . '/../includes/header.php';
             <tbody id="diBody"></tbody>
         </table>
     </div>
+  </div>
 
-    <div class="di-foot">
-        <div class="di-notes">
-            <label for="diNotes">تێبینی</label>
-            <textarea id="diNotes" rows="3" placeholder="ئارەزوومەندانە — بۆ نموونە: بۆ کەیسی نەخۆشێک"></textarea>
-            <div class="di-msg" id="diMsg" role="alert"></div>
-        </div>
+    <div class="di-side">
         <div class="di-total">
             <div class="di-total-row"><span>ژمارەی مەواد</span><b id="diCount">0</b></div>
             <div class="di-total-row grand"><span>کۆی گشتی</span><b id="diSum">0</b></div>
@@ -110,7 +121,16 @@ require_once __DIR__ . '/../includes/header.php';
                 <button type="button" class="btn btn-subtle" onclick="diClear()" title="پاککردنەوەی لیست"><i class="fas fa-eraser"></i></button>
             </div>
         </div>
+        <div class="di-notes">
+            <label for="diNotes">تێبینی</label>
+            <textarea id="diNotes" rows="3" placeholder="ئارەزوومەندانە — بۆ نموونە: بۆ کەیسی نەخۆشێک"></textarea>
+            <div class="di-msg" id="diMsg" role="alert"></div>
+        </div>
     </div>
+</div>
+
+    </div>
+</div>
 </div>
 
 <!-- ═══ Start step: kind → doctor → warehouse ═══ -->
@@ -179,7 +199,19 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <style>
-.di { --k: #94a3b8; display: flex; flex-direction: column; gap: 12px; }
+.did-overlay { position: fixed; inset: 0; z-index: 1040; background: rgba(15, 23, 42, .45); display: flex; align-items: center; justify-content: center; padding: 1.2vh 1vw; }
+.did-box { width: min(1760px, 100%); height: 100%; background: var(--bg-solid-base, #f3f3f3); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 24px 60px rgba(15, 23, 42, .35); }
+.did-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #fff; border-bottom: 1px solid #e5e7eb; }
+.did-ico { width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; color: #fff; background: linear-gradient(135deg, #0ea5e9, #0369a1); }
+.did-head h3 { margin: 0; font-size: 16px; font-weight: 800; color: #1f2937; }
+.did-tools { margin-inline-start: auto; display: flex; gap: 6px; }
+.did-btn { width: 34px; height: 34px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; color: #475569; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; text-decoration: none; }
+.did-btn:hover { background: #f1f5f9; color: #0f172a; }
+.did-body { flex: 1; min-height: 0; padding: 12px; display: flex; flex-direction: column; }
+body.did-open { overflow: hidden; }
+/* the list takes the height; the total, the buttons and the note sit beside it */
+.di { --k: #94a3b8; flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 12px; }
+.di-main, .di-side { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 .di.is-normal { --k: #0d9488; }
 .di.is-implant { --k: #7c3aed; }
 .di-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; background: #fff;
@@ -212,7 +244,7 @@ require_once __DIR__ . '/../includes/header.php';
 .di-toolbar i { opacity: .85; }
 .di-keys { opacity: .9; white-space: nowrap; }
 .di-keys kbd { background: rgba(255, 255, 255, .2); border-radius: 4px; padding: 1px 6px; font-family: inherit; font-size: 11px; }
-.di-grid { background: #fff; border: 1px solid #e6ebf1; border-radius: 12px; overflow: auto; min-height: 220px; max-height: 46vh; }
+.di-grid { flex: 1; background: #fff; border: 1px solid #e6ebf1; border-radius: 12px; overflow: auto; min-height: 220px; }
 .di-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .di-table thead th { position: sticky; top: 0; z-index: 1; background: #f1f5f9; padding: 9px 10px; font-size: 12px; font-weight: 700;
     color: #475569; text-align: right; border-bottom: 2px solid #e2e8f0; }
@@ -233,7 +265,6 @@ require_once __DIR__ . '/../includes/header.php';
 .di-blank-hint { color: #cbd5e1; font-size: 12px; }
 .di-nosale { display: block; font-size: 10px; color: #b45309; font-weight: 700; direction: rtl; text-align: left; }
 .di-table tr.is-sel td { box-shadow: inset 0 0 0 9999px rgba(3, 105, 161, .04); }
-.di-foot { display: grid; grid-template-columns: 1fr 340px; gap: 12px; }
 .di-notes, .di-total { background: #fff; border: 1px solid #e6ebf1; border-radius: 12px; padding: 12px 14px; }
 .di-notes label { display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 6px; }
 .di-notes textarea { width: 100%; border: 1px solid #dbe3ea; border-radius: 8px; padding: 8px 10px; font-family: inherit; font-size: 13px; resize: vertical; }
@@ -244,8 +275,8 @@ require_once __DIR__ . '/../includes/header.php';
 .di-total-row.grand b { color: var(--k); }
 .di-total-note { margin: 6px 0 10px; font-size: 11.5px; color: #64748b; line-height: 1.6; }
 .di-actions { display: flex; gap: 8px; }
-.di-actions .btn { flex: 1; justify-content: center; }
-.di-actions .btn-subtle { flex: 0 0 auto; }
+.di-actions .btn { flex: 1; min-width: 0; justify-content: center; min-height: 42px; padding-inline: 10px; white-space: nowrap; }
+.di-actions .btn-subtle { flex: 0 0 42px; padding: 0; }
 /* start step */
 .dis-overlay { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 20px;
     background: rgba(15, 23, 42, .45); backdrop-filter: blur(3px); }
@@ -306,7 +337,10 @@ require_once __DIR__ . '/../includes/header.php';
 .ac-item{padding:8px 11px;cursor:pointer;font-size:13px;border-bottom:1px solid #f2f2f2}
 .ac-item:hover,.ac-item.on{background:#f0f9ff}
 .ac-item .meta{font-size:11px;color:#888}
-@media (max-width: 900px) { .di-foot { grid-template-columns: 1fr; } .di-keys { display: none; } }
+@media (max-width: 900px) {
+    .did-overlay { padding: 0; } .did-box { border-radius: 0; } .did-body { overflow: auto; }
+    .di { grid-template-columns: minmax(0, 1fr); flex: none; } .di-grid { flex: none; min-height: 240px; } .di-keys { display: none; }
+}
 @media (prefers-reduced-motion: reduce) { .dis-kind-box { transition: none; } .dis-overlay { backdrop-filter: none; } }
 </style>
 
@@ -327,6 +361,24 @@ require_once __DIR__ . '/../includes/header.php';
 
     const msg = t => { $('diMsg').textContent = t || ''; };
     const initial = name => (String(name || '').replace(/^د\.\s*/, '').trim().charAt(0) || '؟');
+
+    /* ---------- the dialog ---------- */
+    // Both on <body>, the start step after the dialog so it stays on top.
+    document.body.appendChild($('didDialog'));
+    document.body.appendChild(overlay);
+    document.body.classList.add('did-open');
+
+    // Back to the page it was opened from (the store page when opened
+    // directly); materials on the list ask first, since closing drops them.
+    window.diClose = function () {
+        if (filled().length && !confirm('ئەم وەسڵە پاشەکەوت نەکراوە. داخرێت و مەوادەکان لاببرێن؟')) return;
+        let back = null;
+        try {
+            const ref = new URL(document.referrer);
+            if (ref.origin === location.origin && !/\/erp\/doctor-issue\.php$/.test(ref.pathname)) back = ref.href;
+        } catch (e) {}
+        location.href = back || APP + '/erp/index.php';
+    };
 
     /* ---------- start step ---------- */
     function refreshGo() {

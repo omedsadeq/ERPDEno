@@ -71,15 +71,31 @@ if ($editId > 0) {
 $walkIn = $db->fetch("SELECT id, name FROM erp_customers WHERE is_walk_in = 1 AND is_active = 1 LIMIT 1")
        ?: $db->fetch("SELECT id, name FROM erp_customers WHERE is_active = 1 ORDER BY id LIMIT 1");
 
+/*
+ * The till opens as a large dialog over the store page, so the sale has the
+ * whole screen: the grid takes the height, the totals and buttons sit beside
+ * it, and nothing needs scrolling. Closing goes back to where it was opened.
+ */
 $customCSS = <<<CSS
-.till{display:flex;flex-direction:column;gap:10px}
+.sd-overlay{position:fixed;inset:0;z-index:1040;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:1.2vh 1vw}
+.sd-box{width:min(1760px,100%);height:100%;background:var(--bg-solid-base,#f3f3f3);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(15,23,42,.35)}
+.sd-head{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fff;border-bottom:1px solid #e5e7eb}
+.sd-ico{width:34px;height:34px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;color:#fff;background:linear-gradient(135deg,#14b8a6,#0f766e)}
+.sd-head h3{margin:0;font-size:16px;font-weight:800;color:#1f2937}
+.sd-tools{margin-inline-start:auto;display:flex;gap:6px}
+.sd-btn{width:34px;height:34px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#475569;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;text-decoration:none}
+.sd-btn:hover{background:#f1f5f9;color:#0f172a}
+.sd-body{flex:1;min-height:0;padding:12px;display:flex;flex-direction:column;gap:10px}
+body.sd-open{overflow:hidden}
+.till{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:10px}
+.till-main,.till-side{display:flex;flex-direction:column;gap:10px;min-height:0}
 .till-head{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:8px;background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:10px}
 .till-head label{display:block;font-size:11px;color:#666;margin-bottom:3px}
 .till-head .form-control{height:32px;padding:3px 8px;font-size:13px}
 .till-scan{display:flex;gap:8px;align-items:center;background:#0f766e;padding:10px;border-radius:8px}
 .till-scan input{flex:1;height:42px;font-size:17px;padding:6px 12px;border:0;border-radius:6px;direction:ltr;font-weight:600}
 .till-scan .hint{color:#c9f0eb;font-size:12px;white-space:nowrap}
-.till-grid{background:#fff;border:1px solid #e0e0e0;border-radius:8px;overflow:auto;min-height:230px;max-height:44vh}
+.till-grid{flex:1;background:#fff;border:1px solid #e0e0e0;border-radius:8px;overflow:auto;min-height:230px}
 table.tg{width:100%;border-collapse:collapse;font-size:13px}
 table.tg thead th{position:sticky;top:0;background:#eef2f5;border-bottom:2px solid #c8d3da;padding:7px 8px;font-size:12px;font-weight:600;text-align:right;z-index:1}
 table.tg td{border-bottom:1px solid #f0f0f0;padding:0}
@@ -90,29 +106,46 @@ table.tg input[readonly]{color:#555}
 .tg-n{text-align:left;direction:ltr;font-variant-numeric:tabular-nums}
 .tg-del{width:34px;text-align:center;color:#c62828;cursor:pointer}
 .tg-idx{width:34px;text-align:center;color:#999;font-size:12px}
-.till-foot{display:grid;grid-template-columns:1fr 320px;gap:10px}
-.till-keys{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:10px;font-size:12px;color:#555;line-height:2}
+.till-keys{margin-top:auto;display:grid;gap:2px;background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:10px;font-size:12px;color:#555;line-height:2}
 .till-keys kbd{background:#eceff1;border:1px solid #cfd8dc;border-radius:4px;padding:1px 6px;font-family:inherit;font-size:11px}
-.till-tot{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:10px}
-.till-tot .row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:13px}
-.till-tot .row.grand{border-top:2px solid #333;margin-top:6px;padding-top:8px;font-size:19px;font-weight:700}
+#tillMsg{color:#c62828;font-weight:600;font-size:13px}
+#tillMsg:empty{display:none}
+.till-tot{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:12px}
+.till-tot .row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px}
+.till-tot .row.grand{border-top:2px solid #333;margin-top:6px;padding-top:8px;font-size:22px;font-weight:700}
 .till-tot .row .v{direction:ltr;font-variant-numeric:tabular-nums;font-weight:600}
 .till-tot input{width:120px;height:30px;text-align:left;direction:ltr;border:1px solid #d5d5d5;border-radius:5px;padding:2px 8px;font-size:13px}
-.till-actions{display:flex;gap:8px;margin-top:10px}
-.till-actions .btn{flex:1;justify-content:center}
+.till-actions{display:flex;gap:8px;margin-top:12px}
+.till-actions .btn{flex:1;justify-content:center;min-height:42px}
+.till-actions .btn-subtle{flex:0 0 46px}
 .remain-pos{color:#d32f2f}.remain-zero{color:#2e7d32}
 .ac-box{position:absolute;z-index:60;background:#fff;border:1px solid #ccc;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.16);max-height:260px;overflow:auto;min-width:280px}
 .ac-item{padding:7px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid #f2f2f2}
 .ac-item:hover,.ac-item.on{background:#e8f4fd}
 .ac-item .meta{font-size:11px;color:#888}
-@media(max-width:900px){.till-head{grid-template-columns:1fr 1fr}.till-foot{grid-template-columns:1fr}}
+@media(max-width:900px){
+.sd-overlay{padding:0}.sd-box{border-radius:0}.sd-body{overflow:auto}
+.till{grid-template-columns:minmax(0,1fr);flex:none}.till-scan .hint{display:none}.till-head{grid-template-columns:1fr 1fr}.till-grid{flex:none;min-height:240px}
+.till-keys{display:none}}
 CSS;
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
+<div class="sd-overlay" id="salesDialog">
+<div class="sd-box" role="dialog" aria-modal="true" aria-labelledby="sdTitle">
+    <div class="sd-head">
+        <span class="sd-ico"><i class="fas fa-cash-register"></i></span>
+        <h3 id="sdTitle"><?= $editInv ? 'دەستکاری وەسڵ' : 'فرۆشتنی نوێ' ?></h3>
+        <div class="sd-tools">
+            <a class="sd-btn" href="<?= APP_URL ?>/erp/invoices.php" title="وەسڵەکان"><i class="fas fa-file-invoice"></i></a>
+            <button type="button" class="sd-btn" onclick="tillClose()" title="داخستن"><i class="fas fa-times"></i></button>
+        </div>
+    </div>
+    <div class="sd-body">
+
 <?php if ($editInv): ?>
-<div class="alert alert-warning" style="margin-bottom:10px;display:flex;align-items:center;gap:10px">
+<div class="alert alert-warning" style="margin:0;display:flex;align-items:center;gap:10px">
     <i class="fas fa-pen-to-square"></i>
     <div class="alert-content" style="flex:1">
         دەستکاری وەسڵی <b dir="ltr"><?= erp_esc($editInv['invoice_number']) ?></b> —
@@ -123,6 +156,7 @@ require_once __DIR__ . '/../includes/header.php';
 <?php endif; ?>
 
 <div class="till">
+  <div class="till-main">
     <div class="till-head">
         <div style="position:relative">
             <label>کڕیار <span style="opacity:.6">(F4)</span></label>
@@ -177,18 +211,9 @@ require_once __DIR__ . '/../includes/header.php';
             <tbody id="tgBody"></tbody>
         </table>
     </div>
+  </div>
 
-    <div class="till-foot">
-        <div class="till-keys">
-            <kbd>F2</kbd> گەڕانی کاڵا &nbsp;·&nbsp;
-            <kbd>F4</kbd> گەڕانی کڕیار &nbsp;·&nbsp;
-            <kbd>Enter</kbd> خانەی داهاتوو &nbsp;·&nbsp;
-            <kbd>Delete</kbd> سڕینەوەی ڕیز &nbsp;·&nbsp;
-            <kbd>Ctrl+S</kbd> پاشەکەوت &nbsp;·&nbsp;
-            <kbd>Ctrl+P</kbd> پاشەکەوت و چاپ &nbsp;·&nbsp;
-            <kbd>Esc</kbd> پاککردنەوە
-            <div id="tillMsg" style="margin-top:6px;color:#c62828;font-weight:600"></div>
-        </div>
+    <div class="till-side">
         <div class="till-tot">
             <div class="row"><span>کۆی گشتی</span><span class="v" id="tSub">0</span></div>
             <div class="row"><span>داشکاندن</span>
@@ -213,11 +238,25 @@ require_once __DIR__ . '/../includes/header.php';
                 </button>
                 <?php endif; ?>
                 <?php if (!$editInv): ?>
-                <button class="btn btn-subtle" onclick="tillReset()"><i class="fas fa-eraser"></i></button>
+                <button class="btn btn-subtle" onclick="tillReset()" title="پاککردنەوە"><i class="fas fa-eraser"></i></button>
                 <?php endif; ?>
             </div>
         </div>
+        <div id="tillMsg"></div>
+        <div class="till-keys">
+            <span><kbd>F2</kbd> گەڕانی کاڵا</span>
+            <span><kbd>F4</kbd> گەڕانی کڕیار</span>
+            <span><kbd>Enter</kbd> خانەی داهاتوو</span>
+            <span><kbd>Delete</kbd> سڕینەوەی ڕیز</span>
+            <span><kbd>Ctrl+S</kbd> پاشەکەوت</span>
+            <span><kbd>Ctrl+P</kbd> پاشەکەوت و چاپ</span>
+            <span><kbd>Esc</kbd> پاککردنەوە</span>
+        </div>
     </div>
+</div>
+
+    </div>
+</div>
 </div>
 
 <script src="<?= asset_url('assets/js/erp-common.js') ?>"></script>
@@ -275,6 +314,23 @@ let scanTimer = null;
 const nf  = U.nf;
 const esc = U.esc;
 const msg = t => { document.getElementById('tillMsg').textContent = t || ''; };
+
+/* ---------- the dialog ---------- */
+// On <body>, so no ancestor of the page layout can clip or offset it.
+document.body.appendChild(document.getElementById('salesDialog'));
+document.body.classList.add('sd-open');
+
+// Back to the page it was opened from (the store page when opened directly);
+// a new sale with lines on it asks first, since closing drops them.
+function tillClose() {
+    if (EDIT_ID === 0 && rows.length && !confirm('ئەم فرۆشتنە پاشەکەوت نەکراوە. داخرێت و کاڵاکان لاببرێن؟')) return;
+    let back = null;
+    try {
+        const ref = new URL(document.referrer);
+        if (ref.origin === location.origin && !/\/erp\/sales\.php$/.test(ref.pathname)) back = ref.href;
+    } catch (e) {}
+    location.href = back || (EDIT_ID > 0 ? APP + '/erp/invoices.php' : APP + '/erp/index.php');
+}
 
 /* ---------- grid ---------- */
 function addRow(p, qty) {
