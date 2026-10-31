@@ -339,6 +339,14 @@ class TreatmentPlan
         $minutes = isset($data['estimated_minutes']) && $data['estimated_minutes'] !== ''
             ? max(0, (int)$data['estimated_minutes']) : null;
 
+        // The plan's percentage discount (setDiscount) reaches a new item too,
+        // unless the item names its own.
+        if (($plan['discount_mode'] ?? null) === 'percent' && (float)($plan['discount_value'] ?? 0) > 0
+            && (float)($data['discount'] ?? 0) <= 0) {
+            $gross = max(1, (int)($data['quantity'] ?? 1)) * max(0, (float)($data['unit_price'] ?? 0));
+            $data['discount'] = round($gross * (float)$plan['discount_value'] / 100);
+        }
+
         $row = array_merge($this->priceFields($data), [
             'plan_id'           => $planId,
             'treatment_id'      => (int)($data['treatment_id'] ?? 0) ?: null,
@@ -559,6 +567,75 @@ class TreatmentPlan
      * transferred its money lives on the case, and leaving it in the plan total
      * would show the patient a quote for work already being billed.
      */
+    /**
+     * A discount on the whole plan — an amount or a percentage, as on a
+     * receipt. It is spread over the plan's waiting items as their own
+     * discount, so the totals, the table and the transfer to a case carry it
+     * unchanged: a percentage on each item, an amount in proportion to each
+     * item's price (the last one takes the rounding). It replaces the items'
+     * discounts; 0 clears them. Items already moved to a case keep theirs.
+     */
+    public function setDiscount(int $planId, string $mode, float $value, int $userId): array
+    {
+        $plan = $this->getById($planId);
+        if (!$plan) {
+            return ['success' => false, 'message' => 'پلان نەدۆزرایەوە'];
+        }
+        if (!in_array($plan['status'], self::EDITABLE_STATUSES, true)) {
+            return ['success' => false, 'message' => 'ئەم پلانە داخراوە'];
+        }
+        $mode = $mode === 'percent' ? 'percent' : 'amount';
+        $value = max(0, $value);
+        if ($mode === 'percent' && $value > 100) {
+            return ['success' => false, 'message' => 'ڕێژە ناتوانێت لە ١٠٠٪ زیاتر بێت'];
+        }
+        $items = $this->db->fetchAll(
+            "SELECT id, total_price FROM treatment_plan_items WHERE plan_id = :p AND status = 'planned' ORDER BY sort_order, id",
+            ['p' => $planId]
+        );
+        $base = array_sum(array_map(fn($i) => (float)$i['total_price'], $items));
+        if ($value > 0 && $base <= 0) {
+            return ['success' => false, 'message' => 'هیچ ئیشێکی چاوەڕوان نییە بۆ داشکاندن'];
+        }
+        if ($mode === 'amount' && $value > $base) {
+            return ['success' => false, 'message' => 'داشکاندن لە کۆی پلان (' . number_format($base) . ') زیاترە'];
+        }
+        $amount = $mode === 'percent' ? round($base * $value / 100) : round($value);
+
+        $shares = [];
+        $given = 0;
+        foreach ($items as $i => $item) {
+            $total = (float)$item['total_price'];
+            $share = $i === count($items) - 1
+                ? $amount - $given
+                : ($mode === 'percent' ? round($total * $value / 100) : round($amount * $total / $base));
+            $share = min(max(0, $share), $total);
+            $shares[(int)$item['id']] = [$share, $total];
+            $given += $share;
+        }
+
+        try {
+            $this->db->beginTransaction();
+            foreach ($shares as $itemId => [$share, $total]) {
+                $this->db->update('treatment_plan_items', ['discount' => $share, 'final_price' => $total - $share],
+                    'id = :id', ['id' => $itemId]);
+            }
+            $this->db->update('treatment_plans', [
+                'discount_mode'  => $value > 0 ? $mode : null,
+                'discount_value' => $value,
+            ], 'id = :id', ['id' => $planId]);
+            $this->db->commit();
+        } catch (Exception $e) {
+            $this->db->rollback();
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+        $this->recomputeTotals($planId);
+        AuditLog::log('treatment_plan_discount', 'treatment_plans', $planId,
+            ['discount_mode' => $plan['discount_mode'] ?? null, 'discount_value' => (float)($plan['discount_value'] ?? 0)],
+            ['discount_mode' => $value > 0 ? $mode : null, 'discount_value' => $value, 'amount' => $amount], $userId ?: null);
+        return ['success' => true, 'amount' => $amount];
+    }
+
     public function recomputeTotals(int $planId): void
     {
         $sums = $this->db->fetch(

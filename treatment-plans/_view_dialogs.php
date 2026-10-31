@@ -260,6 +260,39 @@ if (!isset($plan)) { exit; }
     </div>
 </div>
 
+<!-- ═══ داشکاندن on the whole plan — an amount or a percentage, as on a
+     receipt; spread over the waiting items (TreatmentPlan::setDiscount) ═══ -->
+<div class="dialog-overlay" id="planDiscountDialog">
+    <div class="dialog" style="max-width: 440px;">
+        <div class="dialog-header">
+            <h4 class="dialog-title"><i class="fas fa-percent"></i> داشکاندنی پلان</h4>
+            <button type="button" class="dialog-close" onclick="closeDialog('planDiscountDialog')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="dialog-body">
+            <div class="pd-modes">
+                <label class="tp-radio"><input type="radio" name="pdMode" value="amount" onchange="pdCalc()"> بڕی پارە</label>
+                <label class="tp-radio"><input type="radio" name="pdMode" value="percent" onchange="pdCalc()"> ڕێژە ٪</label>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" id="pdLabel" for="pdValue">بڕی داشکاندن</label>
+                <input type="number" id="pdValue" class="form-control" min="0" step="any" dir="ltr" oninput="pdCalc()"
+                       onkeydown="if (event.key === 'Enter') pvSaveDiscount()">
+            </div>
+            <div class="pd-sum">
+                <div><span>کۆی ئیشە چاوەڕوانەکان</span><b id="pdBase">0</b></div>
+                <div class="is-cut"><span>داشکاندن</span><b id="pdCut">0</b></div>
+                <div class="is-final"><span>دوای داشکاندن</span><b id="pdFinal">0</b></div>
+            </div>
+            <p class="pd-note"><i class="fas fa-info-circle"></i> بەسەر ئیشە چاوەڕوانەکاندا دابەش دەکرێت و لە کاتی گواستنەوە بۆ کەیس لەگەڵیان دەچێت؛ ئەوانەی پێشتر گوازراونەتەوە دەست نادرێن.</p>
+            <div class="tp-dialog-msg" id="pdMsg"></div>
+        </div>
+        <div class="dialog-footer">
+            <button type="button" class="btn btn-secondary" id="pdClear" onclick="pvSaveDiscount(true)"><i class="fas fa-eraser"></i> لابردنی داشکاندن</button>
+            <button type="button" class="btn btn-primary" id="pdSaveBtn" onclick="pvSaveDiscount()"><i class="fas fa-check"></i> جێبەجێکردن</button>
+        </div>
+    </div>
+</div>
+
 <!-- ═══ Plan header edit ═══ -->
 <div class="dialog-overlay" id="planHeaderDialog">
     <div class="dialog" style="max-width: 520px;">

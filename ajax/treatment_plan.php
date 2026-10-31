@@ -355,6 +355,19 @@ if ($action === 'add_arch_items') {
     tp_ok(['item_ids' => $itemIds, 'plan' => $plans->getById($planId), 'items' => $plans->getItems($planId)]);
 }
 
+if ($action === 'set_discount') {
+    // داشکاندن on the whole plan — an amount or a percentage, as on a receipt
+    tp_require('treatment_plan.write');
+    $planId = (int)($_POST['plan_id'] ?? 0);
+    tp_require_examiner(tp_plan_or_fail($plans, $planId));
+    $value = (float)($_POST['discount_value'] ?? 0);   // a number field on the plan page
+    $res = $plans->setDiscount($planId, (string)($_POST['discount_mode'] ?? 'amount'), $value, $userId);
+    if (empty($res['success'])) {
+        tp_fail($res['message'] ?? 'هەڵە');
+    }
+    tp_ok(['plan' => $plans->getById($planId), 'items' => $plans->getItems($planId)]);
+}
+
 if ($action === 'update_item') {
     tp_require('treatment_plan.write');
     $itemId = (int)($_POST['item_id'] ?? 0);

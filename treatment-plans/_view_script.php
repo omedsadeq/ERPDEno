@@ -101,6 +101,9 @@ function renderHeader() {
     set('pvSideDuration', planData.duration_text);
     set('pvSideComplaint', planData.chief_complaint);
     set('pvSideNotes', planData.notes);
+    const rate = document.getElementById('pvDiscountRate');
+    if (rate) rate.textContent = planData.discount_mode === 'percent' && Number(planData.discount_value) > 0
+        ? '(' + Number(planData.discount_value) + '٪)' : '';
     const ci = document.getElementById('pvComplaintInline');
     if (ci) ci.textContent = planData.chief_complaint || '';
 }
@@ -1176,6 +1179,46 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // ── Header edit / cancel ────────────────────────────────────────────
+// ── داشکاندن on the whole plan (ajax set_discount → TreatmentPlan::setDiscount) ──
+function pdMode() { return (document.querySelector('input[name="pdMode"]:checked') || {}).value || 'amount'; }
+function pdBaseTotal() {
+    return planItems.filter(i => i.status === 'planned').reduce((sum, i) => sum + (Number(i.total_price) || 0), 0);
+}
+window.pdCalc = function () {
+    const base = pdBaseTotal();
+    const value = Math.max(0, Number(document.getElementById('pdValue').value) || 0);
+    const percent = pdMode() === 'percent';
+    const cut = Math.min(base, Math.round(percent ? base * Math.min(value, 100) / 100 : value));
+    document.getElementById('pdLabel').textContent = percent ? 'ڕێژەی داشکاندن (٪)' : 'بڕی داشکاندن';
+    document.getElementById('pdBase').textContent = numberFormat(base);
+    document.getElementById('pdCut').textContent = numberFormat(cut);
+    document.getElementById('pdFinal').textContent = numberFormat(base - cut);
+};
+window.pvOpenDiscount = function () {
+    if (!isEditable()) return;
+    const active = Number(planData.discount_value) > 0;
+    const mode = planData.discount_mode === 'percent' ? 'percent' : 'amount';
+    document.querySelector('input[name="pdMode"][value="' + mode + '"]').checked = true;
+    document.getElementById('pdValue').value = active ? Number(planData.discount_value) : '';
+    document.getElementById('pdClear').style.display = active || Number(planData.total_discount) > 0 ? '' : 'none';
+    setMsg('pdMsg', '');
+    pdCalc();
+    openDialog('planDiscountDialog');
+    setTimeout(() => document.getElementById('pdValue').focus(), 60);
+};
+window.pvSaveDiscount = function (clear) {
+    const value = clear ? 0 : Math.max(0, Number(document.getElementById('pdValue').value) || 0);
+    const btn = document.getElementById('pdSaveBtn');
+    btn.disabled = true;
+    post('set_discount', { plan_id: PLAN_ID, discount_mode: pdMode(), discount_value: value }).then(res => {
+        btn.disabled = false;
+        if (!res || !res.success) { setMsg('pdMsg', (res && (res.error || res.message)) || 'هەڵە', 'is-error'); return; }
+        applyResponse(res);
+        closeDialog('planDiscountDialog');
+        toast('success', value > 0 ? 'داشکاندن جێبەجێکرا' : 'داشکاندن لابرا');
+    }).catch(() => { btn.disabled = false; setMsg('pdMsg', 'هەڵە لە پەیوەندی', 'is-error'); });
+};
+
 window.pvOpenHeaderEdit = function () { setMsg('hdMsg', ''); openDialog('planHeaderDialog'); };
 window.hdSave = function () {
     const btn = document.getElementById('hdSaveBtn');

@@ -220,6 +220,9 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
                     <i class="fas fa-print"></i> چاپ
                 </a>
                 <?php if ($isEditable): ?>
+                <button type="button" class="btn ch-btn ch-btn--glass" onclick="pvOpenDiscount()" title="داشکاندن لە هەموو پلانەکە — بڕی پارە یان ڕێژە">
+                    <i class="fas fa-percent"></i> داشکاندن
+                </button>
                 <button type="button" class="btn ch-btn ch-btn--glass" onclick="pvOpenHeaderEdit()" title="گلەیی، تێبینی، ماوەی چارەسەر">
                     <i class="fas fa-edit"></i> دەستکاری
                 </button>
@@ -234,8 +237,8 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
                     <span class="ch-stat-label"><i class="fas fa-calculator"></i> کۆی خەمڵێنراو</span>
                     <span class="ch-stat-value" data-plan-bind="total_estimated"><?= number_format((float)$plan['total_estimated']) ?></span>
                 </div>
-                <div class="ch-stat">
-                    <span class="ch-stat-label"><i class="fas fa-percent"></i> داشکاندن</span>
+                <div class="ch-stat<?= $isEditable ? ' ch-stat--action' : '' ?>"<?= $isEditable ? ' onclick="pvOpenDiscount()" title="داشکاندنی پلان"' : '' ?>>
+                    <span class="ch-stat-label"><i class="fas fa-percent"></i> داشکاندن <span id="pvDiscountRate"><?= ($plan['discount_mode'] ?? null) === 'percent' ? '(' . rtrim(rtrim(number_format((float)$plan['discount_value'], 2, '.', ''), '0'), '.') . '٪)' : '' ?></span></span>
                     <span class="ch-stat-value" data-plan-bind="total_discount"><?= number_format((float)$plan['total_discount']) ?></span>
                 </div>
                 <div class="ch-stat ch-stat--paid">
@@ -426,6 +429,18 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
 }
 .smart-dental-chart .tooth.bulk-selected .tooth-number { background: #0d9488 !important; color: #fff !important; }
 .pv-chart-adds { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ch-stat--action { cursor: pointer; }
+.ch-stat--action:hover { background: rgba(255, 255, 255, .12); border-radius: 10px; }
+/* داشکاندنی پلان (pvOpenDiscount) */
+.pd-modes { display: flex; gap: 8px; margin-bottom: 12px; }
+.pd-modes .tp-radio { flex: 1; justify-content: center; }
+.pd-sum { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0; }
+.pd-sum div { display: flex; justify-content: space-between; padding: 3px 0; font-size: 13px; color: #475569; }
+.pd-sum b { direction: ltr; font-variant-numeric: tabular-nums; color: #0f172a; }
+.pd-sum .is-cut b { color: #dc2626; }
+.pd-sum .is-final { margin-top: 4px; padding-top: 7px; border-top: 1px dashed #cbd5e1; font-weight: 800; }
+.pd-sum .is-final b { color: #15803d; font-size: 15px; }
+.pd-note { margin: 10px 0 0; font-size: 12px; color: #64748b; line-height: 1.6; }
 </style>
 <?php require __DIR__ . '/_view_script.php'; ?>
 <?php require __DIR__ . '/_view_routing.php'; ?>
