@@ -2533,7 +2533,6 @@ form[enctype="multipart/form-data"] .form-card > .form-card-header h3::before {
 .city-combo-add { padding: 9px 12px; color: #2e7d32; font-weight: 700; cursor: pointer; border-top: 1px dashed #e0e0e0; }
 .city-combo-add:hover { background: #f1f8f4; }
 .nv-layout .form-group.nv-name input { font-size: 15px; font-weight: 600; }
-.nv-layout .form-group.nv-address { order: 1; }   /* the full-width line last, so the photo fills the row beside «پیشە» */
 /* Choices side by side as one segmented row (the page's .form-group label
    rule made each one a block of its own). */
 .nv-layout .radio-group { flex-wrap: nowrap; gap: 6px; }
@@ -2800,7 +2799,8 @@ if (!empty($nvErr) && !isset($nvErr['full_name']) && !isset($nvErr['phone']) && 
                     <label>پیشە</label>
                     <input type="text" id="occupation" name="occupation" value="<?php echo htmlspecialchars($_POST['occupation'] ?? ''); ?>" placeholder="کارمەند">
                 </div>
-                <div class="form-group span-2 nv-address">
+                <?php // «ناونیشان» is not asked: hidden, so a returning patient's address is kept ?>
+                <div class="form-group span-2 nv-address" hidden>
                     <label>ناونیشان</label>
                     <input type="text" id="address" name="address" value="<?php echo htmlspecialchars($_POST['address'] ?? ''); ?>" placeholder="ناونیشانی وردی ماڵەوە...">
                 </div>
