@@ -59,7 +59,7 @@ extract(ds_compute_range($db, $docUserId, $from, $to));
 
 $dsLists = ds_row_lists(compact(
     'grossBilled', 'invoiceDisc', 'invoiceNet', 'treatmentCash', 'chairPending', 'newDebtToday',
-    'labExpense', 'storeExpense', 'netAfterExpenses', 'oldDebtCollected', 'advanceCollected',
+    'labExpense', 'storeExpense', 'generalExpense', 'columnCharges', 'netAfterExpenses', 'oldDebtCollected', 'advanceCollected',
     'cashIn', 'doctorRate', 'doctorShare', 'centerShare',
     'xrayCount', 'xrayPatients', 'xrayByType', 'work', 'checkupBreakdown',
     'attendanceMinutes', 'attendedDay', 'workMinutes', 'examMinutes', 'idleMinutes'

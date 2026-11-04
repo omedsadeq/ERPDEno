@@ -6,11 +6,12 @@
  * doctors/_daily_summary_lib.php), so this sheet, the summary and the income
  * report never disagree:
  *   کۆی نەقد  = cash for the period's work + old debt paid back
- *   سافی       = کۆی نەقد − lab − store expenses
- *   پشکی دکتۆر = سافی × his percentage (users.commission_rate); the rest is
- *               پشکی سەنتەر
- *   مافی سەنتەر = پشکی سەنتەر + the lab/store expenses — the centre paid the
- *               lab and the materials, so that money comes back to it too
+ *   سافی       = کۆی نەقد − the expenses in his name (lab, store, general) and
+ *               what the income sheet's own columns put on him (IncomeColumn)
+ *   پشکی دکتۆر = his percentage (users.commission_rate) less his part of the
+ *               expenses (ds_doctor_share); the rest of سافی is پشکی سەنتەر
+ *   مافی سەنتەر = پشکی سەنتەر + those expenses — the centre paid them, so
+ *               that money comes back to it too
  *               (= کۆی نەقد − پشکی دکتۆر)
  *
  * Settling moves the centre's share from the doctor's cashbox into قاسەی لێزان
@@ -34,7 +35,8 @@ class IncomeSettlement
     private const SNAPSHOT_KEYS = [
         'grossBilled', 'invoiceDisc', 'invoiceNet', 'newDebtToday', 'treatmentCash', 'chairPending',
         'oldDebtCollected', 'advanceCollected',
-        'cashIn', 'labExpense', 'storeExpense', 'netAfterExpenses', 'doctorRate', 'doctorShare', 'centerShare',
+        'cashIn', 'labExpense', 'storeExpense', 'generalExpense', 'columnCharges', 'columnTotal', 'columnCashOut',
+        'netAfterExpenses', 'doctorRate', 'doctorShare', 'centerShare',
         'work', 'checkupBreakdown', 'attendanceMinutes', 'attendedDay', 'workMinutes', 'examMinutes', 'idleMinutes',
         'treatmentCount', 'treatmentAmount', 'topTreatments', 'xrayCount', 'xrayPatients', 'xrayByType',
     ];
@@ -107,13 +109,14 @@ class IncomeSettlement
         $box = $this->ledger->balanceOf('doctor:' . $doctorId);
         $doctorShare = $ds['doctorShare'] !== null ? max(0, self::toCents($ds['doctorShare'])) : 0;
         $centerShare = $ds['centerShare'] !== null ? max(0, self::toCents($ds['centerShare'])) : 0;
-        $expenses = self::toCents($ds['labExpense'] + $ds['storeExpense']);
+        $expenses = self::toCents($ds['doctorExpenses']);
         // What قاسەی لێزان is owed: everything taken in except the doctor's share.
         // With the per-receipt split on (CashboxLedger::splitEnabled) the centre
         // got its part — and the doctor's part of the lab/store costs — the
         // moment the money was booked, so nothing is left to transfer: the
         // doctor's box holds only his share, and settling just pays it out.
-        $centerDue = CashboxLedger::splitEnabled() ? 0 : max(0, self::toCents($ds['cashIn']) - $doctorShare);
+        // Cash given back under a column has already left the box.
+        $centerDue = CashboxLedger::splitEnabled() ? 0 : max(0, self::toCents($ds['cashIn'] - $ds['columnCashOut']) - $doctorShare);
         $transfer = min($centerDue, max(0, $box));
         $payout = min($doctorShare, max(0, $box - $transfer));
         return [
@@ -186,6 +189,7 @@ class IncomeSettlement
                 'cash_in'       => CashboxLedger::decimal(self::toCents($ds['cashIn'])),
                 'lab_expense'   => CashboxLedger::decimal(self::toCents($ds['labExpense'])),
                 'store_expense' => CashboxLedger::decimal(self::toCents($ds['storeExpense'])),
+                'general_expense' => CashboxLedger::decimal(self::toCents($ds['generalExpense'])),
                 'net_amount'    => CashboxLedger::decimal(self::toCents($ds['netAfterExpenses'])),
                 'doctor_share'  => CashboxLedger::decimal(self::toCents($ds['doctorShare'])),
                 'center_share'  => CashboxLedger::decimal(self::toCents($ds['centerShare'])),

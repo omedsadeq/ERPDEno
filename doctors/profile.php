@@ -8,6 +8,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Database.php';
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/Permission.php';
+require_once __DIR__ . '/../classes/IncomeColumn.php';
 require_once __DIR__ . '/../includes/search_helpers.php';
 
 $db = Database::getInstance();
@@ -219,6 +220,10 @@ $storeExpenseRow = $db->fetch(
     ['uid' => $doctorId, 'from' => $dateFrom, 'to' => $dateTo]
 );
 $storeExpense = (float)($storeExpenseRow['total'] ?? 0);
+$generalExpense = (float)($db->fetch(
+    "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses_general WHERE doctor_id = :uid AND expense_date BETWEEN :from AND :to",
+    ['uid' => $doctorId, 'from' => $dateFrom, 'to' => $dateTo]
+)['total'] ?? 0);
 
 // ── Debt patients: who still owes money from work billed in this range ──
 $debtRows = $db->fetchAll(
@@ -433,7 +438,8 @@ foreach ($idleRows as $ir) {
 // گشتی - داشکاندن - وەرگیراو = ماوە exactly. Old debt collected during the
 // range is tracked separately as $oldDebtCollected (same "two cash totals on
 // purpose" pattern as doctors/daily-summary.php), not folded in here.
-$netAfterExpenses = $collectedAgainstPeriod - $labExpense - $storeExpense;
+$columnCharges = IncomeColumn::forDoctor($db, (int)$doctorId, $dateFrom, $dateTo);
+$netAfterExpenses = $collectedAgainstPeriod - $labExpense - $storeExpense - $generalExpense - $columnCharges['total'];
 
 function profileHours($minutes)
 {
@@ -1296,6 +1302,12 @@ function profileEsc($v)
                             <tr><td>بڕی ماوە</td><td class="num neg"><?= number_format($remainingPeriod) ?></td></tr>
                             <tr><td>خەرجی تاقیگە</td><td class="num neg">(<?= number_format($labExpense) ?>)</td></tr>
                             <tr><td>خەرجی کۆگا</td><td class="num neg">(<?= number_format($storeExpense) ?>)</td></tr>
+                            <?php if ($generalExpense > 0): ?>
+                            <tr><td>خەرجی گشتی</td><td class="num neg">(<?= number_format($generalExpense) ?>)</td></tr>
+                            <?php endif; ?>
+                            <?php foreach ($columnCharges['charges'] as $charge): ?>
+                            <tr><td><?= htmlspecialchars($charge['name']) ?></td><td class="num neg">(<?= number_format($charge['amount']) ?>)</td></tr>
+                            <?php endforeach; ?>
                             <tr class="ds-total">
                                 <td>ماوەی دوای خەرجی</td>
                                 <td class="num <?= $netAfterExpenses < 0 ? 'neg' : 'pos' ?>">

@@ -232,7 +232,8 @@ class ErpDoctorIssue
                 'unit'           => null,
                 'unit_price'     => $total,
                 'payment_status' => 'paid',
-                'notes'          => mb_substr(implode('، ', $summary), 0, 2000),
+                // The voucher's own note first: the store list cuts this short.
+                'notes'          => mb_substr(implode(' · ', array_filter([$notes, implode('، ', $summary)])), 0, 2000),
                 'source_type'    => self::SOURCE,
                 'source_id'      => $issueId,
                 'created_by'     => $userId,

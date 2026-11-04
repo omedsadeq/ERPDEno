@@ -96,7 +96,7 @@ if (!$isFuture) {
         }
         $rows[] = $p + ['active' => (bool)$u['is_active']];
         $totals['cash'] += $ds['cashIn'];
-        $totals['exp'] += $ds['labExpense'] + $ds['storeExpense'];
+        $totals['exp'] += $ds['doctorExpenses'];
         $totals['net'] += $ds['netAfterExpenses'];
         $totals['doc'] += $p['shares']['doctor'];
         $totals['ctr'] += $p['shares']['center'];
@@ -226,7 +226,7 @@ require_once __DIR__ . '/../includes/header.php';
             <?php if (CashboxLedger::splitEnabled()): ?>
             <div class="s">ڕاستەوخۆ دەچێتە قاسەی <?= htmlspecialchars(Branding::shortName()) ?> — هەر پارەیەک کە وەردەگیرێت</div>
             <?php else: ?>
-            <div class="s">+ خەرجی تاقیگە و کۆگا = <?= dsEsc($c($totals['due'])) ?> بۆ قاسەی <?= htmlspecialchars(Branding::shortName()) ?></div>
+            <div class="s">+ خەرجی دکتۆر = <?= dsEsc($c($totals['due'])) ?> بۆ قاسەی <?= htmlspecialchars(Branding::shortName()) ?></div>
             <?php endif; ?>
         </div>
         <div class="idd-card doc">
@@ -243,12 +243,12 @@ require_once __DIR__ . '/../includes/header.php';
 
     <div class="idd-sheet">
         <h2><span><i class="fas fa-scale-balanced" style="color:#0f766e;"></i> دابەشکردنی داهاتی دکتۆرەکان</span>
-            <small>سافی = کۆی نەقد − خەرجی تاقیگە و کۆگا · پشکی دکتۆر = سافی × ڕێژەی خۆی</small></h2>
+            <small>سافی = کۆی نەقد − خەرجی دکتۆر · پشکی دکتۆر = ڕێژەی خۆی، دوای بەشی خۆی لە خەرجی</small></h2>
         <div class="idd-scroll">
             <table class="idd-tbl">
                 <thead><tr>
                     <th>#</th><th>دکتۆر</th><th>ڕێژە</th><th class="n">کۆی نەقد</th><th class="n">خەرجی</th><th class="n">سافی</th>
-                    <th class="n doc">پشکی دکتۆر</th><th class="n ctr">پشکی سەنتەر</th><th class="n ctr" title="پشکی سەنتەر + خەرجی تاقیگە و کۆگا">بۆ قاسەی <?= htmlspecialchars(Branding::shortName()) ?></th>
+                    <th class="n doc">پشکی دکتۆر</th><th class="n ctr">پشکی سەنتەر</th><th class="n ctr" title="پشکی سەنتەر + خەرجی دکتۆر">بۆ قاسەی <?= htmlspecialchars(Branding::shortName()) ?></th>
                     <th class="n">نەقدی ناو سندوق</th><th>حیساب</th>
                 </tr></thead>
                 <tbody>
@@ -261,7 +261,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <td><b><?= dsEsc($r['doctor_name']) ?></b></td>
                         <td><?= $r['rate'] !== null ? '<span class="idd-rate">' . dsEsc($rateText($r['rate'])) . '</span>' : '<span class="idd-rate none" title="لە ئەکاونتی دکتۆر دیاری دەکرێت">دیاری نەکراوە</span>' ?></td>
                         <td class="n"><?= dsEsc($m($ds['cashIn'])) ?></td>
-                        <td class="n muted"><?= dsEsc($m($ds['labExpense'] + $ds['storeExpense'])) ?></td>
+                        <td class="n muted"><?= dsEsc($m($ds['doctorExpenses'])) ?></td>
                         <td class="n"><b><?= dsEsc($m($ds['netAfterExpenses'])) ?></b></td>
                         <td class="n doc"><?= $r['rate'] !== null ? dsEsc($m((float)$ds['doctorShare'])) : '—' ?></td>
                         <td class="n ctr"><?= $r['rate'] !== null ? dsEsc($m((float)$ds['centerShare'])) : '—' ?></td>
@@ -283,7 +283,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php elseif ($canSettle): ?>
                             <button type="button" class="idd-btn go" onclick='iddOpen(<?= json_encode([
                                 'id' => $r['doctor_id'], 'name' => $r['doctor_name'], 'from' => $r['from'], 'to' => $r['to'],
-                                'rate' => $rateText($r['rate']), 'cash' => $ds['cashIn'], 'exp' => $ds['labExpense'] + $ds['storeExpense'],
+                                'rate' => $rateText($r['rate']), 'cash' => $ds['cashIn'], 'exp' => $ds['doctorExpenses'],
                                 'net' => $ds['netAfterExpenses'], 'doc' => $r['shares']['doctor'] / 100, 'ctr' => $r['shares']['center'] / 100,
                                 'due' => $r['shares']['center_due'] / 100,
                                 'box' => $r['box'] / 100, 'transfer' => $r['defaults']['transfer'] / 100, 'payout' => $r['defaults']['payout'] / 100,
@@ -382,7 +382,7 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="dialog-body">
                 <div class="idd-fig">
                     <div><span>کۆی نەقد</span><b id="iddCash"></b></div>
-                    <div><span>خەرجی تاقیگە و کۆگا</span><b id="iddExp"></b></div>
+                    <div><span>خەرجی دکتۆر</span><b id="iddExp"></b></div>
                     <div><span>سافی</span><b id="iddNet"></b></div>
                     <div><span>ڕێژەی دکتۆر</span><b id="iddRate"></b></div>
                     <div class="doc"><span>پشکی دکتۆر</span><b id="iddDoc"></b></div>

@@ -6,8 +6,8 @@
  *
  * دابەشکردنی ڕاستەوخۆ (setting cashbox_split_enabled): a receipt booked into a
  * doctor's box is split at booking — his percentage there, the rest straight
- * into قاسەی لێزان — and his percentage of a lab/store expense moves from his
- * box to قاسەی لێزان. Each cashbox_sources row keeps the percentage it was
+ * into قاسەی لێزان — and his part of an expense in his name moves from his box
+ * to قاسەی لێزان (expenseRate100). Each cashbox_sources row keeps the percentage it was
  * split at; a row with booked_doctor NULL is unsplit (x-ray, or booked before
  * the switch — openingSplit() converts those once the switch is on).
  *
@@ -35,10 +35,14 @@ class CashboxLedger
     public const SETTLEMENT_KINDS = ['transfer_out', 'transfer_in', 'payout'];
     /** Switch for the per-receipt split (admin/settings.php?tab=access). */
     public const SPLIT_SETTING = 'cashbox_split_enabled';
+    /** Source type of an amount under a column of the income sheet (bookIncomeColumn). */
+    public const INCOME_COLUMN = 'income_column';
     private $db;
-    private const TABLES = ['invoice'=>'case_invoices', 'payment'=>'payments', 'advance'=>'patient_advances', 'installment'=>'installment_payments', 'xray'=>'xray_requests', 'lab'=>'expenses_lab', 'store'=>'expenses_store'];
-    /** Lab/store costs: only the doctor's percentage of them moves, box → قاسەی لێزان. */
-    private const EXPENSE_TABLES = ['lab'=>'expenses_lab', 'store'=>'expenses_store'];
+    private const TABLES = ['invoice'=>'case_invoices', 'payment'=>'payments', 'advance'=>'patient_advances', 'installment'=>'installment_payments', 'xray'=>'xray_requests', 'lab'=>'expenses_lab', 'store'=>'expenses_store', 'general'=>'expenses_general'];
+    /** Costs in a doctor's name: only his percentage of them moves, box → قاسەی لێزان. */
+    private const EXPENSE_TABLES = ['lab'=>'expenses_lab', 'store'=>'expenses_store', 'general'=>'expenses_general'];
+    private const EXPENSE_LABELS = ['lab'=>'خەرجی تاقیگە', 'store'=>'خەرجی کۆگا', 'general'=>'خەرجی گشتی'];
+    private const EXPENSE_REFERENCES = ['lab'=>'LAB-', 'store'=>'STR-', 'general'=>'GEN-'];
 
     public function __construct() { $this->db = Database::getInstance(); }
 
@@ -145,6 +149,22 @@ class CashboxLedger
         return $rate > 0 ? min(10000, (int)round($rate * 100)) : null;
     }
 
+    /**
+     * What falls on the doctor of a cost, in hundredths: a lab cost by his income
+     * percentage, a store cost by the store's own (ئاسایی / ئیمپلانت; his income
+     * percentage until they are set), a general cost whole. null for a doctor with
+     * no percentage: nothing of his is split. sourceIds() has the same rule in SQL.
+     */
+    private function expenseRate100(string $key, string $type, array $cost): ?int
+    {
+        $rate = $this->doctorRate100($key);
+        if ($rate === null || $type === 'lab') return $rate;
+        if ($type === 'general') return 10000;
+        $column = ($cost['expense_kind'] ?? '') === 'implant' ? 'store_share_implant' : 'store_share_normal';
+        $share = $this->db->fetch("SELECT {$column} AS share FROM users WHERE id=?", [(int)substr($key, 7)])['share'] ?? null;
+        return $share === null ? $rate : (int)round((float)$share * 100);
+    }
+
     private function doctorName(string $key): string
     {
         $id = (int)substr($key, 7);
@@ -194,12 +214,12 @@ class CashboxLedger
         } catch (Throwable $e) { $this->db->rollback(); throw $e; }
     }
 
-    /** A lab/store cost's first booking: the doctor's percentage of it, on the cost's date. */
+    /** A cost's first booking: the doctor's percentage of it, on the cost's date. */
     private function expenseEvents(array $s, ?int $rate): array
     {
         if ($rate === null || !(int)$s['amount']) return [];
         $share = self::shareOf((int)$s['amount'], $rate);
-        $label = ($s['type'] === 'lab' ? 'خەرجی تاقیگە ' : 'خەرجی کۆگا ') . $s['reference'];
+        $label = self::EXPENSE_LABELS[$s['type']] . ' ' . $s['reference'];
         return $share ? [[$share, $s['date'], $s['actor'], $label]] : [];
     }
 
@@ -267,11 +287,12 @@ class CashboxLedger
                 break;
             case 'lab':
             case 'store':
+            case 'general':
                 // Charged to the doctor named on the cost, never to the case's
                 // folder doctor — the same rule the daily summary reads them by.
-                $s['key'] = 'doctor:' . (int)($r['doctor_id'] ?? 0);
+                $s['key'] = 'doctor:' . ($own ? (int)$r['doctor_id'] : 0);
                 $s['date'] = $r['expense_date'] . ' 00:00:00';
-                $s['reference'] = ($type === 'lab' ? 'LAB-' : 'STR-') . $id;
+                $s['reference'] = self::EXPENSE_REFERENCES[$type] . $id;
                 $s['history'] = max(0, self::cents($r['amount']));
                 $s['active'] = true;
                 $s['actor'] = (int)($r['created_by'] ?? 0);
@@ -367,9 +388,13 @@ class CashboxLedger
             }
             if ($s && !$state && $s['key'] === 'doctor:0') { $this->db->commit(); return; }
             $expense = isset(self::EXPENSE_TABLES[$type]);
-            // A lab/store cost only moves money once the split is switched on.
+            // A cost only moves money once the split is switched on.
             if ($expense && !$state && !self::splitEnabled()) { $this->db->commit(); return; }
             if (!$s) $s = ['type'=>$type,'id'=>$id,'key'=>$state['account_key'],'amount'=>0,'reference'=>$state['reference_no'],'date'=>$state['source_date'],'case_id'=>$state['case_id']];
+            // A cost follows the doctor named on it: when that changes, the first
+            // doctor's part goes back here and is booked anew below.
+            $movedTo = $expense && $state && $s['key'] !== $state['account_key'] ? $s['key'] : null;
+            if ($movedTo !== null) $s['amount'] = 0;
             // Receipt ownership is frozen when first booked; changing a folder
             // later cannot move already-collected money to another doctor.
             if ($state) $s['key'] = $state['account_key'];
@@ -383,7 +408,7 @@ class CashboxLedger
             }
             if (!$state) {
                 $split = $isDoctor && self::splitEnabled();
-                $rate = $split ? $this->doctorRate100($s['key']) : null;
+                $rate = !$split ? null : ($expense ? $this->expenseRate100($s['key'], $type, $s['raw']) : $this->doctorRate100($s['key']));
                 $state = [
                     'booked_amount' => '0.00', 'revision' => 0,
                     'split_rate' => $rate === null ? null : number_format($rate / 100, 2, '.', ''),
@@ -395,6 +420,11 @@ class CashboxLedger
                 $events = $expense ? $this->expenseEvents($s, $rate) : $this->initialEvents($s);
             } else {
                 $rate = $state['split_rate'] === null ? null : (int)round((float)$state['split_rate'] * 100);
+                // A store or general cost follows the doctor's percentage as it is
+                // now: the store's can be set after the cost was booked.
+                if ($expense && $type !== 'lab' && $movedTo === null && isset($s['raw']) && self::splitEnabled()) {
+                    $rate = $this->expenseRate100($s['key'], $type, $s['raw']);
+                }
                 $target = $expense ? ($rate === null ? 0 : self::shareOf((int)$s['amount'], $rate)) : (int)$s['amount'];
                 $delta = $target - self::cents($state['booked_amount']);
                 $events = $delta ? [[$delta,date('Y-m-d H:i:s'),$actorId ?? 0,$reason ?: ($expense ? 'گۆڕانی خەرجی ' . $s['reference'] : 'گۆڕانی نەقدی وەسڵ / گەڕاندنەوە')]] : [];
@@ -447,8 +477,15 @@ class CashboxLedger
                 }
             }
             $this->db->update('cashbox_sources', ['booked_amount'=>self::decimal($booked),'revision'=>$revision]
-                + ($splitRow ? ['booked_doctor'=>self::decimal($bookedDoctor),'booked_center'=>self::decimal($bookedCenter)] : []),
+                + ($splitRow ? ['booked_doctor'=>self::decimal($bookedDoctor),'booked_center'=>self::decimal($bookedCenter)] : [])
+                + ($expense ? ['split_rate'=>$rate === null ? null : number_format($rate / 100, 2, '.', '')] : []),
                 'source_type=? AND source_id=?', [$type,$id]);
+            if ($movedTo !== null && $movedTo !== 'doctor:0') {
+                $newRate = self::splitEnabled() ? $this->doctorRate100($movedTo) : null;
+                $this->db->update('cashbox_sources', ['account_key'=>$movedTo, 'split_rate'=>$newRate === null ? null : number_format($newRate / 100, 2, '.', '')],
+                    'source_type=? AND source_id=?', [$type,$id]);
+                $this->syncSource($type, $id, $actorId, $reason);
+            }
             $this->db->commit();
         } catch (Throwable $e) { $this->db->rollback(); throw $e; }
     }
@@ -490,16 +527,24 @@ class CashboxLedger
                 foreach ($this->db->fetchAll($query, $doctorId ? [$type,$doctorId,$key] : [$type]) as $r) $out[] = [$type,(int)$r['id']];
             }
         }
-        // Lab/store costs charged to a doctor, once the split is on. The booked
-        // figure is his percentage of the cost (frozen per row in split_rate).
+        // Costs charged to a doctor, once the split is on. The booked figure is
+        // his part of the cost (expenseRate100): a lab cost's percentage is frozen
+        // per row in split_rate, the others follow his percentage as it is now. A
+        // cost taken off a doctor or moved to another one comes back in here too.
         if (self::splitEnabled() && ($key === null || strncmp($key, 'doctor:', 7) === 0)) {
             $doctorId = $key !== null ? (int)substr($key,7) : 0;
             $start = "'" . self::START . "'";
+            $rates = [
+                'lab' => 'st.split_rate',
+                'store' => "IF(u.commission_rate>0, COALESCE(IF(e.expense_kind='implant', u.store_share_implant, u.store_share_normal), LEAST(u.commission_rate,100)), NULL)",
+                'general' => 'IF(u.commission_rate>0, 100, NULL)',
+            ];
             foreach (self::EXPENSE_TABLES as $type => $table) {
-                $query = "SELECT e.id FROM {$table} e JOIN users u ON u.id=e.doctor_id AND u.role='doctor'
+                $query = "SELECT e.id FROM {$table} e LEFT JOIN users u ON u.id=e.doctor_id AND u.role='doctor'
                           LEFT JOIN cashbox_sources st ON st.source_type=? AND st.source_id=e.id
-                          WHERE (st.source_id IS NULL OR st.booked_amount <> CASE WHEN e.expense_date>=DATE({$start}) AND e.expense_date<=CURDATE()
-                                 THEN COALESCE(ROUND(GREATEST(e.amount,0)*st.split_rate/100,2),0) ELSE 0 END)"
+                          WHERE ((u.id IS NOT NULL AND (st.source_id IS NULL OR st.booked_amount <> CASE WHEN e.expense_date>=DATE({$start}) AND e.expense_date<=CURDATE()
+                                 THEN COALESCE(ROUND(GREATEST(e.amount,0)*{$rates[$type]}/100,2),0) ELSE 0 END))
+                                 OR (st.account_key <> CONCAT('doctor:', COALESCE(u.id, 0)) AND (st.booked_amount <> 0 OR u.id IS NOT NULL)))"
                     . ($doctorId ? ' AND (e.doctor_id=? OR st.account_key=?)' : '');
                 foreach ($this->db->fetchAll($query, $doctorId ? [$type,$doctorId,$key] : [$type]) as $r) $out[] = [$type,(int)$r['id']];
             }
@@ -698,6 +743,63 @@ class CashboxLedger
                 }
                 $this->append($e['account_key'], $delta, 'reversal', $reason, $actorId, date('Y-m-d H:i:s'),
                     ['reverses_entry_id' => $id, 'reference_no' => $e['reference_no']]);
+            }
+            $this->db->commit();
+        } catch (Throwable $e) { $this->db->rollback(); throw $e; }
+    }
+
+    /**
+     * کۆڵۆمی تایبەت (classes/IncomeColumn.php): brings the boxes to what one amount
+     * on the income sheet should have moved; $cents 0 gives it all back. Not in
+     * TABLES: the entry itself says what moved, no receipt derives it, so
+     * reconcile() leaves it alone. The caller holds the transaction and the rules.
+     *
+     * With the split on the boxes hold the two shares, so each gives up its own
+     * part of cash that left; a charge only moves the doctor's part to قاسەی
+     * لێزان, like a cost. The doctor's part is his percentage (frozen on the row,
+     * like a receipt's) or, for an on-doctor column, all of it. With the split
+     * off the whole receipt is still in his box: cash leaves from there, and a
+     * charge waits for the settlement.
+     */
+    public function bookIncomeColumn(int $id, int $doctorId, int $cents, bool $cashOut, bool $onDoctor, string $label, string $date, ?int $actorId): void
+    {
+        $key = 'doctor:' . $doctorId;
+        $now = date('Y-m-d H:i:s');
+        $at = $date === substr($now, 0, 10) ? $now : $date . ' 00:00:00';
+        if (!$this->eligibleDate($at)) $cents = 0;
+        $this->db->beginTransaction();
+        try {
+            $this->ensureAccount($key);
+            $this->ensureAccount(self::CENTER);
+            $state = $this->db->fetch('SELECT * FROM cashbox_sources WHERE source_type=? AND source_id=? FOR UPDATE', [self::INCOME_COLUMN,$id]);
+            $bookedDoctor = self::cents($state['booked_doctor'] ?? '0');
+            $bookedCenter = self::cents($state['booked_center'] ?? '0');
+            $sameBox = $state && $state['account_key'] === $key;
+            $rate = $sameBox ? ($state['split_rate'] === null ? null : (int)round((float)$state['split_rate'] * 100)) : $this->doctorRate100($key);
+            $part = $rate === null ? ($cashOut ? $cents : 0) : ($onDoctor ? $cents : self::shareOf($cents, $rate));
+            $doctor = self::splitEnabled() ? -$part : ($cashOut ? -$cents : 0);
+            $center = !self::splitEnabled() ? 0 : ($cashOut ? $part - $cents : $part);
+            $moves = [];
+            if ($state && !$sameBox) {
+                // Put on another doctor: the first one's box is made whole.
+                $moves[] = [$state['account_key'], -$bookedDoctor];
+                $bookedDoctor = 0;
+            }
+            $moves[] = [$key, $doctor - $bookedDoctor];
+            $moves[] = [self::CENTER, $center - $bookedCenter];
+            $revision = (int)($state['revision'] ?? 0);
+            $reference = 'COL-' . $id;
+            foreach ($moves as [$account, $delta]) {
+                if (!$delta) continue;
+                $this->append($account, $delta, $cashOut ? 'refund' : 'expense_share', $label, $actorId, $state ? $now : $at,
+                    ['source_type'=>self::INCOME_COLUMN, 'source_id'=>$id, 'reference_no'=>$reference, 'source_revision'=>++$revision]);
+            }
+            $row = ['account_key'=>$key, 'booked_amount'=>self::decimal($cents), 'split_rate'=>$rate === null ? null : number_format($rate / 100, 2, '.', ''),
+                'booked_doctor'=>self::decimal($doctor), 'booked_center'=>self::decimal($center), 'revision'=>$revision];
+            if ($state) {
+                $this->db->update('cashbox_sources', $row, 'source_type=? AND source_id=?', [self::INCOME_COLUMN,$id]);
+            } else {
+                $this->db->insert('cashbox_sources', $row + ['source_type'=>self::INCOME_COLUMN, 'source_id'=>$id, 'reference_no'=>$reference, 'source_date'=>$at]);
             }
             $this->db->commit();
         } catch (Throwable $e) { $this->db->rollback(); throw $e; }

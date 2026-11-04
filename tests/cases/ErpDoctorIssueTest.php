@@ -61,6 +61,7 @@ $t->assertTrue($throws(fn() => ErpDoctorIssue::create(['expense_kind' => 'normal
 // ── a normal voucher ──
 $r = ErpDoctorIssue::create([
     'expense_kind' => 'normal', 'doctor_id' => $doctor, 'warehouse_id' => $wh, 'issue_date' => date('Y-m-d'),
+    'notes' => 'بۆ کەیسی نەخۆشێک',
     'items' => [['product_id' => $composite, 'quantity' => 2], ['product_id' => $composite, 'quantity' => 1]],
 ]);
 $t->assertTrue(strpos($r['issue_number'], 'DRI-' . date('Y') . '-') === 0, 'numbered DRI-YYYY-…');
@@ -70,6 +71,7 @@ $t->assertEqualsMoney(36000, $r['total_amount'], '3 × average cost 12,000');
 $t->assertEqualsMoney(17, $level($composite)['quantity'], 'stock went down by 3');
 $exp = $expenseFor($r['id']);
 $t->assertTrue((bool)$exp, 'one store expense row was written');
+$t->assertSame('بۆ کەیسی نەخۆشێک · Composite × 3', $exp['notes'], "the voucher's note and its materials reach the expense");
 $t->assertSame($doctor, (int)$exp['doctor_id'], '… in the doctor\'s name');
 $t->assertSame('normal', $exp['expense_kind'], '… typed ئاسایی');
 $t->assertEqualsMoney(36000, $exp['amount'], '… for the voucher total');

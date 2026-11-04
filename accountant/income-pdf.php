@@ -24,7 +24,9 @@ $dateHtml = $from === $to
     : $bdo($from) . ' بۆ ' . $bdo($to);
 // Money columns: بڕی + the expense columns + کۆی گشتی + the two shares, in the
 // ~125mm an A4 page leaves beside #, ناوەڕۆک and ژمارە.
-$numCols = 4 + count($colSel);
+// The sheet's own columns are printed when they have money in the period.
+$pdfColumns = array_values(array_filter($incColumns, fn($c) => $c['period_total'] > 0));
+$numCols = 4 + count($colSel) + (in_array('store', $colSel, true) ? 1 : 0) + count($pdfColumns);   // + «کۆگا بەر دکتۆر»
 $numWidth = min(30, (int)floor(125 / $numCols));
 $tblFont = $numCols >= 6 ? '8.5pt' : ($numCols === 5 ? '9pt' : '10pt');
 $rateText = fn(?float $r) => $r === null ? '؟' : rtrim(rtrim(number_format($r, 2, '.', ''), '0'), '.') . '%';
@@ -93,7 +95,8 @@ body { font-family: nrt; direction: rtl; font-size: 10pt; color: #0f172a; }
 <table class="tbl">
     <thead><tr>
         <th>#</th><th>ناوەڕۆک</th><th>ژمارە</th><th>بڕی</th>'
-        . implode('', array_map(fn($k) => '<th>' . dsEsc($expenseKinds[$k]) . '</th>', $colSel)) . '
+        . implode('', array_map(fn($k) => '<th>' . dsEsc($expenseKinds[$k]) . '</th>' . ($k === 'store' ? '<th>کۆگا بەر دکتۆر</th>' : ''), $colSel))
+        . implode('', array_map(fn($c) => '<th>' . dsEsc($c['name']) . '</th>', $pdfColumns)) . '
         <th>کۆی گشتی</th>
         <th class="doc">پشکی دکتۆر</th>
         <th class="ctr">پشکی سەنتەر</th>
@@ -114,7 +117,9 @@ foreach ($rows as $i => $r) {
         . '</td>'
         . '<td class="c"' . $grp . '>' . ($r['count'] ? dsMoney($r['count']) : '') . '</td>'
         . '<td class="n"' . $grp . '>' . $money($r['amount']) . '</td>'
-        . implode('', array_map(fn($k) => '<td class="n"' . $grp . '>' . $money($r[$k]) . '</td>', $colSel))
+        . implode('', array_map(fn($k) => '<td class="n"' . $grp . '>' . $money($r[$k]) . '</td>'
+            . ($k === 'store' ? '<td class="n"' . $grp . '>' . store_share_cell($r, $money) . '</td>' : ''), $colSel))
+        . implode('', array_map(fn($c) => '<td class="n"' . $grp . '>' . $money($r['cols'][$c['id']] ?? 0.0) . '</td>', $pdfColumns))
         . '<td class="n"' . $grp . '>' . $money($r['net']) . '</td>'
         . '<td class="n doc"' . $grp . '>' . ($r['kind'] === 'doctor'
             ? $money($r['doctorShare']) . ' <span class="rt">' . $rateText($r['rate']) . '</span>' : '') . '</td>'
@@ -125,7 +130,9 @@ $html .= '<tr class="tot">
         <td></td><td class="lb">کۆ</td>
         <td class="c">' . dsMoney($totals['count']) . '</td>
         <td class="n">' . dsMoney($totals['amount']) . '</td>'
-        . implode('', array_map(fn($k) => '<td class="n">' . dsMoney($totals[$k]) . '</td>', $colSel)) . '
+        . implode('', array_map(fn($k) => '<td class="n">' . dsMoney($totals[$k]) . '</td>'
+            . ($k === 'store' ? '<td class="n">' . dsMoney($totals['storeDoctor']) . '</td>' : ''), $colSel))
+        . implode('', array_map(fn($c) => '<td class="n">' . dsMoney($totals['cols'][$c['id']]) . '</td>', $pdfColumns)) . '
         <td class="n">' . ($totals['net'] < 0 ? '(' . dsMoney(abs($totals['net'])) . ')' : dsMoney($totals['net'])) . '</td>
         <td class="n doc">' . ($money($totals['doctorShare']) ?: '0') . '</td>
         <td class="n ctr">' . ($money($totals['centerShare']) ?: '0') . '</td>

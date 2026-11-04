@@ -2,10 +2,10 @@
 /**
  * داهات — the cashier's daily income sheet (تۆماری ڕۆژی), from the system.
  *
- * Replaces the paper sheet: one row per doctor, then the x-ray types, the
- * pharmacy and the examination fee; per row the money received, the lab and
- * store expenses and the net; at the bottom the total, the day's expenses and
- * what is left.
+ * Replaces the paper sheet: one row per doctor, then the x-ray, the
+ * pharmacy and the examination fee; per row the money received, the expenses
+ * charged to it (lab, store, general in a doctor's name) and the net; at the
+ * bottom the total, the day's expenses and what is left.
  *
  * Shared by accountant/income.php (screen) and income-pdf.php (mPDF), so the
  * printout is always exactly the screen. Include BEFORE any output.
@@ -16,14 +16,17 @@
  *                 in the chair on APPROVED invoices + approved payments +
  *                 installments, including custody applied as approved payments.
  *                 Unapplied counter receipts are excluded from income.
- *   x-ray rows    XrayManager::getIncome() split by type: requests paid in cash
- *                 (paid date) + later debt payments (xray_debt_payments)
+ *   x-ray row     XrayManager::getIncome(): requests paid in cash (paid date)
+ *                 + later debt payments (xray_debt_payments)
  *   pharmacy      what the pharmacy (erp2) sold: confirmed sales invoices on
  *                 their sale date (cash or credit), minus confirmed returns
  *   examinations  the visit fee entered at reception (visits.price)
  *   + manual      both rows also add the amounts the accountant typed in by
  *                 hand for that period (classes/IncomeManualEntry.php)
  *   expenses      expenses_lab / _store / _general (+ the legacy table)
+ *   own columns   what the accountant added on a doctor under a column of his
+ *                 own (classes/IncomeColumn.php): always subtracted, whatever
+ *                 the expense chips say — the cash has already moved
  *
  * Each row's کۆی گشتی is then split: پشکی دکتۆر = net × the doctor's
  * percentage (users.commission_rate, set on the doctor's account in
@@ -37,6 +40,7 @@ require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/Permission.php';
 require_once __DIR__ . '/../doctors/_daily_summary_lib.php';
 require_once __DIR__ . '/../classes/IncomeManualEntry.php';
+require_once __DIR__ . '/../includes/store-expense-share.php';
 
 $auth = new Auth();
 $auth->requireLogin();
@@ -56,9 +60,10 @@ $rangeLabel = ds_range_label($from, $to);
 $rangePresets = ds_range_presets();
 // ── Which expenses: تاقیگە / کۆگا / گشتی — any of the three ──
 // Lab and store are table COLUMNS (per doctor) and are subtracted in each
-// row's net. General has no column — it is mostly clinic-wide cost (rent,
-// electricity) that belongs to no doctor row — so it only counts in the
-// bottom خەرجیات. Only ticked kinds are subtracted anywhere. The choice comes
+// row's net. So is a general expense written in a doctor's name: its column
+// appears once a doctor has one in the period. The rest of general is
+// clinic-wide cost (rent, electricity) that belongs to no doctor row, so it
+// counts in the bottom خەرجیات. Only ticked kinds are subtracted anywhere. The choice comes
 // from the form (xs=1 marks "a selection was sent", so ticking nothing is a
 // real choice), else from the remembered cookie, else all three.
 $expenseKinds = ['lab' => 'خەرجی تاقیگە', 'store' => 'خەرجی کۆگا', 'general' => 'خەرجی گشتی'];
@@ -75,7 +80,8 @@ if (isset($_GET['xs'])) {
     $expSel = array_keys($expenseKinds);
 }
 $expQs = '&xs=1' . implode('', array_map(fn($k) => '&x[]=' . $k, $expSel));
-// The expense columns actually drawn in the table: lab / store only.
+// The expense columns actually drawn in the table: lab / store, and general
+// below once a doctor has one.
 $colSel = array_values(array_intersect($expSel, ['lab', 'store']));
 
 $rangeQs = fn(string $f, string $t) => '?from=' . urlencode($f) . '&to=' . urlencode($t) . $expQs;
@@ -85,6 +91,10 @@ $rangeQs = fn(string $f, string $t) => '?from=' . urlencode($f) . '&to=' . urlen
 // any inactive doctor who still had money come in. Ordered by their clinic
 // record, which is the order the paper sheet lists them in.
 $doctorRows = [];
+// «کۆگا بەر دکتۆر»: the part of the store expense on each doctor, by the expense
+// percentages, for the column beside خەرجی کۆگا. null (shown as —) while a
+// percentage is missing; پشکی دکتۆر then uses the income percentage for that kind.
+$storeOnDoctors = store_share_on_doctors($from, $to);
 foreach ($db->fetchAll(
     "SELECT u.id, u.full_name, u.is_active, u.commission_rate
      FROM users u
@@ -127,7 +137,7 @@ foreach ($db->fetchAll(
          'f3' => $from, 't3' => $to, 'u3' => $uid]
     )['n'] ?? 0);
 
-    if (!$u['is_active'] && $amount <= 0 && $ds['labExpense'] <= 0 && $ds['storeExpense'] <= 0) {
+    if (!$u['is_active'] && $amount <= 0 && $ds['doctorExpenses'] <= 0) {
         continue;
     }
     $doctorRows[] = [
@@ -138,52 +148,50 @@ foreach ($db->fetchAll(
         'amount' => $amount,
         'lab'    => $ds['labExpense'],
         'store'  => $ds['storeExpense'],
+        'general' => $ds['generalExpense'],
+        'storeOnDoctor' => $ds['storeOnDoctor'],
+        // کۆڵۆمی تایبەت: column id => amount. Doctor rows only, so outside $totals.
+        'cols'   => array_column($ds['columnCharges'], 'amount', 'id'),
+        'colTotal' => $ds['columnTotal'],
+        'colOnDoctor' => $ds['columnOnDoctor'],
+        // null while a spent kind has no percentage (not «??»: null must survive)
+        'storeDoctor' => array_key_exists($uid, $storeOnDoctors) ? $storeOnDoctors[$uid] : 0.0,
         // ڕێژەی دکتۆر — null until it is set on the doctor's account.
         'rate'   => (float)$u['commission_rate'] > 0 ? min(100.0, (float)$u['commission_rate']) : null,
     ];
 }
 
-// ── X-ray rows, by type ──────────────────────────────────────────────
-$xrayTypes = ['panoramic' => 'OPG', 'cbct' => 'CBCT', 'cephalometric' => 'Ceph', 'periapical' => 'P.A'];
-$xray = array_fill_keys(array_keys($xrayTypes), ['count' => 0, 'amount' => 0.0]);
+if (in_array('general', $expSel, true) && array_sum(array_column($doctorRows, 'general')) > 0) {
+    $colSel[] = 'general';
+}
+
+// ── X-ray: one row, all the types together ───────────────────────────
 $hasDebtTables = $db->tableExists('patient_xray_debts');
-// Cash-settled requests — XrayManager::getCashIncome(), grouped.
-foreach ($db->fetchAll(
-    "SELECT xr.xray_type, COUNT(*) AS n, COALESCE(SUM(xr.final_amount), 0) AS amt
+// Cash-settled requests — XrayManager::getCashIncome().
+$xrayPaid = $db->fetch(
+    "SELECT COUNT(*) AS n, COALESCE(SUM(xr.final_amount), 0) AS amt
      FROM xray_requests xr
      WHERE xr.payment_status = 'paid'
        " . ($hasDebtTables ? "AND NOT EXISTS (SELECT 1 FROM patient_xray_debts pxd WHERE pxd.request_id = xr.id)" : '') . "
-       AND DATE(COALESCE(xr.paid_at, xr.created_at)) BETWEEN :f AND :t
-     GROUP BY xr.xray_type",
+       AND DATE(COALESCE(xr.paid_at, xr.created_at)) BETWEEN :f AND :t",
     ['f' => $from, 't' => $to]
-) as $r) {
-    if (isset($xray[$r['xray_type']])) {
-        $xray[$r['xray_type']]['count'] += (int)$r['n'];
-        $xray[$r['xray_type']]['amount'] += (float)$r['amt'];
-    }
-}
-// Debt collections — XrayManager::getDebtCollected(), grouped by the request's type.
+);
+$xray = ['count' => (int)$xrayPaid['n'], 'amount' => (float)$xrayPaid['amt']];
+// Debt collections — XrayManager::getDebtCollected().
 if ($hasDebtTables && $db->tableExists('xray_debt_payments')) {
-    foreach ($db->fetchAll(
-        "SELECT xr.xray_type, COUNT(DISTINCT xr.id) AS n, COALESCE(SUM(xdp.amount), 0) AS amt
+    $xrayDebt = $db->fetch(
+        "SELECT COUNT(DISTINCT xr.id) AS n, COALESCE(SUM(xdp.amount), 0) AS amt
          FROM xray_debt_payments xdp
          JOIN patient_xray_debts pxd ON pxd.id = xdp.debt_id
          JOIN xray_requests xr ON xr.id = pxd.request_id
-         WHERE DATE(xdp.created_at) BETWEEN :f AND :t
-         GROUP BY xr.xray_type",
+         WHERE DATE(xdp.created_at) BETWEEN :f AND :t",
         ['f' => $from, 't' => $to]
-    ) as $r) {
-        if (isset($xray[$r['xray_type']])) {
-            $xray[$r['xray_type']]['count'] += (int)$r['n'];
-            $xray[$r['xray_type']]['amount'] += (float)$r['amt'];
-        }
-    }
+    );
+    $xray['count'] += (int)$xrayDebt['n'];
+    $xray['amount'] += (float)$xrayDebt['amt'];
 }
-$deptRows = [];
-foreach ($xrayTypes as $type => $label) {
-    $deptRows[] = ['kind' => 'xray', 'label' => $label, 'count' => $xray[$type]['count'],
-                   'amount' => $xray[$type]['amount'], 'lab' => 0.0, 'store' => 0.0];
-}
+$deptRows = [['kind' => 'xray', 'label' => 'X-ray', 'count' => $xray['count'], 'amount' => $xray['amount'],
+              'lab' => 0.0, 'store' => 0.0, 'general' => 0.0]];
 
 // ── Pharmacy: what the pharmacy (erp2) SOLD ──────────────────────────
 // Every confirmed sale on its sale date, whether paid in cash or on credit —
@@ -229,7 +237,7 @@ foreach ([
     $m = $manualTotals[$kind];
     $deptRows[] = ['kind' => $kind, 'label' => $label,
                    'count' => $sysCount + $m['qty'], 'amount' => $sysAmount + $m['amount'],
-                   'lab' => 0.0, 'store' => 0.0,
+                   'lab' => 0.0, 'store' => 0.0, 'general' => 0.0,
                    'sysAmount' => $sysAmount, 'sysCount' => $sysCount,
                    'manualAmount' => $m['amount'], 'manualQty' => $m['qty'], 'manualEntries' => $m['entries']];
 }
@@ -237,18 +245,26 @@ foreach ([
 // ── Totals ───────────────────────────────────────────────────────────
 // A row's net subtracts only the expense columns that are switched on; the
 // net is then split between the doctor (his percentage) and the centre. A
-// doctor's lab/store costs are therefore shared in the same proportion. A
+// doctor's lab costs are therefore shared in the same proportion; his store
+// costs go by their own percentages and a general expense in his name is his alone. A
 // doctor with no percentage set yet gets nothing here — his whole net shows
 // as the centre's, and the sheet names him so it can be set.
 $rows = array_merge($doctorRows, $deptRows);
 $doctorsWithoutRate = [];
 foreach ($rows as &$r) {
-    $r['net'] = $r['amount'];
+    $r['net'] = $r['amount'] - ($r['colTotal'] ?? 0.0);
     foreach ($colSel as $k) {
         $r['net'] -= $r[$k];
     }
     $r['rate'] = $r['rate'] ?? null;
-    $r['doctorShare'] = $r['rate'] !== null ? round($r['net'] * $r['rate'] / 100) : 0.0;
+    // What is wholly on the doctor comes off his share, not off the net the
+    // percentage is of, and the store falls on him by its own percentages: the
+    // rule of ds_compute_range, for the kinds switched on here.
+    $onDoctor = ($r['colOnDoctor'] ?? 0.0) + (in_array('general', $colSel, true) ? $r['general'] : 0.0);
+    $storeOn = in_array('store', $colSel, true);
+    $r['doctorShare'] = $r['rate'] !== null
+        ? ds_doctor_share($r['net'], $r['rate'], $onDoctor, $storeOn ? $r['store'] : 0.0, $storeOn ? $r['storeOnDoctor'] : 0.0)
+        : 0.0;
     $r['centerShare'] = $r['net'] - $r['doctorShare'];
     if ($r['kind'] === 'doctor' && $r['rate'] === null && abs($r['net']) >= 0.5) {
         $doctorsWithoutRate[] = $r['label'];
@@ -256,12 +272,24 @@ foreach ($rows as &$r) {
 }
 unset($r);
 
-$totals = ['count' => 0, 'amount' => 0.0, 'lab' => 0.0, 'store' => 0.0, 'net' => 0.0,
+$totals = ['count' => 0, 'amount' => 0.0, 'lab' => 0.0, 'store' => 0.0, 'general' => 0.0, 'net' => 0.0,
            'doctorShare' => 0.0, 'centerShare' => 0.0];
 foreach ($rows as $r) {
     foreach ($totals as $k => $_) {
         $totals[$k] += $r[$k];
     }
+}
+// Only doctor rows have this one, so it stays out of the loop above
+$totals['storeDoctor'] = (float)array_sum(array_column($doctorRows, 'storeDoctor'));
+
+// ── کۆڵۆمی تایبەت: the sheet's own columns and their entries ──────────
+$incomeColumns = new IncomeColumn();
+$incColumns = $incomeColumns->shownColumns($from, $to);
+$incColumnEntries = $incomeColumns->listEntries($from, $to);
+$canColumns = $incomeColumns->available() && Permission::getInstance()->can(IncomeColumn::PERMISSION);
+$totals['cols'] = [];
+foreach ($incColumns as $c) {
+    $totals['cols'][$c['id']] = (float)array_sum(array_map(fn($r) => $r['cols'][$c['id']] ?? 0.0, $doctorRows));
 }
 
 // The period's expenses by kind (the legacy `expenses` table counts as general).
@@ -285,16 +313,16 @@ $expenseParts['general'] += $expenseParts['other'];
 unset($expenseParts['other']);
 
 // ── The bottom of the sheet, as on the paper ─────────────────────────
-//   کۆی گشتی = the total of the کۆی گشتی column (income after lab/store)
-//   خەرجیات  = the GENERAL expenses (the خەرجی گشتی page) — plus any
-//              lab/store expense not tied to a doctor row: it has no row to be
+//   کۆی گشتی = the total of the کۆی گشتی column (income after its expenses)
+//   خەرجیات  = the GENERAL expenses (the خەرجی گشتی page) with no doctor row —
+//              plus any lab/store expense not tied to one: it has no row to be
 //              subtracted in, so it is taken here rather than silently lost
 //   ماوە     = کۆی گشتی − خەرجیات
-// Lab/store with a doctor are already taken in that doctor's row, so they are
+// An expense with a doctor is already taken in that doctor's row, so it is
 // not counted again here. Only switched-on kinds count anywhere.
 $expenseLines = [];   // label => amount, shown under خەرجیات
 if (in_array('general', $expSel, true)) {
-    $expenseLines['گشتی'] = $expenseParts['general'];
+    $expenseLines['گشتی'] = $expenseParts['general'] - $totals['general'];
 }
 foreach (['lab' => 'تاقیگەی بێ دکتۆر', 'store' => 'کۆگای بێ دکتۆر'] as $k => $label) {
     $unassigned = $expenseParts[$k] - $totals[$k];

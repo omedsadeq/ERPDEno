@@ -42,9 +42,14 @@ $work = $r['work'] ?? ['total' => 0, 'treatment_visits' => 0, 'checkup_visits' =
 $check = $r['checkupBreakdown'] ?? ['given' => 0, 'pending' => 0, 'new_exam' => 0, 'old_exam' => 0];
 $top = array_slice($r['topTreatments'] ?? [], 0, 14);
 $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-// مافی سەنتەر: its share plus the lab/store costs it paid = cash − doctor's share.
-$expenses = CashboxLedger::decimal(CashboxLedger::cents($settlement['lab_expense']) + CashboxLedger::cents($settlement['store_expense']));
-$centerDue = CashboxLedger::decimal(max(0, CashboxLedger::cents($settlement['cash_in']) - max(0, CashboxLedger::cents($settlement['doctor_share']))));
+// مافی سەنتەر: its share plus the costs it paid = cash − doctor's share.
+$generalCents = CashboxLedger::cents($settlement['general_expense']);
+// A column's charge comes back to the centre like a cost; cash given back to a
+// patient under one is gone, so it is nobody's to collect.
+$columnCash = IncomeSettlement::toCents((float)($r['columnCashOut'] ?? 0));
+$columnCharged = IncomeSettlement::toCents((float)($r['columnTotal'] ?? 0)) - $columnCash;
+$expenses = CashboxLedger::decimal(CashboxLedger::cents($settlement['lab_expense']) + CashboxLedger::cents($settlement['store_expense']) + $generalCents + $columnCharged);
+$centerDue = CashboxLedger::decimal(max(0, CashboxLedger::cents($settlement['cash_in']) - $columnCash - max(0, CashboxLedger::cents($settlement['doctor_share']))));
 $autoPrint = ($_GET['new'] ?? '') === '1';
 $backUrl = APP_URL . '/accountant/income-distribution.php?from=' . urlencode($settlement['period_from']) . '&to=' . urlencode($settlement['period_to']);
 ?>
@@ -188,6 +193,12 @@ html, body { margin: 0; background: #e9edf2; color: var(--ink); font-family: var
                 <tr class="t"><td>کۆی نەقدی وەرگیراو</td><td class="v"><?= $e($stored($settlement['cash_in'])) ?></td></tr>
                 <tr><td>خەرجی تاقیگە</td><td class="v neg">(<?= $e($stored($settlement['lab_expense'])) ?>)</td></tr>
                 <tr><td>خەرجی کۆگا</td><td class="v neg">(<?= $e($stored($settlement['store_expense'])) ?>)</td></tr>
+                <?php if ($generalCents > 0): ?>
+                <tr><td>خەرجی گشتی</td><td class="v neg">(<?= $e($stored($settlement['general_expense'])) ?>)</td></tr>
+                <?php endif; ?>
+                <?php foreach ($r['columnCharges'] ?? [] as $charge): ?>
+                <tr><td><?= $e($charge['name']) ?></td><td class="v neg">(<?= $e($money($charge['amount'])) ?>)</td></tr>
+                <?php endforeach; ?>
                 <tr class="t"><td>سافی</td><td class="v"><?= $e($signed($settlement['net_amount'])) ?></td></tr>
             </table>
         </div>
@@ -197,7 +208,7 @@ html, body { margin: 0; background: #e9edf2; color: var(--ink); font-family: var
                 <tr><td>سافی</td><td class="v"><?= $e($signed($settlement['net_amount'])) ?></td></tr>
                 <tr><td>پشکی دکتۆر (<?= $e($rate) ?>)</td><td class="v doc"><?= $e($stored($settlement['doctor_share'])) ?></td></tr>
                 <tr><td>پشکی سەنتەر</td><td class="v ctr"><?= $e($stored($settlement['center_share'])) ?></td></tr>
-                <tr><td>+ خەرجی تاقیگە و کۆگا (بۆ سەنتەر)</td><td class="v ctr"><?= $e($stored($expenses)) ?></td></tr>
+                <tr><td>+ خەرجی دکتۆر (بۆ سەنتەر)</td><td class="v ctr"><?= $e($stored($expenses)) ?></td></tr>
                 <tr class="t"><td>کۆی مافی سەنتەر</td><td class="v ctr"><?= $e($stored($centerDue)) ?></td></tr>
                 <tr class="sub"><td colspan="2">سندوقی دکتۆر لە کاتی حیساب</td></tr>
                 <tr><td>نەقدی ناو سندوق پێش حیساب</td><td class="v"><?= $e($stored($settlement['box_before'])) ?></td></tr>

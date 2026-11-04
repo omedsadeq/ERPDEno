@@ -28,6 +28,7 @@
 
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/VisitReportStats.php';
+require_once __DIR__ . '/../classes/IncomeColumn.php';
 
 /** X-ray types as the clinic names them (the income sheet uses the same). */
 const DS_XRAY_TYPES = ['panoramic' => 'OPG', 'cbct' => 'CBCT', 'cephalometric' => 'Ceph', 'periapical' => 'P.A'];
@@ -178,7 +179,7 @@ function ds_compute(Database $db, int $docUserId, string $day): array
  */
 function ds_compute_range(Database $db, int $docUserId, string $from, string $to, bool $withPatients = true): array
 {
-    $docRow = $db->fetch("SELECT id, full_name, commission_rate FROM users WHERE id = :id", ['id' => $docUserId]);
+    $docRow = $db->fetch("SELECT id, full_name, commission_rate, store_share_normal, store_share_implant FROM users WHERE id = :id", ['id' => $docUserId]);
 
     // visits.* point at doctors.id, everything else at users.id — bridge here.
     $bridge = $db->fetch("SELECT id FROM doctors WHERE user_id = :uid LIMIT 1", ['uid' => $docUserId]);
@@ -323,16 +324,39 @@ function ds_compute_range(Database $db, int $docUserId, string $from, string $to
         "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses_lab WHERE doctor_id = :uid AND expense_date BETWEEN :f AND :t",
         ['uid' => $docUserId, 'f' => $from, 't' => $to]
     )['total'] ?? 0);
-    $storeExpense = (float)($db->fetch(
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses_store WHERE doctor_id = :uid AND expense_date BETWEEN :f AND :t",
+    $storeByKind = [];
+    foreach ($db->fetchAll(
+        "SELECT expense_kind, COALESCE(SUM(amount), 0) AS total FROM expenses_store
+         WHERE doctor_id = :uid AND expense_date BETWEEN :f AND :t GROUP BY expense_kind",
+        ['uid' => $docUserId, 'f' => $from, 't' => $to]
+    ) as $row) {
+        $storeByKind[$row['expense_kind']] = (float)$row['total'];
+    }
+    $storeExpense = (float)array_sum($storeByKind);
+    // A general expense written in his name; one with no doctor is the centre's.
+    $generalExpense = (float)($db->fetch(
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM expenses_general WHERE doctor_id = :uid AND expense_date BETWEEN :f AND :t",
         ['uid' => $docUserId, 'f' => $from, 't' => $to]
     )['total'] ?? 0);
-    $netAfterExpenses = $cashIn - $labExpense - $storeExpense;
+    // کۆڵۆمی تایبەت: what the accountant put on him on the income sheet.
+    $columns = IncomeColumn::forDoctor($db, $docUserId, $from, $to);
+    $doctorExpenses = $labExpense + $storeExpense + $generalExpense + $columns['total'];
+    $netAfterExpenses = $cashIn - $doctorExpenses;
 
     // That net split by the doctor's percentage (users.commission_rate, set on
     // his account) — the same rule as the income sheet. null until it is set.
     $doctorRate = (float)($docRow['commission_rate'] ?? 0) > 0 ? min(100.0, (float)$docRow['commission_rate']) : null;
-    $doctorShare = $doctorRate !== null ? round($netAfterExpenses * $doctorRate / 100) : null;
+    // The store falls on him by its own percentages (ئاسایی / ئیمپلانت, set on the
+    // store expense page), by his income percentage until they are set.
+    $storeOnDoctor = 0.0;
+    foreach ($storeByKind as $kind => $amount) {
+        $storeRate = $docRow[$kind === 'implant' ? 'store_share_implant' : 'store_share_normal'] ?? $doctorRate;
+        $storeOnDoctor += $amount * (float)$storeRate / 100;
+    }
+    // A general expense has no percentage, and a column can be wholly on him too.
+    $doctorShare = $doctorRate !== null
+        ? ds_doctor_share($netAfterExpenses, $doctorRate, $generalExpense + $columns['onDoctor'], $storeExpense, $storeOnDoctor)
+        : null;
 
     // ── Patients sent to x-ray (statistics only) ─────────────────────
     // X-ray is its own department and its money is the centre's, so no fee
@@ -501,6 +525,13 @@ function ds_compute_range(Database $db, int $docUserId, string $from, string $to
         'advanceCollected'  => $advanceCollected,
         'labExpense'        => $labExpense,
         'storeExpense'      => $storeExpense,
+        'storeOnDoctor'     => $storeOnDoctor,
+        'generalExpense'    => $generalExpense,
+        'doctorExpenses'    => $doctorExpenses,
+        'columnCharges'     => $columns['charges'],
+        'columnTotal'       => $columns['total'],
+        'columnOnDoctor'    => $columns['onDoctor'],
+        'columnCashOut'     => $columns['cashOut'],
         'cashIn'            => $cashIn,
         'netAfterExpenses'  => $netAfterExpenses,
         'doctorRate'        => $doctorRate,
@@ -536,6 +567,17 @@ function ds_has_activity(array $ds): bool
 }
 
 /**
+ * پشکی دکتۆر of a net, with the expenses already taken off it: his percentage of
+ * what comes before the store and $whole, less what falls on him of the store
+ * ($storeOnDoctor of $store), less $whole, which is his alone. The centre's share
+ * is the net less this. Used by ds_compute_range and the income sheet.
+ */
+function ds_doctor_share(float $net, float $rate, float $whole, float $store, float $storeOnDoctor): float
+{
+    return round(($net + $whole + $store) * $rate / 100 - $storeOnDoctor) - $whole;
+}
+
+/**
  * The daily summary's printed rows: [label, value, style], style being
  * '' | 'pos' | 'neg' | 'total'. Both the page and its PDF walk these lists.
  */
@@ -562,8 +604,14 @@ function ds_row_lists(array $ds): array
         ['کۆی نەقدی وەرگیراو',      dsMoney($ds['cashIn']), 'total'],
         ['خەرجی تاقیگە',            '(' . dsMoney($ds['labExpense']) . ')', 'neg'],
         ['خەرجی کۆگا',              '(' . dsMoney($ds['storeExpense']) . ')', 'neg'],
-        ['ماوەی دوای خەرجی',        $signed($ds['netAfterExpenses']), 'total'],
     ]);
+    if ($ds['generalExpense'] > 0.5) {
+        $money[] = ['خەرجی گشتی', '(' . dsMoney($ds['generalExpense']) . ')', 'neg'];
+    }
+    foreach ($ds['columnCharges'] ?? [] as $charge) {
+        $money[] = [$charge['name'], '(' . dsMoney($charge['amount']) . ')', 'neg'];
+    }
+    $money[] = ['ماوەی دوای خەرجی', $signed($ds['netAfterExpenses']), 'total'];
     if ($ds['doctorRate'] !== null) {
         $rate = rtrim(rtrim(number_format($ds['doctorRate'], 2, '.', ''), '0'), '.');
         $money[] = ['پشکی دکتۆر (' . $rate . '%)', $signed($ds['doctorShare']), 'pos'];

@@ -136,17 +136,21 @@ $manReturn = $rangeQs($from, $to);
         <button type="submit">پیشاندان</button>
         <a class="inc-pdf" href="<?= dsEsc($pdfUrl) ?>" target="_blank"><i class="fas fa-file-pdf"></i> ڕاپۆرتی PDF</a>
         <!-- Expenses on/off. Ticking applies at once; the choice is remembered,
-             and only ticked kinds are subtracted. Lab/store are table columns;
-             general has no column and only counts in the bottom خەرجیات. -->
+             and only ticked kinds are subtracted. Lab/store are table columns,
+             and so is general in a doctor's name; the centre's general only
+             counts in the bottom خەرجیات. -->
         <div class="inc-exp">
             <span>خەرجی:</span>
             <input type="hidden" name="xs" value="1">
             <?php foreach (['lab' => 'تاقیگە', 'store' => 'کۆگا', 'general' => 'گشتی'] as $k => $short): ?>
-            <label class="inc-chip" title="<?= $k === 'general' ? 'تەنها لە کۆی خەرجیاتی خوارەوە هەژمار دەکرێت' : 'کۆڵۆمی ' . $short . ' لە خشتەکە' ?>">
+            <label class="inc-chip" title="<?= $k === 'general' ? 'خەرجی سەنتەر لە خەرجیاتی خوارەوە هەژمار دەکرێت؛ ئەوەی ناوی دکتۆری لەسەرە لە ڕیزی ئەو دکتۆرە دەبڕدرێت' : 'کۆڵۆمی ' . $short . ' لە خشتەکە' ?>">
                 <input type="checkbox" name="x[]" value="<?= $k ?>" <?= in_array($k, $expSel, true) ? 'checked' : '' ?> onchange="this.form.submit()">
                 <i class="fas fa-check"></i> <?= $short ?>
             </label>
             <?php endforeach; ?>
+            <?php if ($canColumns): ?>
+            <button type="button" class="inc-newcol" data-col-new title="کۆڵۆمێکی نوێ بۆ خشتەکە: خەرجی سەر دکتۆر یان لێبڕین"><i class="fas fa-plus"></i> کۆڵۆم</button>
+            <?php endif; ?>
         </div>
         <div class="inc-days">
             <a href="<?= dsEsc($rangeQs($prevFrom, $prevTo)) ?>">← پێشوو</a>
@@ -195,7 +199,8 @@ $manReturn = $rangeQs($from, $to);
                 <thead>
                     <tr>
                         <th>#</th><th>ناوەڕۆک</th><th>ژمارە</th><th>بڕی</th>
-                        <?php foreach ($colSel as $k): ?><th><?= dsEsc($expenseKinds[$k]) ?></th><?php endforeach; ?>
+                        <?php foreach ($colSel as $k): ?><th><?= dsEsc($expenseKinds[$k]) ?></th><?php if ($k === 'store'): ?><th>کۆگا بەر دکتۆر<small>بە ڕێژەی خەرجی</small></th><?php endif; ?><?php endforeach; ?>
+                        <?php foreach ($incColumns as $c): ?><th class="cus"><?= dsEsc($c['name']) ?></th><?php endforeach; ?>
                         <th>کۆی گشتی</th>
                         <th class="doc">پشکی دکتۆر<small>بە ڕێژەی خۆی</small></th>
                         <th class="ctr">پشکی سەنتەر<small>بۆ <?= htmlspecialchars(Branding::shortName()) ?></small></th>
@@ -237,6 +242,19 @@ $manReturn = $rangeQs($from, $to);
                         <td class="n amt"><?= incCell($r['amount']) ?></td>
                         <?php foreach ($colSel as $k): ?>
                         <td class="n exp"><?= incCell($r[$k]) ?></td>
+                        <?php if ($k === 'store'): ?><td class="n exp"><?= store_share_cell($r, 'incCell') ?></td><?php endif; ?>
+                        <?php endforeach; ?>
+                        <?php foreach ($incColumns as $c): ?>
+                        <td class="n cus">
+                            <?php if ($r['kind'] === 'doctor'): ?>
+                            <div class="inc-cc">
+                                <?php if ($canColumns && $c['is_active']): ?>
+                                <button type="button" class="inc-cadd" data-col="<?= (int)$c['id'] ?>" data-doctor="<?= (int)$r['id'] ?>" title="زیادکردن لەسەر <?= dsEsc($r['label']) ?>"><i class="fas fa-plus"></i></button>
+                                <?php endif; ?>
+                                <span><?= incCell($r['cols'][$c['id']] ?? 0.0) ?></span>
+                            </div>
+                            <?php endif; ?>
+                        </td>
                         <?php endforeach; ?>
                         <td class="n net<?= $r['net'] < 0 ? ' neg' : '' ?>"><?= incCell($r['net']) ?></td>
                         <td class="n doc">
@@ -261,7 +279,9 @@ $manReturn = $rangeQs($from, $to);
                         <td class="n"><?= dsMoney($totals['amount']) ?></td>
                         <?php foreach ($colSel as $k): ?>
                         <td class="n"><?= dsMoney($totals[$k]) ?></td>
+                        <?php if ($k === 'store'): ?><td class="n"><?= dsMoney($totals['storeDoctor']) ?></td><?php endif; ?>
                         <?php endforeach; ?>
+                        <?php foreach ($incColumns as $c): ?><td class="n cus"><?= dsMoney($totals['cols'][$c['id']]) ?></td><?php endforeach; ?>
                         <td class="n"><?= $totals['net'] < 0 ? '(' . dsMoney(abs($totals['net'])) . ')' : dsMoney($totals['net']) ?></td>
                         <td class="n doc"><?= incCell($totals['doctorShare']) ?: '0' ?></td>
                         <td class="n ctr"><?= incCell($totals['centerShare']) ?: '0' ?></td>
@@ -274,8 +294,9 @@ $manReturn = $rangeQs($from, $to);
             <div class="inc-box total">
                 <div class="k">کۆی گشتی</div>
                 <div class="v"><?= $sheetTotal < 0 ? '(' . dsMoney(abs($sheetTotal)) . ')' : dsMoney($sheetTotal) ?></div>
-                <?php if ($colSel): ?>
-                <div class="s">داهات <?= dsMoney($totals['amount']) ?> − خەرجی تاقیگە و کۆگا</div>
+                <?php $incLess = array_merge(array_map(fn($k) => $expenseKinds[$k], $colSel), array_column(array_filter($incColumns, fn($c) => $c['period_total'] > 0), 'name')); ?>
+                <?php if ($incLess): ?>
+                <div class="s">داهات <?= dsMoney($totals['amount']) ?> − <?= dsEsc(implode('، ', $incLess)) ?></div>
                 <?php endif; ?>
             </div>
             <div class="inc-box exp">
@@ -405,7 +426,163 @@ $manReturn = $rangeQs($from, $to);
         <?php endif; ?>
     </section>
     <?php endif; ?>
+    <?php if ($canColumns || $incColumnEntries): ?>
+    <!-- کۆڵۆمی تایبەت: columns of the accountant's own, each amount on a doctor
+         (classes/IncomeColumn.php). «+» on a doctor's cell opens the same dialog. -->
+    <section class="inc-mp inc-cs" id="incCols">
+        <div class="inc-mp-head">
+            <h3><i class="fas fa-user-minus"></i> کۆڵۆمی تایبەت — لێبڕین و خەرجی سەر دکتۆر</h3>
+            <span>بڕەکان لە ڕیزی دکتۆرەکە دەبڕدرێن. ئەوەی لە قاسە دێتە خوارێ، ڕاستەوخۆ لە سندوقەکان کەم دەبێتەوە.</span>
+        </div>
+
+        <?php
+        $colFlash = ['added' => 'تۆمارەکە زیادکرا.', 'updated' => 'تۆمارەکە نوێکرایەوە.', 'deleted' => 'تۆمارەکە سڕایەوە و پارەکە گەڕایەوە سندوقەکان.',
+                     'col_saved' => 'کۆڵۆمەکە پاشەکەوت کرا.', 'col_removed' => 'کۆڵۆمەکە لابرا.'][(string)($_GET['col_done'] ?? '')] ?? '';
+        ?>
+        <?php if ($colFlash): ?>
+        <div class="inc-mp-msg ok"><i class="fas fa-check-circle"></i> <?= dsEsc($colFlash) ?></div>
+        <?php elseif (isset($_GET['col_error'])): ?>
+        <div class="inc-mp-msg err"><i class="fas fa-exclamation-circle"></i> <?= dsEsc((string)$_GET['col_error']) ?></div>
+        <?php endif; ?>
+
+        <?php if ($canColumns): ?>
+        <div class="inc-cs-cols">
+            <?php foreach ($incColumns as $c): if (!$c['is_active']) continue; ?>
+            <span class="inc-cs-col">
+                <span><b><?= dsEsc($c['name']) ?></b><small><?= dsEsc(IncomeColumn::behaviourLabel($c)) ?></small></span>
+                <button type="button" class="inc-cs-edit" title="دەستکاری" data-column="<?= dsEsc(json_encode([
+                    'id' => (int)$c['id'], 'name' => $c['name'], 'cash_out' => (int)$c['cash_out'],
+                    'on_doctor' => (int)$c['on_doctor'], 'entries' => (int)$c['entries'],
+                ], JSON_UNESCAPED_UNICODE)) ?>"><i class="fas fa-pen"></i></button>
+                <form method="post" action="<?= APP_URL ?>/accountant/income-columns.php" onsubmit="return confirm(<?= dsEsc(json_encode($c['entries'] > 0 ? 'ئەم کۆڵۆمە لە خشتەکە لادەبرێت. تۆمارەکانی و پارەکەیان وەک خۆیان دەمێننەوە.' : 'ئەم کۆڵۆمە بسڕدرێتەوە؟', JSON_UNESCAPED_UNICODE)) ?>)">
+                    <input type="hidden" name="action" value="column_remove">
+                    <input type="hidden" name="column_id" value="<?= (int)$c['id'] ?>">
+                    <input type="hidden" name="return" value="<?= dsEsc($manReturn) ?>">
+                    <button type="submit" class="del" title="لابردن"><i class="fas fa-trash"></i></button>
+                </form>
+            </span>
+            <?php endforeach; ?>
+            <button type="button" class="inc-cs-new" data-col-new><i class="fas fa-plus"></i> کۆڵۆمی نوێ</button>
+            <?php if ($incColumns): ?>
+            <button type="button" class="inc-cs-add" data-entry-new><i class="fas fa-plus"></i> تۆمارکردن</button>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($incColumnEntries): ?>
+        <div class="inc-scroll">
+            <table class="inc-mp-tbl">
+                <thead><tr><th>ڕێکەوت</th><th>کۆڵۆم</th><th>دکتۆر</th><th>بڕ</th><th>تێبینی</th><th>تۆمارکەر</th><?php if ($canColumns): ?><th></th><?php endif; ?></tr></thead>
+                <tbody>
+                <?php foreach ($incColumnEntries as $m): ?>
+                    <tr>
+                        <td><bdi><?= dsEsc($m['entry_date']) ?></bdi></td>
+                        <td><span class="inc-mp-tag cus"><?= dsEsc($m['column_name']) ?></span></td>
+                        <td><?= dsEsc($m['doctor_name'] ?? '—') ?></td>
+                        <td class="n"><?= dsMoney((float)$m['amount']) ?></td>
+                        <td><?= dsEsc($m['note'] ?? '') ?></td>
+                        <td class="who"><?= dsEsc($m['created_by_name'] ?? '—') ?><?php if ($m['updated_by_name']): ?><small>دەستکاری: <?= dsEsc($m['updated_by_name']) ?></small><?php endif; ?></td>
+                        <?php if ($canColumns): ?>
+                        <td class="act">
+                            <button type="button" class="inc-ce-edit" title="دەستکاری" data-entry="<?= dsEsc(json_encode([
+                                'id' => (int)$m['id'], 'column_id' => (int)$m['column_id'], 'doctor_id' => (int)$m['doctor_id'],
+                                'entry_date' => $m['entry_date'], 'amount' => (float)$m['amount'], 'note' => (string)($m['note'] ?? ''),
+                            ], JSON_UNESCAPED_UNICODE)) ?>"><i class="fas fa-pen"></i></button>
+                            <form method="post" action="<?= APP_URL ?>/accountant/income-columns.php" onsubmit="return confirm('ئەم تۆمارە بسڕدرێتەوە؟ پارەکە دەگەڕێتەوە سندوقەکان.')">
+                                <input type="hidden" name="action" value="entry_delete">
+                                <input type="hidden" name="entry_id" value="<?= (int)$m['id'] ?>">
+                                <input type="hidden" name="return" value="<?= dsEsc($manReturn) ?>">
+                                <button type="submit" class="del" title="سڕینەوە"><i class="fas fa-trash"></i></button>
+                            </form>
+                        </td>
+                        <?php endif; ?>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3">کۆ</td>
+                        <td class="n"><?= dsMoney(array_sum(array_map(fn($m) => (float)$m['amount'], $incColumnEntries))) ?></td>
+                        <td colspan="<?= $canColumns ? 3 : 2 ?>"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <?php else: ?>
+        <div class="inc-mp-empty">هیچ تۆمارێک بۆ ئەم ماوەیە نییە.</div>
+        <?php endif; ?>
+    </section>
+    <?php endif; ?>
 </div>
+
+<?php if ($canColumns): ?>
+<div class="dialog-overlay" id="incColumnDialog"><div class="dialog inc-dlg" role="dialog" aria-modal="true" aria-labelledby="inc-column-title">
+    <div class="dialog-header"><h3 class="dialog-title" id="inc-column-title">کۆڵۆمی نوێ</h3><button type="button" class="dialog-close" onclick="closeDialog('incColumnDialog')" aria-label="داخستن"><i class="fas fa-times"></i></button></div>
+    <form method="post" action="<?= APP_URL ?>/accountant/income-columns.php" id="incColumnForm" autocomplete="off">
+        <?= Csrf::field() ?>
+        <input type="hidden" name="action" value="column_save">
+        <input type="hidden" name="column_id" value="">
+        <input type="hidden" name="return" value="<?= dsEsc($manReturn) ?>">
+        <div class="dialog-body">
+            <label class="inc-dlg-f">ناوی کۆڵۆم <input type="text" name="name" maxlength="60" required placeholder="بۆ نموونە: گەڕاندنەوەی پارە"></label>
+            <div class="inc-dlg-lock" hidden><i class="fas fa-lock"></i> ئەم کۆڵۆمە تۆماری هەیە، تەنها ناوەکەی دەگۆڕدرێت.</div>
+            <div class="inc-dlg-q">
+                <span>پارەکە لە قاسە دێتە خوارێ؟</span>
+                <label class="inc-dlg-o"><input type="radio" name="cash_out" value="1" checked><b>بەڵێ — پارە دەدرێتەوە</b><small>وەک گەڕاندنەوەی پارە بۆ نەخۆش: بڕەکە لە سندوقەکان کەم دەبێتەوە.</small></label>
+                <label class="inc-dlg-o"><input type="radio" name="cash_out" value="0"><b>نەخێر — خەرجییە</b><small>پارە ناچێتە دەرەوە: بەشی دکتۆر لە سندوقی ئەوەوە دەچێتە قاسەی <?= htmlspecialchars(Branding::shortName()) ?>، وەک خەرجی تاقیگە.</small></label>
+            </div>
+            <div class="inc-dlg-q">
+                <span>لەسەر کێ دەکەوێت؟</span>
+                <label class="inc-dlg-o"><input type="radio" name="on_doctor" value="0" checked><b>لە داهاتی دکتۆر، بە ڕێژە</b><small>١٠٠,٠٠٠ و ڕێژەی ٤٠٪: دکتۆر ٤٠,٠٠٠ و سەنتەر ٦٠,٠٠٠ هەڵدەگرن.</small></label>
+                <label class="inc-dlg-o"><input type="radio" name="on_doctor" value="1"><b>هەمووی لەسەر دکتۆر</b><small>١٠٠,٠٠٠ هەمووی لە پشکی دکتۆر دەبڕدرێت و پشکی سەنتەر کەم نابێتەوە.</small></label>
+            </div>
+        </div>
+        <div class="dialog-footer">
+            <button type="button" class="inc-mp-cancel" onclick="closeDialog('incColumnDialog')">پاشگەزبوونەوە</button>
+            <button type="submit" class="inc-mp-save">پاشەکەوت</button>
+        </div>
+    </form>
+</div></div>
+
+<div class="dialog-overlay" id="incEntryDialog"><div class="dialog inc-dlg" role="dialog" aria-modal="true" aria-labelledby="inc-entry-title">
+    <div class="dialog-header"><h3 class="dialog-title" id="inc-entry-title">تۆمارکردن لەسەر دکتۆر</h3><button type="button" class="dialog-close" onclick="closeDialog('incEntryDialog')" aria-label="داخستن"><i class="fas fa-times"></i></button></div>
+    <form method="post" action="<?= APP_URL ?>/accountant/income-columns.php" id="incEntryForm" autocomplete="off">
+        <?= Csrf::field() ?>
+        <input type="hidden" name="action" value="entry_save">
+        <input type="hidden" name="entry_id" value="">
+        <input type="hidden" name="column_id" value="">
+        <input type="hidden" name="return" value="<?= dsEsc($manReturn) ?>">
+        <div class="dialog-body">
+            <label class="inc-dlg-f">کۆڵۆم
+                <select data-column-pick required>
+                    <?php foreach ($incColumns as $c): ?>
+                    <option value="<?= (int)$c['id'] ?>" data-cash="<?= (int)$c['cash_out'] ?>" data-hint="<?= dsEsc(IncomeColumn::behaviourLabel($c)) ?>"><?= dsEsc($c['name']) ?><?= $c['is_active'] ? '' : ' (لابراوە)' ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <small class="inc-dlg-hint"></small>
+            </label>
+            <label class="inc-dlg-f">دکتۆر
+                <select name="doctor_id" required>
+                    <option value="">— هەڵبژێرە —</option>
+                    <?php foreach ($doctorRows as $d): ?>
+                    <option value="<?= (int)$d['id'] ?>"><?= dsEsc($d['label']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+            <div class="inc-dlg-row">
+                <label class="inc-dlg-f">ڕێکەوت <input type="date" name="entry_date" value="<?= dsEsc($manDate) ?>" max="<?= dsEsc($today) ?>" required></label>
+                <label class="inc-dlg-f">بڕ <input type="text" name="amount" inputmode="numeric" placeholder="0" required class="inc-mp-amt"></label>
+            </div>
+            <label class="inc-dlg-f">تێبینی <input type="text" name="note" maxlength="255" placeholder="ناوی نەخۆش و هۆکار"></label>
+        </div>
+        <div class="dialog-footer">
+            <button type="button" class="inc-mp-cancel" onclick="closeDialog('incEntryDialog')">پاشگەزبوونەوە</button>
+            <button type="submit" class="inc-mp-save">پاشەکەوت</button>
+        </div>
+    </form>
+</div></div>
+<?php endif; ?>
+
 
 <style>
 .inc-dept{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -461,6 +638,50 @@ $manReturn = $rangeQs($from, $to);
 .inc-mp-tag.pharmacy{background:#dcfce7;color:#166534}
 .inc-mp-tag.exam{background:#e0f2fe;color:#075985}
 .inc-mp-empty{margin-top:12px;padding:14px;text-align:center;color:#94a3b8;font-size:13px;border:1px dashed #e2e8f0;border-radius:10px}
+
+/* کۆڵۆمی تایبەت */
+.inc-bar button.inc-newcol{height:auto;padding:6px 11px;border-radius:999px;font-size:12.5px;color:#be123c;background:#fff;border:1px dashed #fda4af}
+.inc-bar button.inc-newcol:hover{background:#ffe4e6}
+.inc-bar button.inc-newcol i{font-size:10px}
+.inc-tbl th.cus{background:#ffe4e6;color:#9f1239;border-color:#fda4af}
+.inc-tbl td.cus{color:#be123c;background:#fff7f8;font-weight:600}
+.inc-tbl tr.tot td.cus{background:#ffe4e6}
+.inc-cc{display:flex;align-items:center;justify-content:space-between;gap:6px;direction:rtl}
+.inc-cc span{direction:ltr}
+.inc-cadd{flex:0 0 auto;width:20px;height:20px;padding:0;border-radius:6px;border:1px dashed #fda4af;background:#fff;color:#e11d48;cursor:pointer;font-size:9px;
+    display:inline-grid;place-items:center;opacity:.55}
+.inc-tbl tr:hover .inc-cadd{opacity:1}
+.inc-cadd:hover{background:#e11d48;border-color:#e11d48;color:#fff}
+.inc-cs .inc-mp-head h3 i{color:#e11d48}
+.inc-cs-cols{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px;border-radius:12px;background:#fff1f2;border:1px solid #fecdd3}
+.inc-cs-col{display:inline-flex;align-items:center;gap:6px;padding:5px 6px 5px 10px;border-radius:10px;background:#fff;border:1px solid #fecdd3}
+.inc-cs-col>span{display:flex;flex-direction:column;line-height:1.35}
+.inc-cs-col b{font-size:13px;color:#9f1239}
+.inc-cs-col small{font-size:10.5px;color:#64748b}
+.inc-cs-col form{display:inline}
+.inc-cs-col button{width:26px;height:26px;padding:0;border-radius:7px;border:1px solid #e2e8f0;background:#fff;color:#475569;cursor:pointer;font-size:11px}
+.inc-cs-col button.del{color:#dc2626;border-color:#fecaca}
+.inc-cs-new,.inc-cs-add{height:36px;border-radius:9px;padding:0 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.inc-cs-new{color:#be123c;background:#fff;border:1px dashed #fda4af}
+.inc-cs-add{margin-inline-start:auto;border:0;color:#fff;background:linear-gradient(135deg,#be123c,#e11d48)}
+.inc-mp-tag.cus{background:#ffe4e6;color:#9f1239}
+.inc-cs .inc-mp-tbl th{background:#ffe4e6;color:#9f1239;border-color:#fecdd3}
+.inc-cs .inc-mp-tbl tfoot td{background:#fff1f2;border-top-color:#fecdd3}
+.inc-dlg{max-width:480px;width:calc(100vw - 32px)}
+.inc-dlg .dialog-footer{display:flex;justify-content:flex-end;gap:8px}
+.inc-dlg-f{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;font-size:12.5px;color:#475569}
+.inc-dlg-f input,.inc-dlg-f select{height:38px;border:1px solid #e2e8f0;border-radius:9px;background:#fff;padding:0 10px;font:inherit;font-size:13.5px;width:100%}
+.inc-dlg-f .inc-mp-amt{width:100%}
+.inc-dlg-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.inc-dlg-hint{font-size:11.5px;color:#be123c}
+.inc-dlg-q{margin-bottom:12px}
+.inc-dlg-q>span{display:block;margin-bottom:6px;font-size:12.5px;font-weight:700;color:#334155}
+.inc-dlg-o{display:grid;grid-template-columns:auto 1fr;column-gap:8px;align-items:center;padding:8px 10px;margin-bottom:6px;border:1px solid #e2e8f0;border-radius:10px;cursor:pointer}
+.inc-dlg-o:has(input:checked){background:#fff1f2;border-color:#fda4af}
+.inc-dlg-o b{font-size:13px;color:#0f172a}
+.inc-dlg-o small{grid-column:2;font-size:11.5px;color:#64748b;line-height:1.6}
+.inc-dlg-lock{margin-bottom:12px;padding:7px 10px;border-radius:9px;background:#fffbeb;color:#92400e;font-size:12px}
+.inc-dlg-q.is-locked{opacity:.6;pointer-events:none}
 </style>
 
 <?php if ($canManual): ?>
@@ -523,6 +744,79 @@ $manReturn = $rangeQs($from, $to);
         });
     });
     cancel.addEventListener('click', reset);
+})();
+</script>
+<?php endif; ?>
+
+<?php if ($canColumns): ?>
+<script>
+(function () {
+    var ku = '٠١٢٣٤٥٦٧٨٩';
+    // 100000 → 100,000 while typing (Kurdish digits accepted).
+    function fmt(v) {
+        v = String(v).replace(/[٠-٩]/g, function (d) { return ku.indexOf(d); }).replace(/[^\d.]/g, '');
+        var parts = v.split('.');
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        return parts.length > 1 ? parts[0] + '.' + parts[1].slice(0, 2) : parts[0];
+    }
+    function each(selector, fn) { document.querySelectorAll(selector).forEach(fn); }
+
+    // ── a column ──
+    var colForm = document.getElementById('incColumnForm');
+    var colLock = colForm.querySelector('.inc-dlg-lock');
+    function openColumn(c) {
+        colForm.reset();
+        colForm.elements['column_id'].value = c ? c.id : '';
+        document.getElementById('inc-column-title').textContent = c ? 'دەستکاری کۆڵۆم' : 'کۆڵۆمی نوێ';
+        if (c) {
+            colForm.elements['name'].value = c.name;
+            colForm.querySelector('input[name="cash_out"][value="' + c.cash_out + '"]').checked = true;
+            colForm.querySelector('input[name="on_doctor"][value="' + c.on_doctor + '"]').checked = true;
+        }
+        var locked = !!(c && c.entries > 0);
+        colLock.hidden = !locked;
+        colForm.querySelectorAll('.inc-dlg-q').forEach(function (q) { q.classList.toggle('is-locked', locked); });
+        openDialog('incColumnDialog');
+        colForm.elements['name'].focus();
+    }
+    each('[data-col-new]', function (b) { b.addEventListener('click', function () { openColumn(null); }); });
+    each('.inc-cs-edit', function (b) { b.addEventListener('click', function () { openColumn(JSON.parse(b.dataset.column)); }); });
+
+    // ── an amount on a doctor ──
+    var form = document.getElementById('incEntryForm');
+    var pick = form.querySelector('[data-column-pick]');
+    var hint = form.querySelector('.inc-dlg-hint');
+    var amount = form.elements['amount'];
+    var day = form.elements['entry_date'].value;
+    amount.addEventListener('input', function () { amount.value = fmt(amount.value); });
+    function syncColumn() {
+        var opt = pick.options[pick.selectedIndex];
+        form.elements['column_id'].value = pick.value;
+        hint.textContent = opt ? opt.dataset.hint : '';
+        // Cash leaving a box needs a reason.
+        form.elements['note'].required = !!(opt && opt.dataset.cash === '1');
+    }
+    pick.addEventListener('change', syncColumn);
+    function openEntry(e) {
+        form.reset();
+        form.elements['entry_date'].value = (e && e.entry_date) || day;
+        form.elements['entry_id'].value = (e && e.id) || '';
+        if (e && e.column_id) pick.value = e.column_id;
+        if (e && e.doctor_id) form.elements['doctor_id'].value = e.doctor_id;
+        if (e && e.amount) amount.value = fmt(Math.round(e.amount * 100) / 100);
+        form.elements['note'].value = (e && e.note) || '';
+        // An entry stays under its column: the boxes were moved by that column's rules.
+        pick.disabled = !!(e && e.id);
+        document.getElementById('inc-entry-title').textContent = e && e.id ? 'دەستکاری تۆمار' : 'تۆمارکردن لەسەر دکتۆر';
+        syncColumn();
+        openDialog('incEntryDialog');
+        amount.focus();
+    }
+    each('[data-entry-new]', function (b) { b.addEventListener('click', function () { openEntry(null); }); });
+    each('.inc-cadd', function (b) {
+        b.addEventListener('click', function () { openEntry({ column_id: b.dataset.col, doctor_id: b.dataset.doctor }); });
+    });
+    each('.inc-ce-edit', function (b) { b.addEventListener('click', function () { openEntry(JSON.parse(b.dataset.entry)); }); });
 })();
 </script>
 <?php endif; ?>
