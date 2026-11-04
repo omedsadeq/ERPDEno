@@ -9,6 +9,7 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Database.php';
 require_once __DIR__ . '/../classes/Auth.php';
+require_once __DIR__ . '/../includes/expense-subgroup.php';
 
 $db = Database::getInstance();
 $auth = new Auth();
@@ -35,48 +36,57 @@ $lockedRow = function ($id) use ($db) {
     return $row && !empty($row['source_type']);
 };
 
+// What the add and edit forms send: an expense needs a group, a date and an amount.
+$expenseFields = function () {
+    $date = (string)($_POST['expense_date'] ?? '');
+    $amount = (float)($_POST['amount'] ?? 0);
+    $categoryId = intval($_POST['category_id'] ?? 0);
+    if ($amount <= 0 || $categoryId <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        return null;
+    }
+    $method = $_POST['payment_method'] ?? 'cash';
+    return [
+        'category_id' => $categoryId,
+        'subgroup_id' => expense_subgroup_posted('general', $categoryId),
+        'doctor_id' => !empty($_POST['doctor_id']) ? intval($_POST['doctor_id']) : null,
+        'description' => trim($_POST['description'] ?? ''),
+        'amount' => $amount,
+        'expense_date' => $date,
+        'vendor' => trim($_POST['vendor'] ?? ''),
+        'receipt_number' => trim($_POST['receipt_number'] ?? ''),
+        'payment_method' => in_array($method, ['cash', 'card', 'transfer', 'check'], true) ? $method : 'cash',
+        'notes' => trim($_POST['notes'] ?? ''),
+    ];
+};
+
 // Handle POST actions BEFORE including header (which outputs HTML)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     Csrf::require();
     $action = $_POST['action'];
+    $dates = '&date_from=' . urlencode($dateFrom) . '&date_to=' . urlencode($dateTo);
 
     if (in_array($action, ['edit', 'delete'], true) && $lockedRow($_POST['expense_id'] ?? 0)) {
         header('Location: ' . APP_URL . '/admin/expenses-general.php?locked=1&date_from=' . urlencode($dateFrom) . '&date_to=' . urlencode($dateTo));
         exit;
     }
 
-    if ($action === 'add') {
-        $db->insert('expenses_general', [
-            'category_id' => intval($_POST['category_id']) ?: null,
-            'doctor_id' => !empty($_POST['doctor_id']) ? intval($_POST['doctor_id']) : null,
-            'description' => trim($_POST['description']),
-            'amount' => floatval($_POST['amount']),
-            'expense_date' => $_POST['expense_date'],
-            'vendor' => trim($_POST['vendor'] ?? ''),
-            'receipt_number' => trim($_POST['receipt_number'] ?? ''),
-            'payment_method' => $_POST['payment_method'] ?? 'cash',
-            'notes' => trim($_POST['notes'] ?? ''),
-            'created_by' => $currentUser['id']
-        ]);
-        header('Location: ' . APP_URL . '/admin/expenses-general.php?added=1&date_from=' . $dateFrom . '&date_to=' . $dateTo);
-        exit;
-    } elseif ($action === 'edit') {
-        $db->update('expenses_general', [
-            'category_id' => intval($_POST['category_id']) ?: null,
-            'doctor_id' => !empty($_POST['doctor_id']) ? intval($_POST['doctor_id']) : null,
-            'description' => trim($_POST['description']),
-            'amount' => floatval($_POST['amount']),
-            'expense_date' => $_POST['expense_date'],
-            'vendor' => trim($_POST['vendor'] ?? ''),
-            'receipt_number' => trim($_POST['receipt_number'] ?? ''),
-            'payment_method' => $_POST['payment_method'] ?? 'cash',
-            'notes' => trim($_POST['notes'] ?? '')
-        ], 'id = :id', ['id' => intval($_POST['expense_id'])]);
-        header('Location: ' . APP_URL . '/admin/expenses-general.php?updated=1&date_from=' . $dateFrom . '&date_to=' . $dateTo);
+    if ($action === 'add' || $action === 'edit') {
+        $fields = $expenseFields();
+        if ($fields === null) {
+            header('Location: ' . APP_URL . '/admin/expenses-general.php?invalid=1' . $dates);
+            exit;
+        }
+        if ($action === 'add') {
+            $db->insert('expenses_general', $fields + ['created_by' => $currentUser['id']]);
+            header('Location: ' . APP_URL . '/admin/expenses-general.php?added=1' . $dates);
+        } else {
+            $db->update('expenses_general', $fields, 'id = :id', ['id' => intval($_POST['expense_id'])]);
+            header('Location: ' . APP_URL . '/admin/expenses-general.php?updated=1' . $dates);
+        }
         exit;
     } elseif ($action === 'delete') {
         $db->delete('expenses_general', 'id = :id', ['id' => intval($_POST['expense_id'])]);
-        header('Location: ' . APP_URL . '/admin/expenses-general.php?deleted=1&date_from=' . $dateFrom . '&date_to=' . $dateTo);
+        header('Location: ' . APP_URL . '/admin/expenses-general.php?deleted=1' . $dates);
         exit;
     }
 }
@@ -84,30 +94,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // Now include header (safe to output HTML)
 $currentPage = 'expenses-general';
 $pageTitle = 'خەرجی گشتی';
+$hidePageHeader = true;   // the finance tabs name the page
 $breadcrumb = [['title' => 'خەرجیەکان'], ['title' => 'خەرجی گشتی']];
 
 require_once __DIR__ . '/../includes/header.php';
 
 $categoryId = $_GET['category'] ?? '';
+$subgroupId = (int)($_GET['subgroup'] ?? 0);
 $paymentMethod = $_GET['payment_method'] ?? '';
 
-// Load expense categories
-$categories = $db->fetchAll("SELECT * FROM expense_categories_general WHERE is_active = 1 ORDER BY sort_order, category_name");
+// Load expense categories: new expenses take the active ones; the filter and
+// the edit form list the hidden ones too, or editing such an expense would lose its group
+$allCategories = $db->fetchAll("SELECT * FROM expense_categories_general ORDER BY is_active DESC, sort_order, category_name");
+$categories = array_filter($allCategories, fn($c) => !empty($c['is_active']));
 
 // Load doctors list
 $doctors = $db->fetchAll("SELECT id, full_name FROM users WHERE role IN ('doctor', 'admin') AND is_active = 1 ORDER BY full_name");
 
 // Build query
-$sql = "SELECT e.*, u.full_name as created_by_name, ec.category_name, ec.icon, ec.color
+$sql = "SELECT e.*, u.full_name as created_by_name, ec.category_name, ec.icon, ec.color, s.name AS subgroup_name, d.full_name AS doctor_name
         FROM expenses_general e
         LEFT JOIN users u ON e.created_by = u.id
+        LEFT JOIN users d ON e.doctor_id = d.id
         LEFT JOIN expense_categories_general ec ON e.category_id = ec.id
+        LEFT JOIN expense_subgroups s ON s.id = e.subgroup_id
         WHERE e.expense_date BETWEEN :from AND :to";
 $params = ['from' => $dateFrom, 'to' => $dateTo];
 
 if ($categoryId) {
     $sql .= " AND e.category_id = :category";
     $params['category'] = $categoryId;
+}
+
+if ($subgroupId) {
+    $sql .= " AND e.subgroup_id = :subgroup";
+    $params['subgroup'] = $subgroupId;
 }
 
 if ($paymentMethod) {
@@ -120,7 +141,7 @@ $expenses = $db->fetchAll($sql, $params);
 
 // Get statistics by category
 $stats = $db->fetchAll(
-    "SELECT ec.category_name, ec.icon, ec.color, SUM(e.amount) as total, COUNT(*) as count
+    "SELECT e.category_id, ec.category_name, ec.icon, ec.color, SUM(e.amount) as total, COUNT(*) as count
      FROM expenses_general e
      LEFT JOIN expense_categories_general ec ON e.category_id = ec.id
      WHERE e.expense_date BETWEEN :from AND :to
@@ -129,7 +150,9 @@ $stats = $db->fetchAll(
     ['from' => $dateFrom, 'to' => $dateTo]
 );
 
-// Get monthly comparison
+$subgroupTotals = expense_subgroup_totals('general', 'e.expense_date BETWEEN :from AND :to', ['from' => $dateFrom, 'to' => $dateTo]);
+
+// Last month, for scale, and how this month compares
 $thisMonth = $db->fetch(
     "SELECT SUM(amount) as total FROM expenses_general WHERE MONTH(expense_date) = MONTH(CURDATE()) AND YEAR(expense_date) = YEAR(CURDATE())"
 )['total'] ?? 0;
@@ -160,6 +183,10 @@ $paymentMethods = [
 
 <?php if (isset($_GET['deleted'])): ?>
 <div class="alert alert-success" data-auto-hide><i class="fas fa-check-circle alert-icon"></i> خەرجی گشتی سڕایەوە</div>
+<?php endif; ?>
+
+<?php if (isset($_GET['invalid'])): ?>
+<div class="alert alert-warning"><i class="fas fa-exclamation-triangle alert-icon"></i> تۆمار نەکرا: گرووپ، بەروار و بڕێکی لە سفر زیاتر پێویستن</div>
 <?php endif; ?>
 
 <?php if (isset($_GET['locked'])): ?>
@@ -240,11 +267,7 @@ $paymentMethods = [
     </div>
     <div class="expense-stat-card" style="--card-color: #9c27b0;">
         <div class="expense-stat-icon" style="background: #9c27b0;"><i class="fas fa-calendar-alt"></i></div>
-        <div class="expense-stat-content"><div class="expense-stat-value"><?= number_format($thisMonth) ?></div><div class="expense-stat-label">ئەم مانگە</div><?php if ($lastMonth > 0): $change = (($thisMonth - $lastMonth) / $lastMonth) * 100; ?><div class="expense-stat-change <?= $change > 0 ? 'up' : 'down' ?>"><i class="fas fa-arrow-<?= $change > 0 ? 'up' : 'down' ?>"></i> <?= abs(round($change, 1)) ?>%</div><?php endif; ?></div>
-    </div>
-    <div class="expense-stat-card" style="--card-color: #ff9800;">
-        <div class="expense-stat-icon" style="background: #ff9800;"><i class="fas fa-tags"></i></div>
-        <div class="expense-stat-content"><div class="expense-stat-value"><?= count($stats) ?></div><div class="expense-stat-label">گرووپ</div></div>
+        <div class="expense-stat-content"><div class="expense-stat-value"><?= number_format($lastMonth) ?></div><div class="expense-stat-label">مانگی پێشوو</div><?php if ($lastMonth > 0): $change = (($thisMonth - $lastMonth) / $lastMonth) * 100; ?><div class="expense-stat-change <?= $change > 0 ? 'up' : 'down' ?>" title="ئەم مانگە بەراورد بە مانگی پێشوو"><i class="fas fa-arrow-<?= $change > 0 ? 'up' : 'down' ?>"></i> ئەم مانگە <?= abs(round($change, 1)) ?>%</div><?php endif; ?></div>
     </div>
 </div>
 
@@ -255,11 +278,12 @@ $paymentMethods = [
             <label>گرووپ</label>
             <select name="category">
                 <option value="">هەموو گرووپەکان</option>
-                <?php foreach ($categories as $cat): ?>
+                <?php foreach ($allCategories as $cat): ?>
                 <option value="<?= $cat['id'] ?>" <?= $categoryId == $cat['id'] ? 'selected' : '' ?>><?= htmlspecialchars($cat['category_name']) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
+        <?= expense_subgroup_filter($subgroupId) ?>
         <div class="expense-filter-group">
             <label>شێوازی پارەدان</label>
             <select name="payment_method">
@@ -279,7 +303,7 @@ $paymentMethods = [
         </div>
         <div class="expense-filter-actions">
             <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> پاڵاوتن</button>
-            <a href="<?= APP_URL ?>/admin/print-expenses.php?type=general&date_from=<?= $dateFrom ?>&date_to=<?= $dateTo ?>&category=<?= $categoryId ?>" target="_blank" class="btn btn-info"><i class="fas fa-print"></i></a>
+            <a href="<?= APP_URL ?>/admin/print-expenses.php?type=general&date_from=<?= $dateFrom ?>&date_to=<?= $dateTo ?>&category=<?= $categoryId ?>&subgroup=<?= $subgroupId ?>" target="_blank" class="btn btn-info"><i class="fas fa-print"></i></a>
             <button type="button" class="btn btn-success" onclick="openDialog('addExpenseDialog')"><i class="fas fa-plus"></i> خەرجی نوێ</button>
         </div>
     </form>
@@ -305,10 +329,12 @@ $paymentMethods = [
                         <td>
                             <?php if ($exp['category_name']): ?>
                             <span class="category-badge" style="background: <?= $exp['color'] ?? '#6c757d' ?>15; color: <?= $exp['color'] ?? '#6c757d' ?>;"><i class="<?= $exp['icon'] ?? 'fas fa-tag' ?>"></i> <?= htmlspecialchars($exp['category_name']) ?></span>
+                            <?= expense_subgroup_tag($exp) ?>
                             <?php else: ?><span class="text-secondary">-</span><?php endif; ?>
                         </td>
                         <td style="text-align: right; max-width: 200px;">
                             <div style="font-weight: 500;"><?= htmlspecialchars($exp['description']) ?></div>
+                            <?php if (!empty($exp['doctor_name'])): ?><small style="color: #0f766e; display: block;" title="هەمووی لە پشکی ئەم دکتۆرە دەبڕدرێت"><i class="fas fa-user-md"></i> <?= htmlspecialchars($exp['doctor_name']) ?></small><?php endif; ?>
                             <?php if (!empty($exp['vendor'])): ?><small style="color: #888;"><i class="fas fa-store"></i> <?= htmlspecialchars($exp['vendor']) ?></small><?php endif; ?>
                             <?php if (!empty($exp['receipt_number'])): ?><small style="color: #888; display: block;"><i class="fas fa-receipt"></i> #<?= htmlspecialchars($exp['receipt_number']) ?></small><?php endif; ?>
                         </td>
@@ -318,7 +344,7 @@ $paymentMethods = [
                             <?php if (!empty($exp['source_type'])): ?>
                             <span title="لە «پێدانی مووچە» دراوە — لە وەسڵەکەیدا دەستکاری بکە یان بیسڕەوە" style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #0f766e; background: #ccfbf1; padding: 3px 8px; border-radius: 6px;"><i class="fas fa-lock"></i> مووچە</span>
                             <?php else: ?>
-                            <button class="btn btn-sm btn-secondary" onclick='editExpense(<?= json_encode($exp) ?>)'><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-sm btn-secondary" onclick='editExpense(<?= json_encode($exp, JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_TAG) ?>)'><i class="fas fa-edit"></i></button>
                             <form method="POST" style="display: inline;"><input type="hidden" name="action" value="delete"><input type="hidden" name="expense_id" value="<?= $exp['id'] ?>"><button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('ئایا دڵنیایت؟')"><i class="fas fa-trash"></i></button></form>
                             <?php endif; ?>
                         </td>
@@ -342,15 +368,8 @@ $paymentMethods = [
                     <div class="expense-summary-item-label"><i style="background: <?= $st['color'] ?? '#6c757d' ?>;" class="<?= $st['icon'] ?? 'fas fa-tag' ?>"></i><span><?= htmlspecialchars($st['category_name'] ?? 'بێ گرووپ') ?></span></div>
                     <div class="expense-summary-item-value"><?= number_format($st['total']) ?></div>
                 </div>
+                <?= expense_subgroup_summary($subgroupTotals[(int)$st['category_id']] ?? []) ?>
                 <?php endforeach; endif; ?>
-            </div>
-        </div>
-        <div class="expense-summary" style="margin-top: 16px;">
-            <div class="expense-summary-header" style="background: linear-gradient(135deg, #607d8b, #455a64);"><h4><i class="fas fa-link"></i> بەستەرە خێراکان</h4></div>
-            <div class="expense-summary-body" style="padding: 12px;">
-                <a href="<?= APP_URL ?>/admin/expense-groups.php?type=general" class="btn btn-secondary btn-block" style="margin-bottom: 8px;"><i class="fas fa-folder"></i> بەڕێوەبردنی گرووپەکان</a>
-                <a href="<?= APP_URL ?>/admin/expenses-lab.php" class="btn btn-outline-secondary btn-block" style="margin-bottom: 8px;"><i class="fas fa-flask"></i> خەرجی تاقیگە</a>
-                <a href="<?= APP_URL ?>/admin/expenses-inventory.php" class="btn btn-outline-secondary btn-block"><i class="fas fa-warehouse"></i> خەرجی کۆگا</a>
             </div>
         </div>
     </div>
@@ -376,10 +395,11 @@ $paymentMethods = [
                         <input type="date" name="expense_date" value="<?= date('Y-m-d') ?>" required>
                     </div>
                 </div>
+                <?= expense_subgroup_field() ?>
                 <div class="exp-form-grid" style="margin-top: 10px;">
                     <div class="exp-form-field">
                         <label><i class="fas fa-user-md"></i> دکتۆر</label>
-                        <select name="doctor_id"><option value="">هەڵبژێرە...</option><?php foreach ($doctors as $doc): ?><option value="<?= $doc['id'] ?>"><?= htmlspecialchars($doc['full_name']) ?></option><?php endforeach; ?></select>
+                        <select name="doctor_id" title="ئەگەر دکتۆر هەڵبژێریت، هەمووی لە پشکی ئەو دکتۆرە دەبڕدرێت"><option value="">سەنتەر (بێ دکتۆر)</option><?php foreach ($doctors as $doc): ?><option value="<?= $doc['id'] ?>"><?= htmlspecialchars($doc['full_name']) ?></option><?php endforeach; ?></select>
                     </div>
                     <div class="exp-form-field">
                         <label><i class="fas fa-file-alt"></i> وەسف <span class="required">*</span></label>
@@ -435,17 +455,18 @@ $paymentMethods = [
                 <div class="exp-form-grid">
                     <div class="exp-form-field">
                         <label><i class="fas fa-folder"></i> گرووپ <span class="required">*</span></label>
-                        <select name="category_id" id="edit_category_id" required><option value="">هەڵبژێرە...</option><?php foreach ($categories as $cat): ?><option value="<?= $cat['id'] ?>"><?= htmlspecialchars($cat['category_name']) ?></option><?php endforeach; ?></select>
+                        <select name="category_id" id="edit_category_id" required><option value="">هەڵبژێرە...</option><?php foreach ($allCategories as $cat): ?><option value="<?= $cat['id'] ?>"><?= htmlspecialchars($cat['category_name']) ?></option><?php endforeach; ?></select>
                     </div>
                     <div class="exp-form-field">
                         <label><i class="fas fa-calendar"></i> بەروار <span class="required">*</span></label>
                         <input type="date" name="expense_date" id="edit_expense_date" required>
                     </div>
                 </div>
+                <?= expense_subgroup_field('edit_subgroup_id') ?>
                 <div class="exp-form-grid" style="margin-top: 10px;">
                     <div class="exp-form-field">
                         <label><i class="fas fa-user-md"></i> دکتۆر</label>
-                        <select name="doctor_id" id="edit_doctor_id"><option value="">هەڵبژێرە...</option><?php foreach ($doctors as $doc): ?><option value="<?= $doc['id'] ?>"><?= htmlspecialchars($doc['full_name']) ?></option><?php endforeach; ?></select>
+                        <select name="doctor_id" id="edit_doctor_id" title="ئەگەر دکتۆر هەڵبژێریت، هەمووی لە پشکی ئەو دکتۆرە دەبڕدرێت"><option value="">سەنتەر (بێ دکتۆر)</option><?php foreach ($doctors as $doc): ?><option value="<?= $doc['id'] ?>"><?= htmlspecialchars($doc['full_name']) ?></option><?php endforeach; ?></select>
                     </div>
                     <div class="exp-form-field">
                         <label><i class="fas fa-file-alt"></i> وەسف <span class="required">*</span></label>
@@ -491,6 +512,7 @@ $paymentMethods = [
 function editExpense(expense) {
     document.getElementById('edit_expense_id').value = expense.id;
     document.getElementById('edit_category_id').value = expense.category_id || '';
+    fillExpenseSubgroup(document.getElementById('edit_subgroup_id'), expense.subgroup_id);
     document.getElementById('edit_doctor_id').value = expense.doctor_id || '';
     document.getElementById('edit_expense_date').value = expense.expense_date;
     document.getElementById('edit_description').value = expense.description;
@@ -502,5 +524,7 @@ function editExpense(expense) {
     openDialog('editExpenseDialog');
 }
 </script>
+
+<?php expense_subgroup_assets(expense_subgroups_by_group('general')); ?>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

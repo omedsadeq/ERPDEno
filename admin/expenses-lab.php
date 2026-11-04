@@ -9,6 +9,7 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Database.php';
 require_once __DIR__ . '/../classes/Auth.php';
+require_once __DIR__ . '/../includes/expense-subgroup.php';
 
 $db = Database::getInstance();
 $auth = new Auth();
@@ -35,6 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($action === 'add') {
         $db->insert('expenses_lab', [
             'category_id' => intval($_POST['category_id']) ?: null,
+            'subgroup_id' => expense_subgroup_posted('lab', intval($_POST['category_id'])),
             'doctor_id' => !empty($_POST['doctor_id']) ? intval($_POST['doctor_id']) : null,
             'description' => trim($_POST['description']),
             'amount' => floatval($_POST['amount']),
@@ -53,6 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     } elseif ($action === 'edit') {
         $db->update('expenses_lab', [
             'category_id' => intval($_POST['category_id']) ?: null,
+            'subgroup_id' => expense_subgroup_posted('lab', intval($_POST['category_id'])),
             'doctor_id' => !empty($_POST['doctor_id']) ? intval($_POST['doctor_id']) : null,
             'description' => trim($_POST['description']),
             'amount' => floatval($_POST['amount']),
@@ -77,11 +80,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // Now include header (safe to output HTML)
 $currentPage = 'expenses-lab';
 $pageTitle = 'خەرجی تاقیگە';
+$hidePageHeader = true;   // the finance tabs name the page
 $breadcrumb = [['title' => 'خەرجیەکان'], ['title' => 'خەرجی تاقیگە']];
 
 require_once __DIR__ . '/../includes/header.php';
 
 $categoryId = $_GET['category'] ?? '';
+$subgroupId = (int)($_GET['subgroup'] ?? 0);
 $paymentStatus = $_GET['payment_status'] ?? '';
 
 // Load expense categories
@@ -94,10 +99,11 @@ $doctors = $db->fetchAll("SELECT id, full_name FROM users WHERE role IN ('doctor
 $patients = $db->fetchAll("SELECT id, full_name, patient_code FROM patients ORDER BY full_name LIMIT 1000");
 
 // Build query
-$sql = "SELECT e.*, u.full_name as created_by_name, ec.category_name, ec.icon, ec.color, p.full_name as patient_name, p.patient_code
+$sql = "SELECT e.*, u.full_name as created_by_name, ec.category_name, ec.icon, ec.color, s.name AS subgroup_name, p.full_name as patient_name, p.patient_code
         FROM expenses_lab e
         LEFT JOIN users u ON e.created_by = u.id
         LEFT JOIN expense_categories_lab ec ON e.category_id = ec.id
+        LEFT JOIN expense_subgroups s ON s.id = e.subgroup_id
         LEFT JOIN patients p ON e.patient_id = p.id
         WHERE e.expense_date BETWEEN :from AND :to";
 $params = ['from' => $dateFrom, 'to' => $dateTo];
@@ -105,6 +111,11 @@ $params = ['from' => $dateFrom, 'to' => $dateTo];
 if ($categoryId) {
     $sql .= " AND e.category_id = :category";
     $params['category'] = $categoryId;
+}
+
+if ($subgroupId) {
+    $sql .= " AND e.subgroup_id = :subgroup";
+    $params['subgroup'] = $subgroupId;
 }
 
 if ($paymentStatus) {
@@ -117,7 +128,7 @@ $expenses = $db->fetchAll($sql, $params);
 
 // Get statistics by category
 $stats = $db->fetchAll(
-    "SELECT ec.category_name, ec.icon, ec.color, SUM(e.amount) as total, COUNT(*) as count
+    "SELECT e.category_id, ec.category_name, ec.icon, ec.color, SUM(e.amount) as total, COUNT(*) as count
      FROM expenses_lab e
      LEFT JOIN expense_categories_lab ec ON e.category_id = ec.id
      WHERE e.expense_date BETWEEN :from AND :to
@@ -125,6 +136,8 @@ $stats = $db->fetchAll(
      ORDER BY total DESC",
     ['from' => $dateFrom, 'to' => $dateTo]
 );
+
+$subgroupTotals = expense_subgroup_totals('lab', 'e.expense_date BETWEEN :from AND :to', ['from' => $dateFrom, 'to' => $dateTo]);
 
 $totalExpenses = array_sum(array_column($expenses, 'amount'));
 $expenseCount = count($expenses);
@@ -236,6 +249,7 @@ $paymentStatuses = [
                 <?php endforeach; ?>
             </select>
         </div>
+        <?= expense_subgroup_filter($subgroupId) ?>
         <div class="expense-filter-group">
             <label>دۆخی پارەدان</label>
             <select name="payment_status">
@@ -255,7 +269,7 @@ $paymentStatuses = [
         </div>
         <div class="expense-filter-actions">
             <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> پاڵاوتن</button>
-            <a href="<?= APP_URL ?>/admin/print-expenses.php?type=lab&date_from=<?= $dateFrom ?>&date_to=<?= $dateTo ?>" target="_blank" class="btn btn-info"><i class="fas fa-print"></i></a>
+            <a href="<?= APP_URL ?>/admin/print-expenses.php?type=lab&date_from=<?= $dateFrom ?>&date_to=<?= $dateTo ?>&category=<?= $categoryId ?>&subgroup=<?= $subgroupId ?>" target="_blank" class="btn btn-info"><i class="fas fa-print"></i></a>
             <button type="button" class="btn btn-success" onclick="openDialog('addExpenseDialog')"><i class="fas fa-plus"></i> خەرجی نوێ</button>
         </div>
     </form>
@@ -281,6 +295,7 @@ $paymentStatuses = [
                         <td>
                             <?php if ($exp['category_name']): ?>
                             <span class="category-badge" style="background: <?= $exp['color'] ?? '#9c27b0' ?>15; color: <?= $exp['color'] ?? '#9c27b0' ?>;"><i class="<?= $exp['icon'] ?? 'fas fa-tooth' ?>"></i> <?= htmlspecialchars($exp['category_name']) ?></span>
+                            <?= expense_subgroup_tag($exp) ?>
                             <?php else: ?><span class="text-secondary">-</span><?php endif; ?>
                         </td>
                         <td style="text-align: right; max-width: 180px;">
@@ -296,7 +311,7 @@ $paymentStatuses = [
                         <td><?php $ps = $paymentStatuses[$exp['payment_status']] ?? $paymentStatuses['paid']; ?><span class="status-badge" style="background: <?= $ps['color'] ?>15; color: <?= $ps['color'] ?>;"><?= $ps['label'] ?></span></td>
                         <td><strong style="color: #c62828;"><?= number_format($exp['amount']) ?></strong></td>
                         <td>
-                            <button class="btn btn-sm btn-secondary" onclick='editExpense(<?= json_encode($exp) ?>)'><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-sm btn-secondary" onclick='editExpense(<?= json_encode($exp, JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_TAG) ?>)'><i class="fas fa-edit"></i></button>
                             <form method="POST" style="display: inline;"><input type="hidden" name="action" value="delete"><input type="hidden" name="expense_id" value="<?= $exp['id'] ?>"><button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('ئایا دڵنیایت؟')"><i class="fas fa-trash"></i></button></form>
                         </td>
                     </tr>
@@ -319,6 +334,7 @@ $paymentStatuses = [
                     <div class="expense-summary-item-label"><i style="background: <?= $st['color'] ?? '#9c27b0' ?>;" class="<?= $st['icon'] ?? 'fas fa-tooth' ?>"></i><span><?= htmlspecialchars($st['category_name'] ?? 'بێ گرووپ') ?></span></div>
                     <div class="expense-summary-item-value"><?= number_format($st['total']) ?></div>
                 </div>
+                <?= expense_subgroup_summary($subgroupTotals[(int)$st['category_id']] ?? []) ?>
                 <?php endforeach; endif; ?>
             </div>
         </div>
@@ -353,6 +369,7 @@ $paymentStatuses = [
                         <input type="date" name="expense_date" value="<?= date('Y-m-d') ?>" required>
                     </div>
                 </div>
+                <?= expense_subgroup_field() ?>
                 <div class="exp-form-grid" style="margin-top: 10px;">
                     <div class="exp-form-field">
                         <label><i class="fas fa-user-md"></i> دکتۆر</label>
@@ -429,6 +446,7 @@ $paymentStatuses = [
                         <input type="date" name="expense_date" id="edit_expense_date" required>
                     </div>
                 </div>
+                <?= expense_subgroup_field('edit_subgroup_id') ?>
                 <div class="exp-form-grid" style="margin-top: 10px;">
                     <div class="exp-form-field">
                         <label><i class="fas fa-user-md"></i> دکتۆر</label>
@@ -488,6 +506,7 @@ $paymentStatuses = [
 function editExpense(expense) {
     document.getElementById('edit_expense_id').value = expense.id;
     document.getElementById('edit_category_id').value = expense.category_id || '';
+    fillExpenseSubgroup(document.getElementById('edit_subgroup_id'), expense.subgroup_id);
     document.getElementById('edit_doctor_id').value = expense.doctor_id || '';
     document.getElementById('edit_expense_date').value = expense.expense_date;
     document.getElementById('edit_description').value = expense.description;
@@ -501,5 +520,7 @@ function editExpense(expense) {
     openDialog('editExpenseDialog');
 }
 </script>
+
+<?php expense_subgroup_assets(expense_subgroups_by_group('lab')); ?>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

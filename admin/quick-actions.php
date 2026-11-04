@@ -317,7 +317,7 @@ $isDoctor = $auth->isDoctor();
     <?php endif; ?>
 
     <!-- Financial Section - دارایی -->
-    <?php if ($permission->can('page.debts') || $permission->can('page.payments') || $permission->can('page.installments') || $permission->can('page.expenses') || $permission->can('page.invoices')): ?>
+    <?php if ($permission->can('page.debts') || $permission->can('page.payments') || $permission->can('page.installments') || $permission->can('page.expenses_general') || $permission->can('page.invoices')): ?>
     <div class="quick-section">
         <div class="quick-section-header">
             <div class="quick-section-icon" style="background: linear-gradient(135deg, #4caf50, #388e3c);">
@@ -356,8 +356,8 @@ $isDoctor = $auth->isDoctor();
             </a>
             <?php endif; ?>
 
-            <?php if ($permission->can('page.expenses')): ?>
-            <a href="<?= APP_URL ?>/admin/expenses.php" class="quick-action-card" style="--card-color: #ff9800;">
+            <?php if ($permission->can('page.expenses_general')): ?>
+            <a href="<?= APP_URL ?>/admin/expenses-general.php" class="quick-action-card" style="--card-color: #ff9800;">
                 <div class="quick-action-icon"><i class="fas fa-receipt"></i></div>
                 <div class="quick-action-content">
                     <div class="quick-action-title">خەرجییەکان</div>

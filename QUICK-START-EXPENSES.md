@@ -39,7 +39,6 @@ Navigate to:
 | **Enhanced Expenses** | `/admin/expenses-enhanced.php` | Full-featured expense management |
 | **Expense Analytics** | `/admin/expense-analytics.php` | Charts, reports, comparisons |
 | **Expense Groups** | `/admin/expense-groups.php` | Manage categories |
-| **Original Expenses** | `/admin/expenses.php` | Simple version |
 | **General Expenses** | `/admin/expenses-general.php` | General category only |
 | **Lab Expenses** | `/admin/expenses-lab.php` | Lab category only |
 | **Inventory Expenses** | `/admin/expenses-inventory.php` | Inventory category only |

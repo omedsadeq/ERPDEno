@@ -54,7 +54,6 @@ function finance_nav_definitions(): array
         'expenses' => [
             'label' => 'خەرجییەکان', 'icon' => 'fa-receipt', 'color' => '#dc2626',
             'items' => [
-                ['page' => 'admin/expenses', 'url' => 'admin/expenses.php', 'label' => 'خەرجییەکان', 'icon' => 'fa-receipt', 'can' => 'page.expenses'],
                 ['page' => 'admin/expenses-inventory', 'url' => 'admin/expenses-inventory.php', 'label' => 'خەرجی کۆگا', 'icon' => 'fa-warehouse', 'can' => 'page.expenses_inventory'],
                 ['page' => 'admin/expenses-lab', 'url' => 'admin/expenses-lab.php', 'label' => 'خەرجی تاقیگە', 'icon' => 'fa-flask', 'can' => 'page.expenses_lab'],
                 ['page' => 'admin/expenses-general', 'url' => 'admin/expenses-general.php', 'label' => 'خەرجی گشتی', 'icon' => 'fa-coins', 'can' => 'page.expenses_general'],
@@ -108,7 +107,7 @@ function finance_nav_canonical_page(string $page): string
         'accountant/report-detail' => 'accountant/approval-center',
         'accountant/debts' => 'debts',
         'accountant/installments' => 'installments',
-        'accountant/expenses' => 'admin/expenses',
+        'accountant/expenses' => 'admin/expenses-general',
     ];
     return $aliases[$page] ?? $page;
 }

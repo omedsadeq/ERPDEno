@@ -9,6 +9,8 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Database.php';
 require_once __DIR__ . '/../classes/Auth.php';
+require_once __DIR__ . '/../includes/expense-subgroup.php';
+require_once __DIR__ . '/../includes/store-expense-share.php';
 
 $db = Database::getInstance();
 $auth = new Auth();
@@ -48,6 +50,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         exit;
     }
 
+    // The doctors' percentages are expense settings, not an expense
+    if ($action === 'store_shares') {
+        if (!$permission->can('page.expense_groups')) {
+            header('Location: ' . APP_URL . '/403.php');
+            exit;
+        }
+        store_share_save((array)($_POST['share'] ?? []), (int)$currentUser['id']);
+        header('Location: ' . APP_URL . '/admin/expenses-inventory.php?shares=1&date_from=' . urlencode($dateFrom) . '&date_to=' . urlencode($dateTo));
+        exit;
+    }
+
     if ($action === 'add') {
         $quantity = intval($_POST['quantity']) ?: 1;
         $unitPrice = floatval($_POST['unit_price']) ?: 0;
@@ -55,6 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         $db->insert('expenses_store', [
             'category_id' => intval($_POST['category_id']) ?: null,
+            'subgroup_id' => expense_subgroup_posted('store', intval($_POST['category_id'])),
             'expense_kind' => $postedKind,
             'doctor_id' => !empty($_POST['doctor_id']) ? intval($_POST['doctor_id']) : null,
             'description' => trim($_POST['description']),
@@ -78,6 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         $db->update('expenses_store', [
             'category_id' => intval($_POST['category_id']) ?: null,
+            'subgroup_id' => expense_subgroup_posted('store', intval($_POST['category_id'])),
             'expense_kind' => $postedKind,
             'doctor_id' => !empty($_POST['doctor_id']) ? intval($_POST['doctor_id']) : null,
             'description' => trim($_POST['description']),
@@ -103,11 +118,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // Now include header (safe to output HTML)
 $currentPage = 'expenses-inventory';
 $pageTitle = 'خەرجی کۆگا';
+$hidePageHeader = true;   // the finance tabs name the page
 $breadcrumb = [['title' => 'خەرجیەکان'], ['title' => 'خەرجی کۆگا']];
 
 require_once __DIR__ . '/../includes/header.php';
 
 $categoryId = $_GET['category'] ?? '';
+$subgroupId = (int)($_GET['subgroup'] ?? 0);
 $paymentStatus = $_GET['payment_status'] ?? '';
 $kindFilter = isset($expenseKinds[$_GET['kind'] ?? '']) ? $_GET['kind'] : '';
 $doctorFilter = (int)($_GET['doctor'] ?? 0);
@@ -128,6 +145,11 @@ if ($categoryId) {
     $params['category'] = $categoryId;
 }
 
+if ($subgroupId) {
+    $where .= " AND e.subgroup_id = :subgroup";
+    $params['subgroup'] = $subgroupId;
+}
+
 if ($paymentStatus) {
     $where .= " AND e.payment_status = :payment_status";
     $params['payment_status'] = $paymentStatus;
@@ -144,11 +166,12 @@ if ($doctorFilter > 0) {
 }
 
 $expenses = $db->fetchAll(
-    "SELECT e.*, u.full_name as created_by_name, d.full_name as doctor_name, ec.category_name, ec.icon, ec.color
+    "SELECT e.*, u.full_name as created_by_name, d.full_name as doctor_name, ec.category_name, ec.icon, ec.color, s.name AS subgroup_name
      FROM expenses_store e
      LEFT JOIN users u ON e.created_by = u.id
      LEFT JOIN users d ON e.doctor_id = d.id
      LEFT JOIN expense_categories_store ec ON e.category_id = ec.id
+     LEFT JOIN expense_subgroups s ON s.id = e.subgroup_id
      WHERE {$where}
      ORDER BY e.expense_date DESC, e.id DESC",
     $params
@@ -157,7 +180,7 @@ $expenses = $db->fetchAll(
 // Get statistics by category. Voucher rows have no group of their own; they
 // are summed under «مەواد بۆ دکتۆر» rather than «بێ گرووپ».
 $stats = $db->fetchAll(
-    "SELECT COALESCE(ec.category_name, CASE WHEN e.source_type = 'erp_doctor_issue' THEN 'مەواد بۆ دکتۆر' END) AS category_name,
+    "SELECT e.category_id, COALESCE(ec.category_name, CASE WHEN e.source_type = 'erp_doctor_issue' THEN 'مەواد بۆ دکتۆر' END) AS category_name,
             COALESCE(ec.icon, CASE WHEN e.source_type = 'erp_doctor_issue' THEN 'fas fa-hand-holding-medical' END) AS icon,
             COALESCE(ec.color, CASE WHEN e.source_type = 'erp_doctor_issue' THEN '#0369a1' END) AS color,
             SUM(e.amount) as total, COUNT(*) as count
@@ -169,6 +192,8 @@ $stats = $db->fetchAll(
     $params
 );
 
+$subgroupTotals = expense_subgroup_totals('store', $where, $params);
+
 $totalExpenses = array_sum(array_column($expenses, 'amount'));
 $expenseCount = count($expenses);
 $kindTotals = ['normal' => 0.0, 'implant' => 0.0];
@@ -177,6 +202,7 @@ foreach ($expenses as $exp) {
 }
 $printUrl = APP_URL . '/admin/print-expenses.php?type=store&date_from=' . urlencode($dateFrom) . '&date_to=' . urlencode($dateTo)
     . ($categoryId ? '&category=' . (int)$categoryId : '')
+    . ($subgroupId ? '&subgroup=' . $subgroupId : '')
     . ($kindFilter !== '' ? '&kind=' . $kindFilter : '')
     . ($doctorFilter > 0 ? '&doctor=' . $doctorFilter : '');
 
@@ -312,6 +338,7 @@ $paymentStatuses = [
                 <?php endforeach; ?>
             </select>
         </div>
+        <?= expense_subgroup_filter($subgroupId) ?>
         <div class="expense-filter-group" style="flex: 0 0 auto;">
             <label>جۆری خەرجی</label>
             <div class="exp-kind-seg" role="radiogroup" aria-label="جۆری خەرجی">
@@ -354,6 +381,8 @@ $paymentStatuses = [
     </form>
 </div>
 
+<?php store_share_render($where, $params, $permission->can('page.expense_groups')); ?>
+
 <div class="collapsible-sidebar-grid" style="display: grid; grid-template-columns: 1fr 280px; gap: 12px;">
     <!-- Expenses Table -->
     <div class="expense-table-container">
@@ -377,6 +406,7 @@ $paymentStatuses = [
                         <td>
                             <?php if ($exp['category_name']): ?>
                             <span class="category-badge" style="background: <?= $exp['color'] ?? '#ff9800' ?>15; color: <?= $exp['color'] ?? '#ff9800' ?>;"><i class="<?= $exp['icon'] ?? 'fas fa-box' ?>"></i> <?= htmlspecialchars($exp['category_name']) ?></span>
+                            <?= expense_subgroup_tag($exp) ?>
                             <?php elseif ($fromVoucher): ?>
                             <span class="category-badge" style="background: #0369a115; color: #0369a1;"><i class="fas fa-hand-holding-medical"></i> مەواد بۆ دکتۆر</span>
                             <?php else: ?><span class="text-secondary">-</span><?php endif; ?>
@@ -425,6 +455,7 @@ $paymentStatuses = [
                     <div class="expense-summary-item-label"><i style="background: <?= $st['color'] ?? '#ff9800' ?>;" class="<?= $st['icon'] ?? 'fas fa-box' ?>"></i><span><?= htmlspecialchars($st['category_name'] ?? 'بێ گرووپ') ?></span></div>
                     <div class="expense-summary-item-value"><?= number_format($st['total']) ?></div>
                 </div>
+                <?= expense_subgroup_summary($subgroupTotals[(int)$st['category_id']] ?? []) ?>
                 <?php endforeach; endif; ?>
             </div>
         </div>
@@ -466,6 +497,7 @@ $paymentStatuses = [
                         <input type="date" name="expense_date" value="<?= date('Y-m-d') ?>" required>
                     </div>
                 </div>
+                <?= expense_subgroup_field() ?>
                 <div class="exp-form-grid" style="margin-top: 10px;">
                     <div class="exp-form-field">
                         <label><i class="fas fa-user-md"></i> دکتۆر</label>
@@ -553,6 +585,7 @@ $paymentStatuses = [
                         <input type="date" name="expense_date" id="edit_expense_date" required>
                     </div>
                 </div>
+                <?= expense_subgroup_field('edit_subgroup_id') ?>
                 <div class="exp-form-grid" style="margin-top: 10px;">
                     <div class="exp-form-field">
                         <label><i class="fas fa-user-md"></i> دکتۆر</label>
@@ -622,6 +655,7 @@ function calcTotal() {
 function editExpense(expense) {
     document.getElementById('edit_expense_id').value = expense.id;
     document.getElementById('edit_category_id').value = expense.category_id || '';
+    fillExpenseSubgroup(document.getElementById('edit_subgroup_id'), expense.subgroup_id);
     document.getElementById(expense.expense_kind === 'implant' ? 'edit_kind_implant' : 'edit_kind_normal').checked = true;
     document.getElementById('edit_doctor_id').value = expense.doctor_id || '';
     document.getElementById('edit_expense_date').value = expense.expense_date;
@@ -637,5 +671,7 @@ function editExpense(expense) {
     openDialog('editExpenseDialog');
 }
 </script>
+
+<?php expense_subgroup_assets(expense_subgroups_by_group('store')); ?>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

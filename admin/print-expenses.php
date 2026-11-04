@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Database.php';
 require_once __DIR__ . '/../classes/Auth.php';
+require_once __DIR__ . '/../includes/expense-subgroup.php';
 require_once __DIR__ . '/../services/InvoicePdfService.php';
 
 // Check authentication
@@ -54,7 +55,7 @@ if ($type === 'lab') {
 }
 
 // Get expenses
-$sql = "SELECT e.*, u.full_name as created_by_name, ec.category_name";
+$sql = "SELECT e.*, u.full_name as created_by_name, ec.category_name, s.name AS subgroup_name";
 
 if ($type === 'lab') {
     $sql .= ", p.full_name as patient_name, p.patient_code";
@@ -62,7 +63,8 @@ if ($type === 'lab') {
 
 $sql .= " FROM {$expenseTable} e
         LEFT JOIN users u ON e.created_by = u.id
-        LEFT JOIN {$categoryTable} ec ON e.category_id = ec.id";
+        LEFT JOIN {$categoryTable} ec ON e.category_id = ec.id
+        LEFT JOIN expense_subgroups s ON s.id = e.subgroup_id";
 
 if ($type === 'lab') {
     $sql .= " LEFT JOIN patients p ON e.patient_id = p.id";
@@ -75,6 +77,16 @@ $params = ['from' => $dateFrom, 'to' => $dateTo];
 if ($categoryId) {
     $sql .= " AND e.category_id = :category";
     $params['category'] = $categoryId;
+}
+
+$subgroupId = (int)($_GET['subgroup'] ?? 0);
+if ($subgroupId) {
+    $sql .= " AND e.subgroup_id = :subgroup";
+    $params['subgroup'] = $subgroupId;
+    $subgroupRow = $db->fetch("SELECT name FROM expense_subgroups WHERE id = :id", ['id' => $subgroupId]);
+    if ($subgroupRow) {
+        $reportTitle .= ' — ' . $subgroupRow['name'];
+    }
 }
 
 // خەرجی کۆگا only: ئاسایی / ئیمپلانت and the doctor, as filtered on screen.
@@ -107,10 +119,12 @@ foreach ($expenses as $row) {
         ?? ((($row['source_type'] ?? '') === 'erp_doctor_issue') ? 'مەواد بۆ دکتۆر' : null);
     $key = $name ?? '';
     if (!isset($statsMap[$key])) {
-        $statsMap[$key] = ['category_name' => $name, 'total' => 0.0, 'count' => 0];
+        $statsMap[$key] = ['category_name' => $name, 'total' => 0.0, 'count' => 0, 'subs' => []];
     }
     $statsMap[$key]['total'] += (float)$row['amount'];
     $statsMap[$key]['count']++;
+    $subName = expense_subgroup_name(['name' => $row['subgroup_name']]);
+    $statsMap[$key]['subs'][$subName] = ($statsMap[$key]['subs'][$subName] ?? 0) + (float)$row['amount'];
 }
 $stats = array_values($statsMap);
 usort($stats, fn($a, $b) => $b['total'] <=> $a['total']);
@@ -279,7 +293,7 @@ foreach ($expenses as $exp) {
     $html .= '<tr>
                 <td>' . $counter++ . '</td>
                 <td>' . $exp['expense_date'] . '</td>
-                <td>' . htmlspecialchars($exp['category_name'] ?? '-') . '</td>
+                <td>' . htmlspecialchars(expense_group_label($exp)) . '</td>
                 <td style="text-align: right;">' . htmlspecialchars($exp['description']) . '</td>';
 
     if ($type === 'lab') {
@@ -312,7 +326,18 @@ if (!empty($stats)) {
     $html .= '<h2>پوختە بەپێی گرووپ</h2><div class="summary-box">';
     foreach ($stats as $st) {
         $percentage = $totalExpenses > 0 ? round(($st['total'] / $totalExpenses) * 100, 1) : 0;
-        $html .= '<div class="summary-item"><div class="summary-label">' . htmlspecialchars($st['category_name'] ?? 'بێ گرووپ') . ' (' . $st['count'] . ' تۆمار - ' . $percentage . '%)</div><div class="summary-value">' . number_format($st['total']) . '</div></div>';
+        // the sub-groups on one line under the group; a group none of whose
+        // expenses has one has nothing to divide
+        $subLine = '';
+        if (array_keys($st['subs']) !== ['بێ لق']) {
+            arsort($st['subs']);
+            $parts = [];
+            foreach ($st['subs'] as $subName => $subTotal) {
+                $parts[] = htmlspecialchars($subName) . ': ' . number_format($subTotal);
+            }
+            $subLine = '<div style="color: #666;">' . implode(' · ', $parts) . '</div>';
+        }
+        $html .= '<div class="summary-item"><div class="summary-label">' . htmlspecialchars($st['category_name'] ?? 'بێ گرووپ') . ' (' . $st['count'] . ' تۆمار - ' . $percentage . '%)</div><div class="summary-value">' . number_format($st['total']) . '</div>' . $subLine . '</div>';
     }
     $html .= '</div>';
 }

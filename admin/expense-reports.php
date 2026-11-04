@@ -8,6 +8,7 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Database.php';
 require_once __DIR__ . '/../classes/Auth.php';
+require_once __DIR__ . '/../includes/expense-subgroup.php';
 
 $db = Database::getInstance();
 $auth = new Auth();
@@ -27,6 +28,7 @@ $currentUser = $auth->getCurrentUser();
 // Page setup
 $currentPage = 'expense-reports';
 $pageTitle = 'ڕاپۆرتی خەرجییەکان';
+$hidePageHeader = true;   // the finance tabs name the page
 $breadcrumb = [['title' => 'خەرجیەکان'], ['title' => 'ڕاپۆرت']];
 
 require_once __DIR__ . '/../includes/header.php';
@@ -80,9 +82,10 @@ if ($expenseType === 'all' || $expenseType === 'general') {
     }
 
     $sqlGeneral = "SELECT e.*, 'general' as expense_type, 'خەرجی گشتی' as type_label,
-                   ec.category_name, u.full_name as created_by_name, d.full_name as doctor_name
+                   ec.category_name, s.name AS subgroup_name, u.full_name as created_by_name, d.full_name as doctor_name
                    FROM expenses_general e
                    LEFT JOIN expense_categories_general ec ON e.category_id = ec.id
+                   LEFT JOIN expense_subgroups s ON s.id = e.subgroup_id
                    LEFT JOIN users u ON e.created_by = u.id
                    LEFT JOIN users d ON e.doctor_id = d.id
                    WHERE $whereGeneral
@@ -107,10 +110,11 @@ if ($expenseType === 'all' || $expenseType === 'lab') {
     }
 
     $sqlLab = "SELECT e.*, 'lab' as expense_type, 'خەرجی تاقیگە' as type_label,
-               ec.category_name, u.full_name as created_by_name, d.full_name as doctor_name,
+               ec.category_name, s.name AS subgroup_name, u.full_name as created_by_name, d.full_name as doctor_name,
                p.full_name as patient_name
                FROM expenses_lab e
                LEFT JOIN expense_categories_lab ec ON e.category_id = ec.id
+               LEFT JOIN expense_subgroups s ON s.id = e.subgroup_id
                LEFT JOIN users u ON e.created_by = u.id
                LEFT JOIN users d ON e.doctor_id = d.id
                LEFT JOIN patients p ON e.patient_id = p.id
@@ -136,9 +140,10 @@ if ($expenseType === 'all' || $expenseType === 'store') {
     }
 
     $sqlStore = "SELECT e.*, 'store' as expense_type, 'خەرجی کۆگا' as type_label,
-                 ec.category_name, u.full_name as created_by_name, d.full_name as doctor_name
+                 ec.category_name, s.name AS subgroup_name, u.full_name as created_by_name, d.full_name as doctor_name
                  FROM expenses_store e
                  LEFT JOIN expense_categories_store ec ON e.category_id = ec.id
+                 LEFT JOIN expense_subgroups s ON s.id = e.subgroup_id
                  LEFT JOIN users u ON e.created_by = u.id
                  LEFT JOIN users d ON e.doctor_id = d.id
                  WHERE $whereStore
@@ -171,9 +176,14 @@ $countStore = $db->count('expenses_store', "expense_date BETWEEN :from AND :to",
 // Get statistics by category for each type
 $statsByTypeAndCategory = [];
 
+$subgroupTotals = [];
+foreach (['general', 'lab', 'store'] as $kind) {
+    $subgroupTotals[$kind] = expense_subgroup_totals($kind, 'e.expense_date BETWEEN :from AND :to', $params);
+}
+
 // General stats
 $statsGeneral = $db->fetchAll(
-    "SELECT ec.category_name, SUM(e.amount) as total, COUNT(*) as count
+    "SELECT e.category_id, ec.category_name, SUM(e.amount) as total, COUNT(*) as count
      FROM expenses_general e
      LEFT JOIN expense_categories_general ec ON e.category_id = ec.id
      WHERE e.expense_date BETWEEN :from AND :to
@@ -183,7 +193,7 @@ $statsGeneral = $db->fetchAll(
 
 // Lab stats
 $statsLab = $db->fetchAll(
-    "SELECT ec.category_name, SUM(e.amount) as total, COUNT(*) as count
+    "SELECT e.category_id, ec.category_name, SUM(e.amount) as total, COUNT(*) as count
      FROM expenses_lab e
      LEFT JOIN expense_categories_lab ec ON e.category_id = ec.id
      WHERE e.expense_date BETWEEN :from AND :to
@@ -193,7 +203,7 @@ $statsLab = $db->fetchAll(
 
 // Store stats
 $statsStore = $db->fetchAll(
-    "SELECT ec.category_name, SUM(e.amount) as total, COUNT(*) as count
+    "SELECT e.category_id, ec.category_name, SUM(e.amount) as total, COUNT(*) as count
      FROM expenses_store e
      LEFT JOIN expense_categories_store ec ON e.category_id = ec.id
      WHERE e.expense_date BETWEEN :from AND :to
@@ -539,7 +549,7 @@ $typeConfig = [
                         <td><?= $counter++ ?></td>
                         <td style="white-space: nowrap;"><?= $exp['expense_date'] ?></td>
                         <td><span class="type-badge <?= $exp['expense_type'] ?>"><?= $exp['type_label'] ?></span></td>
-                        <td><?= htmlspecialchars($exp['category_name'] ?? '-') ?></td>
+                        <td><?= htmlspecialchars(expense_group_label($exp)) ?></td>
                         <td style="text-align: right; max-width: 200px;"><?= htmlspecialchars($exp['description']) ?></td>
                         <td><?= htmlspecialchars($exp['doctor_name'] ?? '-') ?></td>
                         <td><strong style="color: #c62828;"><?= number_format($exp['amount']) ?></strong></td>
@@ -558,6 +568,7 @@ $typeConfig = [
     </div>
 
     <!-- Summary Panel -->
+    <?php expense_subgroup_style(); ?>
     <div class="summary-panel">
         <!-- General Summary -->
         <?php if (!empty($statsGeneral)): ?>
@@ -572,6 +583,7 @@ $typeConfig = [
                     <span class="summary-item-label"><?= htmlspecialchars($st['category_name'] ?? 'بێ گرووپ') ?></span>
                     <span class="summary-item-value"><?= number_format($st['total']) ?></span>
                 </div>
+                <?= expense_subgroup_summary($subgroupTotals['general'][(int)$st['category_id']] ?? []) ?>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -590,6 +602,7 @@ $typeConfig = [
                     <span class="summary-item-label"><?= htmlspecialchars($st['category_name'] ?? 'بێ گرووپ') ?></span>
                     <span class="summary-item-value"><?= number_format($st['total']) ?></span>
                 </div>
+                <?= expense_subgroup_summary($subgroupTotals['lab'][(int)$st['category_id']] ?? []) ?>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -608,6 +621,7 @@ $typeConfig = [
                     <span class="summary-item-label"><?= htmlspecialchars($st['category_name'] ?? 'بێ گرووپ') ?></span>
                     <span class="summary-item-value"><?= number_format($st['total']) ?></span>
                 </div>
+                <?= expense_subgroup_summary($subgroupTotals['store'][(int)$st['category_id']] ?? []) ?>
                 <?php endforeach; ?>
             </div>
         </div>
