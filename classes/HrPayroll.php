@@ -15,15 +15,20 @@
  *             on each payment:
  *               as_expense    (on by default) the amount is also one general
  *                             expense, category «مووچە», tied to the payroll
- *                             row (source_type 'hr_payroll');
+ *                             row (source_type 'hr_payroll'). A doctor can be
+ *                             named on it: a salary that is his to pay then
+ *                             comes wholly off his share, like any general
+ *                             expense in his name;
  *               from_cashbox  (off by default) the amount is taken out of
  *                             قاسەی لێزان (CashboxLedger, the 'center' box —
  *                             admins only, and only what the box holds).
  *
- * A paid salary can be edited (bonus, deduction, note, date, way, the two
- * choices): the expense follows, and a cashbox withdrawal whose amount
- * changes is reversed and booked again. A new amount clears the signature —
- * the person signed for the old one. Deleting a payment removes its receipt
+ * A paid salary can be edited in full (month, calculated pay, bonus, deduction,
+ * note, date, way, the two choices, the doctor): the expense follows, and a
+ * cashbox withdrawal whose amount changes is reversed and booked again. A new
+ * amount clears the signature — the person signed for the old one. A move to
+ * another month keeps the figures as they are, and is refused while that month
+ * has its own approved or paid row. Deleting a payment removes its receipt
  * and expense, reverses its cashbox withdrawal and leaves the month approved
  * again; the audit log keeps a copy of what was deleted.
  *
@@ -191,6 +196,7 @@ class HrPayroll
             throw new InvalidArgumentException('شێوازی پێدان هەڵبژێرە');
         }
         $signature = self::cleanSignature($signature);
+        $doctorId = $asExpense ? $this->chargedDoctor($item) : null;
         $r = $this->month($month)[$employeeId] ?? null;
         if (!$r) {
             throw new InvalidArgumentException('کارمەند نەدۆزرایەوە');
@@ -235,7 +241,7 @@ class HrPayroll
             ];
             $receiptId = (int)$this->db->insert('hr_salary_receipts', $receipt);
             $receipt['id'] = $receiptId;
-            $expenseId = $asExpense ? $this->writeExpense(null, $receipt, $userId) : null;
+            $expenseId = $asExpense ? $this->writeExpense(null, $receipt + ['doctor_id' => $doctorId], $userId) : null;
             $entryId = $fromCashbox ? $this->cashOut($receipt, $userId) : null;
             $this->db->update('hr_salary_receipts', ['expense_id' => $expenseId, 'cashbox_entry_id' => $entryId], 'id = ?', [$receiptId]);
             $this->db->update('hr_payroll', [
@@ -256,8 +262,9 @@ class HrPayroll
     }
 
     /**
-     * Change a paid salary: $item (bonus, deduction, note), the date, the way
-     * and the two choices. The expense and the cashbox follow. Returns true
+     * Change a paid salary: $item (month, calculated, bonus, deduction, note,
+     * doctor_id), the date, the way and the two choices. The expense and the
+     * cashbox follow. Returns true
      * when the amount changed on a signed receipt, so its signature was cleared.
      */
     public function editPayment(int $receiptId, array $item, string $date, string $method,
@@ -266,21 +273,28 @@ class HrPayroll
         if (!isset(self::METHODS[$method])) {
             throw new InvalidArgumentException('شێوازی پێدان هەڵبژێرە');
         }
+        $doctorId = $asExpense ? $this->chargedDoctor($item) : null;
         $this->db->beginTransaction();
         try {
             $rc = $this->db->fetch('SELECT * FROM hr_salary_receipts WHERE id = ? FOR UPDATE', [$receiptId]);
             if (!$rc || $rc['status'] !== 'valid') {
                 throw new InvalidArgumentException('وەسڵەکە نەدۆزرایەوە');
             }
+            $month = (string)($item['month'] ?? $rc['pay_month']);
+            if ($month !== $rc['pay_month']) {
+                $this->assertMonthFree((int)$rc['employee_id'], $month, $rc['employee_name']);
+            }
+            $calculated = isset($item['calculated']) ? max(0.0, round((float)$item['calculated'])) : (float)$rc['calculated'];
             $bonus = max(0.0, round((float)($item['bonus'] ?? 0)));
             $deduction = max(0.0, round((float)($item['deduction'] ?? 0)));
             $note = mb_substr(trim((string)($item['note'] ?? '')), 0, 255);
-            $amount = (float)$rc['calculated'] + $bonus - $deduction;
+            $amount = $calculated + $bonus - $deduction;
             if ($amount <= 0) {
                 throw new InvalidArgumentException('بڕی مووچە دەبێت لە سفر زیاتر بێت');
             }
             $amountChanged = abs($amount - (float)$rc['amount']) >= 0.005;
             $new = [
+                'pay_month' => $month, 'calculated' => $calculated,
                 'bonus' => $bonus, 'deduction' => $deduction, 'amount' => $amount, 'note' => $note !== '' ? $note : null,
                 'paid_date' => $date, 'payment_method' => $method, 'as_expense' => $asExpense ? 1 : 0, 'from_cashbox' => $fromCashbox ? 1 : 0,
             ];
@@ -289,7 +303,7 @@ class HrPayroll
             // The expense: written, brought up to date, or removed.
             $expenseId = $rc['expense_id'] ? (int)$rc['expense_id'] : null;
             if ($asExpense) {
-                $expenseId = $this->writeExpense($expenseId, $merged, $userId);
+                $expenseId = $this->writeExpense($expenseId, $merged + ['doctor_id' => $doctorId], $userId);
             } elseif ($expenseId) {
                 $this->db->delete('expenses_general', 'id = ? AND source_type = ?', [$expenseId, self::SOURCE]);
                 $expenseId = null;
@@ -313,6 +327,7 @@ class HrPayroll
             $this->db->update('hr_salary_receipts', $new, 'id = ?', [$receiptId]);
             if ($rc['payroll_id']) {
                 $this->db->update('hr_payroll', [
+                    'pay_month' => $month, 'calculated' => $calculated,
                     'bonus' => $bonus, 'deduction' => $deduction, 'amount' => $amount, 'note' => $new['note'],
                     'paid_date' => $date, 'payment_method' => $method, 'expense_id' => $expenseId,
                 ], 'id = ? AND receipt_id = ?', [$rc['payroll_id'], $receiptId]);
@@ -323,7 +338,7 @@ class HrPayroll
             throw $ex;
         }
         unset($rc['signature'], $new['signature']);
-        AuditLog::logChange('hr_salary_receipt_edit', 'hr_salary_receipts', $receiptId, $rc, $new + ['signature_cleared' => $cleared], $userId);
+        AuditLog::logChange('hr_salary_receipt_edit', 'hr_salary_receipts', $receiptId, $rc, $new + ['doctor_id' => $doctorId, 'signature_cleared' => $cleared], $userId);
         return $cleared;
     }
 
@@ -395,10 +410,13 @@ class HrPayroll
     public function receipt(int $id): ?array
     {
         return $this->db->fetch(
-            'SELECT r.*, u.full_name AS created_by_name, c.full_name AS cancelled_by_name
+            'SELECT r.*, u.full_name AS created_by_name, c.full_name AS cancelled_by_name,
+                    e.doctor_id, d.full_name AS doctor_name
              FROM hr_salary_receipts r
              LEFT JOIN users u ON u.id = r.created_by
              LEFT JOIN users c ON c.id = r.cancelled_by
+             LEFT JOIN expenses_general e ON e.id = r.expense_id
+             LEFT JOIN users d ON d.id = e.doctor_id
              WHERE r.id = ?', [$id]) ?: null;
     }
 
@@ -418,12 +436,20 @@ class HrPayroll
         return $this->db->fetchAll(
             'SELECT r.id, r.employee_id, r.pay_month, r.employee_name, r.employee_pin, r.amount, r.paid_date, r.payment_method,
                     r.as_expense, r.expense_id, r.from_cashbox, r.status, r.created_at, (r.signature IS NOT NULL) AS signed,
-                    u.full_name AS created_by_name
+                    u.full_name AS created_by_name, d.full_name AS doctor_name
              FROM hr_salary_receipts r
-             LEFT JOIN users u ON u.id = r.created_by'
+             LEFT JOIN users u ON u.id = r.created_by
+             LEFT JOIN expenses_general e ON e.id = r.expense_id
+             LEFT JOIN users d ON d.id = e.doctor_id'
             . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
             . ' ORDER BY r.id DESC LIMIT ' . max(1, $limit),
             $params);
+    }
+
+    /** Who a salary's expense can be charged to. */
+    public function doctors(): array
+    {
+        return $this->db->fetchAll("SELECT id, full_name FROM users WHERE role = 'doctor' AND is_active = 1 ORDER BY full_name");
     }
 
     /** The «مووچە» general-expense category, made if it is missing. */
@@ -441,6 +467,32 @@ class HrPayroll
     }
 
     // ── internals ────────────────────────────────────────────────────
+
+    /** The doctor named in $item, or null for the centre. */
+    private function chargedDoctor(array $item): ?int
+    {
+        $id = (int)($item['doctor_id'] ?? 0);
+        if ($id <= 0) {
+            return null;
+        }
+        if (!$this->db->fetch("SELECT id FROM users WHERE id = ? AND role = 'doctor'", [$id])) {
+            throw new InvalidArgumentException('دکتۆر نەدۆزرایەوە');
+        }
+        return $id;
+    }
+
+    /** A paid salary can only move to a month the person has no row in yet: one row per person and month. */
+    private function assertMonthFree(int $employeeId, string $month, string $name): void
+    {
+        if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month)) {
+            throw new InvalidArgumentException('مانگ دروست نییە');
+        }
+        $row = $this->db->fetch('SELECT status FROM hr_payroll WHERE employee_id = ? AND pay_month = ? FOR UPDATE', [$employeeId, $month]);
+        if ($row) {
+            throw new InvalidArgumentException('«' . $name . '»: مووچەی مانگی ' . self::monthLabel($month)
+                . ($row['status'] === 'paid' ? ' پێشتر دراوە' : ' پەسەند کراوە: سەرەتا لە لاپەڕەی مووچە هەڵیبوەشێنەوە'));
+        }
+    }
 
     /** null when approved (or nothing to change), else why not. */
     private function approveOne(string $month, array $r, array $item, int $userId): ?string
@@ -509,6 +561,7 @@ class HrPayroll
     {
         $data = [
             'description'    => 'مووچەی ' . self::monthLabel($rc['pay_month']) . ' — ' . $rc['employee_name'],
+            'doctor_id'      => $rc['doctor_id'] ?? null,
             'amount'         => (float)$rc['amount'],
             'expense_date'   => $rc['paid_date'],
             'receipt_number' => 'HR-' . self::receiptNo($rc['id']),

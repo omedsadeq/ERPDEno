@@ -6,14 +6,16 @@
  *   ?month=Y-m&employee_id=N   before paying (hr.payroll.pay): the receipt as
  *                              it will be, with the bonus, deduction and note,
  *                              the date and the way of paying, «تۆمارکردن وەک
- *                              خەرجی» (on by default), «دەرهێنان لە قاسەی
+ *                              خەرجی» (on by default) with the doctor it is
+ *                              charged to, if any, «دەرهێنان لە قاسەی
  *                              لێزان» (off by default; admins) and a pad for
  *                              the person's signature. «پێدان» pays it
  *                              (HrPayroll::payOne) and shows the saved receipt.
  *   ?id=N                      a saved receipt (hr.payroll.view). Not signed
  *                              yet: it can be signed now. «دەستکاری» and
  *                              «سڕینەوە» (hr.payroll.pay).
- *   ?id=N&edit=1               the same form as before paying, filled in.
+ *   ?id=N&edit=1               the same form as before paying, filled in, with
+ *                              the month and the calculated pay open too.
  *   ?deleted=0012              what is left after «سڕینەوە».
  *
  * After a payment, a signature, a change or a deletion the page tells the
@@ -45,7 +47,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$date) {
                 throw new InvalidArgumentException('ڕێکەوتی پێدان دروست نییە');
             }
-            $item = ['bonus' => $posted('bonus'), 'deduction' => $posted('deduction'), 'note' => (string)($_POST['note'] ?? '')];
+            $item = ['bonus' => $posted('bonus'), 'deduction' => $posted('deduction'), 'note' => (string)($_POST['note'] ?? ''),
+                     'doctor_id' => (int)($_POST['doctor_id'] ?? 0)];
             $method = (string)($_POST['method'] ?? '');
             $asExpense = !empty($_POST['as_expense']);
             $fromCashbox = !empty($_POST['from_cashbox']);
@@ -54,6 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $asExpense, $fromCashbox, (string)($_POST['signature'] ?? ''), $hrUserId);
                 header('Location: ' . $here(['id' => $rid, 'done' => 'paid']));
             } else {
+                $item += ['month' => (string)($_POST['pay_month'] ?? ''), 'calculated' => $posted('calculated')];
                 $cleared = $payroll->editPayment($id, $item, $date, $method, $asExpense, $fromCashbox, $hrUserId);
                 header('Location: ' . $here(['id' => $id, 'done' => $cleared ? 'edited_unsigned' : 'edited']));
             }
@@ -112,7 +116,9 @@ if ($id > 0) {
         $v = ['bonus' => $posted('bonus'), 'deduction' => $posted('deduction'), 'note' => (string)($_POST['note'] ?? ''),
               'paid_date' => hr_date($_POST['paid_date'] ?? null) ?? $rc['paid_date'],
               'payment_method' => isset(HrPayroll::METHODS[$_POST['method'] ?? '']) ? $_POST['method'] : $rc['payment_method'],
-              'as_expense' => !empty($_POST['as_expense']), 'from_cashbox' => !empty($_POST['from_cashbox'])] + $v;
+              'as_expense' => !empty($_POST['as_expense']), 'from_cashbox' => !empty($_POST['from_cashbox']),
+              'pay_month' => (string)($_POST['pay_month'] ?? $rc['pay_month']), 'calculated' => $posted('calculated'),
+              'doctor_id' => (int)($_POST['doctor_id'] ?? 0)] + $v;
         $v['amount'] = (float)$v['calculated'] + $v['bonus'] - $v['deduction'];
     }
 } else {
@@ -149,6 +155,7 @@ if ($id > 0) {
         'payment_method' => isset(HrPayroll::METHODS[$_POST['method'] ?? '']) ? $_POST['method'] : 'cash',
         'as_expense' => $_SERVER['REQUEST_METHOD'] === 'POST' ? !empty($_POST['as_expense']) : true,
         'from_cashbox' => $_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['from_cashbox']),
+        'doctor_id' => (int)($_POST['doctor_id'] ?? 0),
         'signature' => null, 'status' => 'valid', 'created_by_name' => $hrAuth->getCurrentUser()['full_name'] ?? '',
         'commission' => $row['commission'],
     ];
@@ -161,6 +168,11 @@ $form = $mode === 'draft' || $mode === 'edit';
 $canSign = $mode === 'draft' || ($mode === 'saved' && $canPay && !$cancelled && empty($v['signature']));
 $done = $mode === 'saved' ? ($_GET['done'] ?? '') : '';
 $balance = $form && $canCash ? HrPayroll::cashboxBalance() : null;
+// Who the expense can be charged to; one no longer active stays on its own receipt.
+$doctors = $form ? $payroll->doctors() : [];
+if (!empty($v['doctor_id']) && !empty($v['doctor_name']) && !in_array((int)$v['doctor_id'], array_map('intval', array_column($doctors, 'id')), true)) {
+    $doctors[] = ['id' => $v['doctor_id'], 'full_name' => $v['doctor_name']];
+}
 $e = 'hr_esc';
 $pct = rtrim(rtrim(number_format((float)$v['salary_percentage'], 2), '0'), '.');
 $typeLabel = $v['type'] === 'doctor' ? 'دکتۆر' : 'کارمەند';
@@ -200,6 +212,7 @@ body.rcp.embed { background: #f4f6f8; }
 .rc-info div { background: #fff; padding: 9px 20px; }
 .rc-info span { display: block; font-size: 11.5px; color: #94a3b8; font-weight: 700; }
 .rc-info b { font-size: 14.5px; color: #0f172a; }
+.rc-info input { width: 100%; height: 32px; direction: ltr; font-weight: 700; }
 .rc-lines { width: 100%; border-collapse: collapse; margin: 6px 0; }
 .rc-lines td { padding: 8px 20px; font-size: 14px; border-bottom: 1px solid #f8fafc; }
 .rc-lines td:last-child { text-align: left; direction: ltr; font-variant-numeric: tabular-nums; font-weight: 700; color: #334155; white-space: nowrap; }
@@ -228,6 +241,11 @@ body.rcp.embed { background: #f4f6f8; }
 .rc-exp.rc-cash input { accent-color: #0369a1; }
 .rc-exp.rc-cash.off { border-color: #e2e8f0; background: #f8fafc; color: #64748b; }
 .rc-exp.is-locked { cursor: not-allowed; opacity: .75; }
+.rc-doc { margin: -6px 20px 14px; padding: 10px 12px; border: 1.5px solid #99f6e4; border-top: 0; border-radius: 0 0 10px 10px; background: #f0fdfa; }
+.rc-doc[hidden] { display: none; }
+.rc-doc label { display: block; margin-bottom: 3px; font-size: 12px; font-weight: 700; color: #0f766e; }
+.rc-doc .form-control { width: 100%; height: 38px; }
+.rc-doc small { display: block; margin-top: 4px; font-size: 11.5px; font-weight: 600; color: #64748b; }
 .rc-exp small b { color: #0f172a; }
 .rc-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 20px; font-size: 12.5px; color: #475569; background: #f8fafc; border-top: 1px solid #f1f5f9; }
 .rc-meta b { color: #0f172a; }
@@ -256,7 +274,7 @@ body.rcp.embed { background: #f4f6f8; }
     .rc-info { grid-template-columns: 1fr 1fr; }
     .rc-info div, .rc-lines td, .rc-meta, .rc-sign { padding-left: 14px; padding-right: 14px; }
     .rc-pay { padding: 0 14px 12px; }
-    .rc-exp, .rc-note { margin-left: 14px; margin-right: 14px; }
+    .rc-exp, .rc-note, .rc-doc { margin-left: 14px; margin-right: 14px; }
     .rc-total .amt #rcAmount { font-size: 25px !important; }
     .rc-lines input.form-control { width: 110px; }
     .rcp-actions .grow { display: none; }
@@ -302,7 +320,11 @@ body.rcp.embed { background: #f4f6f8; }
             </div>
             <div class="rc-info">
                 <div><span>وەرگر</span><b><?= $e($v['employee_name']) ?></b></div>
+                <?php if ($mode === 'edit'): ?>
+                <div><span>مووچەی مانگی</span><input type="month" name="pay_month" id="rcMonth" class="form-control" value="<?= $e($v['pay_month']) ?>" required></div>
+                <?php else: ?>
                 <div><span>مووچەی مانگی</span><b><bdo dir="ltr"><?= $e(HrPayroll::monthLabel($v['pay_month'])) ?></bdo></b></div>
+                <?php endif; ?>
                 <div><span>PIN · جۆر</span><b><?= $e($v['employee_pin']) ?> · <?= $typeLabel ?></b></div>
                 <div><span>بەش</span><b><?= $e($v['department_name'] ?: '—') ?></b></div>
             </div>
@@ -317,7 +339,11 @@ body.rcp.embed { background: #f4f6f8; }
                 <?php if ($pay['pct'] > 0): ?>
                 <tr class="sub"><td>ڕێژە <?= $e($pct) ?>%</td><td class="plus">+<?= hr_money($pay['pct_amount']) ?></td></tr>
                 <?php endif; ?>
+                <?php if ($mode === 'edit'): ?>
+                <tr class="calc"><td>مووچەی حیسابکراو</td><td id="rcCalc" data-v="<?= (float)$v['calculated'] ?>"><input type="number" min="0" step="1" name="calculated" id="rcCalcIn" class="form-control" value="<?= (int)$v['calculated'] ?>" inputmode="numeric" required></td></tr>
+                <?php else: ?>
                 <tr class="calc"><td>مووچەی حیسابکراو</td><td id="rcCalc" data-v="<?= (float)$v['calculated'] ?>"><?= hr_money($v['calculated']) ?></td></tr>
+                <?php endif; ?>
                 <?php if ($form): ?>
                 <tr><td>+ زیادە</td><td><input type="number" min="0" step="1" name="bonus" id="rcBonus" class="form-control plus" value="<?= (float)$v['bonus'] ? (int)$v['bonus'] : '' ?>" placeholder="0" inputmode="numeric"></td></tr>
                 <tr><td>− کەمکردنەوە <small class="hr-muted">(سولفە، بڕین…)</small></td><td><input type="number" min="0" step="1" name="deduction" id="rcDed" class="form-control minus" value="<?= (float)$v['deduction'] ? (int)$v['deduction'] : '' ?>" placeholder="0" inputmode="numeric"></td></tr>
@@ -342,6 +368,14 @@ body.rcp.embed { background: #f4f6f8; }
                 <input type="checkbox" name="as_expense" value="1" id="rcExp" <?= $v['as_expense'] ? 'checked' : '' ?>>
                 <span>تۆمارکردن وەک خەرجی لە سیستەم<small>لە «خەرجی گشتی»، پۆلی «مووچە». ئەگەر لای ببەیت، وەک خەرجی تۆمار ناکرێت.</small></span>
             </label>
+            <div class="rc-doc" id="rcDocRow" <?= $v['as_expense'] ? '' : 'hidden' ?>>
+                <label for="rcDoctor">ئەم مووچەیە لەسەر کێیە؟</label>
+                <select id="rcDoctor" name="doctor_id" class="form-control">
+                    <option value="0">سەنتەر (بێ دکتۆر)</option>
+                    <?php foreach ($doctors as $doctor): ?><option value="<?= (int)$doctor['id'] ?>" <?= (int)$doctor['id'] === (int)($v['doctor_id'] ?? 0) ? 'selected' : '' ?>><?= $e($doctor['full_name']) ?></option><?php endforeach; ?>
+                </select>
+                <small>ئەگەر دکتۆر هەڵبژێریت، هەموو بڕەکە لە پشکی ئەو دکتۆرە دەبڕدرێت.</small>
+            </div>
             <label class="rc-exp rc-cash<?= $v['from_cashbox'] && $canCash ? '' : ' off' ?><?= $canCash ? '' : ' is-locked' ?>" id="rcCashLbl">
                 <input type="checkbox" name="from_cashbox" value="1" id="rcCash" <?= $v['from_cashbox'] && $canCash ? 'checked' : '' ?> <?= $canCash ? '' : 'disabled' ?>>
                 <span>دەرهێنانی پارەکە لە قاسەی لێزان
@@ -354,6 +388,7 @@ body.rcp.embed { background: #f4f6f8; }
                 <span>شێواز: <b><?= $e(HrPayroll::METHODS[$v['payment_method']] ?? '') ?></b></span>
                 <span>پێدەر: <b><?= $e($v['created_by_name'] ?? '—') ?></b></span>
                 <span><?= (int)$v['as_expense'] ? '<i class="fas fa-check" style="color:#15803d"></i> وەک خەرجی تۆمار کراوە' : '<i class="fas fa-minus" style="color:#94a3b8"></i> وەک خەرجی تۆمار نەکراوە' ?></span>
+                <?php if (!empty($v['doctor_name'])): ?><span><i class="fas fa-user-md" style="color:#0f766e"></i> لەسەر: <b><?= $e($v['doctor_name']) ?></b></span><?php endif; ?>
                 <span><?= (int)($v['from_cashbox'] ?? 0) ? '<i class="fas fa-vault" style="color:#0f766e"></i> لە قاسەی لێزان دەرهێنراوە' : '<i class="fas fa-minus" style="color:#94a3b8"></i> لە قاسەی لێزان نەدەرهێنراوە' ?></span>
                 <?php if ($cancelled): ?><span style="color:#b91c1c">هەڵوەشێنراوەتەوە لەلایەن <b style="color:#b91c1c"><?= $e($v['cancelled_by_name'] ?? '') ?></b> · <bdo dir="ltr"><?= $e($v['cancelled_at']) ?></bdo></span><?php endif; ?>
             </div>
@@ -416,13 +451,17 @@ body.rcp.embed { background: #f4f6f8; }
 
     // Live total while the bonus or deduction is typed.
     var calc = document.getElementById('rcCalc'), amount = document.getElementById('rcAmount');
-    var bonus = document.getElementById('rcBonus'), ded = document.getElementById('rcDed');
-    function total() { return parseFloat(calc.dataset.v) + num(bonus) - num(ded); }
+    var bonus = document.getElementById('rcBonus'), ded = document.getElementById('rcDed'), calcIn = document.getElementById('rcCalcIn');
+    function total() { return (calcIn ? num(calcIn) : parseFloat(calc.dataset.v)) + num(bonus) - num(ded); }
     if (bonus) {
         form.addEventListener('input', function () { amount.textContent = fmt(total()); });
     }
     var exp = document.getElementById('rcExp'), cash = document.getElementById('rcCash');
-    if (exp) exp.addEventListener('change', function () { document.getElementById('rcExpLbl').classList.toggle('off', !exp.checked); });
+    var doctor = document.getElementById('rcDoctor');
+    if (exp) exp.addEventListener('change', function () {
+        document.getElementById('rcExpLbl').classList.toggle('off', !exp.checked);
+        document.getElementById('rcDocRow').hidden = !exp.checked;
+    });
     if (cash) cash.addEventListener('change', function () { document.getElementById('rcCashLbl').classList.toggle('off', !cash.checked); });
 
     // Signature pad: pointer events cover mouse, finger and pen.
@@ -484,6 +523,7 @@ body.rcp.embed { background: #f4f6f8; }
             ? 'گۆڕانکارییەکانی وەسڵی ' + name + ' پاشەکەوت بکرێن؟ بڕی نوێ: ' + fmt(total()) + ' دینار.'
             : name + ' — ' + fmt(total()) + ' دینار دەدرێت.';
         msg += exp && exp.checked ? '\n• وەک خەرجی گشتی تۆمار دەکرێت.' : '\n• وەک خەرجی تۆمار ناکرێت.';
+        if (exp && exp.checked && doctor && doctor.value !== '0') msg += '\n• هەمووی لە پشکی ' + doctor.selectedOptions[0].text + ' دەبڕدرێت.';
         msg += cash && cash.checked ? '\n• لە قاسەی لێزان دەردەهێنرێت.' : '\n• لە قاسەی لێزان دەرناهێنرێت.';
         <?php if ($mode === 'edit' && !empty($v['signature'])): ?>
         if (Math.abs(total() - <?= (float)$v['amount'] ?>) >= 0.5) msg += '\n• بڕەکە گۆڕاوە، بۆیە واژۆکە لادەچێت.';
