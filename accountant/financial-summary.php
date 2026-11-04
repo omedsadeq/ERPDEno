@@ -17,6 +17,7 @@ $breadcrumb = [
 
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/../classes/XrayManager.php';
+require_once __DIR__ . '/../classes/IncomeColumn.php';
 
 $xrayManager = new XrayManager();
 
@@ -722,7 +723,9 @@ $treatmentNewDebt = (float)($approvedInvoiceSummary['new_debt'] ?? 0);
 $labExpense = fsExpenseByTable($db, 'expenses_lab', $dateFrom, $dateTo);
 $storeExpense = fsExpenseByTable($db, 'expenses_store', $dateFrom, $dateTo);
 $otherExpenses = max(0.0, $totalExpenses - $labExpense - $storeExpense);
-$netAfterExpenses = $treatmentCash - $totalExpenses;
+// Money given back to patients (پسوولەی گەڕاندنەوە) on the day it went.
+$refundCash = IncomeColumn::refundedBetween($db, $dateFrom, $dateTo);
+$netAfterExpenses = $treatmentCash - $totalExpenses - $refundCash;
 
 // ── ئیکسرە — the period's requests as one cohort: کۆی = دراو + ماوە ──
 // Same rule as doctors/daily-summary.php (a paid request counts in full; a
@@ -1064,6 +1067,11 @@ $methodRows = [
                     <tr><td class="row-number">7</td><td class="text-cell">خەرجی گشتی</td>
                         <td class="number-cell debt">(<?= fsMoney($otherExpenses) ?>)</td>
                         <td class="text-cell muted">خەرجییەکانی تر</td></tr>
+                    <?php if ($refundCash > 0.009): ?>
+                    <tr><td class="row-number">—</td><td class="text-cell">گەڕاندنەوەی پارە بۆ نەخۆش</td>
+                        <td class="number-cell debt">(<?= fsMoney($refundCash) ?>)</td>
+                        <td class="text-cell muted">پسوولەکانی گەڕاندنەوە</td></tr>
+                    <?php endif; ?>
                     <tr class="total-row"><td class="row-number">—</td><td class="text-cell">ماوەی دوای خەرجی</td>
                         <td class="number-cell <?= $netAfterExpenses < 0 ? 'negative' : 'positive' ?>">
                             <?= $netAfterExpenses < 0 ? '(' . fsMoney(abs($netAfterExpenses)) . ')' : fsMoney($netAfterExpenses) ?>

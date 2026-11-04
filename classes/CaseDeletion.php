@@ -4,6 +4,7 @@ require_once __DIR__ . '/Auth.php';
 require_once __DIR__ . '/Folder.php';
 require_once __DIR__ . '/AuditLog.php';
 require_once __DIR__ . '/CashboxLedger.php';
+require_once __DIR__ . '/IncomeColumn.php';
 
 /** Permanent case removal with a mandatory, transactional archive. */
 class CaseDeletion {
@@ -87,6 +88,10 @@ class CaseDeletion {
                 if ($this->hasReceivedMoney($caseId)) {
                     throw new DomainException('ئەم کەیسە پارەی وەرگیراوی تێدایە — دکتۆر تەنها کەیسێک دەسڕێتەوە کە تەنها قەرز بێت؛ ئەمە تەنها بەڕێوەبەر دەیسڕێتەوە');
                 }
+            }
+            // collect() would take the voucher with the case and the cash would stay out of the boxes.
+            if (IncomeColumn::refundsOfCase($this->db, $caseId)) {
+                throw new DomainException('ئەم کەیسە پسوولەی گەڕاندنەوەی پارەی هەیە؛ سەرەتا لە پەیجی داهات هەڵیبوەشێنەوە');
             }
             CashboxLedger::captureCase($caseId, (int)$authUser['id']);
             [$records, $edges] = $this->collect($caseId);

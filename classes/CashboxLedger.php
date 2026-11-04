@@ -761,7 +761,7 @@ class CashboxLedger
      * off the whole receipt is still in his box: cash leaves from there, and a
      * charge waits for the settlement.
      */
-    public function bookIncomeColumn(int $id, int $doctorId, int $cents, bool $cashOut, bool $onDoctor, string $label, string $date, ?int $actorId): void
+    public function bookIncomeColumn(int $id, int $doctorId, int $cents, bool $cashOut, bool $onDoctor, string $reference, string $label, string $date, ?int $actorId): void
     {
         $key = 'doctor:' . $doctorId;
         $now = date('Y-m-d H:i:s');
@@ -788,7 +788,6 @@ class CashboxLedger
             $moves[] = [$key, $doctor - $bookedDoctor];
             $moves[] = [self::CENTER, $center - $bookedCenter];
             $revision = (int)($state['revision'] ?? 0);
-            $reference = 'COL-' . $id;
             foreach ($moves as [$account, $delta]) {
                 if (!$delta) continue;
                 $this->append($account, $delta, $cashOut ? 'refund' : 'expense_share', $label, $actorId, $state ? $now : $at,

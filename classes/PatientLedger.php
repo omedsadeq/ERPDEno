@@ -275,6 +275,31 @@ class PatientLedger
                     ];
                 }
             }
+
+            // پسوولەی گەڕاندنەوە (classes/IncomeColumn.php): the money he got back
+            // and the price coming down by as much, side by side, so what he
+            // owes does not move. A cancelled one stays as a note.
+            if ($this->db->tableExists('income_column_entries')) {
+                $refunds = $this->db->fetchAll(
+                    "SELECT id, case_id, voucher_no, entry_date, amount, status, cancelled_at, cancel_reason
+                     FROM income_column_entries WHERE case_id IN ($idList) AND voucher_no IS NOT NULL"
+                );
+                foreach ($refunds as $rf) {
+                    $label = $caseLabel[(int)$rf['case_id']] ?? '';
+                    $doc = ['doc_number' => $rf['voucher_no'], 'case_id' => (int)$rf['case_id'], 'ref_id' => (int)$rf['id']];
+                    // A voucher has a day, not a time: after whatever else that day held.
+                    $at = $rf['entry_date'] . ' 23:59:59';
+                    if ($rf['status'] === 'active') {
+                        $rows[] = $doc + ['entry_date' => $at, 'doc_type' => 'INCOME_REFUND',
+                            'description' => 'پارە درایەوە بە نەخۆش — ' . $label, 'debit' => (float)$rf['amount'], 'credit' => 0.0];
+                        $rows[] = $doc + ['entry_date' => $at, 'doc_type' => 'REFUND_PRICE',
+                            'description' => 'نرخ کەمکرایەوە بە هەمان بڕ — ' . $label, 'debit' => 0.0, 'credit' => (float)$rf['amount']];
+                    } else {
+                        $rows[] = $doc + ['entry_date' => $rf['cancelled_at'] ?: $rf['entry_date'], 'doc_type' => 'REFUND_CANCELLED',
+                            'description' => (string)$rf['cancel_reason'], 'debit' => 0.0, 'credit' => 0.0, 'note_amount' => (float)$rf['amount']];
+                    }
+                }
+            }
         }
 
         // X-ray debt only — cash/free X-rays never became debt, so they never

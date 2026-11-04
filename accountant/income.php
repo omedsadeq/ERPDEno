@@ -432,15 +432,20 @@ $manReturn = $rangeQs($from, $to);
     <section class="inc-mp inc-cs" id="incCols">
         <div class="inc-mp-head">
             <h3><i class="fas fa-user-minus"></i> کۆڵۆمی تایبەت — لێبڕین و خەرجی سەر دکتۆر</h3>
-            <span>بڕەکان لە ڕیزی دکتۆرەکە دەبڕدرێن. ئەوەی لە قاسە دێتە خوارێ، ڕاستەوخۆ لە سندوقەکان کەم دەبێتەوە.</span>
+            <span>بڕەکان لە ڕیزی دکتۆرەکە دەبڕدرێن. گەڕاندنەوەی پارە پسوولەی خۆی هەیە، لە فایلی نەخۆش دەردەکەوێت و لە قاسە کەم دەبێتەوە.</span>
         </div>
 
         <?php
-        $colFlash = ['added' => 'تۆمارەکە زیادکرا.', 'updated' => 'تۆمارەکە نوێکرایەوە.', 'deleted' => 'تۆمارەکە سڕایەوە و پارەکە گەڕایەوە سندوقەکان.',
+        $colFlash = ['added' => 'تۆمارەکە زیادکرا.', 'updated' => 'تۆمارەکە نوێکرایەوە.', 'cancelled' => 'تۆمارەکە هەڵوەشێنرایەوە و پارەکە گەڕایەوە سندوقەکان.',
                      'col_saved' => 'کۆڵۆمەکە پاشەکەوت کرا.', 'col_removed' => 'کۆڵۆمەکە لابرا.'][(string)($_GET['col_done'] ?? '')] ?? '';
         ?>
         <?php if ($colFlash): ?>
-        <div class="inc-mp-msg ok"><i class="fas fa-check-circle"></i> <?= dsEsc($colFlash) ?></div>
+        <div class="inc-mp-msg ok">
+            <i class="fas fa-check-circle"></i> <?= dsEsc($colFlash) ?>
+            <?php if (!empty($_GET['voucher'])): ?>
+            <a href="<?= APP_URL ?>/accountant/income-refund-print.php?id=<?= (int)$_GET['voucher'] ?>" target="_blank"><i class="fas fa-print"></i> چاپکردنی پسوولە</a>
+            <?php endif; ?>
+        </div>
         <?php elseif (isset($_GET['col_error'])): ?>
         <div class="inc-mp-msg err"><i class="fas fa-exclamation-circle"></i> <?= dsEsc((string)$_GET['col_error']) ?></div>
         <?php endif; ?>
@@ -472,38 +477,52 @@ $manReturn = $rangeQs($from, $to);
         <?php if ($incColumnEntries): ?>
         <div class="inc-scroll">
             <table class="inc-mp-tbl">
-                <thead><tr><th>ڕێکەوت</th><th>کۆڵۆم</th><th>دکتۆر</th><th>بڕ</th><th>تێبینی</th><th>تۆمارکەر</th><?php if ($canColumns): ?><th></th><?php endif; ?></tr></thead>
+                <thead><tr><th>ڕێکەوت</th><th>کۆڵۆم</th><th>نەخۆش</th><th>دکتۆر</th><th>بڕ</th><th>تێبینی</th><th>تۆمارکەر</th><th></th></tr></thead>
                 <tbody>
-                <?php foreach ($incColumnEntries as $m): ?>
-                    <tr>
+                <?php foreach ($incColumnEntries as $m): $isLive = $m['status'] === 'active'; ?>
+                    <tr class="<?= $isLive ? '' : 'is-off' ?>">
                         <td><bdi><?= dsEsc($m['entry_date']) ?></bdi></td>
-                        <td><span class="inc-mp-tag cus"><?= dsEsc($m['column_name']) ?></span></td>
+                        <td>
+                            <span class="inc-mp-tag cus"><?= dsEsc($m['column_name']) ?></span>
+                            <?php if ($m['voucher_no']): ?><small class="inc-vno" dir="ltr"><?= dsEsc($m['voucher_no']) ?></small><?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if ($m['patient_id']): ?>
+                            <a href="<?= APP_URL ?>/patients/statement.php?patient_id=<?= (int)$m['patient_id'] ?>"><?= dsEsc($m['patient_name']) ?></a>
+                            <small class="inc-vno"><?= dsEsc($m['case_label']) ?></small>
+                            <?php else: ?>—<?php endif; ?>
+                        </td>
                         <td><?= dsEsc($m['doctor_name'] ?? '—') ?></td>
                         <td class="n"><?= dsMoney((float)$m['amount']) ?></td>
-                        <td><?= dsEsc($m['note'] ?? '') ?></td>
+                        <td>
+                            <?= dsEsc($m['note'] ?? '') ?>
+                            <?php if (!$isLive): ?>
+                            <small class="inc-off">هەڵوەشێنراوە<?= $m['cancelled_by_name'] ? ' لەلایەن ' . dsEsc($m['cancelled_by_name']) : '' ?>: <?= dsEsc($m['cancel_reason']) ?></small>
+                            <?php endif; ?>
+                        </td>
                         <td class="who"><?= dsEsc($m['created_by_name'] ?? '—') ?><?php if ($m['updated_by_name']): ?><small>دەستکاری: <?= dsEsc($m['updated_by_name']) ?></small><?php endif; ?></td>
-                        <?php if ($canColumns): ?>
                         <td class="act">
+                            <?php if ($m['voucher_no']): ?>
+                            <a class="inc-ce-print" href="<?= APP_URL ?>/accountant/income-refund-print.php?id=<?= (int)$m['id'] ?>" target="_blank" title="چاپکردنی پسوولە"><i class="fas fa-print"></i></a>
+                            <?php endif; ?>
+                            <?php if ($canColumns && $isLive): ?>
+                            <?php if (!$m['voucher_no']): ?>
                             <button type="button" class="inc-ce-edit" title="دەستکاری" data-entry="<?= dsEsc(json_encode([
                                 'id' => (int)$m['id'], 'column_id' => (int)$m['column_id'], 'doctor_id' => (int)$m['doctor_id'],
                                 'entry_date' => $m['entry_date'], 'amount' => (float)$m['amount'], 'note' => (string)($m['note'] ?? ''),
                             ], JSON_UNESCAPED_UNICODE)) ?>"><i class="fas fa-pen"></i></button>
-                            <form method="post" action="<?= APP_URL ?>/accountant/income-columns.php" onsubmit="return confirm('ئەم تۆمارە بسڕدرێتەوە؟ پارەکە دەگەڕێتەوە سندوقەکان.')">
-                                <input type="hidden" name="action" value="entry_delete">
-                                <input type="hidden" name="entry_id" value="<?= (int)$m['id'] ?>">
-                                <input type="hidden" name="return" value="<?= dsEsc($manReturn) ?>">
-                                <button type="submit" class="del" title="سڕینەوە"><i class="fas fa-trash"></i></button>
-                            </form>
+                            <?php endif; ?>
+                            <button type="button" class="del inc-ce-cancel" title="هەڵوەشاندنەوە" data-id="<?= (int)$m['id'] ?>"><i class="fas fa-ban"></i></button>
+                            <?php endif; ?>
                         </td>
-                        <?php endif; ?>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
                 <tfoot>
                     <tr>
-                        <td colspan="3">کۆ</td>
-                        <td class="n"><?= dsMoney(array_sum(array_map(fn($m) => (float)$m['amount'], $incColumnEntries))) ?></td>
-                        <td colspan="<?= $canColumns ? 3 : 2 ?>"></td>
+                        <td colspan="4">کۆ</td>
+                        <td class="n"><?= dsMoney(array_sum(array_map(fn($m) => $m['status'] === 'active' ? (float)$m['amount'] : 0.0, $incColumnEntries))) ?></td>
+                        <td colspan="3"></td>
                     </tr>
                 </tfoot>
             </table>
@@ -528,7 +547,7 @@ $manReturn = $rangeQs($from, $to);
             <div class="inc-dlg-lock" hidden><i class="fas fa-lock"></i> ئەم کۆڵۆمە تۆماری هەیە، تەنها ناوەکەی دەگۆڕدرێت.</div>
             <div class="inc-dlg-q">
                 <span>پارەکە لە قاسە دێتە خوارێ؟</span>
-                <label class="inc-dlg-o"><input type="radio" name="cash_out" value="1" checked><b>بەڵێ — پارە دەدرێتەوە</b><small>وەک گەڕاندنەوەی پارە بۆ نەخۆش: بڕەکە لە سندوقەکان کەم دەبێتەوە.</small></label>
+                <label class="inc-dlg-o"><input type="radio" name="cash_out" value="1" checked><b>بەڵێ — پارە دەدرێتەوە بە نەخۆش</b><small>ناوی نەخۆش و کەیس دەخوازێت، پسوولەی هەیە، لە فایلی نەخۆش دەردەکەوێت و لە سندوقەکان کەم دەبێتەوە.</small></label>
                 <label class="inc-dlg-o"><input type="radio" name="cash_out" value="0"><b>نەخێر — خەرجییە</b><small>پارە ناچێتە دەرەوە: بەشی دکتۆر لە سندوقی ئەوەوە دەچێتە قاسەی <?= htmlspecialchars(Branding::shortName()) ?>، وەک خەرجی تاقیگە.</small></label>
             </div>
             <div class="inc-dlg-q">
@@ -551,6 +570,7 @@ $manReturn = $rangeQs($from, $to);
         <input type="hidden" name="action" value="entry_save">
         <input type="hidden" name="entry_id" value="">
         <input type="hidden" name="column_id" value="">
+        <input type="hidden" name="patient_id" value="">
         <input type="hidden" name="return" value="<?= dsEsc($manReturn) ?>">
         <div class="dialog-body">
             <label class="inc-dlg-f">کۆڵۆم
@@ -561,6 +581,17 @@ $manReturn = $rangeQs($from, $to);
                 </select>
                 <small class="inc-dlg-hint"></small>
             </label>
+            <div class="inc-dlg-refund" hidden>
+                <div class="inc-dlg-f inc-dlg-pt">
+                    <label for="incPatientQ">نەخۆش</label>
+                    <input type="search" id="incPatientQ" data-patient-q placeholder="ناو یان ژمارەی مۆبایل بنووسە..." autocomplete="off">
+                    <div class="inc-dlg-sug" hidden></div>
+                </div>
+                <label class="inc-dlg-f">کەیس
+                    <select name="case_id" disabled><option value="">سەرەتا نەخۆش هەڵبژێرە</option></select>
+                    <small class="inc-dlg-room"></small>
+                </label>
+            </div>
             <label class="inc-dlg-f">دکتۆر
                 <select name="doctor_id" required>
                     <option value="">— هەڵبژێرە —</option>
@@ -573,7 +604,7 @@ $manReturn = $rangeQs($from, $to);
                 <label class="inc-dlg-f">ڕێکەوت <input type="date" name="entry_date" value="<?= dsEsc($manDate) ?>" max="<?= dsEsc($today) ?>" required></label>
                 <label class="inc-dlg-f">بڕ <input type="text" name="amount" inputmode="numeric" placeholder="0" required class="inc-mp-amt"></label>
             </div>
-            <label class="inc-dlg-f">تێبینی <input type="text" name="note" maxlength="255" placeholder="ناوی نەخۆش و هۆکار"></label>
+            <label class="inc-dlg-f">تێبینی <input type="text" name="note" maxlength="255" placeholder="هۆکار"></label>
         </div>
         <div class="dialog-footer">
             <button type="button" class="inc-mp-cancel" onclick="closeDialog('incEntryDialog')">پاشگەزبوونەوە</button>
@@ -581,6 +612,14 @@ $manReturn = $rangeQs($from, $to);
         </div>
     </form>
 </div></div>
+
+<form method="post" action="<?= APP_URL ?>/accountant/income-columns.php" id="incCancelForm" hidden>
+    <?= Csrf::field() ?>
+    <input type="hidden" name="action" value="entry_cancel">
+    <input type="hidden" name="entry_id" value="">
+    <input type="hidden" name="reason" value="">
+    <input type="hidden" name="return" value="<?= dsEsc($manReturn) ?>">
+</form>
 <?php endif; ?>
 
 
@@ -682,6 +721,21 @@ $manReturn = $rangeQs($from, $to);
 .inc-dlg-o small{grid-column:2;font-size:11.5px;color:#64748b;line-height:1.6}
 .inc-dlg-lock{margin-bottom:12px;padding:7px 10px;border-radius:9px;background:#fffbeb;color:#92400e;font-size:12px}
 .inc-dlg-q.is-locked{opacity:.6;pointer-events:none}
+.inc-dlg-pt{position:relative}
+.inc-dlg-sug{position:absolute;top:100%;inset-inline:0;z-index:5;max-height:220px;overflow-y:auto;margin-top:2px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;
+    box-shadow:0 10px 24px -10px rgba(15,23,42,.3)}
+.inc-dlg-sug button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:8px 10px;border:0;background:none;font:inherit;font-size:13px;cursor:pointer;text-align:start}
+.inc-dlg-sug button:hover{background:#fff1f2}
+.inc-dlg-sug small{font-size:11.5px;color:#64748b}
+.inc-dlg-none{padding:10px;text-align:center;font-size:12.5px;color:#94a3b8}
+.inc-dlg-room{font-size:11.5px;font-weight:700;color:#0f766e}
+.inc-mp-msg a{margin-inline-start:10px;font-weight:700;color:inherit}
+.inc-cs .inc-mp-tbl td:first-child{white-space:nowrap}
+.inc-vno{display:block;margin-top:2px;font-size:11px;color:#64748b}
+.inc-off{display:block;margin-top:2px;font-size:11px;font-weight:700;color:#b91c1c}
+.inc-mp-tbl tr.is-off td{background:#f8fafc;color:#94a3b8}
+.inc-mp-tbl tr.is-off td.n{text-decoration:line-through}
+.inc-mp-tbl td.act .inc-ce-print{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:7px;border:1px solid #e2e8f0;background:#fff;color:#475569;text-decoration:none;vertical-align:top}
 </style>
 
 <?php if ($canManual): ?>
@@ -751,6 +805,7 @@ $manReturn = $rangeQs($from, $to);
 <?php if ($canColumns): ?>
 <script>
 (function () {
+    var appUrl = <?= json_encode(APP_URL) ?>;
     var ku = '٠١٢٣٤٥٦٧٨٩';
     // 100000 → 100,000 while typing (Kurdish digits accepted).
     function fmt(v) {
@@ -787,36 +842,158 @@ $manReturn = $rangeQs($from, $to);
     var pick = form.querySelector('[data-column-pick]');
     var hint = form.querySelector('.inc-dlg-hint');
     var amount = form.elements['amount'];
+    var doctor = form.elements['doctor_id'];
+    var title = document.getElementById('inc-entry-title');
     var day = form.elements['entry_date'].value;
     amount.addEventListener('input', function () { amount.value = fmt(amount.value); });
+
+    // Money going back: the patient, then his case, which names the doctor.
+    var refundBox = form.querySelector('.inc-dlg-refund');
+    var patientQ = form.querySelector('[data-patient-q]');
+    var suggestions = form.querySelector('.inc-dlg-sug');
+    var casePick = form.elements['case_id'];
+    var room = form.querySelector('.inc-dlg-room');
+    var searchTimer = null, searchTurn = 0;
+
+    function emptyCases(text) {
+        casePick.innerHTML = '';
+        casePick.add(new Option(text, ''));
+        casePick.disabled = true;
+        room.textContent = '';
+    }
+    function syncCase() {
+        var opt = casePick.options[casePick.selectedIndex];
+        if (!opt || !opt.value) { room.textContent = ''; return; }
+        room.textContent = 'زۆرترین بڕی گەڕاندنەوە: ' + Number(opt.dataset.room).toLocaleString('en-US');
+        if (opt.dataset.doctor !== '0') {
+            if (![].some.call(doctor.options, function (o) { return o.value === opt.dataset.doctor; })) {
+                doctor.add(new Option(opt.dataset.doctorName, opt.dataset.doctor));
+            }
+            doctor.value = opt.dataset.doctor;
+        }
+    }
+    casePick.addEventListener('change', syncCase);
+    function pickPatient(p) {
+        form.elements['patient_id'].value = p.id;
+        patientQ.value = p.full_name;
+        suggestions.hidden = true;
+        emptyCases('بارکردن...');
+        fetch(appUrl + '/accountant/income-columns.php?patient_cases=' + encodeURIComponent(p.id))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var cases = data.cases || [];
+                if (!cases.length) { emptyCases('ئەم نەخۆشە پارەی دراوی نییە کە بگەڕێنرێتەوە'); return; }
+                casePick.innerHTML = '';
+                cases.forEach(function (c) {
+                    var opt = new Option(c.label + ' — ' + c.doctor_name, c.id);
+                    opt.dataset.room = c.room;
+                    opt.dataset.doctor = c.doctor_id;
+                    opt.dataset.doctorName = c.doctor_name;
+                    casePick.add(opt);
+                });
+                casePick.disabled = false;
+                syncCase();
+            })
+            .catch(function () { emptyCases('هەڵەیەک ڕوویدا، دووبارە هەوڵ بدەرەوە'); });
+    }
+    patientQ.addEventListener('input', function () {
+        form.elements['patient_id'].value = '';
+        emptyCases('سەرەتا نەخۆش هەڵبژێرە');
+        clearTimeout(searchTimer);
+        var q = patientQ.value.trim();
+        if (q.length < 2) { suggestions.hidden = true; return; }
+        var turn = ++searchTurn;
+        searchTimer = setTimeout(function () {
+            fetch(appUrl + '/ajax/patient_search.php?slim=1&limit=8&q=' + encodeURIComponent(q))
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (turn !== searchTurn) return;
+                    suggestions.innerHTML = '';
+                    var results = data.results || [];
+                    if (!results.length) {
+                        var none = document.createElement('div');
+                        none.className = 'inc-dlg-none';
+                        none.textContent = 'هیچ نەخۆشێک نەدۆزرایەوە';
+                        suggestions.appendChild(none);
+                    }
+                    results.forEach(function (p) {
+                        var row = document.createElement('button');
+                        row.type = 'button';
+                        var name = document.createElement('b');
+                        name.textContent = p.full_name;
+                        var phone = document.createElement('small');
+                        phone.dir = 'ltr';
+                        phone.textContent = p.phone || '';
+                        row.appendChild(name);
+                        row.appendChild(phone);
+                        row.addEventListener('click', function () { pickPatient(p); });
+                        suggestions.appendChild(row);
+                    });
+                    suggestions.hidden = false;
+                });
+        }, 220);
+    });
+
     function syncColumn() {
         var opt = pick.options[pick.selectedIndex];
+        var refund = !!(opt && opt.dataset.cash === '1');
         form.elements['column_id'].value = pick.value;
         hint.textContent = opt ? opt.dataset.hint : '';
-        // Cash leaving a box needs a reason.
-        form.elements['note'].required = !!(opt && opt.dataset.cash === '1');
+        refundBox.hidden = !refund;
+        patientQ.required = refund;
+        casePick.required = refund;
+        form.elements['note'].required = refund;
+        form.elements['note'].placeholder = refund ? 'هۆکاری گەڕاندنەوە' : 'هۆکار';
+        title.textContent = form.elements['entry_id'].value ? 'دەستکاری تۆمار' : (refund ? 'پسوولەی گەڕاندنەوەی پارە' : 'تۆمارکردن لەسەر دکتۆر');
     }
     pick.addEventListener('change', syncColumn);
     function openEntry(e) {
         form.reset();
         form.elements['entry_date'].value = (e && e.entry_date) || day;
         form.elements['entry_id'].value = (e && e.id) || '';
+        form.elements['patient_id'].value = '';
+        suggestions.hidden = true;
+        emptyCases('سەرەتا نەخۆش هەڵبژێرە');
         if (e && e.column_id) pick.value = e.column_id;
-        if (e && e.doctor_id) form.elements['doctor_id'].value = e.doctor_id;
+        if (e && e.doctor_id) doctor.value = e.doctor_id;
         if (e && e.amount) amount.value = fmt(Math.round(e.amount * 100) / 100);
         form.elements['note'].value = (e && e.note) || '';
         // An entry stays under its column: the boxes were moved by that column's rules.
         pick.disabled = !!(e && e.id);
-        document.getElementById('inc-entry-title').textContent = e && e.id ? 'دەستکاری تۆمار' : 'تۆمارکردن لەسەر دکتۆر';
         syncColumn();
         openDialog('incEntryDialog');
-        amount.focus();
+        (refundBox.hidden ? amount : patientQ).focus();
     }
+    form.addEventListener('submit', function (ev) {
+        // A name typed but never picked from the list is not a patient.
+        if (!refundBox.hidden && !form.elements['patient_id'].value) {
+            ev.preventDefault();
+            patientQ.focus();
+        }
+    });
     each('[data-entry-new]', function (b) { b.addEventListener('click', function () { openEntry(null); }); });
     each('.inc-cadd', function (b) {
         b.addEventListener('click', function () { openEntry({ column_id: b.dataset.col, doctor_id: b.dataset.doctor }); });
     });
     each('.inc-ce-edit', function (b) { b.addEventListener('click', function () { openEntry(JSON.parse(b.dataset.entry)); }); });
+
+    // ── cancelling: the entry stays, with why ──
+    var cancelForm = document.getElementById('incCancelForm');
+    each('.inc-ce-cancel', function (b) {
+        b.addEventListener('click', function () {
+            Swal.fire({
+                title: 'هەڵوەشاندنەوە', text: 'پارەکە دەگەڕێتەوە سندوقەکان و تۆمارەکە وەک هەڵوەشێنراوە دەمێنێتەوە.',
+                input: 'text', inputPlaceholder: 'هۆکاری هەڵوەشاندنەوە',
+                showCancelButton: true, confirmButtonText: 'هەڵوەشاندنەوە', cancelButtonText: 'نەخێر', confirmButtonColor: '#dc2626',
+                inputValidator: function (v) { return v && v.trim().length >= 3 ? null : 'هۆکار بنووسە'; }
+            }).then(function (r) {
+                if (!r.isConfirmed) return;
+                cancelForm.elements['entry_id'].value = b.dataset.id;
+                cancelForm.elements['reason'].value = r.value;
+                cancelForm.submit();
+            });
+        });
+    });
 })();
 </script>
 <?php endif; ?>

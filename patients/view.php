@@ -16,6 +16,7 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/Patient.php';
+require_once __DIR__ . '/../classes/IncomeColumn.php';
 require_once __DIR__ . '/../classes/Folder.php';
 require_once __DIR__ . '/../classes/CaseManager.php';
 require_once __DIR__ . '/../classes/CaseDeletion.php';
@@ -178,6 +179,9 @@ $statistics['xray_debt'] = $xrayDebt;
 $statistics['xray_paid'] = $xrayPaid;
 $statistics['total_debt'] = ($statistics['total_debt'] ?? 0) + $xrayDebt;
 $statistics['total_paid'] = ($statistics['total_paid'] ?? 0) + $xrayPaid;
+// Money given back under a پسوولەی گەڕاندنەوە is not paid any more.
+$statistics['refunded'] = IncomeColumn::refundedToPatient(Database::getInstance(), (int)$patientId, $isDoctor && !$isAdmin ? (int)$doctorId : null);
+$statistics['total_paid'] -= $statistics['refunded'];
 
 // Log access for audit
 $accessType = $isOwner ? 'view_profile_full' : 'view_profile_new_patient';
@@ -2136,6 +2140,7 @@ require_once __DIR__ . '/../includes/case-button.php';
                         <i class="fas fa-coins"></i>
                     </div>
                     <div class="stat-value-modern"><?= number_format($statistics['total_paid']) ?></div>
+                    <?php if ($statistics['refunded'] > 0.009): ?><div class="stat-label-modern">گەڕێنراوەتەوە <?= number_format($statistics['refunded']) ?></div><?php endif; ?>
                     <div class="stat-label-modern">پارەی دراو</div>
                 </div>
                 <div class="stat-card-modern stat-debt" <?php if ($xrayDebt > 0): ?>title="دۆسیەکان: <?= number_format($statistics['total_debt'] - $xrayDebt) ?> | ئێکسڕەی: <?= number_format($xrayDebt) ?>"<?php endif; ?>>

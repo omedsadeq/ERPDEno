@@ -17,6 +17,7 @@ require_once __DIR__ . '/../classes/CaseInvoice.php';
 require_once __DIR__ . '/../classes/InvoiceDeletion.php';
 require_once __DIR__ . '/../classes/InvoiceCorrection.php';
 require_once __DIR__ . '/../classes/AccountingLedger.php';
+require_once __DIR__ . '/../classes/IncomeColumn.php';
 require_once __DIR__ . '/../classes/Settings.php';
 
 $auth = new Auth();
@@ -4688,6 +4689,14 @@ $caseStatusLabel = ['open' => 'کراوە', 'pending' => 'چاوەڕوان', 'cl
                     <span class="ch-stat-label"><i class="fas fa-hourglass-half"></i> ماوە</span>
                     <span class="ch-stat-value" data-case-bind="remaining"><?= number_format($remaining) ?></span>
                 </div>
+                <?php // Money given back and the price cut by as much: the two figures above stay as billed and received. ?>
+                <?php $caseRefunded = array_sum(array_map('floatval', array_column(IncomeColumn::refundsOfCase(Database::getInstance(), (int)$caseId), 'amount'))); ?>
+                <?php if ($caseRefunded > 0.009): ?>
+                <div class="ch-stat" title="ئەم بڕە درایەوە بە نەخۆش و نرخی کەیسەکەش بە هەمان بڕ کەمکرایەوە">
+                    <span class="ch-stat-label"><i class="fas fa-rotate-left"></i> گەڕێنراوەتەوە</span>
+                    <span class="ch-stat-value"><?= number_format($caseRefunded) ?></span>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -5298,6 +5307,9 @@ button.rx-card-print { cursor:pointer; padding:0; }
                             'PRIOR_PAYMENT' => ['دراوی پێشوو', 'fa-history'],
                             'PAYMENT' => ['پارەدان', 'fa-money-bill-wave'],
                             'REFUND' => ['گەڕاندنەوەی پارە', 'fa-rotate-left'],
+                            'INCOME_REFUND' => ['گەڕاندنەوەی پارە', 'fa-rotate-left'],
+                            'REFUND_PRICE' => ['کەمکردنەوەی نرخ', 'fa-tag'],
+                            'REFUND_CANCELLED' => ['گەڕاندنەوەی هەڵوەشێنراوە', 'fa-ban'],
                             'XRAY' => ['قەرزی ئێکسڕەی', 'fa-x-ray'],
                             'XRAY_PAYMENT' => ['پارەی ئێکسڕەی', 'fa-x-ray'],
                             'ADVANCE' => ['ئامانەت', 'fa-piggy-bank'],

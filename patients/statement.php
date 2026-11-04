@@ -21,6 +21,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/Patient.php';
 require_once __DIR__ . '/../classes/PatientFinance.php';
+require_once __DIR__ . '/../classes/IncomeColumn.php';
 
 if (!function_exists('ps_h')) {
     function ps_h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
@@ -87,6 +88,9 @@ $ledgerDocLabels = [
     'PRIOR_PAYMENT' => 'دراوی پێشوو (کۆن)',
     'PAYMENT'       => 'پارەدان',
     'REFUND'        => 'گەڕاندنەوەی پارەدان',
+    'INCOME_REFUND'    => 'گەڕاندنەوەی پارە',
+    'REFUND_PRICE'     => 'کەمکردنەوەی نرخ',
+    'REFUND_CANCELLED' => 'گەڕاندنەوەی هەڵوەشێنراوە',
     'XRAY'          => 'قەرزی ئیکسڕەی',
     'XRAY_PAYMENT'  => 'پارەدانی قەرزی ئیکسڕەی',
     'ADVANCE'         => 'ئامانەت (پێشوەختە)',
@@ -202,6 +206,8 @@ table.ledger-t .n{text-align:left;direction:ltr;font-variant-numeric:tabular-num
                     <span>باڵانسی ئێستا:
                         <b class="<?= $ledger['closing'] > 0.009 ? 'ledger-due' : 'ledger-ok' ?>"><?= ps_nf($ledger['closing']) ?></b>
                     </span>
+                    <?php $psRefunded = IncomeColumn::refundedToPatient(Database::getInstance(), (int)$patientId, $doctorScopeUserId ? (int)$doctorScopeUserId : null); ?>
+                    <?php if ($psRefunded > 0.009): ?><span>گەڕێنراوەتەوە: <b><?= ps_nf($psRefunded) ?></b></span><?php endif; ?>
                     <?php if ($doctorScopeUserId): ?><span><b>دیمەنی سنووردار — تەنها کەیس/ئیکسڕەی خۆت</b></span><?php endif; ?>
                 </div>
             </div>
@@ -268,6 +274,8 @@ table.ledger-t .n{text-align:left;direction:ltr;font-variant-numeric:tabular-num
                                 $viewHref = APP_URL . '/cases/receipt.php?id=' . (int)$r['case_id'] . '&invoice=' . (int)$r['ref_id'] . '&autoprint=0';
                             } elseif (in_array($r['doc_type'], ['PAYMENT', 'REFUND'], true)) {
                                 $viewHref = APP_URL . '/cases/voucher.php?payment=' . (int)$r['ref_id'] . '&autoprint=0';
+                            } elseif (in_array($r['doc_type'], ['INCOME_REFUND', 'REFUND_PRICE', 'REFUND_CANCELLED'], true)) {
+                                $viewHref = APP_URL . '/accountant/income-refund-print.php?id=' . (int)$r['ref_id'];
                             }
                         }
                     ?>
