@@ -41,6 +41,7 @@ require_once __DIR__ . '/../classes/Permission.php';
 require_once __DIR__ . '/../doctors/_daily_summary_lib.php';
 require_once __DIR__ . '/../classes/IncomeManualEntry.php';
 require_once __DIR__ . '/../includes/store-expense-share.php';
+require_once __DIR__ . '/../includes/income-detail.php';
 
 $auth = new Auth();
 $auth->requireLogin();
@@ -150,6 +151,9 @@ foreach ($db->fetchAll(
         'store'  => $ds['storeExpense'],
         'general' => $ds['generalExpense'],
         'storeOnDoctor' => $ds['storeOnDoctor'],
+        // What the comparison report (accountant/income-compare.php) shows beside the money.
+        'report' => ['storeByKind' => $ds['storeByKind'], 'storeOnDoctorByKind' => $ds['storeOnDoctorByKind'],
+                     'minutes' => $ds['attendanceMinutes'], 'days' => $ds['attendedDay'], 'checkups' => $ds['checkupBreakdown']],
         // کۆڵۆمی تایبەت: column id => amount. Doctor rows only, so outside $totals.
         'cols'   => array_column($ds['columnCharges'], 'amount', 'id'),
         'colTotal' => $ds['columnTotal'],
@@ -166,31 +170,13 @@ if (in_array('general', $expSel, true) && array_sum(array_column($doctorRows, 'g
 }
 
 // ── X-ray: one row, all the types together ───────────────────────────
-$hasDebtTables = $db->tableExists('patient_xray_debts');
-// Cash-settled requests — XrayManager::getCashIncome().
-$xrayPaid = $db->fetch(
-    "SELECT COUNT(*) AS n, COALESCE(SUM(xr.final_amount), 0) AS amt
-     FROM xray_requests xr
-     WHERE xr.payment_status = 'paid'
-       " . ($hasDebtTables ? "AND NOT EXISTS (SELECT 1 FROM patient_xray_debts pxd WHERE pxd.request_id = xr.id)" : '') . "
-       AND DATE(COALESCE(xr.paid_at, xr.created_at)) BETWEEN :f AND :t",
-    ['f' => $from, 't' => $to]
-);
-$xray = ['count' => (int)$xrayPaid['n'], 'amount' => (float)$xrayPaid['amt']];
-// Debt collections — XrayManager::getDebtCollected().
-if ($hasDebtTables && $db->tableExists('xray_debt_payments')) {
-    $xrayDebt = $db->fetch(
-        "SELECT COUNT(DISTINCT xr.id) AS n, COALESCE(SUM(xdp.amount), 0) AS amt
-         FROM xray_debt_payments xdp
-         JOIN patient_xray_debts pxd ON pxd.id = xdp.debt_id
-         JOIN xray_requests xr ON xr.id = pxd.request_id
-         WHERE DATE(xdp.created_at) BETWEEN :f AND :t",
-        ['f' => $from, 't' => $to]
-    );
-    $xray['count'] += (int)$xrayDebt['n'];
-    $xray['amount'] += (float)$xrayDebt['amt'];
-}
-$deptRows = [['kind' => 'xray', 'label' => 'X-ray', 'count' => $xray['count'], 'amount' => $xray['amount'],
+// Its payments, type by type, are what the row's button shows
+// (includes/income-detail.php); the row is their total.
+$xrayLines = xray_income_lines($db, $from, $to);
+$xrayTypes = xray_income_totals($xrayLines);
+$deptRows = [['kind' => 'xray', 'label' => 'X-ray',
+              'count' => array_sum(array_column($xrayTypes, 'count')),
+              'amount' => array_sum(array_column($xrayTypes, 'amount')),
               'lab' => 0.0, 'store' => 0.0, 'general' => 0.0]];
 
 // ── Pharmacy: what the pharmacy (erp2) SOLD ──────────────────────────

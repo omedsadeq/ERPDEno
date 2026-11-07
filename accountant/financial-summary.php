@@ -18,6 +18,7 @@ $breadcrumb = [
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/../classes/XrayManager.php';
 require_once __DIR__ . '/../classes/IncomeColumn.php';
+require_once __DIR__ . '/../includes/income-detail.php';
 
 $xrayManager = new XrayManager();
 
@@ -1004,7 +1005,8 @@ $methodRows = [
         </div>
         <div class="ds-kpi">
             <div class="k">ئیکسرە</div>
-            <div class="v"><?= fsMoney($xrayCollected) ?></div>
+            <!-- the same sum as xray_income_lines(): the button opens it type by type -->
+            <div class="v xi-amt"><?= income_detail_button('xray') ?><span><?= fsMoney($xrayCollected) ?></span></div>
             <div class="s">نەقد <?= fsMoney($xrayCash) ?> · قەرز <?= fsMoney($xrayDebtCollected) ?></div>
         </div>
         <div class="ds-kpi is-debt">
@@ -1415,5 +1417,7 @@ document.getElementById('financialPeriod')?.addEventListener('change', function 
     }
 });
 </script>
+
+<?php income_detail_shell($dateFrom, $dateTo); ?>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

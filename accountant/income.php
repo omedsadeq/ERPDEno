@@ -239,9 +239,17 @@ $manReturn = $rangeQs($from, $to);
                         <td class="lb en"><?= dsEsc($r['label']) ?></td>
                         <?php endif; ?>
                         <td class="c"><?= $r['count'] ? dsMoney($r['count']) : '' ?></td>
+                        <?php if (abs($r['amount']) >= 0.5 && in_array($r['kind'], INCOME_DETAIL_KINDS, true)): ?>
+                        <td class="n amt"><div class="xi-amt"><?= income_detail_button($r['kind'], (int)($r['id'] ?? 0)) ?><span><?= incCell($r['amount']) ?></span></div></td>
+                        <?php else: ?>
                         <td class="n amt"><?= incCell($r['amount']) ?></td>
+                        <?php endif; ?>
                         <?php foreach ($colSel as $k): ?>
+                        <?php if ($r['kind'] === 'doctor' && abs($r[$k]) >= 0.5): ?>
+                        <td class="n exp"><div class="xi-amt"><?= income_detail_button($k, (int)$r['id']) ?><span><?= incCell($r[$k]) ?></span></div></td>
+                        <?php else: ?>
                         <td class="n exp"><?= incCell($r[$k]) ?></td>
+                        <?php endif; ?>
                         <?php if ($k === 'store'): ?><td class="n exp"><?= store_share_cell($r, 'incCell') ?></td><?php endif; ?>
                         <?php endforeach; ?>
                         <?php foreach ($incColumns as $c): ?>
@@ -338,10 +346,12 @@ $manReturn = $rangeQs($from, $to);
     <?php if ($canManual || $manualList): ?>
     <!-- داهاتی دەستی: pharmacy / examination money the system did not record,
          added on top of those two rows (classes/IncomeManualEntry.php). -->
-    <section class="inc-mp" id="incManual">
+    <section class="inc-mp" id="incManual" data-fold>
         <div class="inc-mp-head">
             <h3><i class="fas fa-hand-holding-usd"></i> داهاتی دەستی — دەرمانخانە و پشکنین</h3>
             <span>ئەو پارەیەی سیستەمەکە تۆماری نەکردووە. دەخرێتە سەر ڕیزی <b dir="ltr">Pharmacy</b> و <b dir="ltr">Examinations</b>.</span>
+            <b class="inc-fold-sum"><?= count($manualList) ?> تۆمار · <?= dsMoney(array_sum(array_map(fn($m) => (float)$m['amount'], $manualList))) ?></b>
+            <button type="button" class="inc-fold-btn" aria-controls="incManual"></button>
         </div>
 
         <?php if (isset($_GET['man_added'])): ?>
@@ -429,10 +439,12 @@ $manReturn = $rangeQs($from, $to);
     <?php if ($canColumns || $incColumnEntries): ?>
     <!-- کۆڵۆمی تایبەت: columns of the accountant's own, each amount on a doctor
          (classes/IncomeColumn.php). «+» on a doctor's cell opens the same dialog. -->
-    <section class="inc-mp inc-cs" id="incCols">
+    <section class="inc-mp inc-cs" id="incCols" data-fold>
         <div class="inc-mp-head">
             <h3><i class="fas fa-user-minus"></i> کۆڵۆمی تایبەت — لێبڕین و خەرجی سەر دکتۆر</h3>
             <span>بڕەکان لە ڕیزی دکتۆرەکە دەبڕدرێن. گەڕاندنەوەی پارە پسوولەی خۆی هەیە، لە فایلی نەخۆش دەردەکەوێت و لە قاسە کەم دەبێتەوە.</span>
+            <b class="inc-fold-sum"><?= count($incColumns) ?> کۆڵۆم · <?= count(array_filter($incColumnEntries, fn($m) => $m['status'] === 'active')) ?> تۆمار</b>
+            <button type="button" class="inc-fold-btn" aria-controls="incCols"></button>
         </div>
 
         <?php
@@ -635,6 +647,15 @@ $manReturn = $rangeQs($from, $to);
 .inc-mp{margin-top:14px;background:#fff;border-radius:16px;padding:16px 20px;
     box-shadow:0 1px 2px rgba(15,23,42,.06),0 10px 28px -14px rgba(15,23,42,.22)}
 .inc-mp-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:12px}
+/* The lists under the sheet open on demand (the script after this style). */
+.inc-fold-sum{margin-inline-start:auto;font-size:12.5px;color:#0369a1;white-space:nowrap}
+.inc-fold-btn{height:30px;padding:0 12px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#334155;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.inc-fold-btn:hover{border-color:#0284c7;color:#0284c7}
+.inc-fold-btn::after{content:' ▾'}
+.inc-mp:not(.is-folded) .inc-fold-btn::after{content:' ▴'}
+.inc-mp.is-folded{padding-top:12px;padding-bottom:12px}
+.inc-mp.is-folded .inc-mp-head{margin-bottom:0;align-items:center}
+.inc-mp.is-folded .inc-mp-head>span,.inc-mp.is-folded>:not(.inc-mp-head){display:none}
 .inc-mp-head h3{margin:0;font-size:15px;color:#0f172a}
 .inc-mp-head h3 i{color:#d97706}
 .inc-mp-head span{font-size:12.5px;color:#64748b}
@@ -997,5 +1018,38 @@ $manReturn = $rangeQs($from, $to);
 })();
 </script>
 <?php endif; ?>
+
+<script>
+// The lists under the sheet (داهاتی دەستی, کۆڵۆمی تایبەت) are folded to their
+// head line until opened; the choice is remembered per list. One opens by
+// itself when it has just been saved to, when the page or a link points at it,
+// or when a «+» on the sheet sends the cursor into its form.
+(function () {
+    var key = function (s) { return 'inc-fold-' + s.id; };
+    function set(s, open, remember) {
+        s.classList.toggle('is-folded', !open);
+        var b = s.querySelector('.inc-fold-btn');
+        b.textContent = open ? 'شاردنەوە' : 'پیشاندان';
+        b.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (remember) { try { localStorage.setItem(key(s), open ? '1' : '0'); } catch (e) {} }
+    }
+    function open(id) { var s = document.getElementById(id); if (s && s.hasAttribute('data-fold')) set(s, true, false); }
+    document.querySelectorAll('.inc-mp[data-fold]').forEach(function (s) {
+        var saved = null;
+        try { saved = localStorage.getItem(key(s)); } catch (e) {}
+        set(s, saved === '1' || !!s.querySelector('.inc-mp-msg') || location.hash === '#' + s.id, false);
+        s.querySelector('.inc-fold-btn').addEventListener('click', function () { set(s, s.classList.contains('is-folded'), true); });
+    });
+    // Before the sheet's own handlers scroll into the list.
+    document.addEventListener('click', function (ev) {
+        var a = ev.target.closest('a[href^="#inc"]');
+        if (a) open(a.getAttribute('href').slice(1));
+        if (ev.target.closest('.inc-add')) open('incManual');
+    }, true);
+    window.addEventListener('hashchange', function () { open(location.hash.slice(1)); });
+})();
+</script>
+
+<?php income_detail_shell($from, $to); ?>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

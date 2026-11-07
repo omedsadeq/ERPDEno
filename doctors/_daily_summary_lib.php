@@ -349,9 +349,11 @@ function ds_compute_range(Database $db, int $docUserId, string $from, string $to
     // The store falls on him by its own percentages (ئاسایی / ئیمپلانت, set on the
     // store expense page), by his income percentage until they are set.
     $storeOnDoctor = 0.0;
+    $storeOnDoctorByKind = [];
     foreach ($storeByKind as $kind => $amount) {
         $storeRate = $docRow[$kind === 'implant' ? 'store_share_implant' : 'store_share_normal'] ?? $doctorRate;
-        $storeOnDoctor += $amount * (float)$storeRate / 100;
+        $storeOnDoctorByKind[$kind] = $amount * (float)$storeRate / 100;
+        $storeOnDoctor += $storeOnDoctorByKind[$kind];
     }
     // A general expense has no percentage, and a column can be wholly on him too.
     $doctorShare = $doctorRate !== null
@@ -526,6 +528,8 @@ function ds_compute_range(Database $db, int $docUserId, string $from, string $to
         'labExpense'        => $labExpense,
         'storeExpense'      => $storeExpense,
         'storeOnDoctor'     => $storeOnDoctor,
+        'storeByKind'       => $storeByKind,
+        'storeOnDoctorByKind' => $storeOnDoctorByKind,
         'generalExpense'    => $generalExpense,
         'doctorExpenses'    => $doctorExpenses,
         'columnCharges'     => $columns['charges'],
