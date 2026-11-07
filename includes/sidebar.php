@@ -160,7 +160,16 @@ if (in_array($currentPage, ['appointments', 'reception-call-lists', 'doctor-sche
     $activeSection = 'admin';
 }
 ?>
-<nav class="nav-pane" id="navPane">
+<nav class="nav-pane" id="navPane"<?= !empty($navCompactPage) ? ' data-compact-page' : '' ?>>
+<script>
+// Closed before it is drawn, so it never opens and then shuts: the user's own choice,
+// or a page that needs the whole width ($navCompactPage). A phone keeps its slide-in menu.
+(function () {
+    var pane = document.getElementById('navPane'), saved = false;
+    try { saved = localStorage.getItem('navPaneCompact') === 'true'; } catch (e) {}
+    if (window.innerWidth > 767 && (saved || pane.hasAttribute('data-compact-page'))) pane.classList.add('compact');
+})();
+</script>
     <!-- Navigation Pane Header -->
     <div class="nav-pane-header">
         <button class="nav-pane-toggle" onclick="toggleNavPane()" title="کچکردنی لیست">

@@ -139,7 +139,7 @@
     --ribbon-height: 96px;
     --ribbon-collapsed-height: 44px;
     --sidebar-width: 280px;
-    --sidebar-compact-width: 48px;
+    --sidebar-compact-width: 68px;
     --statusbar-height: 28px;
     --panel-min-width: 320px;
 
@@ -1363,6 +1363,94 @@ a:hover {
 
 .nav-pane.compact .nav-user-info {
     display: none;
+}
+
+/* The closed menu: one centred column of the same coloured icons, every one
+   whole. No scrollbar eating the width (it still scrolls), no open-group box;
+   the group holding the current page is the one that is tinted. */
+.nav-pane.compact .nav-pane-header {
+    justify-content: center;
+    padding: var(--space-3) 0;
+}
+
+.nav-pane.compact .nav-pane-logo {
+    display: none;
+}
+
+.nav-pane.compact .nav-pane-content {
+    padding: var(--space-2) 0;
+    scrollbar-width: none;
+}
+
+.nav-pane.compact .nav-pane-content::-webkit-scrollbar {
+    display: none;
+}
+
+.nav-pane.compact .nav-section {
+    margin-bottom: var(--space-2);
+}
+
+.nav-pane.compact .nav-item,
+.nav-pane.compact .nav-group-header {
+    width: 48px;
+    height: 48px;
+    min-height: 48px;
+    margin: 0 auto 4px;
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+}
+
+.nav-pane.compact .nav-group {
+    margin-bottom: 0;
+}
+
+.nav-pane.compact .nav-group-header .nav-item-icon {
+    width: 36px;
+    height: 36px;
+}
+
+.nav-pane.compact .nav-group.open > .nav-group-header {
+    background: transparent;
+    border-color: transparent;
+    margin-bottom: 4px;
+}
+
+.nav-pane.compact .nav-group.open > .nav-group-header .nav-item-icon {
+    transform: none;
+}
+
+.nav-pane.compact .nav-group:has(.nav-item.active) > .nav-group-header {
+    background: rgba(var(--win-accent-rgb, 0, 120, 212), 0.1);
+    border-color: rgba(var(--win-accent-rgb, 0, 120, 212), 0.15);
+}
+
+/* A count is a red dot on the icon's corner. The number is hidden by colour,
+   not size: the app's text-size setting forces every span's font size. */
+.nav-pane.compact .nav-group-header .nav-item-badge,
+.nav-pane.compact .nav-item-badge {
+    display: block;
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 10px;
+    min-width: 10px;
+    height: 10px;
+    padding: 0;
+    font-size: 0;
+    color: transparent;
+    overflow: hidden;
+    border: 2px solid var(--bg-solid-base, #fff);
+}
+
+.nav-pane.compact .nav-pane-footer {
+    padding: var(--space-2) 0;
+}
+
+.nav-pane.compact .nav-user {
+    justify-content: center;
+    gap: 0;
+    padding: var(--space-2) 0;
 }
 
 /* ===================================

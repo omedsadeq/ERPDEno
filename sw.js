@@ -15,7 +15,7 @@
  * new worker takes over immediately, so users never keep broken cached files.
  */
 
-const CACHE_VERSION = 'denthisab-v7'; // v7: accounting approval center rollout (Task 16)
+const CACHE_VERSION = 'denthisab-v8'; // v8: the closed side menu (style.css)
 const STATIC_CACHE = CACHE_VERSION + '-static';
 const OFFLINE_URL = 'offline.html'; // relative to SW scope
 

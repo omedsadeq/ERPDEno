@@ -46,6 +46,12 @@
         // Toggle Collapsible Nav Group (accordion-style)
         function toggleNavGroup(header) {
             const group = header.parentElement;
+            // Closed menu: a group's pages have nowhere to show, so open the menu with it.
+            const navPane = document.getElementById('navPane');
+            if (navPane && navPane.classList.contains('compact')) {
+                toggleNavPane();
+                if (group.classList.contains('open')) return;
+            }
             const isOpening = !group.classList.contains('open');
             const items = group.querySelector('.nav-group-items');
 
@@ -94,6 +100,23 @@
             const navPane = document.getElementById('navPane');
             navPane.classList.toggle('compact');
             localStorage.setItem('navPaneCompact', navPane.classList.contains('compact'));
+            syncNavTitles();
+        }
+
+        // Closed menu: each icon names its page on hover.
+        function syncNavTitles() {
+            const navPane = document.getElementById('navPane');
+            if (!navPane) return;
+            const compact = navPane.classList.contains('compact');
+            navPane.querySelectorAll('.nav-item, .nav-group-header').forEach(function(el) {
+                const text = el.querySelector('.nav-item-text');
+                if (!text) return;
+                if (compact) {
+                    el.title = text.textContent.trim();
+                } else if (el.title === text.textContent.trim()) {
+                    el.removeAttribute('title');
+                }
+            });
         }
 
         // Toggle Mobile Navigation
@@ -126,10 +149,13 @@
 
         // Initialize Navigation Pane state
         document.addEventListener('DOMContentLoaded', function() {
-            const navPaneCompact = localStorage.getItem('navPaneCompact') === 'true';
+            const navPaneEl = document.getElementById('navPane');
+            const navPaneCompact = localStorage.getItem('navPaneCompact') === 'true'
+                || !!(navPaneEl && navPaneEl.hasAttribute('data-compact-page'));
             if (navPaneCompact && window.innerWidth > 767) {
-                document.getElementById('navPane')?.classList.add('compact');
+                navPaneEl?.classList.add('compact');
             }
+            syncNavTitles();
 
             // Restore saved nav group states (only for groups not auto-opened by active page)
             const openGroups = JSON.parse(localStorage.getItem('navGroupsOpen') || '{}');
