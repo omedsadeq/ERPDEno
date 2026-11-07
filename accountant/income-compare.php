@@ -19,6 +19,8 @@ require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/Permission.php';
 require_once __DIR__ . '/../doctors/_daily_summary_lib.php';
 require_once __DIR__ . '/_income_compare_report.php';
+require_once __DIR__ . '/../includes/VisitReportMatrix.php';
+require_once __DIR__ . '/../includes/VisitReferralReport.php';
 
 $auth = new Auth();
 $auth->requireLogin();
@@ -40,6 +42,22 @@ function income_compare_period(string $from, string $to): array
     $byKey = [];
     foreach ($rows as $r) {
         $byKey[$r['kind'] === 'doctor' ? 'd' . $r['id'] : $r['kind']] = $r;
+    }
+    // کەیسی پێدراو: patients another examiner, reception or the patient sent to
+    // this doctor for work — the visits report's «ناردن بۆ ئیش» tab, its column total.
+    $db = Database::getInstance();
+    $referrals = dh_visit_referral_report($db, ['from' => $from, 'to' => $to, 'date_filter' => 'visit_date', 'examiner_id' => 0]);
+    foreach ($db->fetchAll('SELECT id, user_id FROM doctors WHERE user_id IS NOT NULL') as $d) {
+        if (isset($byKey['d' . $d['user_id']])) {
+            $byKey['d' . $d['user_id']]['report']['casesGiven'] = (int)($referrals['column_totals'][(int)$d['id']] ?? 0);
+        }
+    }
+    // The store percentages as set in the system (the store page's «ڕێژەی دکتۆرەکان»),
+    // shown beside the doctor's own so the paper says which rule made each share.
+    foreach ($db->fetchAll("SELECT id, store_share_normal, store_share_implant FROM users WHERE role = 'doctor'") as $u) {
+        if (isset($byKey['d' . $u['id']])) {
+            $byKey['d' . $u['id']]['report']['storeRates'] = ['normal' => $u['store_share_normal'], 'implant' => $u['store_share_implant']];
+        }
     }
     return [
         'from' => $from, 'to' => $to, 'days' => (int)round((strtotime($to) - strtotime($from)) / 86400) + 1,

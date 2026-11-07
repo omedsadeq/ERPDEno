@@ -21,7 +21,7 @@ function income_compare_report_columns(bool $withChange): array
         'implant' => 'ئیمپلانت', 'implantDoc' => 'ئیمپلانت دکتۆر', 'implantCtr' => 'ئیمپلانت لێزان',
         'net' => 'ماوە', 'rate' => 'دابەشکردن', 'doctor' => 'ماوەی دکتۆر', 'center' => 'ماوەی لێزان',
         'change' => 'بەراورد', 'minutes' => 'سەعات', 'days' => 'ڕۆژ',
-        'pending' => 'داواکراو', 'given' => 'پێدراو', 'old' => 'کۆن', 'new' => 'نوێ',
+        'pending' => 'داواکراو', 'given' => 'پێدراو', 'old' => 'کۆن', 'new' => 'نوێ', 'cases' => 'کەیسی پێدراو',
     ];
     if (!$withChange) {
         unset($cols['change']);
@@ -45,6 +45,7 @@ function income_compare_report_line(array $r, float $s): array
             'doctor' => $n($r['doctorShare']), 'minutes' => $rep['minutes'] === null ? null : $n($rep['minutes']), 'days' => $n($rep['days']),
             'pending' => $n($rep['checkups']['pending'] ?? 0), 'given' => $n($rep['checkups']['given'] ?? 0),
             'old' => $n($rep['checkups']['old_exam'] ?? 0), 'new' => $n($rep['checkups']['new_exam'] ?? 0),
+            'cases' => $n($rep['casesGiven'] ?? 0),
         ];
     }
     return $line;
@@ -86,9 +87,9 @@ function income_compare_report(array $P, ?array $base, string $title, float $sca
     }
 
     // Fixed widths (%), so both periods' tables line up column for column in the PDF.
-    $widths = ['name' => 10, 'amount' => 6.5, 'lab' => 5, 'normal' => 5, 'normalDoc' => 5, 'normalCtr' => 5, 'implant' => 5.5,
-               'implantDoc' => 5.5, 'implantCtr' => 5.5, 'net' => 6.5, 'rate' => 5, 'doctor' => 6.5, 'center' => 6.5, 'change' => 4,
-               'minutes' => 4, 'days' => 2.5, 'pending' => 3, 'given' => 3, 'old' => 2.5, 'new' => 2.5];
+    $widths = ['name' => 9, 'amount' => 6, 'lab' => 5, 'normal' => 5, 'normalDoc' => 5, 'normalCtr' => 5, 'implant' => 5.5,
+               'implantDoc' => 5.5, 'implantCtr' => 5.5, 'net' => 6, 'rate' => 5, 'doctor' => 6.5, 'center' => 6.5, 'change' => 4,
+               'minutes' => 4, 'days' => 2.5, 'pending' => 3, 'given' => 3, 'old' => 2.5, 'new' => 2.5, 'cases' => 3];
     $html = '<div class="cr-title">' . $e($title) . '</div><table class="cr"><thead><tr>';
     foreach ($cols as $k => $label) {
         $html .= '<th width="' . ($widths[$k] ?? 4) . '%">' . $e($label) . '</th>';
@@ -106,13 +107,21 @@ function income_compare_report(array $P, ?array $base, string $title, float $sca
             if ($k === 'name') {
                 $html .= '<td class="nm">' . $e($r['label']) . '</td>';
             } elseif ($k === 'rate') {
-                $html .= '<td class="rt">' . ($doctorRow && $r['rate'] !== null ? 'دکتۆر ' . rtrim(rtrim(number_format($r['rate'], 2, '.', ''), '0'), '.') . '%' : '') . '</td>';
+                $pct = fn($v) => rtrim(rtrim(number_format((float)$v, 2, '.', ''), '0'), '.') . '%';
+                $cell = $doctorRow && $r['rate'] !== null ? 'دکتۆر ' . $pct($r['rate']) : '';
+                // the store's own percentages, when set; unset, the doctor's applies
+                $sr = $r['report']['storeRates'] ?? [];
+                $parts = array_filter([
+                    ($sr['normal'] ?? null) !== null ? 'کۆگا ' . $pct($sr['normal']) : null,
+                    ($sr['implant'] ?? null) !== null ? 'ئیمپ ' . $pct($sr['implant']) : null,
+                ]);
+                $html .= '<td class="rt">' . $cell . ($cell !== '' && $parts ? '<br><small>' . implode(' · ', $parts) . '</small>' : '') . '</td>';
             } elseif ($k === 'change') {
                 $was = isset($base['rows'][$key]) ? income_compare_report_line($base['rows'][$key], $baseScale)['center'] : 0.0;
                 $html .= '<td class="ch">' . income_compare_report_pct($was, $line['center']) . '</td>';
             } elseif ($k === 'minutes') {
                 $html .= '<td class="n">' . $hours($line['minutes'] ?? null) . '</td>';
-            } elseif (in_array($k, ['days', 'pending', 'given', 'old', 'new'], true)) {
+            } elseif (in_array($k, ['days', 'pending', 'given', 'old', 'new', 'cases'], true)) {
                 $v = $line[$k] ?? null;
                 $html .= '<td class="c">' . ($v === null ? '' : (abs($v) < 0.05 ? ($doctorRow ? 'نەبوو' : '') : rtrim(rtrim(number_format($v, 1), '0'), '.'))) . '</td>';
             } else {
@@ -131,7 +140,7 @@ function income_compare_report(array $P, ?array $base, string $title, float $sca
             $html .= '<td class="ch">' . income_compare_report_pct($baseTotals['center'], $totals['center']) . '</td>';
         } elseif ($k === 'minutes') {
             $html .= '<td class="n">' . $hours(!empty($anyMinutes) ? $totals['minutes'] : null) . '</td>';
-        } elseif (in_array($k, ['days', 'pending', 'given', 'old', 'new'], true)) {
+        } elseif (in_array($k, ['days', 'pending', 'given', 'old', 'new', 'cases'], true)) {
             $html .= '<td class="c">' . rtrim(rtrim(number_format($totals[$k], 1), '0'), '.') . '</td>';
         } else {
             $html .= '<td class="n">' . $money($totals[$k], false) . '</td>';
