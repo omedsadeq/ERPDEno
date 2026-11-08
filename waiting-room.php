@@ -50,6 +50,10 @@ $hasFullAccess = $isAdmin || $isReceptionist; // Receptionist sees all like admi
 $doctorWaitingActions = ['call', 'complete', 'send_accounting', 'edit_waiting', 'add_walk_in', 'open_case', 'open_plan'];
 // «پلانی چارەسەر» on a checkup's card: the doctor or the admin, with the plan permission.
 $canPlanFromQueue = ($isDoctorRole || $isAdmin) && Permission::getInstance()->can('treatment_plan.write');
+// «دەرمان» on a patient in the room: many are examined and only need medicine —
+// no case, no treatment plan. The prescription dialog (includes/rx-dialog.php)
+// opens for that patient and the entry's doctor.
+$canRxFromQueue = ($isDoctorRole || $isAdmin) && Permission::getInstance()->can('erp2.prescriptions.create');
 // ڕێکخستنەکان › دەستگەیشتن › «بانگکردنی نەخۆش»: the admin may limit `call` to
 // chosen doctors; the others leave calling to reception.
 $doctorMayCall = !$isDoctorRole || $isAdmin || Settings::doctorMayCallPatients((int)$currentUser['id']);
@@ -1691,6 +1695,10 @@ $waitingRoomRejectReasons = $db->fetchAll("
 .wr-btn-accounting { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
 .wr-btn-accounting:hover { background: #d1fae5; box-shadow: none; }
 .wr-patient-actions > .wr-btn-xray { background: #f5f3ff; color: #5b21b6; border: 1px solid #ddd6fe; }
+/* «دەرمان»: the prescription sheet for this patient, in the case page's rose */
+.wr-patient-actions > .wr-btn-rx { min-height: 38px; padding: 8px 16px; font-size: 14px; font-weight: 800; border: 0; border-radius: 10px;
+    background: linear-gradient(135deg, #f43f5e, #e11d48); color: #fff; box-shadow: 0 4px 12px rgba(225, 29, 72, .25); }
+.wr-patient-actions > .wr-btn-rx:hover { background: linear-gradient(135deg, #e11d48, #be123c); transform: translateY(-1px); }
 .wr-patient-actions > .wr-btn-xray:hover { background: #ede9fe; box-shadow: none; }
 .wr-more { margin-inline-start: auto; }
 .wr-patient-actions > .wr-more > .wr-more-btn { width: 36px; padding: 0; justify-content: center; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; font-size: 15px; }
@@ -3327,6 +3335,11 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
                             <i class="fas fa-clipboard-list"></i> پلانی چارەسەر
                         </button>
                     </form>
+                    <?php endif; ?>
+                    <?php if ($canRxFromQueue && !empty($w['doctor_id']) && ($w['doctor_role'] ?? '') !== 'xray_department'): ?>
+                    <button type="button" class="wr-btn wr-btn-rx" onclick="wrOpenRx(this)" title="دەرمان بۆ نەخۆش بنووسە — بێ کەیس و بێ پلانی چارەسەر">
+                        <i class="fas fa-pills"></i> دەرمان
+                    </button>
                     <?php endif; ?>
                     <a href="<?= APP_URL ?>/xray/request.php?patient_id=<?= $w['patient_id'] ?>" class="wr-btn wr-btn-xray" style="text-decoration: none;" title="داواکاری ئێکسڕەی">
                         <i class="fas fa-x-ray"></i> ئێکسڕەی
@@ -5606,4 +5619,21 @@ document.addEventListener('submit', function(e) {
 </script>
 
 <?php if ($permission->can('page.new_visit')) require __DIR__ . '/includes/new_visit_dialog.php'; ?>
+<?php if ($canRxFromQueue): ?>
+<?php $rxCtx = []; require __DIR__ . '/includes/rx-dialog.php'; // one dialog; wrOpenRx() points it at a patient ?>
+<script>
+/** «دەرمان» on a card: the prescription sheet for that patient and the entry's doctor, no case. */
+function wrOpenRx(btn) {
+    const card = btn.closest('.wr-patient-card');
+    if (!card || typeof openMedicineDialog !== 'function') return;
+    openMedicineDialog({
+        patientId: card.dataset.patientId,
+        patientName: card.dataset.patientName,
+        doctorId: card.dataset.doctorId,
+        doctorName: card.dataset.doctorName,
+        caseId: 0
+    });
+}
+</script>
+<?php endif; ?>
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

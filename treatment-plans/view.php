@@ -304,6 +304,15 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
             <span class="tab-label">چارەسەرەکان</span>
             <span class="tab-count" id="pvItemCount"><?= count($items) ?></span>
         </button>
+        <?php if ($perm->can('erp2.prescriptions.create') || $perm->can('erp2.prescriptions.view')): ?>
+        <?php // دەرمان: the prescription sheet as a dialog (includes/rx-dialog.php) — an
+              // examined patient may need only medicine, with no work in the plan ?>
+        <button type="button" class="tab tab--rx" id="pvTab-rx" onclick="openMedicineDialog()" title="دەرمان بۆ نەخۆش بنووسە">
+            <i class="fas fa-pills" aria-hidden="true"></i>
+            <span class="tab-label">دەرمان</span>
+            <span class="tab-count" id="rxTabCount">0</span>
+        </button>
+        <?php endif; ?>
     </div>
 
     <!-- ═══ Chart tab ═══ -->
@@ -444,5 +453,17 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
 </style>
 <?php require __DIR__ . '/_view_script.php'; ?>
 <?php require __DIR__ . '/_view_routing.php'; ?>
+<?php
+// دەرمانی نەخۆش for the plan's patient: no case — the prescription stands on
+// the patient; the examiner is its doctor when someone else writes it.
+$rxCtx = [
+    'patient_id'   => (int)$plan['patient_id'],
+    'case_id'      => 0,
+    'patient_name' => (string)($plan['patient_name'] ?? ''),
+    'doctor_id'    => (int)($plan['doctor_id'] ?? 0),
+    'doctor_name'  => (string)($plan['doctor_name'] ?? ''),
+];
+require __DIR__ . '/../includes/rx-dialog.php';
+?>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
