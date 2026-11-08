@@ -24,9 +24,10 @@
  *   + manual      both rows also add the amounts the accountant typed in by
  *                 hand for that period (classes/IncomeManualEntry.php)
  *   expenses      expenses_lab / _store / _general (+ the legacy table)
- *   own columns   what the accountant added on a doctor under a column of his
- *                 own (classes/IncomeColumn.php): always subtracted, whatever
- *                 the expense chips say — the cash has already moved
+ *   own columns   what the accountant added on a doctor — or on the X-ray /
+ *                 Pharmacy row — under a column of his own
+ *                 (classes/IncomeColumn.php): always subtracted, whatever the
+ *                 expense chips say
  *
  * Each row's کۆی گشتی is then split: پشکی دکتۆر = net × the doctor's
  * percentage (users.commission_rate, set on the doctor's account in
@@ -174,10 +175,13 @@ if (in_array('general', $expSel, true) && array_sum(array_column($doctorRows, 'g
 // (includes/income-detail.php); the row is their total.
 $xrayLines = xray_income_lines($db, $from, $to);
 $xrayTypes = xray_income_totals($xrayLines);
+// کۆڵۆمی تایبەت on this row (a cost of the x-ray's own), off its net
+$xrayCols = IncomeColumn::forRow($db, 'xray', $from, $to);
 $deptRows = [['kind' => 'xray', 'label' => 'X-ray',
               'count' => array_sum(array_column($xrayTypes, 'count')),
               'amount' => array_sum(array_column($xrayTypes, 'amount')),
-              'lab' => 0.0, 'store' => 0.0, 'general' => 0.0]];
+              'lab' => 0.0, 'store' => 0.0, 'general' => 0.0,
+              'cols' => $xrayCols['cols'], 'colTotal' => $xrayCols['total']]];
 
 // ── Pharmacy: what the pharmacy (erp2) SOLD ──────────────────────────
 // Every confirmed sale on its sale date, whether paid in cash or on credit —
@@ -221,7 +225,9 @@ foreach ([
     'exam'     => ['Examinations', (int)($exam['n'] ?? 0), (float)($exam['amt'] ?? 0)],
 ] as $kind => [$label, $sysCount, $sysAmount]) {
     $m = $manualTotals[$kind];
-    $deptRows[] = ['kind' => $kind, 'label' => $label,
+    // کۆڵۆمی تایبەت on the pharmacy row (none on the examinations)
+    $rowCols = IncomeColumn::forRow($db, $kind, $from, $to);
+    $deptRows[] = ['kind' => $kind, 'label' => $label, 'cols' => $rowCols['cols'], 'colTotal' => $rowCols['total'],
                    'count' => $sysCount + $m['qty'], 'amount' => $sysAmount + $m['amount'],
                    'lab' => 0.0, 'store' => 0.0, 'general' => 0.0,
                    'sysAmount' => $sysAmount, 'sysCount' => $sysCount,
@@ -275,7 +281,7 @@ $incColumnEntries = $incomeColumns->listEntries($from, $to);
 $canColumns = $incomeColumns->available() && Permission::getInstance()->can(IncomeColumn::PERMISSION);
 $totals['cols'] = [];
 foreach ($incColumns as $c) {
-    $totals['cols'][$c['id']] = (float)array_sum(array_map(fn($r) => $r['cols'][$c['id']] ?? 0.0, $doctorRows));
+    $totals['cols'][$c['id']] = (float)array_sum(array_map(fn($r) => $r['cols'][$c['id']] ?? 0.0, $rows));
 }
 
 // The period's expenses by kind (the legacy `expenses` table counts as general).

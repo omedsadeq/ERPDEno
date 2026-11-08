@@ -19,6 +19,12 @@
  * A day a doctor is already settled for is closed: its paper is signed, so an
  * entry there would change money nobody would ever pay out. Give it the day the
  * money really went, and it comes off his next settlement.
+ *
+ * The X-ray and Pharmacy rows take amounts too (row_kind, no doctor): a cost of
+ * their own. A row has no doctor to share with, so each entry says whether the
+ * money left a box (row_cash_out: X-ray's own box, Pharmacy from the centre's,
+ * CashboxLedger::bookIncomeRow) or only lowers the row on the sheet. No voucher
+ * and no patient there — those are for money given back on a doctor's work.
  */
 
 require_once __DIR__ . '/Database.php';
@@ -28,6 +34,9 @@ require_once __DIR__ . '/CashboxLedger.php';
 class IncomeColumn
 {
     public const PERMISSION = 'income.columns';
+
+    /** The rows of the sheet with no doctor that take amounts: row_kind => label. */
+    public const ROWS = ['xray' => 'X-ray', 'pharmacy' => 'Pharmacy'];
 
     private $db;
 
@@ -70,6 +79,31 @@ class IncomeColumn
             $out['total'] += $amount;
             $out['onDoctor'] += $r['on_doctor'] ? $amount : 0.0;
             $out['cashOut'] += $r['cash_out'] ? $amount : 0.0;
+        }
+        return $out;
+    }
+
+    /**
+     * What the columns take off the X-ray or Pharmacy row in a period:
+     * column id => amount, and their total (all of it off the row's net).
+     *
+     * @return array{cols: array<int,float>, total: float}
+     */
+    public static function forRow(Database $db, string $kind, string $from, string $to): array
+    {
+        $out = ['cols' => [], 'total' => 0.0];
+        if (!isset(self::ROWS[$kind]) || !$db->tableExists('income_column_entries')
+            || !$db->fetch("SHOW COLUMNS FROM income_column_entries LIKE 'row_kind'")) {
+            return $out;
+        }
+        foreach ($db->fetchAll(
+            "SELECT column_id, SUM(amount) AS amount FROM income_column_entries
+             WHERE row_kind = :k AND status = 'active' AND entry_date BETWEEN :f AND :t
+             GROUP BY column_id",
+            ['k' => $kind, 'f' => $from, 't' => $to]
+        ) as $r) {
+            $out['cols'][(int)$r['column_id']] = (float)$r['amount'];
+            $out['total'] += (float)$r['amount'];
         }
         return $out;
     }
@@ -289,9 +323,12 @@ class IncomeColumn
     public function entryFromInput(array $in): array
     {
         $column = $this->column((int)($in['column_id'] ?? 0));
-        $doctorId = (int)($in['doctor_id'] ?? 0);
-        if (!$this->db->fetch("SELECT id FROM users WHERE id = :id AND role = 'doctor'", ['id' => $doctorId])) {
-            throw new InvalidArgumentException('دکتۆر هەڵبژێرە');
+        // On a doctor, or on the X-ray / Pharmacy row (the same picker sends either).
+        $target = (string)($in['doctor_id'] ?? '');
+        $rowKind = isset(self::ROWS[$target]) ? $target : null;
+        $doctorId = $rowKind === null ? (int)$target : null;
+        if ($rowKind === null && !$this->db->fetch("SELECT id FROM users WHERE id = :id AND role = 'doctor'", ['id' => $doctorId])) {
+            throw new InvalidArgumentException('دکتۆر یان بەش هەڵبژێرە');
         }
         $digits = ['٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4', '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9', '٫' => '.', '٬' => ''];
         $date = strtr(trim((string)($in['entry_date'] ?? '')), $digits);
@@ -314,6 +351,10 @@ class IncomeColumn
             'amount'     => number_format((float)$amountText, 2, '.', ''),
             'note'       => $note !== '' ? $note : null,
         ];
+        if ($rowKind !== null) {
+            // the accountant's answer in the dialog: did the money leave a box?
+            return $data + ['row_kind' => $rowKind, 'row_cash_out' => (string)($in['row_cash_out'] ?? '1') === '0' ? 0 : 1];
+        }
         if (!$column['cash_out']) {
             return $data;
         }
@@ -377,8 +418,17 @@ class IncomeColumn
     {
         $reference = $entry['voucher_no'] ?? ('COL-' . $id);
         $label = $column['name'] . ' ' . $reference
+            . (!empty($entry['row_kind']) ? ' — ' . self::ROWS[$entry['row_kind']] : '')
             . (!empty($entry['patient_name']) ? ' — ' . $entry['patient_name'] : '')
             . ($note !== '' ? ' — ' . $note : '');
+        if (!empty($entry['row_kind'])) {
+            // a row: out of its box only if the money really left
+            (new CashboxLedger())->bookIncomeRow(
+                $id, (string)$entry['row_kind'], !empty($entry['row_cash_out']) ? $cents : 0,
+                $reference, $label, (string)$entry['entry_date'], $userId ?: null
+            );
+            return;
+        }
         (new CashboxLedger())->bookIncomeColumn(
             $id, (int)$entry['doctor_id'], $cents, (bool)$column['cash_out'], (bool)$column['on_doctor'],
             $reference, $label, (string)$entry['entry_date'], $userId ?: null
@@ -393,9 +443,13 @@ class IncomeColumn
             if (!$column['is_active']) {
                 throw new InvalidArgumentException('ئەم کۆڵۆمە لابراوە');
             }
-            $this->assertOpen((int)$data['doctor_id'], $data['entry_date']);
+            $onRow = !empty($data['row_kind']);
+            if (!$onRow) {
+                $this->assertOpen((int)$data['doctor_id'], $data['entry_date']);
+            }
             $cents = CashboxLedger::cents($data['amount']);
-            if ($column['cash_out']) {
+            // money given back (a voucher) is a doctor's; a row's entry is a cost
+            if ($column['cash_out'] && !$onRow) {
                 // The case row is the lock: two vouchers cannot both spend the same room.
                 $this->db->fetch('SELECT id FROM cases WHERE id = ? FOR UPDATE', [(int)$data['case_id']]);
                 $room = $this->roomOnCase((int)$data['case_id']);
@@ -405,7 +459,7 @@ class IncomeColumn
             }
             $data['created_by'] = $userId ?: null;
             $id = (int)$this->db->insert('income_column_entries', $data);
-            if ($column['cash_out']) {
+            if ($column['cash_out'] && !$onRow) {
                 $data['voucher_no'] = 'RF-' . date('Ym') . '-' . str_pad((string)$id, 4, '0', STR_PAD_LEFT);
                 $this->db->update('income_column_entries', ['voucher_no' => $data['voucher_no']], 'id = :id', ['id' => $id]);
             }
@@ -425,14 +479,20 @@ class IncomeColumn
         $this->db->beginTransaction();
         try {
             $old = $this->entry($id);
-            if ($old['cash_out']) {
+            if (!empty($old['voucher_no'])) {
                 throw new InvalidArgumentException('پسوولە دەستکاری ناکرێت؛ هەڵیبوەشێنەوە و دانەیەکی نوێ تۆمار بکە');
             }
             if ((int)$data['column_id'] !== (int)$old['column_id']) {
                 throw new InvalidArgumentException('کۆڵۆمی تۆمارێک ناگۆڕدرێت؛ هەڵیبوەشێنەوە و لە کۆڵۆمەکەی تر تۆماری بکە');
             }
-            $this->assertOpen((int)$old['doctor_id'], $old['entry_date']);
-            $this->assertOpen((int)$data['doctor_id'], $data['entry_date']);
+            // a doctor's stays a doctor's, a row's a row's: they move different boxes
+            if (empty($old['row_kind']) !== empty($data['row_kind'])) {
+                throw new InvalidArgumentException('تۆمارێکی سەر دکتۆر ناچێتە سەر X-ray / Pharmacy و بە پێچەوانەوە؛ هەڵیبوەشێنەوە و دووبارە تۆماری بکە');
+            }
+            if (empty($old['row_kind'])) {
+                $this->assertOpen((int)$old['doctor_id'], $old['entry_date']);
+                $this->assertOpen((int)$data['doctor_id'], $data['entry_date']);
+            }
             $data['updated_by'] = $userId ?: null;
             $data['updated_at'] = date('Y-m-d H:i:s');
             $this->db->update('income_column_entries', $data, 'id = :id', ['id' => $id]);
@@ -455,7 +515,9 @@ class IncomeColumn
         $this->db->beginTransaction();
         try {
             $old = $this->entry($id);
-            $this->assertOpen((int)$old['doctor_id'], $old['entry_date']);
+            if (empty($old['row_kind'])) {
+                $this->assertOpen((int)$old['doctor_id'], $old['entry_date']);
+            }
             $changes = ['status' => 'cancelled', 'cancelled_by' => $userId ?: null,
                         'cancelled_at' => date('Y-m-d H:i:s'), 'cancel_reason' => $reason];
             $this->db->update('income_column_entries', $changes, 'id = :id', ['id' => $id]);

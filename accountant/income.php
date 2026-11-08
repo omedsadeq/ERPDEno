@@ -266,10 +266,10 @@ body.inc-full-open{overflow:hidden}
                         <?php endforeach; ?>
                         <?php foreach ($incColumns as $c): ?>
                         <td class="n cus">
-                            <?php if ($r['kind'] === 'doctor'): ?>
+                            <?php if ($r['kind'] === 'doctor' || isset(IncomeColumn::ROWS[$r['kind']])): ?>
                             <div class="inc-cc">
                                 <?php if ($canColumns && $c['is_active']): ?>
-                                <button type="button" class="inc-cadd" data-col="<?= (int)$c['id'] ?>" data-doctor="<?= (int)$r['id'] ?>" title="زیادکردن لەسەر <?= dsEsc($r['label']) ?>"><i class="fas fa-plus"></i></button>
+                                <button type="button" class="inc-cadd" data-col="<?= (int)$c['id'] ?>" data-doctor="<?= $r['kind'] === 'doctor' ? (int)$r['id'] : dsEsc($r['kind']) ?>" title="زیادکردن لەسەر <?= dsEsc($r['label']) ?>"><i class="fas fa-plus"></i></button>
                                 <?php endif; ?>
                                 <span><?= incCell($r['cols'][$c['id']] ?? 0.0) ?></span>
                             </div>
@@ -453,7 +453,7 @@ body.inc-full-open{overflow:hidden}
          (classes/IncomeColumn.php). «+» on a doctor's cell opens the same dialog. -->
     <section class="inc-mp inc-cs" id="incCols" data-fold>
         <div class="inc-mp-head">
-            <h3><i class="fas fa-user-minus"></i> کۆڵۆمی تایبەت — لێبڕین و خەرجی سەر دکتۆر</h3>
+            <h3><i class="fas fa-user-minus"></i> کۆڵۆمی تایبەت — لێبڕین و خەرجی سەر دکتۆر، X-ray و Pharmacy</h3>
             <span>بڕەکان لە ڕیزی دکتۆرەکە دەبڕدرێن. گەڕاندنەوەی پارە پسوولەی خۆی هەیە، لە فایلی نەخۆش دەردەکەوێت و لە قاسە کەم دەبێتەوە.</span>
             <b class="inc-fold-sum"><?= count($incColumns) ?> کۆڵۆم · <?= count(array_filter($incColumnEntries, fn($m) => $m['status'] === 'active')) ?> تۆمار</b>
             <button type="button" class="inc-fold-btn" aria-controls="incCols"></button>
@@ -501,7 +501,7 @@ body.inc-full-open{overflow:hidden}
         <?php if ($incColumnEntries): ?>
         <div class="inc-scroll">
             <table class="inc-mp-tbl">
-                <thead><tr><th>ڕێکەوت</th><th>کۆڵۆم</th><th>نەخۆش</th><th>دکتۆر</th><th>بڕ</th><th>تێبینی</th><th>تۆمارکەر</th><th></th></tr></thead>
+                <thead><tr><th>ڕێکەوت</th><th>کۆڵۆم</th><th>نەخۆش</th><th>لەسەر</th><th>بڕ</th><th>تێبینی</th><th>تۆمارکەر</th><th></th></tr></thead>
                 <tbody>
                 <?php foreach ($incColumnEntries as $m): $isLive = $m['status'] === 'active'; ?>
                     <tr class="<?= $isLive ? '' : 'is-off' ?>">
@@ -516,7 +516,12 @@ body.inc-full-open{overflow:hidden}
                             <small class="inc-vno"><?= dsEsc($m['case_label']) ?></small>
                             <?php else: ?>—<?php endif; ?>
                         </td>
-                        <td><?= dsEsc($m['doctor_name'] ?? '—') ?></td>
+                        <td>
+                            <?php if (!empty($m['row_kind'])): ?>
+                            <b><?= dsEsc(IncomeColumn::ROWS[$m['row_kind']] ?? $m['row_kind']) ?></b>
+                            <small class="inc-vno"><?= $m['row_cash_out'] ? 'لە قاسە دەرچوو' : 'تەنها لە خشتەکە' ?></small>
+                            <?php else: ?><?= dsEsc($m['doctor_name'] ?? '—') ?><?php endif; ?>
+                        </td>
                         <td class="n"><?= dsMoney((float)$m['amount']) ?></td>
                         <td>
                             <?= dsEsc($m['note'] ?? '') ?>
@@ -533,6 +538,7 @@ body.inc-full-open{overflow:hidden}
                             <?php if (!$m['voucher_no']): ?>
                             <button type="button" class="inc-ce-edit" title="دەستکاری" data-entry="<?= dsEsc(json_encode([
                                 'id' => (int)$m['id'], 'column_id' => (int)$m['column_id'], 'doctor_id' => (int)$m['doctor_id'],
+                                'row_kind' => (string)($m['row_kind'] ?? ''), 'row_cash_out' => (int)($m['row_cash_out'] ?? 1),
                                 'entry_date' => $m['entry_date'], 'amount' => (float)$m['amount'], 'note' => (string)($m['note'] ?? ''),
                             ], JSON_UNESCAPED_UNICODE)) ?>"><i class="fas fa-pen"></i></button>
                             <?php endif; ?>
@@ -616,14 +622,28 @@ body.inc-full-open{overflow:hidden}
                     <small class="inc-dlg-room"></small>
                 </label>
             </div>
-            <label class="inc-dlg-f">دکتۆر
+            <label class="inc-dlg-f">لەسەر
                 <select name="doctor_id" required>
                     <option value="">— هەڵبژێرە —</option>
+                    <optgroup label="دکتۆرەکان">
                     <?php foreach ($doctorRows as $d): ?>
                     <option value="<?= (int)$d['id'] ?>"><?= dsEsc($d['label']) ?></option>
                     <?php endforeach; ?>
+                    </optgroup>
+                    <optgroup label="بەشەکان">
+                    <?php foreach (IncomeColumn::ROWS as $rk => $rl): ?>
+                    <option value="<?= dsEsc($rk) ?>"><?= dsEsc($rl) ?></option>
+                    <?php endforeach; ?>
+                    </optgroup>
                 </select>
             </label>
+            <!-- X-ray / Pharmacy have no doctor to share with: the accountant says
+                 whether the money left a box -->
+            <div class="inc-dlg-q inc-dlg-rowcash" hidden>
+                <span>پارەکە لە قاسە دێتە خوارێ؟</span>
+                <label class="inc-dlg-o"><input type="radio" name="row_cash_out" value="1" checked><b>بەڵێ — پارەکە دراوە</b><small>X-ray لە سندوقی ئێکسرە کەم دەبێت، Pharmacy لە قاسەی سەنتەر. ڕیزەکەش لە خشتەکە کەم دەبێت.</small></label>
+                <label class="inc-dlg-o"><input type="radio" name="row_cash_out" value="0"><b>نەخێر — تەنها لە خشتەکە</b><small>تەنها کۆی ڕیزەکە و پشکی سەنتەر لە خشتەکە کەم دەبێت؛ هیچ سندوقێک ناجووڵێت.</small></label>
+            </div>
             <div class="inc-dlg-row">
                 <label class="inc-dlg-f">ڕێکەوت <input type="date" name="entry_date" value="<?= dsEsc($manDate) ?>" max="<?= dsEsc($today) ?>" required></label>
                 <label class="inc-dlg-f">بڕ <input type="text" name="amount" inputmode="numeric" placeholder="0" required class="inc-mp-amt"></label>
@@ -967,19 +987,27 @@ body.inc-full-open{overflow:hidden}
         }, 220);
     });
 
+    var rowCash = form.querySelector('.inc-dlg-rowcash');
+    function onRow() { return doctor.value === 'xray' || doctor.value === 'pharmacy'; }
     function syncColumn() {
         var opt = pick.options[pick.selectedIndex];
-        var refund = !!(opt && opt.dataset.cash === '1');
+        var row = onRow();
+        // money given back is on a doctor's work; on a row an amount is a cost
+        var refund = !!(opt && opt.dataset.cash === '1') && !row;
+        rowCash.hidden = !row;
         form.elements['column_id'].value = pick.value;
-        hint.textContent = opt ? opt.dataset.hint : '';
+        // a row has no doctor: all of it comes off the row and the centre's share
+        hint.textContent = row ? 'هەمووی لە کۆی ڕیزەکە و پشکی سەنتەر کەم دەبێت' : (opt ? opt.dataset.hint : '');
         refundBox.hidden = !refund;
         patientQ.required = refund;
         casePick.required = refund;
         form.elements['note'].required = refund;
         form.elements['note'].placeholder = refund ? 'هۆکاری گەڕاندنەوە' : 'هۆکار';
-        title.textContent = form.elements['entry_id'].value ? 'دەستکاری تۆمار' : (refund ? 'پسوولەی گەڕاندنەوەی پارە' : 'تۆمارکردن لەسەر دکتۆر');
+        title.textContent = form.elements['entry_id'].value ? 'دەستکاری تۆمار'
+            : (refund ? 'پسوولەی گەڕاندنەوەی پارە' : (row ? 'تۆمارکردن لەسەر ' + doctor.options[doctor.selectedIndex].text : 'تۆمارکردن لەسەر دکتۆر'));
     }
     pick.addEventListener('change', syncColumn);
+    doctor.addEventListener('change', syncColumn);
     function openEntry(e) {
         form.reset();
         form.elements['entry_date'].value = (e && e.entry_date) || day;
@@ -988,7 +1016,10 @@ body.inc-full-open{overflow:hidden}
         suggestions.hidden = true;
         emptyCases('سەرەتا نەخۆش هەڵبژێرە');
         if (e && e.column_id) pick.value = e.column_id;
-        if (e && e.doctor_id) doctor.value = e.doctor_id;
+        if (e && e.row_kind) doctor.value = e.row_kind;
+        else if (e && e.doctor_id) doctor.value = e.doctor_id;
+        var cashPick = form.querySelector('input[name="row_cash_out"][value="' + (e && e.row_kind && String(e.row_cash_out) === '0' ? '0' : '1') + '"]');
+        if (cashPick) cashPick.checked = true;
         if (e && e.amount) amount.value = fmt(Math.round(e.amount * 100) / 100);
         form.elements['note'].value = (e && e.note) || '';
         // An entry stays under its column: the boxes were moved by that column's rules.

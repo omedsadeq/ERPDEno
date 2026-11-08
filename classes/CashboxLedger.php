@@ -804,6 +804,48 @@ class CashboxLedger
         } catch (Throwable $e) { $this->db->rollback(); throw $e; }
     }
 
+    /**
+     * کۆڵۆمی تایبەت on the X-ray or Pharmacy row (IncomeColumn): money that left —
+     * X-ray's from its own box, the pharmacy's from قاسەی لێزان. $cents is what
+     * left (0 when the accountant said it only lowers the row on the sheet, or
+     * the entry was cancelled: then all of it comes back). booked_center holds
+     * what this entry has taken from its box; moved to the other row, the first
+     * box is made whole.
+     */
+    public function bookIncomeRow(int $id, string $kind, int $cents, string $reference, string $label, string $date, ?int $actorId): void
+    {
+        $key = $kind === 'xray' ? 'xray' : self::CENTER;
+        $now = date('Y-m-d H:i:s');
+        $at = $date === substr($now, 0, 10) ? $now : $date . ' 00:00:00';
+        if (!$this->eligibleDate($at)) $cents = 0;
+        $this->db->beginTransaction();
+        try {
+            $this->ensureAccount($key);
+            $state = $this->db->fetch('SELECT * FROM cashbox_sources WHERE source_type=? AND source_id=? FOR UPDATE', [self::INCOME_COLUMN,$id]);
+            $booked = self::cents($state['booked_center'] ?? '0');
+            $moves = [];
+            if ($state && $state['account_key'] !== $key) {
+                $moves[] = [$state['account_key'], -$booked];
+                $booked = 0;
+            }
+            $moves[] = [$key, -$cents - $booked];
+            $revision = (int)($state['revision'] ?? 0);
+            foreach ($moves as [$account, $delta]) {
+                if (!$delta) continue;
+                $this->append($account, $delta, 'expense_share', $label, $actorId, $state ? $now : $at,
+                    ['source_type'=>self::INCOME_COLUMN, 'source_id'=>$id, 'reference_no'=>$reference, 'source_revision'=>++$revision]);
+            }
+            $row = ['account_key'=>$key, 'booked_amount'=>self::decimal($cents), 'split_rate'=>null,
+                'booked_doctor'=>self::decimal(0), 'booked_center'=>self::decimal(-$cents), 'revision'=>$revision];
+            if ($state) {
+                $this->db->update('cashbox_sources', $row, 'source_type=? AND source_id=?', [self::INCOME_COLUMN,$id]);
+            } else {
+                $this->db->insert('cashbox_sources', $row + ['source_type'=>self::INCOME_COLUMN, 'source_id'=>$id, 'reference_no'=>$reference, 'source_date'=>$at]);
+            }
+            $this->db->commit();
+        } catch (Throwable $e) { $this->db->rollback(); throw $e; }
+    }
+
     public function accounts(int $actorId): array
     {
         $actor = $this->db->fetch('SELECT role FROM users WHERE id=?',[$actorId]);
