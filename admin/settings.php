@@ -77,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             Settings::ALLOW_UNASSIGNED_PATIENT_CASES,
             Settings::ALLOW_EDIT_SENT_INVOICE,
             Settings::ALLOW_EDIT_APPROVED_INVOICE,
+            Settings::DOCTOR_RECEIVED_LOCKED,
             AutoApproval::ENABLED,
             CashboxLedger::SPLIT_SETTING,
             Settings::WAITING_CALL_RESTRICTED,
@@ -118,12 +119,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         // Unlocking a sent or an approved receipt is a financial-control change
         // — always logged, one entry per switch that actually moved.
-        foreach ([Settings::ALLOW_EDIT_SENT_INVOICE, Settings::ALLOW_EDIT_APPROVED_INVOICE] as $invLockKey) {
+        foreach ([Settings::ALLOW_EDIT_SENT_INVOICE, Settings::ALLOW_EDIT_APPROVED_INVOICE, Settings::DOCTOR_RECEIVED_LOCKED] as $invLockKey) {
             if (!isset($_POST['settings'][$invLockKey])) {
                 continue;
             }
             $newInvValue = $_POST['settings'][$invLockKey];
-            $oldInvValue = Settings::get($invLockKey, '0');
+            $oldInvValue = Settings::get($invLockKey, $invLockKey === Settings::DOCTOR_RECEIVED_LOCKED ? '1' : '0');
             if ($newInvValue !== $oldInvValue) {
                 AuditLog::log(
                     'settings_invoice_lock', 'settings', null,
@@ -819,6 +820,32 @@ require_once __DIR__ . '/../includes/header.php';
                 sync();
             })();
             </script>
+
+            <h4 class="mb-3" style="margin-top:26px;">وەرگیراو لە وەسڵدا</h4>
+
+            <div class="access-card">
+                <div class="access-card-main">
+                    <div class="access-card-text">
+                        <div class="access-card-title">
+                            <i class="fas fa-hand-holding-usd"></i>
+                            دکتۆر ناتوانێت «وەرگیراو» بنووسێت
+                        </div>
+                        <div class="access-card-desc">
+                            کاتێک <b>چالاک</b> بێت (پێشنیارکراو)، تەنها <b>ژمێریار و بەڕێوەبەر</b> بڕی وەرگیراوی وەسڵ
+                            دەنووسن. دکتۆر ژمارەکە دەبینێت بەڵام ناتوانێت بیگۆڕێت، نە لە وەسڵەکە و نە لە کاتی ناردنی بۆ ژمێریار.
+                            <br>
+                            کاتێک <b>ناچالاک</b> بێت، دکتۆر دەتوانێت لە وەسڵی ڕەشنووسی خۆیدا بڕی وەرگیراو بنووسێت.
+                        </div>
+                    </div>
+                    <div class="toggle-switch">
+                        <input type="hidden" name="settings[doctor_received_locked]" value="0">
+                        <input type="checkbox" id="doctorReceivedLocked"
+                               name="settings[doctor_received_locked]" value="1"
+                               <?= Settings::doctorReceivedLocked() ? 'checked' : '' ?>>
+                        <span class="toggle-slider"></span>
+                    </div>
+                </div>
+            </div>
 
             <h4 class="mb-3" style="margin-top:26px;">قوفڵی وەسڵی نێردراو</h4>
 

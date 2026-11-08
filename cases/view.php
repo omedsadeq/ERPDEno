@@ -54,6 +54,9 @@ $canDeleteInvoices = $isAdmin;
 // Who books money without waiting for approval. A doctor writing وەرگیراو on
 // their own draft files a REQUEST instead — see the set_invoice_paid handler.
 $canReceiveMoney = $isAdmin || $isAccountant;
+// admin/settings.php «دکتۆر ناتوانێت وەرگیراو بنووسێت» (ON by default): the doctor
+// neither types وەرگیراو on a receipt nor declares it when sending one.
+$receivedLockedForDoctor = $isDoctor && !$canReceiveMoney && Settings::doctorReceivedLocked();
 $canRecordDownPayment = true;
 $db = Database::getInstance();
 // Anyone but a doctor opening a receipt here picks whose work it is — the
@@ -1727,6 +1730,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if ($case['status'] !== 'open') {
             case_view_fail($caseId, 'ئەم کەیسە داخراوە');
         }
+        if ($receivedLockedForDoctor) {
+            case_view_fail($caseId, 'وەرگیراو تەنها لەلایەن ژمێریار و بەڕێوەبەرەوە دەنووسرێت');
+        }
         $isDraftTarget = $target['status'] === 'draft'; // covers 'returned' too — see CaseInvoice::returnForCorrection
         $isSentTarget = ($target['accounting_status'] ?? '') === 'sent';
         // Once a treatment invoice leaves draft state it is immutable for the
@@ -2035,6 +2041,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $enteredReceived = array_key_exists('received_amount', $_POST)
             ? max(0, (float)normalize_localized_digits($_POST['received_amount']))
             : $approvedBefore + $pendingBefore;
+        // A doctor kept from writing وەرگیراو sends what the receipt already
+        // holds, whatever the form says.
+        if ($receivedLockedForDoctor) {
+            $enteredReceived = max($approvedBefore + $pendingBefore, (float)($invoiceBefore['draft_received_amount'] ?? 0));
+        }
         // "قەرز" now means "money is still owed on this invoice", NOT "nothing
         // was paid". The old reading is what produced the reported problem:
         // picking قەرز silently zeroed the received figure, and it was refused
@@ -8892,7 +8903,8 @@ function openDeleteInvoiceDialog(invoiceId, invoiceNumber) {
                     <div class="si-finance-row is-muted">
                         <div class="si-finance-value is-editable">
                             <input type="number" name="received_amount" id="sendReceivedAmount" class="si-finance-input"
-                                   min="0" step="0.01" value="0" inputmode="decimal" aria-label="بڕی وەرگیراو">
+                                   min="0" step="0.01" value="0" inputmode="decimal" aria-label="بڕی وەرگیراو"
+                                   <?= $receivedLockedForDoctor ? 'readonly tabindex="-1" style="background:#f1f5f9;cursor:not-allowed;" title="وەرگیراو تەنها لەلایەن ژمێریار و بەڕێوەبەرەوە دەنووسرێت"' : '' ?>>
                         </div>
                         <div class="si-finance-label">وەرگیراو :</div>
                     </div>

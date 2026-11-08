@@ -460,6 +460,12 @@ $paneHidden = !empty($paneAlwaysVisible) ? false : ($tid !== $activeInvoiceId);
     // while the receipt is still a draft/returned document. Once sent, this
     // treatment invoice is immutable; later money uses a new receipt draft.
     $canSetPaid = $case['status'] === 'open' && $isDraft && $invRemaining > 0.009;
+    // admin/settings.php «دکتۆر ناتوانێت وەرگیراو بنووسێت»: then only the money
+    // roles write it; the doctor sees the figure.
+    $paidLockedForDoctor = !empty($isDoctor) && Settings::doctorReceivedLocked();
+    if ($paidLockedForDoctor) {
+        $canSetPaid = false;
+    }
     ?>
     <!-- Same footer as the printed receipt: the signature/notes rules on the
          right, the boxed totals on the left. Notes column comes FIRST so RTL
@@ -568,7 +574,7 @@ $paneHidden = !empty($paneAlwaysVisible) ? false : ($tid !== $activeInvoiceId);
                 </span>
                 <?php else: ?>
                 <span class="vt-total-box is-paid" data-paid-for="<?= $tid ?>"
-                      data-net="<?= $invNet ?>" data-covered="<?= $invEntered ?>" data-prior="<?= $invPrior ?>"><?= $ipMoney($invEntered) ?></span>
+                      data-net="<?= $invNet ?>" data-covered="<?= $invEntered ?>" data-prior="<?= $invPrior ?>"<?= $paidLockedForDoctor ? ' title="وەرگیراو تەنها لەلایەن ژمێریار و بەڕێوەبەرەوە دەنووسرێت"' : '' ?>><?= $ipMoney($invEntered) ?></span>
                 <?php endif; ?>
                 <?php if ($invPending > 0.009): ?>
                 <span class="vt-paid-pending" title="داواکاری پارەدانی دکتۆر — چاوەڕوانی پەسەندکردنی ژمێریار">

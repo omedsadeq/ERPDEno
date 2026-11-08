@@ -40,6 +40,14 @@ class Settings
     const ALLOW_EDIT_APPROVED_INVOICE = 'allow_edit_approved_invoice';
 
     /**
+     * «وەرگیراو» on a receipt: ON (default) — only the accountant and the admin
+     * write the money received; a doctor sees the figure but cannot type it, on
+     * the receipt or in the send dialog. OFF — a doctor may declare it again on
+     * their own draft, as before.
+     */
+    const DOCTOR_RECEIVED_LOCKED = 'doctor_received_locked';
+
+    /**
      * Waiting room «بانگکردن»: OFF (default) — every doctor may call their own
      * patients in. ON — only the doctors listed in WAITING_CALL_DOCTOR_IDS may;
      * for the rest reception/admin calls the patient.
@@ -172,6 +180,12 @@ class Settings
     public static function allowEditApprovedInvoice(): bool
     {
         return self::getBool(self::ALLOW_EDIT_APPROVED_INVOICE, false);
+    }
+
+    /** Whether a doctor is kept from writing «وەرگیراو» on a receipt. Default ON. */
+    public static function doctorReceivedLocked(): bool
+    {
+        return self::getBool(self::DOCTOR_RECEIVED_LOCKED, true);
     }
 
     /** Whether only the chosen doctors may call patients in from the waiting room. */
