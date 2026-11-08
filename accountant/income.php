@@ -74,6 +74,17 @@ $manReturn = $rangeQs($from, $to);
 .inc-title .date{padding:5px 14px;border-radius:8px;background:#e0f2fe;color:#075985;font-weight:700;font-size:13px}
 
 .inc-scroll{overflow-x:auto}
+/* «پڕ بە شاشە»: the sheet over the whole screen, every column in view */
+.inc-full-btn{margin-inline-start:auto;height:32px;padding:0 12px;border-radius:8px;border:1px solid #bae6fd;background:#f0f9ff;color:#0369a1;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.inc-full-btn:hover{background:#0284c7;border-color:#0284c7;color:#fff}
+.inc-sheet.is-full{position:fixed;inset:0;z-index:990;margin:0;border-radius:0;padding:12px 16px;overflow:auto;box-shadow:none}
+.inc-sheet.is-full .inc-head{display:none}
+.inc-sheet.is-full .inc-title{margin-top:0}
+.inc-sheet.is-full .inc-scroll{overflow:visible}
+.inc-sheet.is-full .inc-tbl{min-width:0}
+.inc-sheet.is-full .inc-tbl th{padding:7px 6px;font-size:12px}
+.inc-sheet.is-full .inc-tbl td{padding:6px;font-size:12.5px}
+body.inc-full-open{overflow:hidden}
 .inc-tbl{width:100%;border-collapse:collapse;min-width:820px}
 .inc-tbl th{background:#cfe6f3;color:#0c4a6e;font-size:12.5px;font-weight:700;padding:9px 10px;border:1px solid #9cc5dc;white-space:nowrap}
 .inc-tbl td{padding:8px 10px;border:1px solid #d5e3ec;font-size:13px;height:20px}
@@ -177,6 +188,7 @@ $manReturn = $rangeQs($from, $to);
         <div class="inc-title">
             <h2><i class="fas fa-cash-register" style="color:#0284c7;"></i> تۆماری ڕۆژی — داهات</h2>
             <span class="date"><bdi><?= dsEsc($rangeLabel) ?></bdi></span>
+            <button type="button" class="inc-full-btn" id="incFullBtn" title="هەموو ستوونەکان لەسەر یەک شاشە"><i class="fas fa-expand"></i> <span>پڕ بە شاشە</span></button>
         </div>
 
         <?php if ($doctorsWithoutRate): ?>
@@ -1047,6 +1059,35 @@ $manReturn = $rangeQs($from, $to);
         if (ev.target.closest('.inc-add')) open('incManual');
     }, true);
     window.addEventListener('hashchange', function () { open(location.hash.slice(1)); });
+})();
+</script>
+
+<script>
+// «پڕ بە شاشە»: the sheet covers the window (and the screen, where the browser
+// allows it) so every column shows; the same button or Escape brings it back.
+// The whole page goes full screen, not the sheet alone, so the detail dialogs
+// still open over it.
+(function () {
+    var sheet = document.querySelector('.inc-sheet'), btn = document.getElementById('incFullBtn');
+    if (!sheet || !btn) return;
+    function set(on) {
+        sheet.classList.toggle('is-full', on);
+        document.body.classList.toggle('inc-full-open', on);
+        btn.querySelector('span').textContent = on ? 'گەڕانەوە' : 'پڕ بە شاشە';
+        btn.querySelector('i').className = on ? 'fas fa-compress' : 'fas fa-expand';
+    }
+    btn.addEventListener('click', function () {
+        var on = !sheet.classList.contains('is-full');
+        set(on);
+        try {
+            if (on && document.documentElement.requestFullscreen && !document.fullscreenElement) document.documentElement.requestFullscreen().catch(function () {});
+            if (!on && document.fullscreenElement) document.exitFullscreen().catch(function () {});
+        } catch (e) {}
+    });
+    document.addEventListener('fullscreenchange', function () { if (!document.fullscreenElement && sheet.classList.contains('is-full')) set(false); });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && sheet.classList.contains('is-full') && !document.querySelector('.dialog-overlay.open')) set(false);
+    });
 })();
 </script>
 
