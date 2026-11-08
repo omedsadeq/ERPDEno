@@ -241,9 +241,12 @@ class HrPayroll
             ];
             $receiptId = (int)$this->db->insert('hr_salary_receipts', $receipt);
             $receipt['id'] = $receiptId;
-            $expenseId = $asExpense ? $this->writeExpense(null, $receipt + ['doctor_id' => $doctorId], $userId) : null;
+            // one expense per doctor it falls on: one, or two with their shares
+            $parts = $asExpense ? $this->expenseParts($item, (float)$row['amount']) : [];
+            $expenseId = $parts ? $this->writeExpense(null, $receipt + $parts[0], $userId) : null;
+            $expense2Id = isset($parts[1]) ? $this->writeExpense(null, $receipt + $parts[1], $userId) : null;
             $entryId = $fromCashbox ? $this->cashOut($receipt, $userId) : null;
-            $this->db->update('hr_salary_receipts', ['expense_id' => $expenseId, 'cashbox_entry_id' => $entryId], 'id = ?', [$receiptId]);
+            $this->db->update('hr_salary_receipts', ['expense_id' => $expenseId, 'expense2_id' => $expense2Id, 'cashbox_entry_id' => $entryId], 'id = ?', [$receiptId]);
             $this->db->update('hr_payroll', [
                 'status' => 'paid', 'paid_date' => $date, 'payment_method' => $method, 'paid_by' => $userId ?: null,
                 'paid_at' => $now, 'expense_id' => $expenseId, 'receipt_id' => $receiptId,
@@ -300,13 +303,22 @@ class HrPayroll
             ];
             $merged = $new + $rc;
 
-            // The expense: written, brought up to date, or removed.
+            // The expense: written, brought up to date, or removed — and the
+            // second doctor's share the same way.
             $expenseId = $rc['expense_id'] ? (int)$rc['expense_id'] : null;
-            if ($asExpense) {
-                $expenseId = $this->writeExpense($expenseId, $merged + ['doctor_id' => $doctorId], $userId);
+            $expense2Id = !empty($rc['expense2_id']) ? (int)$rc['expense2_id'] : null;
+            $parts = $asExpense ? $this->expenseParts($item, $amount) : [];
+            if ($parts) {
+                $expenseId = $this->writeExpense($expenseId, $merged + $parts[0], $userId);
             } elseif ($expenseId) {
                 $this->db->delete('expenses_general', 'id = ? AND source_type = ?', [$expenseId, self::SOURCE]);
                 $expenseId = null;
+            }
+            if (isset($parts[1])) {
+                $expense2Id = $this->writeExpense($expense2Id, $merged + $parts[1], $userId);
+            } elseif ($expense2Id) {
+                $this->db->delete('expenses_general', 'id = ? AND source_type = ?', [$expense2Id, self::SOURCE]);
+                $expense2Id = null;
             }
             // The cashbox: a withdrawal whose amount changes, or that is no
             // longer wanted, is reversed; a wanted one is booked anew.
@@ -319,7 +331,7 @@ class HrPayroll
                 $entryId = $this->cashOut($merged, $userId);
             }
 
-            $new += ['expense_id' => $expenseId, 'cashbox_entry_id' => $entryId];
+            $new += ['expense_id' => $expenseId, 'expense2_id' => $expense2Id, 'cashbox_entry_id' => $entryId];
             $cleared = $amountChanged && !empty($rc['signature']);
             if ($amountChanged) {
                 $new += ['signature' => null, 'signed_at' => null];
@@ -338,7 +350,9 @@ class HrPayroll
             throw $ex;
         }
         unset($rc['signature'], $new['signature']);
-        AuditLog::logChange('hr_salary_receipt_edit', 'hr_salary_receipts', $receiptId, $rc, $new + ['doctor_id' => $doctorId, 'signature_cleared' => $cleared], $userId);
+        AuditLog::logChange('hr_salary_receipt_edit', 'hr_salary_receipts', $receiptId, $rc, $new + ['doctor_id' => $doctorId,
+            'doctor2_id' => isset($parts[1]) ? $parts[1]['doctor_id'] : null, 'doctor2_amount' => isset($parts[1]) ? $parts[1]['expense_amount'] : null,
+            'signature_cleared' => $cleared], $userId);
         return $cleared;
     }
 
@@ -360,6 +374,9 @@ class HrPayroll
             }
             if ($rc['expense_id']) {
                 $this->db->delete('expenses_general', 'id = ? AND source_type = ?', [$rc['expense_id'], self::SOURCE]);
+            }
+            if (!empty($rc['expense2_id'])) {
+                $this->db->delete('expenses_general', 'id = ? AND source_type = ?', [$rc['expense2_id'], self::SOURCE]);
             }
             if ($rc['payroll_id']) {
                 $this->db->update('hr_payroll', [
@@ -411,12 +428,15 @@ class HrPayroll
     {
         return $this->db->fetch(
             'SELECT r.*, u.full_name AS created_by_name, c.full_name AS cancelled_by_name,
-                    e.doctor_id, d.full_name AS doctor_name
+                    e.doctor_id, d.full_name AS doctor_name, e.amount AS doctor_amount,
+                    e2.doctor_id AS doctor2_id, d2.full_name AS doctor2_name, e2.amount AS doctor2_amount
              FROM hr_salary_receipts r
              LEFT JOIN users u ON u.id = r.created_by
              LEFT JOIN users c ON c.id = r.cancelled_by
              LEFT JOIN expenses_general e ON e.id = r.expense_id
              LEFT JOIN users d ON d.id = e.doctor_id
+             LEFT JOIN expenses_general e2 ON e2.id = r.expense2_id
+             LEFT JOIN users d2 ON d2.id = e2.doctor_id
              WHERE r.id = ?', [$id]) ?: null;
     }
 
@@ -436,11 +456,13 @@ class HrPayroll
         return $this->db->fetchAll(
             'SELECT r.id, r.employee_id, r.pay_month, r.employee_name, r.employee_pin, r.amount, r.paid_date, r.payment_method,
                     r.as_expense, r.expense_id, r.from_cashbox, r.status, r.created_at, (r.signature IS NOT NULL) AS signed,
-                    u.full_name AS created_by_name, d.full_name AS doctor_name
+                    u.full_name AS created_by_name, d.full_name AS doctor_name, d2.full_name AS doctor2_name
              FROM hr_salary_receipts r
              LEFT JOIN users u ON u.id = r.created_by
              LEFT JOIN expenses_general e ON e.id = r.expense_id
-             LEFT JOIN users d ON d.id = e.doctor_id'
+             LEFT JOIN users d ON d.id = e.doctor_id
+             LEFT JOIN expenses_general e2 ON e2.id = r.expense2_id
+             LEFT JOIN users d2 ON d2.id = e2.doctor_id'
             . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
             . ' ORDER BY r.id DESC LIMIT ' . max(1, $limit),
             $params);
@@ -467,6 +489,35 @@ class HrPayroll
     }
 
     // ── internals ────────────────────────────────────────────────────
+
+    /**
+     * Who a salary's expense falls on, as the parts to write: one
+     * [doctor_id, expense_amount] for the whole amount, or — with a second
+     * doctor ($item doctor2_id, doctor2_amount = his share) — two, the first
+     * keeping the rest. 500,000 with 300,000 on the second: 200,000 + 300,000.
+     */
+    private function expenseParts(array $item, float $amount): array
+    {
+        $first = $this->chargedDoctor($item);
+        $secondId = (int)($item['doctor2_id'] ?? 0);
+        if ($secondId <= 0) {
+            return [['doctor_id' => $first, 'expense_amount' => $amount]];
+        }
+        if (!$this->db->fetch("SELECT id FROM users WHERE id = ? AND role = 'doctor'", [$secondId])) {
+            throw new InvalidArgumentException('دکتۆری دووەم نەدۆزرایەوە');
+        }
+        if ($secondId === (int)$first) {
+            throw new InvalidArgumentException('دکتۆری دووەم دەبێت جیاواز بێت لە یەکەم');
+        }
+        $share = round(max(0.0, (float)($item['doctor2_amount'] ?? 0)));
+        if ($share <= 0 || $share >= $amount) {
+            throw new InvalidArgumentException('بەشی دکتۆری دووەم دەبێت لە سفر زیاتر و لە کۆی مووچە (' . number_format($amount) . ') کەمتر بێت');
+        }
+        return [
+            ['doctor_id' => $first, 'expense_amount' => $amount - $share],
+            ['doctor_id' => $secondId, 'expense_amount' => $share],
+        ];
+    }
 
     /** The doctor named in $item, or null for the centre. */
     private function chargedDoctor(array $item): ?int
@@ -562,7 +613,8 @@ class HrPayroll
         $data = [
             'description'    => 'مووچەی ' . self::monthLabel($rc['pay_month']) . ' — ' . $rc['employee_name'],
             'doctor_id'      => $rc['doctor_id'] ?? null,
-            'amount'         => (float)$rc['amount'],
+            // a salary on two doctors: this row is one doctor's share
+            'amount'         => (float)($rc['expense_amount'] ?? $rc['amount']),
             'expense_date'   => $rc['paid_date'],
             'receipt_number' => 'HR-' . self::receiptNo($rc['id']),
             'payment_method' => $rc['payment_method'],
@@ -571,7 +623,9 @@ class HrPayroll
                 . ' · حیسابکراو ' . number_format((float)$rc['calculated'])
                 . ((float)$rc['bonus'] > 0 ? ' · زیادە ' . number_format((float)$rc['bonus']) : '')
                 . ((float)$rc['deduction'] > 0 ? ' · کەمکردنەوە ' . number_format((float)$rc['deduction']) : '')
-                . ($rc['note'] ? ' · ' . $rc['note'] : ''),
+                . ($rc['note'] ? ' · ' . $rc['note'] : '')
+                . (isset($rc['expense_amount']) && abs((float)$rc['expense_amount'] - (float)$rc['amount']) >= 0.5
+                    ? ' · بەشێک لە مووچەکە: ' . number_format((float)$rc['expense_amount']) . ' لە ' . number_format((float)$rc['amount']) : ''),
         ];
         if ($expenseId && $this->db->fetch('SELECT id FROM expenses_general WHERE id = ?', [$expenseId])) {
             $this->db->update('expenses_general', $data, 'id = ?', [$expenseId]);

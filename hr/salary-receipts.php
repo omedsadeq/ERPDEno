@@ -28,7 +28,7 @@ if (($_GET['export'] ?? '') === 'csv') {
     $out = [['ژمارە', 'ڕێکەوت', 'کارمەند', 'PIN', 'مانگ', 'بڕ', 'شێواز', 'خەرجی', 'لەسەر دکتۆر', 'قاسەی لێزان', 'واژۆ', 'پێدەر']];
     foreach ($list as $r) {
         $out[] = [HrPayroll::receiptNo($r['id']), $r['paid_date'], $r['employee_name'], $r['employee_pin'], $r['pay_month'],
-            round((float)$r['amount']), HrPayroll::METHODS[$r['payment_method']] ?? '', $r['as_expense'] ? 'بەڵێ' : 'نەخێر', $r['doctor_name'] ?? '',
+            round((float)$r['amount']), HrPayroll::METHODS[$r['payment_method']] ?? '', $r['as_expense'] ? 'بەڵێ' : 'نەخێر', trim(($r['doctor_name'] ?? '') . (!empty($r['doctor2_name']) ? ' + ' . $r['doctor2_name'] : '')),
             $r['from_cashbox'] ? 'بەڵێ' : 'نەخێر', $r['signed'] ? 'بەڵێ' : 'نەخێر', $r['created_by_name']];
     }
     hr_csv('hr-salary-receipts' . ($fMonth ? '-' . $fMonth : '') . '.csv', $out);
@@ -91,7 +91,7 @@ hr_flash_render();
                 <td class="num"><?= hr_esc(HrPayroll::monthLabel($r['pay_month'])) ?></td>
                 <td class="num"><b><?= hr_money($r['amount']) ?></b></td>
                 <td><?= hr_esc(HrPayroll::METHODS[$r['payment_method']] ?? '') ?></td>
-                <td><?= $r['as_expense'] ? '<span class="hr-badge in">خەرجی</span>' : '<span class="hr-badge off">نەخێر</span>' ?><?php if (!empty($r['doctor_name'])): ?><span class="sr-doctor"><i class="fas fa-user-md"></i> <?= hr_esc($r['doctor_name']) ?></span><?php endif; ?></td>
+                <td><?= $r['as_expense'] ? '<span class="hr-badge in">خەرجی</span>' : '<span class="hr-badge off">نەخێر</span>' ?><?php if (!empty($r['doctor_name'])): ?><span class="sr-doctor"><i class="fas fa-user-md"></i> <?= hr_esc($r['doctor_name']) ?></span><?php endif; ?><?php if (!empty($r['doctor2_name'])): ?><span class="sr-doctor"><i class="fas fa-user-md"></i> <?= hr_esc($r['doctor2_name']) ?></span><?php endif; ?></td>
                 <td><?= $r['from_cashbox'] ? '<span class="hr-badge staff"><i class="fas fa-vault"></i> قاسە</span>' : '<span class="hr-badge off">نەخێر</span>' ?></td>
                 <td><?= $r['signed'] ? '<span class="hr-badge in"><i class="fas fa-signature"></i> واژۆ کراو</span>' : '<span class="hr-badge out">واژۆ نەکراو</span>' ?></td>
                 <td class="sr-actions">

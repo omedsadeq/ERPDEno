@@ -48,7 +48,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new InvalidArgumentException('ڕێکەوتی پێدان دروست نییە');
             }
             $item = ['bonus' => $posted('bonus'), 'deduction' => $posted('deduction'), 'note' => (string)($_POST['note'] ?? ''),
-                     'doctor_id' => (int)($_POST['doctor_id'] ?? 0)];
+                     'doctor_id' => (int)($_POST['doctor_id'] ?? 0),
+                     // a second doctor and his share (the first keeps the rest)
+                     'doctor2_id' => (int)($_POST['doctor2_id'] ?? 0), 'doctor2_amount' => $posted('doctor2_amount')];
             $method = (string)($_POST['method'] ?? '');
             $asExpense = !empty($_POST['as_expense']);
             $fromCashbox = !empty($_POST['from_cashbox']);
@@ -118,7 +120,8 @@ if ($id > 0) {
               'payment_method' => isset(HrPayroll::METHODS[$_POST['method'] ?? '']) ? $_POST['method'] : $rc['payment_method'],
               'as_expense' => !empty($_POST['as_expense']), 'from_cashbox' => !empty($_POST['from_cashbox']),
               'pay_month' => (string)($_POST['pay_month'] ?? $rc['pay_month']), 'calculated' => $posted('calculated'),
-              'doctor_id' => (int)($_POST['doctor_id'] ?? 0)] + $v;
+              'doctor_id' => (int)($_POST['doctor_id'] ?? 0),
+              'doctor2_id' => (int)($_POST['doctor2_id'] ?? 0), 'doctor2_amount' => $posted('doctor2_amount')] + $v;
         $v['amount'] = (float)$v['calculated'] + $v['bonus'] - $v['deduction'];
     }
 } else {
@@ -156,6 +159,7 @@ if ($id > 0) {
         'as_expense' => $_SERVER['REQUEST_METHOD'] === 'POST' ? !empty($_POST['as_expense']) : true,
         'from_cashbox' => $_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['from_cashbox']),
         'doctor_id' => (int)($_POST['doctor_id'] ?? 0),
+        'doctor2_id' => (int)($_POST['doctor2_id'] ?? 0), 'doctor2_amount' => $posted('doctor2_amount'),
         'signature' => null, 'status' => 'valid', 'created_by_name' => $hrAuth->getCurrentUser()['full_name'] ?? '',
         'commission' => $row['commission'],
     ];
@@ -173,6 +177,10 @@ $doctors = $form ? $payroll->doctors() : [];
 if (!empty($v['doctor_id']) && !empty($v['doctor_name']) && !in_array((int)$v['doctor_id'], array_map('intval', array_column($doctors, 'id')), true)) {
     $doctors[] = ['id' => $v['doctor_id'], 'full_name' => $v['doctor_name']];
 }
+if (!empty($v['doctor2_id']) && !empty($v['doctor2_name']) && !in_array((int)$v['doctor2_id'], array_map('intval', array_column($doctors, 'id')), true)) {
+    $doctors[] = ['id' => $v['doctor2_id'], 'full_name' => $v['doctor2_name']];
+}
+$hasSecond = !empty($v['doctor2_id']);
 $e = 'hr_esc';
 $pct = rtrim(rtrim(number_format((float)$v['salary_percentage'], 2), '0'), '.');
 $typeLabel = $v['type'] === 'doctor' ? 'دکتۆر' : 'کارمەند';
@@ -243,6 +251,16 @@ body.rcp.embed { background: #f4f6f8; }
 .rc-exp.is-locked { cursor: not-allowed; opacity: .75; }
 .rc-doc { margin: -6px 20px 14px; padding: 10px 12px; border: 1.5px solid #99f6e4; border-top: 0; border-radius: 0 0 10px 10px; background: #f0fdfa; }
 .rc-doc[hidden] { display: none; }
+.rc-add2 { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 5px 12px; border: 1.5px dashed #5eead4; border-radius: 8px;
+    background: #fff; color: #0f766e; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+.rc-add2:hover { background: #ccfbf1; }
+.rc-add2[hidden], .rc-two[hidden] { display: none; }
+.rc-two { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #99f6e4; }
+.rc-two-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; }
+.rc-two-row label { margin: 0; white-space: nowrap; }
+.rc-rm2 { width: 34px; height: 34px; border: 1px solid #fecaca; border-radius: 8px; background: #fff; color: #b91c1c; cursor: pointer; }
+.rc-split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 4px; }
+.rc-split input { direction: ltr; text-align: left; font-weight: 700; }
 .rc-doc label { display: block; margin-bottom: 3px; font-size: 12px; font-weight: 700; color: #0f766e; }
 .rc-doc .form-control { width: 100%; height: 38px; }
 .rc-doc small { display: block; margin-top: 4px; font-size: 11.5px; font-weight: 600; color: #64748b; }
@@ -374,7 +392,26 @@ body.rcp.embed { background: #f4f6f8; }
                     <option value="0">سەنتەر (بێ دکتۆر)</option>
                     <?php foreach ($doctors as $doctor): ?><option value="<?= (int)$doctor['id'] ?>" <?= (int)$doctor['id'] === (int)($v['doctor_id'] ?? 0) ? 'selected' : '' ?>><?= $e($doctor['full_name']) ?></option><?php endforeach; ?>
                 </select>
-                <small>ئەگەر دکتۆر هەڵبژێریت، هەموو بڕەکە لە پشکی ئەو دکتۆرە دەبڕدرێت.</small>
+                <small id="rcDocHint"><?= $hasSecond ? 'مووچەکە لە نێوان دوو دکتۆرەکەدا دابەش دەبێت.' : 'ئەگەر دکتۆر هەڵبژێریت، هەموو بڕەکە لە پشکی ئەو دکتۆرە دەبڕدرێت.' ?></small>
+                <!-- a salary on two doctors: the second and his share; the first keeps the rest -->
+                <button type="button" class="rc-add2" id="rcAdd2" <?= $hasSecond ? 'hidden' : '' ?>><i class="fas fa-plus"></i> دکتۆری دووەم</button>
+                <div class="rc-two" id="rcTwo" <?= $hasSecond ? '' : 'hidden' ?>>
+                    <div class="rc-two-row">
+                        <label for="rcDoctor2">دکتۆری دووەم</label>
+                        <select id="rcDoctor2" name="doctor2_id" class="form-control">
+                            <option value="0">— هەڵبژێرە —</option>
+                            <?php foreach ($doctors as $doctor): ?><option value="<?= (int)$doctor['id'] ?>" <?= (int)$doctor['id'] === (int)($v['doctor2_id'] ?? 0) ? 'selected' : '' ?>><?= $e($doctor['full_name']) ?></option><?php endforeach; ?>
+                        </select>
+                        <button type="button" class="rc-rm2" id="rcRm2" title="لابردنی دکتۆری دووەم" aria-label="لابردنی دکتۆری دووەم"><i class="fas fa-xmark"></i></button>
+                    </div>
+                    <div class="rc-split">
+                        <div><label for="rcShare1">بەشی یەکەم</label><input type="text" id="rcShare1" class="form-control" inputmode="numeric" autocomplete="off"
+                            value="<?= $hasSecond ? $e(number_format(max(0, (float)$v['amount'] - (float)($v['doctor2_amount'] ?? 0)))) : '' ?>"></div>
+                        <div><label for="rcShare2">بەشی دووەم</label><input type="text" id="rcShare2" name="doctor2_amount" class="form-control" inputmode="numeric" autocomplete="off"
+                            value="<?= $hasSecond ? $e(number_format((float)($v['doctor2_amount'] ?? 0))) : '' ?>"></div>
+                    </div>
+                    <small>یەکێکیان بنووسە، ئەوی تر خۆی پڕ دەبێتەوە. هەر بەشێک لە پشکی دکتۆرەکەی خۆی دەبڕدرێت.</small>
+                </div>
             </div>
             <label class="rc-exp rc-cash<?= $v['from_cashbox'] && $canCash ? '' : ' off' ?><?= $canCash ? '' : ' is-locked' ?>" id="rcCashLbl">
                 <input type="checkbox" name="from_cashbox" value="1" id="rcCash" <?= $v['from_cashbox'] && $canCash ? 'checked' : '' ?> <?= $canCash ? '' : 'disabled' ?>>
@@ -388,7 +425,11 @@ body.rcp.embed { background: #f4f6f8; }
                 <span>شێواز: <b><?= $e(HrPayroll::METHODS[$v['payment_method']] ?? '') ?></b></span>
                 <span>پێدەر: <b><?= $e($v['created_by_name'] ?? '—') ?></b></span>
                 <span><?= (int)$v['as_expense'] ? '<i class="fas fa-check" style="color:#15803d"></i> وەک خەرجی تۆمار کراوە' : '<i class="fas fa-minus" style="color:#94a3b8"></i> وەک خەرجی تۆمار نەکراوە' ?></span>
-                <?php if (!empty($v['doctor_name'])): ?><span><i class="fas fa-user-md" style="color:#0f766e"></i> لەسەر: <b><?= $e($v['doctor_name']) ?></b></span><?php endif; ?>
+                <?php if (!empty($v['doctor2_id'])): ?>
+                <span><i class="fas fa-user-md" style="color:#0f766e"></i> لەسەر:
+                    <b><?= $e($v['doctor_name'] ?? 'سەنتەر') ?></b> <bdo dir="ltr"><?= hr_money((float)($v['doctor_amount'] ?? 0)) ?></bdo> ·
+                    <b><?= $e($v['doctor2_name'] ?? '') ?></b> <bdo dir="ltr"><?= hr_money((float)($v['doctor2_amount'] ?? 0)) ?></bdo></span>
+                <?php elseif (!empty($v['doctor_name'])): ?><span><i class="fas fa-user-md" style="color:#0f766e"></i> لەسەر: <b><?= $e($v['doctor_name']) ?></b></span><?php endif; ?>
                 <span><?= (int)($v['from_cashbox'] ?? 0) ? '<i class="fas fa-vault" style="color:#0f766e"></i> لە قاسەی لێزان دەرهێنراوە' : '<i class="fas fa-minus" style="color:#94a3b8"></i> لە قاسەی لێزان نەدەرهێنراوە' ?></span>
                 <?php if ($cancelled): ?><span style="color:#b91c1c">هەڵوەشێنراوەتەوە لەلایەن <b style="color:#b91c1c"><?= $e($v['cancelled_by_name'] ?? '') ?></b> · <bdo dir="ltr"><?= $e($v['cancelled_at']) ?></bdo></span><?php endif; ?>
             </div>
@@ -464,6 +505,35 @@ body.rcp.embed { background: #f4f6f8; }
     });
     if (cash) cash.addEventListener('change', function () { document.getElementById('rcCashLbl').classList.toggle('off', !cash.checked); });
 
+    // A second doctor: his share, the first keeps the rest (and the other way round).
+    var two = document.getElementById('rcTwo'), add2 = document.getElementById('rcAdd2'), rm2 = document.getElementById('rcRm2');
+    var doctor2 = document.getElementById('rcDoctor2'), share1 = document.getElementById('rcShare1'), share2 = document.getElementById('rcShare2');
+    var docHint = document.getElementById('rcDocHint');
+    function shareFill(from) {
+        var t = total(), a = num(from), other = from === share1 ? share2 : share1;
+        from.value = a ? fmt(a) : '';
+        other.value = a ? fmt(Math.max(0, t - a)) : '';
+    }
+    function setTwo(on) {
+        two.hidden = !on; add2.hidden = on;
+        if (!on) { doctor2.value = '0'; share1.value = ''; share2.value = ''; }
+        docHint.textContent = on ? 'مووچەکە لە نێوان دوو دکتۆرەکەدا دابەش دەبێت.' : 'ئەگەر دکتۆر هەڵبژێریت، هەموو بڕەکە لە پشکی ئەو دکتۆرە دەبڕدرێت.';
+        if (on) {
+            if (!share2.value) { share2.value = fmt(Math.round(total() / 2)); shareFill(share2); }
+            doctor2.focus();
+        }
+    }
+    if (two) {
+        add2.addEventListener('click', function () { setTwo(true); });
+        rm2.addEventListener('click', function () { setTwo(false); });
+        share1.addEventListener('input', function () { shareFill(share1); });
+        share2.addEventListener('input', function () { shareFill(share2); });
+        // a changed bonus or deduction: the second keeps his share, the first the rest
+        form.addEventListener('input', function (ev) {
+            if (!two.hidden && ev.target !== share1 && ev.target !== share2 && share2.value) shareFill(share2);
+        });
+    }
+
     // Signature pad: pointer events cover mouse, finger and pen.
     var padBox = document.getElementById('rcPad'), canvas = padBox && padBox.querySelector('canvas'), ctx, ink = false, last = null, drawing = false;
     function fit() {
@@ -523,7 +593,17 @@ body.rcp.embed { background: #f4f6f8; }
             ? 'گۆڕانکارییەکانی وەسڵی ' + name + ' پاشەکەوت بکرێن؟ بڕی نوێ: ' + fmt(total()) + ' دینار.'
             : name + ' — ' + fmt(total()) + ' دینار دەدرێت.';
         msg += exp && exp.checked ? '\n• وەک خەرجی گشتی تۆمار دەکرێت.' : '\n• وەک خەرجی تۆمار ناکرێت.';
-        if (exp && exp.checked && doctor && doctor.value !== '0') msg += '\n• هەمووی لە پشکی ' + doctor.selectedOptions[0].text + ' دەبڕدرێت.';
+        var split = exp && exp.checked && two && !two.hidden;
+        if (split) {
+            if (doctor2.value === '0') { ev.preventDefault(); alert('دکتۆری دووەم هەڵبژێرە'); doctor2.focus(); return; }
+            if (doctor2.value === doctor.value) { ev.preventDefault(); alert('دکتۆری دووەم دەبێت جیاواز بێت لە یەکەم'); doctor2.focus(); return; }
+            var s2 = num(share2);
+            if (!(s2 > 0 && s2 < total())) { ev.preventDefault(); alert('بەشی دکتۆری دووەم دەبێت لە سفر زیاتر و لە کۆی مووچە کەمتر بێت'); share2.focus(); return; }
+            msg += '\n• ' + fmt(total() - s2) + ' لەسەر ' + doctor.selectedOptions[0].text + ' و ' + fmt(s2) + ' لەسەر ' + doctor2.selectedOptions[0].text + '.';
+        } else if (two) {
+            doctor2.value = '0';   // not split: nothing on a second doctor
+        }
+        if (!split && exp && exp.checked && doctor && doctor.value !== '0') msg += '\n• هەمووی لە پشکی ' + doctor.selectedOptions[0].text + ' دەبڕدرێت.';
         msg += cash && cash.checked ? '\n• لە قاسەی لێزان دەردەهێنرێت.' : '\n• لە قاسەی لێزان دەرناهێنرێت.';
         <?php if ($mode === 'edit' && !empty($v['signature'])): ?>
         if (Math.abs(total() - <?= (float)$v['amount'] ?>) >= 0.5) msg += '\n• بڕەکە گۆڕاوە، بۆیە واژۆکە لادەچێت.';
