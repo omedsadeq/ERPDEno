@@ -4,7 +4,9 @@ require_once __DIR__ . '/../classes/Auth.php';
 
 $authGate = new Auth();
 $authGate->requireLogin();
-if (!$authGate->isAccountant() && !$authGate->isAdmin()) {
+// …and the permission: an accountant kept to approvals and debts does not see it
+require_once __DIR__ . '/../classes/Permission.php';
+if ((!$authGate->isAccountant() && !$authGate->isAdmin()) || !Permission::getInstance()->can('page.accountant_financial')) {
     header('Location: ' . APP_URL . '/403.php');
     exit;
 }

@@ -14,6 +14,13 @@ if (!$auth->isLoggedIn()) {
     exit;
 }
 
+// «پەڕەی ڕاپۆرتەکان» is a permission of its own (off for the accountant).
+require_once __DIR__ . '/classes/Permission.php';
+if (!Permission::getInstance()->can('page.reports_hub')) {
+    header('Location: ' . APP_URL . '/403.php');
+    exit;
+}
+
 $currentUser    = $auth->getCurrentUser();
 $isAdmin        = $auth->isAdmin();
 $isReceptionist = $auth->isReceptionist();

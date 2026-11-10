@@ -4,6 +4,15 @@
  * سیستەمی زیرەکی کلینیکی ددان
  */
 
+// An accountant without «داشبۆرد» (the accountant works the approval center
+// and the debts, not the clinic's figures) goes to the approval center.
+require_once __DIR__ . '/config/config.php';
+require_once __DIR__ . '/classes/Permission.php';
+if (($_SESSION['role'] ?? '') === 'accountant' && !Permission::getInstance()->can('page.dashboard')) {
+    header('Location: ' . APP_URL . '/accountant/approval-center.php');
+    exit;
+}
+
 $pageTitle = 'داشبۆرد';
 $hidePageHeader = true;   // each view has its own heading: the greeting banner, or the receptionist's title
 

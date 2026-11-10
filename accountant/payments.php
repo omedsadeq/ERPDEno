@@ -16,7 +16,9 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Auth.php';
 $__gate = new Auth();
 $__gate->requireLogin();
-if (!$__gate->isAccountant() && !$__gate->isAdmin()) {
+// …and the permission «وەرگرتنی پارە» (off for an accountant kept to approvals and debts)
+require_once __DIR__ . '/../classes/Permission.php';
+if ((!$__gate->isAccountant() && !$__gate->isAdmin()) || !Permission::getInstance()->can('page.accountant_payments')) {
     header('Location: ' . APP_URL . '/403.php');
     exit;
 }

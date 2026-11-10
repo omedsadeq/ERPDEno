@@ -193,10 +193,12 @@ if (in_array($currentPage, ['appointments', 'reception-call-lists', 'doctor-sche
         <?php endif; ?>
 
         <!-- Reports Hub - standalone item -->
+        <?php if ($permission->can('page.reports_hub')): ?>
         <a href="<?= APP_URL ?>/reports.php" class="nav-item <?= $currentPage === 'reports' ? 'active' : '' ?>">
             <span class="nav-item-icon" style="background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;"><i class="fas fa-chart-pie"></i></span>
             <span class="nav-item-text">ڕاپۆرتەکان</span>
         </a>
+        <?php endif; ?>
 
         <!-- Main Section - Collapsible -->
         <?php if ($permission->can('page.appointments') || $isReceptionist || $isAdmin || $permission->can('page.doctor_schedules') || $permission->can('page.waiting_room') || $permission->can('page.visits') || $permission->can('page.quick_actions')): ?>
@@ -324,10 +326,12 @@ if (in_array($currentPage, ['appointments', 'reception-call-lists', 'doctor-sche
                          cases are managed directly on the patient (Patient → Case).
                          folders/index.php stays reachable by URL for legacy data. */ ?>
 
+                <?php if ($permission->can('page.daily_report')): ?>
                 <a href="<?= APP_URL ?>/patients/report.php" class="nav-item <?= ($currentDir === 'patients' && $currentPage === 'report') ? 'active' : '' ?>">
                     <span class="nav-item-icon" style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;"><i class="fas fa-chart-line"></i></span>
                     <span class="nav-item-text">ڕاپۆرتی ڕۆژانە</span>
                 </a>
+                <?php endif; ?>
             </div>
         </div>
         <?php endif; ?>
