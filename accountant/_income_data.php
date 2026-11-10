@@ -301,20 +301,32 @@ if ($db->tableExists('expenses')) {
         ['f' => $from, 't' => $to]
     )['t'] ?? 0);
 }
+$legacyGeneral = $expenseParts['other'];   // the old table: no doctor on it, so the centre's
 $expenseParts['general'] += $expenseParts['other'];
 unset($expenseParts['other']);
 
 // ── The bottom of the sheet, as on the paper ─────────────────────────
 //   کۆی گشتی = the total of the کۆی گشتی column (income after its expenses)
-//   خەرجیات  = the GENERAL expenses (the خەرجی گشتی page) with no doctor row —
-//              plus any lab/store expense not tied to one: it has no row to be
-//              subtracted in, so it is taken here rather than silently lost
+//   خەرجیات  = the centre's GENERAL expenses: those written on no doctor (the
+//              خەرجی گشتی page, «سەنتەر (بێ دکتۆر)»). One written on someone
+//              with no row on the sheet (an admin account) has its own line,
+//              and so does a lab/store expense tied to no doctor: there is no
+//              row to subtract them in, so they are taken here rather than lost
 //   ماوە     = کۆی گشتی − خەرجیات
 // An expense with a doctor is already taken in that doctor's row, so it is
 // not counted again here. Only switched-on kinds count anywhere.
 $expenseLines = [];   // label => amount, shown under خەرجیات
 if (in_array('general', $expSel, true)) {
-    $expenseLines['گشتی'] = $expenseParts['general'] - $totals['general'];
+    $centreGeneral = $legacyGeneral + (float)($db->fetch(
+        "SELECT COALESCE(SUM(amount), 0) AS t FROM expenses_general
+         WHERE doctor_id IS NULL AND expense_date BETWEEN :f AND :t",
+        ['f' => $from, 't' => $to]
+    )['t'] ?? 0);
+    $expenseLines['گشتی سەنتەر (بێ دکتۆر)'] = $centreGeneral;
+    $offRows = $expenseParts['general'] - $centreGeneral - $totals['general'];
+    if ($offRows > 0.5) {
+        $expenseLines['گشتی لەسەر کەسێکی بێ ڕیز'] = $offRows;
+    }
 }
 foreach (['lab' => 'تاقیگەی بێ دکتۆر', 'store' => 'کۆگای بێ دکتۆر'] as $k => $label) {
     $unassigned = $expenseParts[$k] - $totals[$k];

@@ -134,10 +134,14 @@ function income_detail_data(Database $db, string $kind, int $id, string $from, s
     if ($kind === 'lab' || $kind === 'store' || $kind === 'general') {
         // A doctor row's expense columns: the costs written in his name
         // (ds_compute_range: labExpense / storeExpense / generalExpense).
-        $doctor = $db->fetch("SELECT full_name FROM users WHERE id = ? AND role = 'doctor'", [$id]);
+        // id 0: the centre's — written on no doctor (the sheet's خەرجیات).
+        $doctor = $id === 0 ? ['full_name' => 'سەنتەر (بێ دکتۆر)']
+            : $db->fetch("SELECT full_name FROM users WHERE id = ? AND role = 'doctor'", [$id]);
         if (!$doctor) {
             return null;
         }
+        $who = $id === 0 ? 'e.doctor_id IS NULL' : 'e.doctor_id = :uid';
+        $whoParams = $id === 0 ? [] : ['uid' => $id];
         $page = ['lab' => 'expenses-lab', 'store' => 'expenses-inventory', 'general' => 'expenses-general'][$kind];
         $listLink = fn($day) => ['لە لیستی خەرجی', 'fa-pen', $app . '/admin/' . $page . '.php?date_from=' . $day . '&date_to=' . $day];
         $lines = [];
@@ -149,8 +153,8 @@ function income_detail_data(Database $db, string $kind, int $id, string $from, s
                 "SELECT e.id, e.expense_date AS day, e.expense_kind, e.amount, e.description, e.supplier, e.invoice_number,
                         e.source_type, e.source_id, ec.category_name
                  FROM expenses_store e LEFT JOIN expense_categories_store ec ON ec.id = e.category_id
-                 WHERE e.doctor_id = :uid AND e.expense_date BETWEEN :f AND :t",
-                ['uid' => $id, 'f' => $from, 't' => $to]
+                 WHERE {$who} AND e.expense_date BETWEEN :f AND :t",
+                $whoParams + ['f' => $from, 't' => $to]
             ) as $r) {
                 $voucher = $r['source_type'] === 'erp_doctor_issue' && $r['source_id'];
                 $lines[] = ['group' => $r['expense_kind'] === 'implant' ? 'implant' : 'normal', 'day' => $r['day'],
@@ -171,8 +175,8 @@ function income_detail_data(Database $db, string $kind, int $id, string $from, s
                  FROM {$table} e
                  LEFT JOIN {$catTable} ec ON ec.id = e.category_id
                  LEFT JOIN expense_subgroups s ON s.id = e.subgroup_id
-                 WHERE e.doctor_id = :uid AND e.expense_date BETWEEN :f AND :t",
-                ['uid' => $id, 'f' => $from, 't' => $to]
+                 WHERE {$who} AND e.expense_date BETWEEN :f AND :t",
+                $whoParams + ['f' => $from, 't' => $to]
             ) as $r) {
                 $key = 'c' . (int)$r['category_id'];
                 $groups[$key] ??= ['label' => $r['category_name'] ?: 'بێ گرووپ', 'color' => $r['color'] ?: '#64748b'];
@@ -180,6 +184,18 @@ function income_detail_data(Database $db, string $kind, int $id, string $from, s
                             'patient' => $r['description'], 'note' => trim(($r['subgroup_name'] ?? '') . ' ' . ($r['who'] ?? '')),
                             'amount' => (float)$r['amount'], 'receipt' => null, 'print' => null,
                             'links' => array_filter([$listLink($r['day']), $patientLink($r['patient_id'] ?? null)])];
+            }
+        }
+        // the centre's general expenses also hold the old expenses table (no doctor there)
+        if ($kind === 'general' && $id === 0 && $db->tableExists('expenses')) {
+            foreach ($db->fetchAll(
+                "SELECT id, expense_date AS day, amount, description, vendor FROM expenses
+                 WHERE expense_date BETWEEN :f AND :t AND COALESCE(status, '') NOT IN ('rejected', 'cancelled')",
+                ['f' => $from, 't' => $to]
+            ) as $r) {
+                $groups['old'] ??= ['label' => 'خەرجی کۆن', 'color' => '#64748b'];
+                $lines[] = ['group' => 'old', 'day' => $r['day'], 'no' => 'EXP-' . $r['id'], 'patient' => $r['description'],
+                            'note' => (string)($r['vendor'] ?? ''), 'amount' => (float)$r['amount'], 'receipt' => null, 'print' => null, 'links' => []];
             }
         }
         $label = ['lab' => 'خەرجی تاقیگە', 'store' => 'خەرجی کۆگا', 'general' => 'خەرجی گشتی'][$kind];

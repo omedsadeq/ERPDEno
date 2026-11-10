@@ -348,8 +348,12 @@ body.inc-full-open{overflow:hidden}
                 <div class="k">خەرجیات</div>
                 <div class="v"><?= dsMoney($expensesAll) ?></div>
                 <div class="s"><?php
+                    // each line, and what stands behind the centre's general expenses
+                    $expDetail = ['گشتی سەنتەر (بێ دکتۆر)' => ['general', 0], 'تاقیگەی بێ دکتۆر' => ['lab', 0], 'کۆگای بێ دکتۆر' => ['store', 0]];
                     echo $expenseLines
-                        ? implode(' · ', array_map(fn($l, $v) => $l . ' ' . dsMoney($v), array_keys($expenseLines), $expenseLines))
+                        ? implode(' · ', array_map(fn($l, $v) => '<span class="inc-xl">' . dsEsc($l) . ' ' . dsMoney($v)
+                            . (isset($expDetail[$l]) && abs($v) >= 0.5 ? ' ' . income_detail_button($expDetail[$l][0], $expDetail[$l][1]) : '') . '</span>',
+                            array_keys($expenseLines), $expenseLines))
                         : (in_array('general', $expSel, true) ? 'هیچ خەرجییەکی گشتی نییە' : 'خەرجی گشتی کوژاوەتەوە');
                 ?></div>
             </div>
