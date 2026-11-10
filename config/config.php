@@ -439,3 +439,40 @@ if (!defined('APP_NAME')) {
     define('APP_NAME_EN', Branding::nameEn());
     define('CLINIC_NAME', Branding::name());
 }
+
+// ── داخستنی مانگ: a write a closed month refused, that no page caught ──
+// (classes/PeriodClose.php). A page that catches it shows its own message;
+// one that does not — the expense pages, say — would end in a blank error.
+// Say it instead: as JSON to a script, as a short page with a way back to a
+// person. Any other exception goes on as before.
+if (!defined('PERIOD_CLOSE_HANDLER')) {
+    define('PERIOD_CLOSE_HANDLER', true);
+    set_exception_handler(function (Throwable $e) {
+        if (!($e instanceof PeriodClosedException)) {
+            restore_exception_handler();
+            throw $e;
+        }
+        $msg = $e->getMessage();
+        if (!headers_sent()) {
+            http_response_code(409);
+        }
+        $wantsJson = stripos($_SERVER['HTTP_ACCEPT'] ?? '', 'json') !== false
+            || strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest'
+            || strpos($_SERVER['SCRIPT_NAME'] ?? '', '/api/') !== false;
+        if ($wantsJson) {
+            if (!headers_sent()) {
+                header('Content-Type: application/json; charset=utf-8');
+            }
+            echo json_encode(['ok' => false, 'success' => false, 'error' => $msg, 'message' => $msg], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+        $h = htmlspecialchars($msg, ENT_QUOTES, 'UTF-8');
+        echo '<!DOCTYPE html><html lang="ku" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+            . '<title>مانگ داخراوە</title></head><body style="margin:0;background:#f4f6f8;font-family:Tahoma,Arial,sans-serif">'
+            . '<div style="max-width:560px;margin:60px auto;padding:28px 24px;background:#fff;border:1.5px solid #fecaca;border-radius:16px;text-align:center;color:#7f1d1d">'
+            . '<div style="font-size:40px">&#128274;</div><h2 style="margin:10px 0 8px;font-size:19px">ئەم گۆڕانکارییە نەکرا</h2>'
+            . '<p style="line-height:1.9;margin:0 0 18px">' . $h . '</p>'
+            . '<a href="javascript:history.back()" style="display:inline-block;padding:9px 20px;border-radius:10px;background:#0f766e;color:#fff;text-decoration:none;font-weight:700">گەڕانەوە</a>'
+            . '</div></body></html>';
+    });
+}

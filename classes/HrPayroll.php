@@ -196,6 +196,11 @@ class HrPayroll
             throw new InvalidArgumentException('شێوازی پێدان هەڵبژێرە');
         }
         $signature = self::cleanSignature($signature);
+        if ($asExpense) {
+            // داخستنی مانگ: the expense would be dated in it
+            require_once __DIR__ . '/PeriodClose.php';
+            PeriodClose::assertOpen($date);
+        }
         $doctorId = $asExpense ? $this->chargedDoctor($item) : null;
         $r = $this->month($month)[$employeeId] ?? null;
         if (!$r) {
@@ -283,6 +288,14 @@ class HrPayroll
             if (!$rc || $rc['status'] !== 'valid') {
                 throw new InvalidArgumentException('وەسڵەکە نەدۆزرایەوە');
             }
+            // داخستنی مانگ: its expense, as it was or as it would be
+            require_once __DIR__ . '/PeriodClose.php';
+            if ($rc['as_expense']) {
+                PeriodClose::assertOpen($rc['paid_date']);
+            }
+            if ($asExpense) {
+                PeriodClose::assertOpen($date);
+            }
             $month = (string)($item['month'] ?? $rc['pay_month']);
             if ($month !== $rc['pay_month']) {
                 $this->assertMonthFree((int)$rc['employee_id'], $month, $rc['employee_name']);
@@ -368,6 +381,10 @@ class HrPayroll
             $rc = $this->db->fetch('SELECT * FROM hr_salary_receipts WHERE id = ? FOR UPDATE', [$receiptId]);
             if (!$rc) {
                 throw new InvalidArgumentException('وەسڵەکە نەدۆزرایەوە');
+            }
+            if ($rc['as_expense']) {
+                require_once __DIR__ . '/PeriodClose.php';
+                PeriodClose::assertOpen($rc['paid_date']);   // داخستنی مانگ
             }
             if ($rc['cashbox_entry_id']) {
                 $this->cashBack((int)$rc['cashbox_entry_id'], 'سڕینەوەی وەسڵی مووچەدان ' . self::receiptNo($receiptId) . ' — ' . $rc['employee_name'], $userId);

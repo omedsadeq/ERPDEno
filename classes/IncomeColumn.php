@@ -30,6 +30,7 @@
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/AuditLog.php';
 require_once __DIR__ . '/CashboxLedger.php';
+require_once __DIR__ . '/PeriodClose.php';
 
 class IncomeColumn
 {
@@ -443,6 +444,7 @@ class IncomeColumn
             if (!$column['is_active']) {
                 throw new InvalidArgumentException('ئەم کۆڵۆمە لابراوە');
             }
+            PeriodClose::assertOpen($data['entry_date']);   // داخستنی مانگ
             $onRow = !empty($data['row_kind']);
             if (!$onRow) {
                 $this->assertOpen((int)$data['doctor_id'], $data['entry_date']);
@@ -485,6 +487,8 @@ class IncomeColumn
             if ((int)$data['column_id'] !== (int)$old['column_id']) {
                 throw new InvalidArgumentException('کۆڵۆمی تۆمارێک ناگۆڕدرێت؛ هەڵیبوەشێنەوە و لە کۆڵۆمەکەی تر تۆماری بکە');
             }
+            PeriodClose::assertOpen($old['entry_date']);
+            PeriodClose::assertOpen($data['entry_date']);
             // a doctor's stays a doctor's, a row's a row's: they move different boxes
             if (empty($old['row_kind']) !== empty($data['row_kind'])) {
                 throw new InvalidArgumentException('تۆمارێکی سەر دکتۆر ناچێتە سەر X-ray / Pharmacy و بە پێچەوانەوە؛ هەڵیبوەشێنەوە و دووبارە تۆماری بکە');
@@ -515,6 +519,7 @@ class IncomeColumn
         $this->db->beginTransaction();
         try {
             $old = $this->entry($id);
+            PeriodClose::assertOpen($old['entry_date']);
             if (empty($old['row_kind'])) {
                 $this->assertOpen((int)$old['doctor_id'], $old['entry_date']);
             }

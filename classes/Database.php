@@ -111,8 +111,18 @@ class Database {
     }
 
     public function query($sql, $params = []) {
-        $stmt = $this->connection->prepare($sql);
-        $stmt->execute($params);
+        try {
+            $stmt = $this->connection->prepare($sql);
+            $stmt->execute($params);
+        } catch (PDOException $e) {
+            // داخستنی مانگ: the database refused a row of a closed month
+            // (classes/PeriodClose.php) — say so in a sentence, not SQLSTATE.
+            if (preg_match('/LZ_PERIOD_CLOSED:(\d{4}-\d{2})/', $e->getMessage(), $m)) {
+                require_once __DIR__ . '/PeriodClose.php';
+                throw new PeriodClosedException(PeriodClose::message($m[1]), 0, $e);
+            }
+            throw $e;
+        }
         return $stmt;
     }
 

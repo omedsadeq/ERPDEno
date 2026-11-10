@@ -16,6 +16,7 @@ function finance_nav_definitions(): array
                 ['page' => 'accountant/income', 'url' => 'accountant/income.php', 'label' => 'داهات', 'icon' => 'fa-cash-register', 'can' => 'page.accountant_financial'],
                 ['page' => 'accountant/income-distribution', 'url' => 'accountant/income-distribution.php', 'label' => 'دابەشکردنی داهات', 'icon' => 'fa-scale-balanced', 'can' => 'page.accountant_financial'],
                 ['page' => 'accountant/income-compare', 'url' => 'accountant/income-compare.php', 'label' => 'بەراورد', 'icon' => 'fa-scale-unbalanced', 'can' => 'page.accountant_financial'],
+                ['page' => 'accountant/month-close', 'url' => 'accountant/month-close.php', 'label' => 'داخستنی مانگ', 'icon' => 'fa-lock', 'can' => 'page.accountant_financial'],
             ],
         ],
         'approvals' => [

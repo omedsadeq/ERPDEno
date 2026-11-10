@@ -122,6 +122,8 @@ class IncomeManualEntry
 
     public function create(array $data, int $userId): int
     {
+        require_once __DIR__ . '/PeriodClose.php';
+        PeriodClose::assertOpen($data['entry_date'] ?? null);   // داخستنی مانگ
         $data['created_by'] = $userId ?: null;
         $id = (int)$this->db->insert('income_manual_entries', $data);
         AuditLog::log('income_manual_create', 'income_manual_entries', $id, null, $data);
@@ -134,6 +136,9 @@ class IncomeManualEntry
         if (!$old) {
             throw new InvalidArgumentException('تۆمارەکە نەدۆزرایەوە');
         }
+        require_once __DIR__ . '/PeriodClose.php';
+        PeriodClose::assertOpen($old['entry_date']);
+        PeriodClose::assertOpen($data['entry_date'] ?? null);
         $data['updated_by'] = $userId ?: null;
         $data['updated_at'] = date('Y-m-d H:i:s');
         $this->db->update('income_manual_entries', $data, 'id = :id', ['id' => $id]);
@@ -146,6 +151,8 @@ class IncomeManualEntry
         if (!$old) {
             return;
         }
+        require_once __DIR__ . '/PeriodClose.php';
+        PeriodClose::assertOpen($old['entry_date']);
         $this->db->delete('income_manual_entries', 'id = :id', ['id' => $id]);
         AuditLog::log('income_manual_delete', 'income_manual_entries', $id, $old, null);
     }

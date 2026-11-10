@@ -60,6 +60,11 @@ $manReturn = $rangeQs($from, $to);
 .inc-days a.on{background:#0369a1;border-color:#0369a1;color:#fff}
 
 /* the sheet */
+.inc-lock{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;padding:10px 14px;border-radius:12px;background:#fef2f2;border:1.5px solid #fecaca;color:#991b1b;font-size:13px}
+.inc-lock > i{font-size:18px}
+.inc-lock span{flex:1;min-width:220px}
+.inc-lock a{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:9px;background:#fff;border:1px solid currentColor;color:inherit;font-weight:700;text-decoration:none}
+.inc-lock.open{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
 .inc-sheet{margin-top:14px;background:#fff;border-radius:16px;padding:22px 24px;
     box-shadow:0 1px 2px rgba(15,23,42,.06),0 10px 28px -14px rgba(15,23,42,.22)}
 .inc-head{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;padding-bottom:12px;border-bottom:2px solid #0284c7}
@@ -171,6 +176,26 @@ body.inc-full-open{overflow:hidden}
             <a href="<?= dsEsc($rangeQs($nextFrom, $nextTo)) ?>">داهاتوو →</a>
         </div>
     </form>
+
+    <?php
+    // داخستنی مانگ: the months of this period that stand closed, and — for one
+    // whole finished month still open — the way to close it.
+    require_once __DIR__ . '/../classes/PeriodClose.php';
+    $incClosed = PeriodClose::closedIn($from, $to);
+    $incWholeMonth = substr($from, 8) === '01' && $to === date('Y-m-t', strtotime($from)) ? substr($from, 0, 7) : null;
+    ?>
+    <?php foreach ($incClosed as $cm): ?>
+    <div class="inc-lock"><i class="fas fa-lock"></i>
+        <span><b>مانگی <bdi><?= dsEsc($cm) ?></bdi> داخراوە</b> — هیچ پارە یان خەرجییەک بە ڕێکەوتی ئەو مانگە زیاد، دەستکاری یان سڕینەوە ناکرێت.</span>
+        <a href="<?= APP_URL ?>/accountant/month-close.php?month=<?= dsEsc($cm) ?>"><i class="fas fa-file-lines"></i> کۆپیی داخستن</a>
+    </div>
+    <?php endforeach; ?>
+    <?php if ($incWholeMonth && !$incClosed && PeriodClose::isOver($incWholeMonth) && Permission::getInstance()->can(PeriodClose::PERMISSION)): ?>
+    <div class="inc-lock open"><i class="fas fa-lock-open"></i>
+        <span>مانگی <bdi><?= dsEsc($incWholeMonth) ?></bdi> کراوەیە. کە حیساباتەکەت تەواو کرد، دایبخە تا هیچ شتێکی تێدا نەگۆڕدرێت.</span>
+        <a href="<?= APP_URL ?>/accountant/month-close.php?month=<?= dsEsc($incWholeMonth) ?>"><i class="fas fa-lock"></i> داخستنی مانگ</a>
+    </div>
+    <?php endif; ?>
 
     <div class="inc-sheet">
         <div class="inc-head">
