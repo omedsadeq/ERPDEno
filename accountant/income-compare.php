@@ -119,40 +119,47 @@ if (!empty($_GET['pdf'])) {
     require_once __DIR__ . '/../services/InvoicePdfService.php';
     require __DIR__ . '/../includes/clinic_branding.php';
     $viewer = $auth->getCurrentUser();
-    $html = '<style>
+    // Both periods on ONE page, no heading above them: written at the paper's
+    // size first, and again a little smaller each time until it fits.
+    $css = function (float $f) {
+        $pt = fn($v) => round($v * $f, 2) . 'pt';
+        $mm = fn($v) => round($v * $f, 2) . 'mm';
+        return '<style>
 body { font-family: nrt; direction: rtl; color: #0f172a; }
-.hd { width: 100%; border-collapse: collapse; margin-bottom: 2mm; }
-.hd td { vertical-align: middle; }
-.ku { font-size: 13pt; font-weight: bold; color: #0369a1; }
-.sub { font-size: 8.5pt; color: #475569; }
-.cr-title { margin: 3mm 0 1mm; padding: 1.2mm 2mm; background: #fde68a; font-size: 9pt; font-weight: bold; }
+.cr-title { margin: ' . $mm(2) . ' 0 ' . $mm(1) . '; padding: ' . $mm(1) . ' ' . $mm(2) . '; background: #fde68a; font-size: ' . $pt(8.5) . '; font-weight: bold; }
 .cr { width: 100%; border-collapse: collapse; }
-.cr th { background: #fde68a; font-size: 6.6pt; padding: 1.2mm 0.8mm; border: 0.6px solid #555; }
-.cr td { font-size: 6.8pt; padding: 1.3mm 0.8mm; border: 0.6px solid #777; }
+.cr th { background: #fde68a; font-size: ' . $pt(6.6) . '; padding: ' . $mm(1.1) . ' ' . $mm(0.7) . '; border: 0.6px solid #555; }
+.cr td { font-size: ' . $pt(6.8) . '; padding: ' . $mm(1.1) . ' ' . $mm(0.7) . '; border: 0.6px solid #777; }
+.cr td small { font-size: ' . $pt(5.6) . '; }
 .cr td.nm { font-weight: bold; white-space: nowrap; }
 .cr td.n { text-align: center; white-space: nowrap; }
 .cr td.c, .cr td.rt, .cr td.ch { text-align: center; white-space: nowrap; }
 .cr td.b { font-weight: bold; }
 .cr tr.dept td { background: #f1f5f9; }
 .cr tr.tot td { background: #fde68a; font-weight: bold; }
-.cr tr.chg td { font-size: 6.4pt; color: #334155; }
+.cr tr.chg td { font-size: ' . $pt(6.4) . '; color: #334155; }
 .cr tr.end td { font-weight: bold; }
-</style>
-<table class="hd"><tr><td><div class="ku">' . dsEsc($clinicName) . '</div><div class="sub">بەراوردی داهات و سەردانەکانی دکتۆرەکان</div></td>
-<td style="text-align:left;"><div class="sub" style="direction:ltr;">' . date('Y-m-d H:i') . '</div></td></tr></table>'
-        . $reportB . $reportA;
-    $pdf = new InvoicePdfService([
-        'orientation' => 'L', 'format' => 'A4', 'show_header' => 0, 'show_footer' => 0,
-        'margin_top_mm' => 8, 'margin_bottom_mm' => 12, 'margin_left_mm' => 8, 'margin_right_mm' => 8,
-    ]);
-    $pdf->setTitle('بەراورد — ' . $bFrom . ' / ' . $aFrom);
-    $pdf->getMpdf()->SetHTMLFooter(
-        '<table width="100%" style="font-family:nrt;font-size:7pt;color:#64748b;border-top:1px solid #e2e8f0;"><tr>'
-        . '<td style="text-align:right;">چاپکراوە لەلایەن ' . dsEsc($viewer['full_name'] ?? '') . '</td>'
-        . '<td style="text-align:left;direction:ltr;">{PAGENO} / {nbpg}</td></tr></table>'
-    );
-    $pdf->setContent($html);
-    $pdf->output('compare-' . $bFrom . '_' . $bTo . '-vs-' . $aFrom . '_' . $aTo . '.pdf', 'I');
+</style>';
+    };
+    $sizes = [1.0, 0.92, 0.85, 0.78, 0.72, 0.66, 0.6, 0.55, 0.5];
+    foreach ($sizes as $n => $f) {
+        $pdf = new InvoicePdfService([
+            'orientation' => 'L', 'format' => 'A4', 'show_header' => 0, 'show_footer' => 0,
+            'margin_top_mm' => 6, 'margin_bottom_mm' => 9, 'margin_left_mm' => 6, 'margin_right_mm' => 6,
+        ]);
+        $pdf->setTitle('بەراورد — ' . $bFrom . ' / ' . $aFrom);
+        $mpdf = $pdf->getMpdf();
+        $mpdf->SetHTMLFooter(
+            '<table width="100%" style="font-family:nrt;font-size:6.5pt;color:#94a3b8;"><tr>'
+            . '<td style="text-align:right;">' . dsEsc($viewer['full_name'] ?? '') . '</td>'
+            . '<td style="text-align:left;direction:ltr;">' . date('Y-m-d H:i') . '</td></tr></table>'
+        );
+        $mpdf->WriteHTML($css($f) . $reportB . $reportA);
+        if ($mpdf->page <= 1 || $n === count($sizes) - 1) {
+            $mpdf->Output('compare-' . $bFrom . '_' . $bTo . '-vs-' . $aFrom . '_' . $aTo . '.pdf', 'I');
+            exit;
+        }
+    }
     exit;
 }
 
