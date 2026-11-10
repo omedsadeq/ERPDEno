@@ -9,6 +9,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Database.php';
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../includes/expense-subgroup.php';
+require_once __DIR__ . '/../includes/expense-report-filter.php';
 require_once __DIR__ . '/../services/InvoicePdfService.php';
 
 // Check authentication
@@ -20,159 +21,28 @@ if (!$auth->isLoggedIn() || !$auth->isAdmin()) {
 $db = Database::getInstance();
 $currentUser = $auth->getCurrentUser();
 
-// Get filter parameters
-$dateFrom = $_GET['date_from'] ?? date('Y-m-01');
-$dateTo = $_GET['date_to'] ?? date('Y-m-d');
-$expenseType = $_GET['expense_type'] ?? 'all';
-$categoryId = $_GET['category'] ?? '';
-$doctorId = $_GET['doctor'] ?? '';
+// The report's own filters (includes/expense-report-filter.php, as on the page)
+$f = exp_report_filters($_GET);
+$dateFrom = $f['from'];
+$dateTo = $f['to'];
+$expenseType = $f['type'];
+$labels = exp_report_labels($f);
+$reportTitle = $f['type'] === 'all' ? 'ڕاپۆرتی خەرجییەکان' : EXP_REPORT_KINDS[$f['type']];
+$doctorLabel = $labels['doctor'];
 
-// The doctor filter: one doctor, or «بێ دکتۆر» (none — a cost written on no
-// doctor, as most general expenses are). Every figure on the page follows it:
-// the list, the cards, the groups. $expScope(kind) is the WHERE and its values.
-$doctorId = (string)$doctorId;
-$expScope = function (string $kind) use ($dateFrom, $dateTo, $doctorId): array {
-    $w = 'e.expense_date BETWEEN :from AND :to';
-    $p = ['from' => $dateFrom, 'to' => $dateTo];
-    if ($doctorId === 'none') {
-        $w .= ' AND e.doctor_id IS NULL';
-    } elseif ($doctorId !== '') {
-        $w .= ' AND e.doctor_id = :doc';
-        $p['doc'] = (int)$doctorId;
-    }
-    return [$w, $p];
-};
-
-// Type labels
-$typeLabels = [
-    'all' => 'هەموو خەرجییەکان',
-    'general' => 'خەرجی گشتی',
-    'lab' => 'خەرجی تاقیگە',
-    'store' => 'خەرجی کۆگا'
-];
-
-$reportTitle = $typeLabels[$expenseType] ?? 'ڕاپۆرتی خەرجییەکان';
-$doctorLabel = 'هەموو دکتۆرەکان';
-if ((string)$doctorId === 'none') {
-    $doctorLabel = 'خەرجی سەنتەر (بێ دکتۆر)';
-} elseif ((string)$doctorId !== '') {
-    $doctorLabel = (string)($db->fetch('SELECT full_name FROM users WHERE id = ?', [(int)$doctorId])['full_name'] ?? '—');
-}
-
-// Build queries based on expense type
-$allExpenses = [];
-$params = ['from' => $dateFrom, 'to' => $dateTo];
-
-// Get General Expenses
-if ($expenseType === 'all' || $expenseType === 'general') {
-    $whereGeneral = "e.expense_date BETWEEN :from AND :to";
-    $paramsGeneral = ['from' => $dateFrom, 'to' => $dateTo];
-
-    if ($categoryId && $expenseType === 'general') {
-        $whereGeneral .= " AND e.category_id = :cat";
-        $paramsGeneral['cat'] = $categoryId;
-    }
-    if ($doctorId === 'none') {
-        $whereGeneral .= " AND e.doctor_id IS NULL";
-    } elseif ($doctorId !== '') {
-        $whereGeneral .= " AND e.doctor_id = :doc";
-        $paramsGeneral['doc'] = (int)$doctorId;
-    }
-
-    $sqlGeneral = "SELECT e.*, 'general' as expense_type, 'خەرجی گشتی' as type_label,
-                   ec.category_name, s.name AS subgroup_name, u.full_name as created_by_name, d.full_name as doctor_name
-                   FROM expenses_general e
-                   LEFT JOIN expense_categories_general ec ON e.category_id = ec.id
-                   LEFT JOIN expense_subgroups s ON s.id = e.subgroup_id
-                   LEFT JOIN users u ON e.created_by = u.id
-                   LEFT JOIN users d ON e.doctor_id = d.id
-                   WHERE $whereGeneral
-                   ORDER BY e.expense_date ASC, e.id ASC";
-    $generalExpenses = $db->fetchAll($sqlGeneral, $paramsGeneral);
-    $allExpenses = array_merge($allExpenses, $generalExpenses);
-}
-
-// Get Lab Expenses
-if ($expenseType === 'all' || $expenseType === 'lab') {
-    $whereLab = "e.expense_date BETWEEN :from AND :to";
-    $paramsLab = ['from' => $dateFrom, 'to' => $dateTo];
-
-    if ($categoryId && $expenseType === 'lab') {
-        $whereLab .= " AND e.category_id = :cat";
-        $paramsLab['cat'] = $categoryId;
-    }
-    if ($doctorId === 'none') {
-        $whereLab .= " AND e.doctor_id IS NULL";
-    } elseif ($doctorId !== '') {
-        $whereLab .= " AND e.doctor_id = :doc";
-        $paramsLab['doc'] = (int)$doctorId;
-    }
-
-    $sqlLab = "SELECT e.*, 'lab' as expense_type, 'خەرجی تاقیگە' as type_label,
-               ec.category_name, s.name AS subgroup_name, u.full_name as created_by_name, d.full_name as doctor_name,
-               p.full_name as patient_name
-               FROM expenses_lab e
-               LEFT JOIN expense_categories_lab ec ON e.category_id = ec.id
-               LEFT JOIN expense_subgroups s ON s.id = e.subgroup_id
-               LEFT JOIN users u ON e.created_by = u.id
-               LEFT JOIN users d ON e.doctor_id = d.id
-               LEFT JOIN patients p ON e.patient_id = p.id
-               WHERE $whereLab
-               ORDER BY e.expense_date ASC, e.id ASC";
-    $labExpenses = $db->fetchAll($sqlLab, $paramsLab);
-    $allExpenses = array_merge($allExpenses, $labExpenses);
-}
-
-// Get Store/Inventory Expenses
-if ($expenseType === 'all' || $expenseType === 'store') {
-    $whereStore = "e.expense_date BETWEEN :from AND :to";
-    $paramsStore = ['from' => $dateFrom, 'to' => $dateTo];
-
-    if ($categoryId && $expenseType === 'store') {
-        $whereStore .= " AND e.category_id = :cat";
-        $paramsStore['cat'] = $categoryId;
-    }
-    if ($doctorId === 'none') {
-        $whereStore .= " AND e.doctor_id IS NULL";
-    } elseif ($doctorId !== '') {
-        $whereStore .= " AND e.doctor_id = :doc";
-        $paramsStore['doc'] = (int)$doctorId;
-    }
-
-    $sqlStore = "SELECT e.*, 'store' as expense_type, 'خەرجی کۆگا' as type_label,
-                 ec.category_name, s.name AS subgroup_name, u.full_name as created_by_name, d.full_name as doctor_name
-                 FROM expenses_store e
-                 LEFT JOIN expense_categories_store ec ON e.category_id = ec.id
-                 LEFT JOIN expense_subgroups s ON s.id = e.subgroup_id
-                 LEFT JOIN users u ON e.created_by = u.id
-                 LEFT JOIN users d ON e.doctor_id = d.id
-                 WHERE $whereStore
-                 ORDER BY e.expense_date ASC, e.id ASC";
-    $storeExpenses = $db->fetchAll($sqlStore, $paramsStore);
-    $allExpenses = array_merge($allExpenses, $storeExpenses);
-}
-
-// Sort all expenses by date
-usort($allExpenses, function($a, $b) {
-    return strcmp($a['expense_date'], $b['expense_date']);
-});
-
-// Get totals by type
-$baseParams = ['from' => $dateFrom, 'to' => $dateTo];
-$totalGeneral = $db->fetch("SELECT COALESCE(SUM(e.amount), 0) as total FROM expenses_general e WHERE " . $expScope('general')[0], $expScope('general')[1])['total'];
-$totalLab = $db->fetch("SELECT COALESCE(SUM(e.amount), 0) as total FROM expenses_lab e WHERE " . $expScope('lab')[0], $expScope('lab')[1])['total'];
-$totalStore = $db->fetch("SELECT COALESCE(SUM(e.amount), 0) as total FROM expenses_store e WHERE " . $expScope('store')[0], $expScope('store')[1])['total'];
+$allExpenses = exp_report_list($f, false);
+$totals = exp_report_totals($f);
+$totalGeneral = $totals['general']['total'];
+$totalLab = $totals['lab']['total'];
+$totalStore = $totals['store']['total'];
 $grandTotal = $totalGeneral + $totalLab + $totalStore;
-
-// Get counts by type (bound params — never interpolate request values into SQL)
-$countGeneral = (int)$db->fetch("SELECT COUNT(*) AS n FROM expenses_general e WHERE " . $expScope('general')[0], $expScope('general')[1])['n'];
-$countLab = (int)$db->fetch("SELECT COUNT(*) AS n FROM expenses_lab e WHERE " . $expScope('lab')[0], $expScope('lab')[1])['n'];
-$countStore = (int)$db->fetch("SELECT COUNT(*) AS n FROM expenses_store e WHERE " . $expScope('store')[0], $expScope('store')[1])['n'];
+$countGeneral = $totals['general']['count'];
+$countLab = $totals['lab']['count'];
+$countStore = $totals['store']['count'];
 $totalCount = count($allExpenses);
-
 $subgroupTotals = [];
-foreach (['general', 'lab', 'store'] as $kind) {
-    $subgroupTotals[$kind] = expense_subgroup_totals($kind, ...$expScope($kind));
+foreach (array_keys(EXP_REPORT_KINDS) as $kind) {
+    $subgroupTotals[$kind] = exp_report_subgroup_totals($kind, $f);
 }
 
 // A group's sub-groups under it in the tables below
@@ -187,34 +57,9 @@ $subgroupRows = function (array $parts) {
     }
     return $rows;
 };
-
-// Get statistics by category for each type
-$statsGeneral = $db->fetchAll(
-    "SELECT e.category_id, ec.category_name, SUM(e.amount) as total, COUNT(*) as count
-     FROM expenses_general e
-     LEFT JOIN expense_categories_general ec ON e.category_id = ec.id
-     WHERE " . $expScope('general')[0] . "
-     GROUP BY e.category_id, ec.category_name ORDER BY total DESC",
-    $expScope('general')[1]
-);
-
-$statsLab = $db->fetchAll(
-    "SELECT e.category_id, ec.category_name, SUM(e.amount) as total, COUNT(*) as count
-     FROM expenses_lab e
-     LEFT JOIN expense_categories_lab ec ON e.category_id = ec.id
-     WHERE " . $expScope('lab')[0] . "
-     GROUP BY e.category_id, ec.category_name ORDER BY total DESC",
-    $expScope('lab')[1]
-);
-
-$statsStore = $db->fetchAll(
-    "SELECT e.category_id, ec.category_name, SUM(e.amount) as total, COUNT(*) as count
-     FROM expenses_store e
-     LEFT JOIN expense_categories_store ec ON e.category_id = ec.id
-     WHERE " . $expScope('store')[0] . "
-     GROUP BY e.category_id, ec.category_name ORDER BY total DESC",
-    $expScope('store')[1]
-);
+$statsGeneral = exp_report_stats('general', $f);
+$statsLab = exp_report_stats('lab', $f);
+$statsStore = exp_report_stats('store', $f);
 
 // Calculate displayed total
 $displayedTotal = array_sum(array_column($allExpenses, 'amount'));
@@ -424,6 +269,10 @@ $html = '
                 <tr>
                     <td>بۆ بەروار :</td>
                     <td>' . $dateTo . '</td>
+                </tr>
+                <tr>
+                    <td>گرووپ :</td>
+                    <td>' . htmlspecialchars($labels['group']) . '</td>
                 </tr>
                 <tr>
                     <td>دکتۆر :</td>

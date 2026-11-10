@@ -9,6 +9,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Database.php';
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../includes/expense-subgroup.php';
+require_once __DIR__ . '/../includes/expense-report-filter.php';
 
 $db = Database::getInstance();
 $auth = new Auth();
@@ -33,205 +34,41 @@ $breadcrumb = [['title' => 'خەرجیەکان'], ['title' => 'ڕاپۆرت']];
 
 require_once __DIR__ . '/../includes/header.php';
 
-// Get filter parameters
-$dateFrom = $_GET['date_from'] ?? date('Y-m-01');
-$dateTo = $_GET['date_to'] ?? date('Y-m-d');
-$expenseType = $_GET['expense_type'] ?? 'all';
-$categoryId = $_GET['category'] ?? '';
-$doctorId = $_GET['doctor'] ?? '';
+// The filters (includes/expense-report-filter.php, shared with the PDF): the
+// period, the type, a group or sub-group («لق») of any kind, the doctor.
+$f = exp_report_filters($_GET);
+$dateFrom = $f['from'];
+$dateTo = $f['to'];
+$expenseType = $f['type'];
+$doctorId = $f['doctor'];
 
-// The doctor filter: one doctor, or «بێ دکتۆر» (none — a cost written on no
-// doctor, as most general expenses are). Every figure on the page follows it:
-// the list, the cards, the groups. $expScope(kind) is the WHERE and its values.
-$doctorId = (string)$doctorId;
-$expScope = function (string $kind) use ($dateFrom, $dateTo, $doctorId): array {
-    $w = 'e.expense_date BETWEEN :from AND :to';
-    $p = ['from' => $dateFrom, 'to' => $dateTo];
-    if ($doctorId === 'none') {
-        $w .= ' AND e.doctor_id IS NULL';
-    } elseif ($doctorId !== '') {
-        $w .= ' AND e.doctor_id = :doc';
-        $p['doc'] = (int)$doctorId;
-    }
-    return [$w, $p];
-};
-$groupBy = $_GET['group_by'] ?? 'date';
-
-// Load doctors
 $doctors = $db->fetchAll("SELECT id, full_name FROM users WHERE role IN ('doctor', 'admin') AND is_active = 1 ORDER BY full_name");
-
-// Load categories for all types
-$categoriesGeneral = $db->fetchAll("SELECT id, category_name, 'general' as type FROM expense_categories_general WHERE is_active = 1 ORDER BY category_name");
-$categoriesLab = $db->fetchAll("SELECT id, category_name, 'lab' as type FROM expense_categories_lab WHERE is_active = 1 ORDER BY category_name");
-$categoriesStore = $db->fetchAll("SELECT id, category_name, 'store' as type FROM expense_categories_store WHERE is_active = 1 ORDER BY category_name");
-
-// Build queries based on expense type
-$allExpenses = [];
-$params = ['from' => $dateFrom, 'to' => $dateTo];
-
-// Helper function to build WHERE clause
-function buildWhereClause($baseWhere, $categoryId, $doctorId, &$params, $type) {
-    $where = $baseWhere;
-    if ($categoryId) {
-        $catParam = 'cat_' . $type;
-        $where .= " AND e.category_id = :$catParam";
-        $params[$catParam] = $categoryId;
-    }
-    if ($doctorId) {
-        $docParam = 'doc_' . $type;
-        $where .= " AND e.doctor_id = :$docParam";
-        $params[$docParam] = $doctorId;
-    }
-    return $where;
+$categoriesByKind = [];
+foreach (EXP_REPORT_CATEGORY_TABLES as $kind => $table) {
+    $categoriesByKind[$kind] = $db->fetchAll("SELECT id, category_name FROM $table WHERE is_active = 1 ORDER BY category_name");
 }
+$subgroups = $db->fetchAll('SELECT id, kind, category_id, name FROM expense_subgroups WHERE is_active = 1 ORDER BY kind, category_id, name');
 
-// Get General Expenses
-if ($expenseType === 'all' || $expenseType === 'general') {
-    $whereGeneral = "e.expense_date BETWEEN :from AND :to";
-    if ($categoryId && $expenseType === 'general') {
-        $whereGeneral .= " AND e.category_id = :cat_general";
-        $params['cat_general'] = $categoryId;
-    }
-    if ($doctorId === 'none') {
-        $whereGeneral .= " AND e.doctor_id IS NULL";
-    } elseif ($doctorId !== '') {
-        $whereGeneral .= " AND e.doctor_id = :doc_general";
-        $params['doc_general'] = (int)$doctorId;
-    }
-
-    $sqlGeneral = "SELECT e.*, 'general' as expense_type, 'خەرجی گشتی' as type_label,
-                   ec.category_name, s.name AS subgroup_name, u.full_name as created_by_name, d.full_name as doctor_name
-                   FROM expenses_general e
-                   LEFT JOIN expense_categories_general ec ON e.category_id = ec.id
-                   LEFT JOIN expense_subgroups s ON s.id = e.subgroup_id
-                   LEFT JOIN users u ON e.created_by = u.id
-                   LEFT JOIN users d ON e.doctor_id = d.id
-                   WHERE $whereGeneral
-                   ORDER BY e.expense_date DESC, e.id DESC";
-    $generalExpenses = $db->fetchAll($sqlGeneral, $params);
-    $allExpenses = array_merge($allExpenses, $generalExpenses);
-}
-
-// Reset params for lab
-$params = ['from' => $dateFrom, 'to' => $dateTo];
-
-// Get Lab Expenses
-if ($expenseType === 'all' || $expenseType === 'lab') {
-    $whereLab = "e.expense_date BETWEEN :from AND :to";
-    if ($categoryId && $expenseType === 'lab') {
-        $whereLab .= " AND e.category_id = :cat_lab";
-        $params['cat_lab'] = $categoryId;
-    }
-    if ($doctorId === 'none') {
-        $whereLab .= " AND e.doctor_id IS NULL";
-    } elseif ($doctorId !== '') {
-        $whereLab .= " AND e.doctor_id = :doc_lab";
-        $params['doc_lab'] = (int)$doctorId;
-    }
-
-    $sqlLab = "SELECT e.*, 'lab' as expense_type, 'خەرجی تاقیگە' as type_label,
-               ec.category_name, s.name AS subgroup_name, u.full_name as created_by_name, d.full_name as doctor_name,
-               p.full_name as patient_name
-               FROM expenses_lab e
-               LEFT JOIN expense_categories_lab ec ON e.category_id = ec.id
-               LEFT JOIN expense_subgroups s ON s.id = e.subgroup_id
-               LEFT JOIN users u ON e.created_by = u.id
-               LEFT JOIN users d ON e.doctor_id = d.id
-               LEFT JOIN patients p ON e.patient_id = p.id
-               WHERE $whereLab
-               ORDER BY e.expense_date DESC, e.id DESC";
-    $labExpenses = $db->fetchAll($sqlLab, $params);
-    $allExpenses = array_merge($allExpenses, $labExpenses);
-}
-
-// Reset params for store
-$params = ['from' => $dateFrom, 'to' => $dateTo];
-
-// Get Store/Inventory Expenses
-if ($expenseType === 'all' || $expenseType === 'store') {
-    $whereStore = "e.expense_date BETWEEN :from AND :to";
-    if ($categoryId && $expenseType === 'store') {
-        $whereStore .= " AND e.category_id = :cat_store";
-        $params['cat_store'] = $categoryId;
-    }
-    if ($doctorId === 'none') {
-        $whereStore .= " AND e.doctor_id IS NULL";
-    } elseif ($doctorId !== '') {
-        $whereStore .= " AND e.doctor_id = :doc_store";
-        $params['doc_store'] = (int)$doctorId;
-    }
-
-    $sqlStore = "SELECT e.*, 'store' as expense_type, 'خەرجی کۆگا' as type_label,
-                 ec.category_name, s.name AS subgroup_name, u.full_name as created_by_name, d.full_name as doctor_name
-                 FROM expenses_store e
-                 LEFT JOIN expense_categories_store ec ON e.category_id = ec.id
-                 LEFT JOIN expense_subgroups s ON s.id = e.subgroup_id
-                 LEFT JOIN users u ON e.created_by = u.id
-                 LEFT JOIN users d ON e.doctor_id = d.id
-                 WHERE $whereStore
-                 ORDER BY e.expense_date DESC, e.id DESC";
-    $storeExpenses = $db->fetchAll($sqlStore, $params);
-    $allExpenses = array_merge($allExpenses, $storeExpenses);
-}
-
-// Sort all expenses by date
-usort($allExpenses, function($a, $b) {
-    return strcmp($b['expense_date'], $a['expense_date']);
-});
-
-// Calculate statistics
+// What the filters keep
+$allExpenses = exp_report_list($f);
+$totals = exp_report_totals($f);   // each kind, under every filter but the type
+$totalGeneral = $totals['general']['total'];
+$totalLab = $totals['lab']['total'];
+$totalStore = $totals['store']['total'];
+$grandTotal = $totalGeneral + $totalLab + $totalStore;
+$countGeneral = $totals['general']['count'];
+$countLab = $totals['lab']['count'];
+$countStore = $totals['store']['count'];
 $totalAll = array_sum(array_column($allExpenses, 'amount'));
 $countAll = count($allExpenses);
-
-// Get totals by type
-$params = ['from' => $dateFrom, 'to' => $dateTo];
-$totalGeneral = $db->fetch("SELECT COALESCE(SUM(e.amount), 0) as total FROM expenses_general e WHERE " . $expScope('general')[0], $expScope('general')[1])['total'];
-$totalLab = $db->fetch("SELECT COALESCE(SUM(e.amount), 0) as total FROM expenses_lab e WHERE " . $expScope('lab')[0], $expScope('lab')[1])['total'];
-$totalStore = $db->fetch("SELECT COALESCE(SUM(e.amount), 0) as total FROM expenses_store e WHERE " . $expScope('store')[0], $expScope('store')[1])['total'];
-$grandTotal = $totalGeneral + $totalLab + $totalStore;
-
-// Get counts by type (bound params — never interpolate request values into SQL)
-$countGeneral = (int)$db->fetch("SELECT COUNT(*) AS n FROM expenses_general e WHERE " . $expScope('general')[0], $expScope('general')[1])['n'];
-$countLab = (int)$db->fetch("SELECT COUNT(*) AS n FROM expenses_lab e WHERE " . $expScope('lab')[0], $expScope('lab')[1])['n'];
-$countStore = (int)$db->fetch("SELECT COUNT(*) AS n FROM expenses_store e WHERE " . $expScope('store')[0], $expScope('store')[1])['n'];
-
-// Get statistics by category for each type
-$statsByTypeAndCategory = [];
-
+$statsGeneral = exp_report_stats('general', $f);
+$statsLab = exp_report_stats('lab', $f);
+$statsStore = exp_report_stats('store', $f);
 $subgroupTotals = [];
-foreach (['general', 'lab', 'store'] as $kind) {
-    $subgroupTotals[$kind] = expense_subgroup_totals($kind, ...$expScope($kind));
+foreach (array_keys(EXP_REPORT_KINDS) as $kind) {
+    $subgroupTotals[$kind] = exp_report_subgroup_totals($kind, $f);
 }
-
-// General stats
-$statsGeneral = $db->fetchAll(
-    "SELECT e.category_id, ec.category_name, SUM(e.amount) as total, COUNT(*) as count
-     FROM expenses_general e
-     LEFT JOIN expense_categories_general ec ON e.category_id = ec.id
-     WHERE " . $expScope('general')[0] . "
-     GROUP BY e.category_id, ec.category_name ORDER BY total DESC",
-    $expScope('general')[1]
-);
-
-// Lab stats
-$statsLab = $db->fetchAll(
-    "SELECT e.category_id, ec.category_name, SUM(e.amount) as total, COUNT(*) as count
-     FROM expenses_lab e
-     LEFT JOIN expense_categories_lab ec ON e.category_id = ec.id
-     WHERE " . $expScope('lab')[0] . "
-     GROUP BY e.category_id, ec.category_name ORDER BY total DESC",
-    $expScope('lab')[1]
-);
-
-// Store stats
-$statsStore = $db->fetchAll(
-    "SELECT e.category_id, ec.category_name, SUM(e.amount) as total, COUNT(*) as count
-     FROM expenses_store e
-     LEFT JOIN expense_categories_store ec ON e.category_id = ec.id
-     WHERE " . $expScope('store')[0] . "
-     GROUP BY e.category_id, ec.category_name ORDER BY total DESC",
-    $expScope('store')[1]
-);
+$params = ['from' => $dateFrom, 'to' => $dateTo];
 
 // Get daily totals for chart
 $dailyTotals = [];
@@ -360,6 +197,36 @@ $typeConfig = [
 .progress-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
 .progress-labels { display: flex; justify-content: space-between; font-size: 10px; color: #888; }
 
+/* compact: one line of figures, one line of filters */
+.er-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.er-chip { position: relative; flex: 1 1 170px; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 8px;
+    align-items: center; padding: 8px 12px 10px; border-radius: 10px; background: #fff; border: 1px solid #e2e8f0; border-top: 3px solid var(--c);
+    color: inherit; text-decoration: none; overflow: hidden; }
+.er-chip > i:first-child { grid-row: span 2; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--c); color: #fff; font-size: 13px; }
+.er-chip span { font-size: 11.5px; color: #64748b; font-weight: 700; }
+.er-chip b { grid-column: 2; font-size: 17px; color: #0f172a; line-height: 1.2; }
+.er-chip small { grid-column: 2; font-size: 10.5px; color: #94a3b8; }
+.er-chip small.up { color: #c62828; } .er-chip small.down { color: #2e7d32; }
+.er-chip .er-bar { position: absolute; inset: auto auto 0 0; height: 3px; background: var(--c); opacity: .55; }
+a.er-chip:hover { border-color: var(--c); }
+.er-chip.on { box-shadow: 0 0 0 2px var(--c); }
+.er-chip > span, .er-chip > b, .er-chip > small { grid-column: 2; }
+.er-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin-bottom: 10px; padding: 10px 12px; background: #fff;
+    border: 1px solid #e2e8f0; border-radius: 10px; }
+.er-filters label { flex: 1 1 130px; min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 3px; }
+.er-filters label span { font-size: 11px; font-weight: 700; color: #64748b; }
+.er-filters input, .er-filters select { width: 100%; height: 34px; padding: 0 8px; border: 1px solid #dbe3ea; border-radius: 7px; font-size: 12.5px; background: #fff; }
+.er-acts { display: flex; gap: 6px; }
+.er-acts .btn { height: 34px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; }
+.report-content-grid { gap: 10px; }
+.summary-panel { gap: 8px; }
+.summary-card-header { padding: 7px 12px; }
+.summary-card-body { padding: 6px 12px; }
+.summary-item { padding: 4px 0; }
+.report-table-header { padding: 8px 12px; }
+.report-table th { padding: 7px 6px; }
+.report-table td { padding: 5px 6px; }
+
 @media (max-width: 768px) {
     .report-stats-grid { grid-template-columns: repeat(2, 1fr); }
     .type-cards-grid { grid-template-columns: 1fr; }
@@ -367,176 +234,62 @@ $typeConfig = [
 }
 </style>
 
-<!-- Statistics Cards -->
-<div class="report-stats-grid">
-    <div class="report-stat-card" style="--card-color: #2196f3;">
-        <div class="report-stat-header">
-            <div class="report-stat-icon" style="background: #2196f3;"><i class="fas fa-chart-line"></i></div>
-            <div class="report-stat-title">کۆی گشتی خەرجییەکان</div>
-        </div>
-        <div class="report-stat-value"><?= number_format($grandTotal) ?></div>
-        <div class="report-stat-count"> - <?= $countGeneral + $countLab + $countStore ?> تۆمار</div>
-    </div>
-
-    <div class="report-stat-card" style="--card-color: #4caf50;">
-        <div class="report-stat-header">
-            <div class="report-stat-icon" style="background: #4caf50;"><i class="fas fa-coins"></i></div>
-            <div class="report-stat-title">خەرجی گشتی</div>
-        </div>
-        <div class="report-stat-value"><?= number_format($totalGeneral) ?></div>
-        <div class="report-stat-count"><?= $countGeneral ?> تۆمار</div>
-    </div>
-
-    <div class="report-stat-card" style="--card-color: #9c27b0;">
-        <div class="report-stat-header">
-            <div class="report-stat-icon" style="background: #9c27b0;"><i class="fas fa-flask"></i></div>
-            <div class="report-stat-title">خەرجی تاقیگە</div>
-        </div>
-        <div class="report-stat-value"><?= number_format($totalLab) ?></div>
-        <div class="report-stat-count"><?= $countLab ?> تۆمار</div>
-    </div>
-
-    <div class="report-stat-card" style="--card-color: #ff9800;">
-        <div class="report-stat-header">
-            <div class="report-stat-icon" style="background: #ff9800;"><i class="fas fa-warehouse"></i></div>
-            <div class="report-stat-title">خەرجی کۆگا</div>
-        </div>
-        <div class="report-stat-value"><?= number_format($totalStore) ?></div>
-        <div class="report-stat-count"><?= $countStore ?> تۆمار</div>
-    </div>
-
-    <div class="report-stat-card" style="--card-color: #e91e63;">
-        <div class="report-stat-header">
-            <div class="report-stat-icon" style="background: #e91e63;"><i class="fas fa-calendar-alt"></i></div>
-            <div class="report-stat-title">ئەم مانگە</div>
-        </div>
-        <div class="report-stat-value"><?= number_format($thisMonth) ?></div>
-        <?php if ($lastMonth > 0): ?>
-        <div class="report-stat-change <?= $monthlyChange > 0 ? 'up' : 'down' ?>">
-            <i class="fas fa-arrow-<?= $monthlyChange > 0 ? 'up' : 'down' ?>"></i>
-            <?= abs(round($monthlyChange, 1)) ?>% لە مانگی پێشوو
-        </div>
-        <?php endif; ?>
-    </div>
+<!-- One line of figures: each kind under the filters (a chip filters by it), and this month -->
+<?php $chipQ = fn(string $type) => exp_report_query($f, ['expense_type' => $type] + ($f['cat_kind'] !== null && $f['cat_kind'] !== $type ? ['category' => '', 'subgroup' => ''] : [])); ?>
+<div class="er-chips">
+    <a class="er-chip<?= $expenseType === 'all' ? ' on' : '' ?>" style="--c:#2196f3" href="?<?= htmlspecialchars($chipQ('all')) ?>">
+        <i class="fas fa-chart-line"></i><span>کۆی گشتی</span><b><?= number_format($grandTotal) ?></b><small><?= $countGeneral + $countLab + $countStore ?> تۆمار</small></a>
+    <?php foreach (['general' => ['#4caf50', 'fa-coins', $totalGeneral, $countGeneral], 'lab' => ['#9c27b0', 'fa-flask', $totalLab, $countLab], 'store' => ['#ff9800', 'fa-warehouse', $totalStore, $countStore]] as $k => [$color, $icon, $sum, $n]): ?>
+    <a class="er-chip<?= $expenseType === $k ? ' on' : '' ?>" style="--c:<?= $color ?>" href="?<?= htmlspecialchars($chipQ($k)) ?>">
+        <i class="fas <?= $icon ?>"></i><span><?= EXP_REPORT_KINDS[$k] ?></span><b><?= number_format($sum) ?></b>
+        <small><?= $n ?> تۆمار · <?= $grandTotal > 0 ? round($sum / $grandTotal * 100, 1) : 0 ?>%</small>
+        <i class="er-bar" style="width:<?= $grandTotal > 0 ? round($sum / $grandTotal * 100, 1) : 0 ?>%"></i></a>
+    <?php endforeach; ?>
+    <span class="er-chip month" style="--c:#e91e63"><i class="fas fa-calendar-alt"></i><span>ئەم مانگە</span><b><?= number_format($thisMonth) ?></b>
+        <?php if ($lastMonth > 0): ?><small class="<?= $monthlyChange > 0 ? 'up' : 'down' ?>"><i class="fas fa-arrow-<?= $monthlyChange > 0 ? 'up' : 'down' ?>"></i> <?= abs(round($monthlyChange, 1)) ?>% لە مانگی پێشوو</small><?php endif; ?></span>
 </div>
 
-<!-- Filters -->
-<div class="report-filters">
-    <div class="report-filters-header">
-        <h3><i class="fas fa-filter" style="color: #2196f3;"></i> فلتەرەکان</h3>
-        <a href="<?= APP_URL ?>/admin/print-expense-report.php?<?= http_build_query($_GET, '', '&amp;') ?>" target="_blank" class="btn btn-info" title="ڕاپۆرتەکە بە هەمان فلتەرەکان، وەک PDF">
-            <i class="fas fa-file-pdf"></i> PDF
-        </a>
-    </div>
-    <form method="GET" class="report-filters-row">
-        <div class="report-filter-group">
-            <label>لە بەروار</label>
-            <input type="date" name="date_from" value="<?= $dateFrom ?>">
-        </div>
-        <div class="report-filter-group">
-            <label>بۆ بەروار</label>
-            <input type="date" name="date_to" value="<?= $dateTo ?>">
-        </div>
-        <div class="report-filter-group">
-            <label>جۆری خەرجی</label>
-            <select name="expense_type" onchange="updateCategoryList(this.value)">
-                <option value="all" <?= $expenseType === 'all' ? 'selected' : '' ?>>هەموو جۆرەکان</option>
-                <option value="general" <?= $expenseType === 'general' ? 'selected' : '' ?>>خەرجی گشتی</option>
-                <option value="lab" <?= $expenseType === 'lab' ? 'selected' : '' ?>>خەرجی تاقیگە</option>
-                <option value="store" <?= $expenseType === 'store' ? 'selected' : '' ?>>خەرجی کۆگا</option>
-            </select>
-        </div>
-        <div class="report-filter-group">
-            <label>گرووپ</label>
-            <select name="category" id="categorySelect">
-                <option value="">هەموو گرووپەکان</option>
-                <?php if ($expenseType === 'all' || $expenseType === 'general'): ?>
-                <optgroup label="گشتی">
-                    <?php foreach ($categoriesGeneral as $cat): ?>
-                    <option value="<?= $cat['id'] ?>" data-type="general" <?= ($categoryId == $cat['id'] && $expenseType === 'general') ? 'selected' : '' ?>><?= htmlspecialchars($cat['category_name']) ?></option>
-                    <?php endforeach; ?>
-                </optgroup>
-                <?php endif; ?>
-                <?php if ($expenseType === 'all' || $expenseType === 'lab'): ?>
-                <optgroup label="تاقیگە">
-                    <?php foreach ($categoriesLab as $cat): ?>
-                    <option value="<?= $cat['id'] ?>" data-type="lab" <?= ($categoryId == $cat['id'] && $expenseType === 'lab') ? 'selected' : '' ?>><?= htmlspecialchars($cat['category_name']) ?></option>
-                    <?php endforeach; ?>
-                </optgroup>
-                <?php endif; ?>
-                <?php if ($expenseType === 'all' || $expenseType === 'store'): ?>
-                <optgroup label="کۆگا">
-                    <?php foreach ($categoriesStore as $cat): ?>
-                    <option value="<?= $cat['id'] ?>" data-type="store" <?= ($categoryId == $cat['id'] && $expenseType === 'store') ? 'selected' : '' ?>><?= htmlspecialchars($cat['category_name']) ?></option>
-                    <?php endforeach; ?>
-                </optgroup>
-                <?php endif; ?>
-            </select>
-        </div>
-        <div class="report-filter-group">
-            <label>دکتۆر</label>
-            <select name="doctor">
-                <option value="">هەموو دکتۆرەکان</option>
-                <option value="none" <?= $doctorId === 'none' ? 'selected' : '' ?>>خەرجی سەنتەر (بێ دکتۆر)</option>
-                <?php foreach ($doctors as $doc): ?>
-                <option value="<?= $doc['id'] ?>" <?= $doctorId === (string)$doc['id'] ? 'selected' : '' ?>><?= htmlspecialchars($doc['full_name']) ?></option>
+<!-- Filters, on one line -->
+<form method="GET" class="er-filters" id="erFilters">
+    <label><span>لە</span><input type="date" name="date_from" value="<?= htmlspecialchars($dateFrom) ?>"></label>
+    <label><span>بۆ</span><input type="date" name="date_to" value="<?= htmlspecialchars($dateTo) ?>"></label>
+    <label><span>جۆر</span>
+        <select name="expense_type" id="erType">
+            <option value="all">هەموو جۆرەکان</option>
+            <?php foreach (EXP_REPORT_KINDS as $k => $label): ?><option value="<?= $k ?>" <?= $expenseType === $k ? 'selected' : '' ?>><?= $label ?></option><?php endforeach; ?>
+        </select></label>
+    <label><span>گرووپ</span>
+        <select name="category" id="erCat">
+            <option value="">هەموو گرووپەکان</option>
+            <?php foreach (['general' => 'گشتی', 'lab' => 'تاقیگە', 'store' => 'کۆگا'] as $k => $label): ?>
+            <optgroup label="<?= $label ?>" data-kind="<?= $k ?>">
+                <?php foreach ($categoriesByKind[$k] as $cat): $v = $k . ':' . $cat['id']; ?>
+                <option value="<?= $v ?>" <?= $f['cat_kind'] === $k && $f['cat'] === (int)$cat['id'] ? 'selected' : '' ?>><?= htmlspecialchars($cat['category_name']) ?></option>
                 <?php endforeach; ?>
-            </select>
-        </div>
-        <div class="report-filter-actions">
-            <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> گەڕان</button>
-            <a href="<?= APP_URL ?>/admin/expense-reports.php" class="btn btn-secondary"><i class="fas fa-redo"></i></a>
-        </div>
-    </form>
-</div>
-
-<!-- Type Summary Cards -->
-<div class="type-cards-grid">
-    <a href="?expense_type=general&date_from=<?= $dateFrom ?>&date_to=<?= $dateTo ?>" class="type-card <?= $expenseType === 'general' ? 'active' : '' ?>" style="--type-color: #4caf50;">
-        <div class="type-card-header">
-            <div class="type-card-icon" style="background: #4caf50;"><i class="fas fa-coins"></i></div>
-            <div class="type-card-info">
-                <div class="type-card-title">خەرجی گشتی</div>
-                <div class="type-card-count"><?= $countGeneral ?> تۆمار</div>
-            </div>
-        </div>
-        <div class="type-card-value"><?= number_format($totalGeneral) ?> <small></small></div>
-        <div class="type-card-percent"><?= $grandTotal > 0 ? round(($totalGeneral / $grandTotal) * 100, 1) : 0 ?>% لە کۆی گشتی</div>
-        <div class="progress-bar-container">
-            <div class="progress-bar"><div class="progress-bar-fill" style="width: <?= $grandTotal > 0 ? ($totalGeneral / $grandTotal) * 100 : 0 ?>%; background: #4caf50;"></div></div>
-        </div>
-    </a>
-
-    <a href="?expense_type=lab&date_from=<?= $dateFrom ?>&date_to=<?= $dateTo ?>" class="type-card <?= $expenseType === 'lab' ? 'active' : '' ?>" style="--type-color: #9c27b0;">
-        <div class="type-card-header">
-            <div class="type-card-icon" style="background: #9c27b0;"><i class="fas fa-flask"></i></div>
-            <div class="type-card-info">
-                <div class="type-card-title">خەرجی تاقیگە</div>
-                <div class="type-card-count"><?= $countLab ?> تۆمار</div>
-            </div>
-        </div>
-        <div class="type-card-value"><?= number_format($totalLab) ?> <small></small></div>
-        <div class="type-card-percent"><?= $grandTotal > 0 ? round(($totalLab / $grandTotal) * 100, 1) : 0 ?>% لە کۆی گشتی</div>
-        <div class="progress-bar-container">
-            <div class="progress-bar"><div class="progress-bar-fill" style="width: <?= $grandTotal > 0 ? ($totalLab / $grandTotal) * 100 : 0 ?>%; background: #9c27b0;"></div></div>
-        </div>
-    </a>
-
-    <a href="?expense_type=store&date_from=<?= $dateFrom ?>&date_to=<?= $dateTo ?>" class="type-card <?= $expenseType === 'store' ? 'active' : '' ?>" style="--type-color: #ff9800;">
-        <div class="type-card-header">
-            <div class="type-card-icon" style="background: #ff9800;"><i class="fas fa-warehouse"></i></div>
-            <div class="type-card-info">
-                <div class="type-card-title">خەرجی کۆگا</div>
-                <div class="type-card-count"><?= $countStore ?> تۆمار</div>
-            </div>
-        </div>
-        <div class="type-card-value"><?= number_format($totalStore) ?> <small></small></div>
-        <div class="type-card-percent"><?= $grandTotal > 0 ? round(($totalStore / $grandTotal) * 100, 1) : 0 ?>% لە کۆی گشتی</div>
-        <div class="progress-bar-container">
-            <div class="progress-bar"><div class="progress-bar-fill" style="width: <?= $grandTotal > 0 ? ($totalStore / $grandTotal) * 100 : 0 ?>%; background: #ff9800;"></div></div>
-        </div>
-    </a>
-</div>
+            </optgroup>
+            <?php endforeach; ?>
+        </select></label>
+    <label><span>لق</span>
+        <select name="subgroup" id="erSub">
+            <option value="">هەموو لقەکان</option>
+            <?php foreach ($subgroups as $sg): ?>
+            <option value="<?= (int)$sg['id'] ?>" data-cat="<?= htmlspecialchars($sg['kind'] . ':' . $sg['category_id']) ?>" <?= $f['sub'] === (int)$sg['id'] ? 'selected' : '' ?>><?= htmlspecialchars($sg['name']) ?></option>
+            <?php endforeach; ?>
+        </select></label>
+    <label><span>دکتۆر</span>
+        <select name="doctor">
+            <option value="">هەموو دکتۆرەکان</option>
+            <option value="none" <?= $doctorId === 'none' ? 'selected' : '' ?>>خەرجی سەنتەر (بێ دکتۆر)</option>
+            <?php foreach ($doctors as $doc): ?>
+            <option value="<?= $doc['id'] ?>" <?= $doctorId === (string)$doc['id'] ? 'selected' : '' ?>><?= htmlspecialchars($doc['full_name']) ?></option>
+            <?php endforeach; ?>
+        </select></label>
+    <div class="er-acts">
+        <button type="submit" class="btn btn-primary" title="گەڕان"><i class="fas fa-search"></i></button>
+        <a href="<?= APP_URL ?>/admin/expense-reports.php" class="btn btn-secondary" title="پاککردنەوەی فلتەرەکان"><i class="fas fa-redo"></i></a>
+        <a href="<?= APP_URL ?>/admin/print-expense-report.php?<?= htmlspecialchars(exp_report_query($f)) ?>" target="_blank" class="btn btn-info" title="ڕاپۆرتەکە بە هەمان فلتەرەکان، وەک PDF"><i class="fas fa-file-pdf"></i> PDF</a>
+    </div>
+</form>
 
 <!-- Main Content Grid -->
 <div class="report-content-grid">
@@ -650,22 +403,33 @@ $typeConfig = [
         </div>
         <?php endif; ?>
 
-        <!-- Quick Links -->
-        <div class="summary-card">
-            <div class="summary-card-header" style="background: linear-gradient(135deg, #607d8b, #455a64);">
-                <i class="fas fa-link"></i>
-                <h4>بەستەرە خێراکان</h4>
-            </div>
-            <div class="summary-card-body">
-                <a href="<?= APP_URL ?>/admin/expenses-general.php" class="btn btn-outline-secondary btn-block" style="margin-bottom: 8px;"><i class="fas fa-coins"></i> خەرجی گشتی</a>
-                <a href="<?= APP_URL ?>/admin/expenses-lab.php" class="btn btn-outline-secondary btn-block" style="margin-bottom: 8px;"><i class="fas fa-flask"></i> خەرجی تاقیگە</a>
-                <a href="<?= APP_URL ?>/admin/expenses-inventory.php" class="btn btn-outline-secondary btn-block"><i class="fas fa-warehouse"></i> خەرجی کۆگا</a>
-            </div>
-        </div>
     </div>
 </div>
 
 <script>
+(function () {
+    var type = document.getElementById('erType'), cat = document.getElementById('erCat'), sub = document.getElementById('erSub');
+    if (!type || !cat || !sub) return;
+    function sync() {
+        var t = type.value, c = cat.value;
+        // groups of the chosen type only; a group of another type is let go
+        [].forEach.call(cat.querySelectorAll('optgroup'), function (g) { g.hidden = t !== 'all' && g.dataset.kind !== t; });
+        if (c && t !== 'all' && c.indexOf(t + ':') !== 0) { cat.value = ''; c = ''; }
+        // sub-groups of the chosen group only; with no group, all of the type
+        var any = false;
+        [].forEach.call(sub.options, function (o) {
+            if (!o.value) return;
+            var show = c ? o.dataset.cat === c : (t === 'all' || o.dataset.cat.indexOf(t + ':') === 0);
+            o.hidden = !show;
+            if (show) any = true;
+            if (!show && o.selected) sub.value = '';
+        });
+        sub.disabled = !any;
+    }
+    type.addEventListener('change', sync);
+    cat.addEventListener('change', sync);
+    sync();
+})();
 // Chart data
 const dailyData = <?= json_encode($dailyTotals) ?>;
 </script>
