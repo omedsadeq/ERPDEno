@@ -143,7 +143,7 @@ function income_detail_data(Database $db, string $kind, int $id, string $from, s
         $who = $id === 0 ? 'e.doctor_id IS NULL' : 'e.doctor_id = :uid';
         $whoParams = $id === 0 ? [] : ['uid' => $id];
         $page = ['lab' => 'expenses-lab', 'store' => 'expenses-inventory', 'general' => 'expenses-general'][$kind];
-        $listLink = fn($day) => ['لە لیستی خەرجی', 'fa-pen', $app . '/admin/' . $page . '.php?date_from=' . $day . '&date_to=' . $day];
+        $listLink = fn($day) => ['لە لیستی خەرجی', 'fa-arrow-up-right-from-square', $app . '/admin/' . $page . '.php?date_from=' . $day . '&date_to=' . $day];
         $lines = [];
         $groups = [];
         if ($kind === 'store') {
@@ -151,7 +151,7 @@ function income_detail_data(Database $db, string $kind, int $id, string $from, s
             $groups = ['normal' => ['label' => 'ئاسایی', 'color' => '#0f766e'], 'implant' => ['label' => 'ئیمپلانت', 'color' => '#7c3aed']];
             foreach ($db->fetchAll(
                 "SELECT e.id, e.expense_date AS day, e.expense_kind, e.amount, e.description, e.supplier, e.invoice_number,
-                        e.source_type, e.source_id, ec.category_name
+                        e.source_type, e.source_id, e.doctor_id, ec.category_name
                  FROM expenses_store e LEFT JOIN expense_categories_store ec ON ec.id = e.category_id
                  WHERE {$who} AND e.expense_date BETWEEN :f AND :t",
                 $whoParams + ['f' => $from, 't' => $to]
@@ -162,15 +162,16 @@ function income_detail_data(Database $db, string $kind, int $id, string $from, s
                             'note' => $voucher ? 'مەواد بۆ دکتۆر' : ($r['category_name'] ?: ($r['supplier'] ?: '')), 'amount' => (float)$r['amount'],
                             'receipt' => $voucher ? $app . '/erp/print-doctor-issue.php?id=' . (int)$r['source_id'] . '&autoprint=0' : null,
                             'print' => $voucher ? $app . '/erp/print-doctor-issue.php?id=' . (int)$r['source_id'] . '&autoprint=1' : null,
-                            'links' => [$listLink($r['day'])]];
+                            'links' => [$listLink($r['day'])], 'exp' => income_detail_expense_ref('store', $r)];
             }
         } else {
             // By group, in the group's own colour.
             $table = $kind === 'lab' ? 'expenses_lab' : 'expenses_general';
             $catTable = $kind === 'lab' ? 'expense_categories_lab' : 'expense_categories_general';
-            $extra = $kind === 'lab' ? 'e.lab_name AS who, e.receipt_number AS no, e.patient_id' : 'e.vendor AS who, e.receipt_number AS no, NULL AS patient_id';
+            $extra = $kind === 'lab' ? 'e.lab_name AS who, e.receipt_number AS no, e.patient_id, NULL AS source_type'
+                : 'e.vendor AS who, e.receipt_number AS no, NULL AS patient_id, e.source_type';
             foreach ($db->fetchAll(
-                "SELECT e.id, e.expense_date AS day, e.amount, e.description, e.category_id, {$extra},
+                "SELECT e.id, e.expense_date AS day, e.amount, e.description, e.category_id, e.doctor_id, {$extra},
                         ec.category_name, ec.color, s.name AS subgroup_name
                  FROM {$table} e
                  LEFT JOIN {$catTable} ec ON ec.id = e.category_id
@@ -183,7 +184,8 @@ function income_detail_data(Database $db, string $kind, int $id, string $from, s
                 $lines[] = ['group' => $key, 'day' => $r['day'], 'no' => $r['no'] ?: strtoupper(substr($kind, 0, 3)) . '-' . $r['id'],
                             'patient' => $r['description'], 'note' => trim(($r['subgroup_name'] ?? '') . ' ' . ($r['who'] ?? '')),
                             'amount' => (float)$r['amount'], 'receipt' => null, 'print' => null,
-                            'links' => array_filter([$listLink($r['day']), $patientLink($r['patient_id'] ?? null)])];
+                            'links' => array_filter([$listLink($r['day']), $patientLink($r['patient_id'] ?? null)]),
+                            'exp' => income_detail_expense_ref($kind, $r)];
             }
         }
         // the centre's general expenses also hold the old expenses table (no doctor there)
@@ -195,7 +197,8 @@ function income_detail_data(Database $db, string $kind, int $id, string $from, s
             ) as $r) {
                 $groups['old'] ??= ['label' => 'خەرجی کۆن', 'color' => '#64748b'];
                 $lines[] = ['group' => 'old', 'day' => $r['day'], 'no' => 'EXP-' . $r['id'], 'patient' => $r['description'],
-                            'note' => (string)($r['vendor'] ?? ''), 'amount' => (float)$r['amount'], 'receipt' => null, 'print' => null, 'links' => []];
+                            'note' => (string)($r['vendor'] ?? ''), 'amount' => (float)$r['amount'], 'receipt' => null, 'print' => null, 'links' => [],
+                            'exp' => income_detail_expense_ref('old', $r)];
             }
         }
         $label = ['lab' => 'خەرجی تاقیگە', 'store' => 'خەرجی کۆگا', 'general' => 'خەرجی گشتی'][$kind];
@@ -311,6 +314,14 @@ function income_detail_body(array $d, string $from, string $to): void
                 <td class="n<?= $l['amount'] < 0 ? ' neg' : '' ?>"><?= $money($l['amount']) ?></td>
                 <td class="act">
                     <?php if ($l['receipt']): ?><button type="button" class="xi-rc"><i class="fas fa-receipt"></i> وەسڵ</button><?php endif; ?>
+                    <?php if (!empty($l['exp'])): $x = $l['exp']; ?>
+                    <?php if ($x['locked'] !== null): ?>
+                    <span class="xi-ln xi-lock" title="<?= $e($x['locked']) ?>" aria-label="<?= $e($x['locked']) ?>"><i class="fas fa-lock"></i></span>
+                    <?php elseif (income_detail_can_edit_expense($x['kind'])): ?>
+                    <button type="button" class="xi-ln xi-xe" data-exp="<?= $e(json_encode($x, JSON_UNESCAPED_UNICODE)) ?>" title="دەستکاری" aria-label="دەستکاری"><i class="fas fa-pen"></i></button>
+                    <button type="button" class="xi-ln xi-xd" data-exp="<?= $e(json_encode($x, JSON_UNESCAPED_UNICODE)) ?>" title="سڕینەوە" aria-label="سڕینەوە"><i class="fas fa-trash"></i></button>
+                    <?php endif; ?>
+                    <?php endif; ?>
                     <?php foreach ($l['links'] as [$label, $icon, $url]): ?>
                     <a class="xi-ln" href="<?= $e($url) ?>"<?= $url[0] === '#' ? ' data-close' : ' target="_blank" rel="noopener"' ?> title="<?= $e($label) ?>" aria-label="<?= $e($label) ?>"><i class="fas <?= $e($icon) ?>"></i></a>
                     <?php endforeach; ?>
@@ -323,6 +334,115 @@ function income_detail_body(array $d, string $from, string $to): void
 </div>
 <?php endif; ?>
     <?php
+}
+
+
+/* ── Changing an expense from the dialog (the sheet's expense cells and خەرجیات) ──
+ * Each line of an expense list can be corrected (date, amount, description,
+ * doctor) or deleted right there. A line written by another screen — a salary
+ * paid on HR, materials given to a doctor from the store — belongs to it and
+ * is changed there, or the two would stop agreeing. The period lock
+ * (PeriodClose) and the audit log hold as on the expense pages. */
+
+const INCOME_DETAIL_EXPENSE_TABLES = ['general' => 'expenses_general', 'lab' => 'expenses_lab', 'store' => 'expenses_store', 'old' => 'expenses'];
+
+/** May this user change expenses of this kind? */
+function income_detail_can_edit_expense(string $kind): bool
+{
+    if (($_SESSION['role'] ?? '') === 'admin') {
+        return true;
+    }
+    $perm = Permission::getInstance();
+    return match ($kind) {
+        'general' => $perm->can('page.expenses_general'),
+        'lab' => $perm->can('page.expenses_lab'),
+        'store' => $perm->can('page.expenses_inventory'),
+        'old' => $perm->can('page.expenses'),
+        default => false,
+    };
+}
+
+/** Why a line cannot be changed here, or null. */
+function income_detail_expense_lock(?string $sourceType): ?string
+{
+    if ($sourceType === null || $sourceType === '') {
+        return null;
+    }
+    return match ($sourceType) {
+        'hr_payroll' => 'ئەمە مووچەیە — لە «مووچە» (HR) دەستکاری یان هەڵدەوەشێتەوە',
+        'erp_doctor_issue' => 'ئەمە مەوادی دراو بە دکتۆرە — لە کۆگا هەڵدەوەشێتەوە',
+        default => 'ئەم خەرجییە لە شاشەیەکی ترەوە نووسراوە و لەوێ دەگۆڕدرێت',
+    };
+}
+
+/** What a line carries for its buttons. */
+function income_detail_expense_ref(string $kind, array $r): array
+{
+    return ['kind' => $kind, 'id' => (int)$r['id'], 'date' => (string)$r['day'], 'amount' => (float)$r['amount'],
+            'desc' => (string)($r['description'] ?? ''), 'doctor_id' => isset($r['doctor_id']) ? (int)$r['doctor_id'] : 0,
+            'locked' => income_detail_expense_lock($r['source_type'] ?? null)];
+}
+
+/**
+ * Save or delete one expense ($in: action expense_save|expense_delete, kind,
+ * id, and for a save expense_date, amount, description, doctor_id). Returns
+ * a sentence for the user; throws InvalidArgumentException when it cannot.
+ */
+function income_detail_expense_write(Database $db, array $in, int $userId): string
+{
+    require_once __DIR__ . '/../classes/AuditLog.php';
+    require_once __DIR__ . '/../classes/PeriodClose.php';
+    $kind = (string)($in['kind'] ?? '');
+    $table = INCOME_DETAIL_EXPENSE_TABLES[$kind] ?? null;
+    if ($table === null || !$db->tableExists($table)) {
+        throw new InvalidArgumentException('جۆری خەرجی نەناسرایەوە');
+    }
+    if (!income_detail_can_edit_expense($kind)) {
+        throw new InvalidArgumentException('دەسەڵاتی گۆڕینی ئەم خەرجییەت نییە');
+    }
+    $id = (int)($in['id'] ?? 0);
+    $row = $db->fetch("SELECT * FROM `$table` WHERE id = ?", [$id]);
+    if (!$row) {
+        throw new InvalidArgumentException('خەرجییەکە نەدۆزرایەوە');
+    }
+    $lock = income_detail_expense_lock($row['source_type'] ?? null);
+    if ($lock !== null) {
+        throw new InvalidArgumentException($lock);
+    }
+    PeriodClose::assertOpen($row['expense_date']);
+
+    if (($in['action'] ?? '') === 'expense_delete') {
+        $db->delete($table, 'id = :id', ['id' => $id]);
+        AuditLog::log('expense_delete', $table, $id, $row, null, $userId);
+        return 'خەرجییەکە سڕایەوە';
+    }
+
+    $digits = ['٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4', '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9'];
+    $date = strtr(trim((string)($in['expense_date'] ?? '')), $digits);
+    $d = DateTime::createFromFormat('!Y-m-d', $date);
+    if (!$d || $d->format('Y-m-d') !== $date) {
+        throw new InvalidArgumentException('ڕێکەوت دروست نییە');
+    }
+    $amount = preg_replace('/[\s,،]/u', '', strtr((string)($in['amount'] ?? ''), $digits));
+    if (!preg_match('/^\d{1,13}(\.\d{1,2})?$/', $amount) || (float)$amount <= 0) {
+        throw new InvalidArgumentException('بڕ دەبێت ژمارەیەکی سەرووی سفر بێت');
+    }
+    PeriodClose::assertOpen($date);
+    $set = ['expense_date' => $date, 'amount' => number_format((float)$amount, 2, '.', ''),
+            'description' => mb_substr(trim(preg_replace('/\s+/u', ' ', (string)($in['description'] ?? ''))), 0, 255)];
+    if ($kind !== 'old') {
+        $doc = (int)($in['doctor_id'] ?? 0);
+        if ($doc > 0 && !$db->fetch("SELECT id FROM users WHERE id = ? AND role = 'doctor'", [$doc])) {
+            throw new InvalidArgumentException('دکتۆر نەدۆزرایەوە');
+        }
+        $set['doctor_id'] = $doc > 0 ? $doc : null;
+    }
+    if (array_key_exists('updated_at', $row)) {
+        $set['updated_at'] = date('Y-m-d H:i:s');
+    }
+    $db->update($table, $set, 'id = :id', ['id' => $id]);
+    AuditLog::logChange('expense_update', $table, $id, $row, $set, $userId);
+    return 'خەرجییەکە نوێکرایەوە';
 }
 
 /** The two dialogs and their script; once per page, for the period the page shows. */
@@ -377,6 +497,19 @@ function income_detail_shell(string $from, string $to): void
 .xi-ln{width:28px;justify-content:center;padding:0;border:1px solid #e2e8f0;background:#fff;color:#475569}
 .xi-ln:hover{border-color:#94a3b8;color:#0f172a}
 .xi-empty{padding:24px;text-align:center;color:#94a3b8;font-size:13px}
+.xi-xe:hover{border-color:#0284c7;color:#0284c7}
+.xi-xd:hover{border-color:#dc2626;color:#dc2626;background:#fef2f2}
+.xi-lock{color:#94a3b8;cursor:help}
+.xi-tbl tr.xi-edit td{background:#f0f9ff;white-space:normal}
+.xi-ef{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;padding:4px 0}
+.xi-ef label{display:flex;flex-direction:column;gap:3px;font-size:11.5px;font-weight:700;color:#475569}
+.xi-ef input,.xi-ef select{height:32px;border:1px solid #cbd5e1;border-radius:7px;padding:0 8px;font:inherit;font-size:13px;background:#fff}
+.xi-ef .w{flex:1 1 220px}.xi-ef .w input{width:100%}
+.xi-ef .amt{direction:ltr;text-align:left;width:130px}
+.xi-ef button{height:32px;padding:0 14px;border-radius:7px;border:0;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.xi-ef .ok{background:#0f766e;color:#fff}.xi-ef .no{background:#e2e8f0;color:#334155}
+.xi-ef .err{flex-basis:100%;color:#b91c1c;font-size:12.5px;font-weight:700}
+.xi-flash{margin-bottom:10px;padding:8px 12px;border-radius:9px;background:#ecfdf5;color:#065f46;font-size:13px;font-weight:700}
 .xi-rcd{max-width:880px;width:calc(100vw - 32px);height:92vh;display:flex;flex-direction:column}
 .xi-rcd .dialog-header{gap:8px}
 .xi-rcd .dialog-header a{margin-inline-start:auto;height:32px;display:inline-flex;align-items:center;gap:6px;padding:0 12px;border-radius:8px;
@@ -471,6 +604,80 @@ function income_detail_shell(string $from, string $to): void
         document.getElementById('xiFrame').src = tr.dataset.receipt;
         openDialog('incomeDetailReceipt');
     });
+    // ── an expense line: corrected in its row, or deleted ──
+    var doctors = <?= json_encode(array_map(fn($u) => ['id' => (int)$u['id'], 'name' => $u['full_name']],
+        Database::getInstance()->fetchAll("SELECT id, full_name FROM users WHERE role = 'doctor' AND is_active = 1 ORDER BY full_name")), JSON_UNESCAPED_UNICODE) ?>;
+    var changed = false, again = null;
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]; }); }
+    function send(data) {
+        var fd = new FormData();
+        Object.keys(data).forEach(function (k) { fd.append(k, data[k]); });
+        var tok = document.querySelector('meta[name="csrf-token"]');
+        if (tok) fd.append('csrf_token', tok.content);
+        return fetch(url, {method: 'POST', body: fd, credentials: 'same-origin', headers: {'Accept': 'application/json'}})
+            .then(function (r) { return r.json(); });
+    }
+    function reloadList(note) {
+        changed = true;
+        if (again) again.click();
+        if (note) setTimeout(function () {
+            var f = document.createElement('div'); f.className = 'xi-flash'; f.textContent = note;
+            if (body.firstChild) body.insertBefore(f, body.firstChild);
+        }, 700);
+    }
+    document.addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-income-detail]');
+        if (b) again = b;
+    }, true);
+    body.addEventListener('click', function (ev) {
+        var del = ev.target.closest('.xi-xd');
+        if (del) {
+            var x = JSON.parse(del.dataset.exp);
+            if (!confirm('ئەم خەرجییە (' + Math.round(x.amount).toLocaleString('en-US') + ' — ' + (x.desc || x.date) + ') بە یەکجاری بسڕدرێتەوە؟')) return;
+            send({action: 'expense_delete', kind: x.kind, id: x.id}).then(function (d) {
+                if (d.ok) reloadList(d.message); else alert(d.error || 'نەکرا');
+            }).catch(function () { alert('هەڵەیەک ڕوویدا'); });
+            return;
+        }
+        var ed = ev.target.closest('.xi-xe');
+        if (ed) {
+            var tr = ed.closest('tr'), x = JSON.parse(ed.dataset.exp);
+            var open = tr.nextElementSibling && tr.nextElementSibling.classList.contains('xi-edit');
+            body.querySelectorAll('tr.xi-edit').forEach(function (r) { r.remove(); });
+            if (open) return;
+            var row = document.createElement('tr');
+            row.className = 'xi-edit';
+            row.innerHTML = '<td colspan="6"><form class="xi-ef">'
+                + '<label>ڕێکەوت<input type="date" name="expense_date" value="' + esc(x.date) + '" required></label>'
+                + '<label>بڕ<input type="text" name="amount" class="amt" inputmode="numeric" value="' + esc(Math.round(x.amount * 100) / 100) + '" required></label>'
+                + '<label class="w">وەسف<input type="text" name="description" maxlength="255" value="' + esc(x.desc) + '"></label>'
+                + (x.kind === 'old' ? '' : '<label>دکتۆر<select name="doctor_id"><option value="0">سەنتەر (بێ دکتۆر)</option>'
+                    + doctors.map(function (d) { return '<option value="' + d.id + '"' + (d.id === x.doctor_id ? ' selected' : '') + '>' + esc(d.name) + '</option>'; }).join('')
+                    + '</select></label>')
+                + '<button type="submit" class="ok"><i class="fas fa-check"></i> پاشەکەوت</button>'
+                + '<button type="button" class="no">پاشگەزبوونەوە</button><span class="err"></span></form></td>';
+            tr.after(row);
+            var form = row.querySelector('form');
+            form.querySelector('.no').addEventListener('click', function () { row.remove(); });
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                var data = {action: 'expense_save', kind: x.kind, id: x.id};
+                new FormData(form).forEach(function (v, k) { data[k] = v; });
+                form.querySelector('.ok').disabled = true;
+                send(data).then(function (d) {
+                    if (d.ok) reloadList(d.message);
+                    else { form.querySelector('.err').textContent = d.error || 'نەکرا'; form.querySelector('.ok').disabled = false; }
+                }).catch(function () { form.querySelector('.err').textContent = 'هەڵەیەک ڕوویدا'; form.querySelector('.ok').disabled = false; });
+            });
+            form.querySelector('input[name="amount"]').focus();
+        }
+    });
+    // after a change the sheet's own figures are stale: it is drawn again when the list closes
+    var dlg = document.getElementById('incomeDetailDialog');
+    new MutationObserver(function () {
+        if (changed && !dlg.classList.contains('open')) { changed = false; location.reload(); }
+    }).observe(dlg, {attributes: true, attributeFilter: ['class']});
+
     window.incomeDetailReceiptClose = function () {
         closeDialog('incomeDetailReceipt');
         document.getElementById('xiFrame').src = 'about:blank';

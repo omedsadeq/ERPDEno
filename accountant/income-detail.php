@@ -13,8 +13,9 @@ require_once __DIR__ . '/../includes/income-detail.php';
 
 $auth = new Auth();
 $auth->requireLogin();
-// income.php's permission, or financial-summary.php's rule (accountant or admin)
-if (!Permission::getInstance()->can('page.accountant_financial') && !$auth->isAccountant() && !$auth->isAdmin()) {
+// income.php's and financial-summary.php's permission (an accountant kept to
+// approvals and debts does not have it)
+if (!Permission::getInstance()->can('page.accountant_financial') && !$auth->isAdmin()) {
     http_response_code(403);
     exit('ڕێگەت پێنەدراوە');
 }
@@ -25,6 +26,21 @@ $to = $day($_GET['to'] ?? null);
 if ($from > $to) {
     [$from, $to] = [$to, $from];
 }
+// A change to an expense line (edit or delete), from the dialog: JSON back.
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_once __DIR__ . '/../classes/Csrf.php';
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        Csrf::require();
+        $msg = income_detail_expense_write(Database::getInstance(), $_POST, (int)($_SESSION['user_id'] ?? 0));
+        echo json_encode(['ok' => true, 'message' => $msg], JSON_UNESCAPED_UNICODE);
+    } catch (InvalidArgumentException | PDOException $ex) {
+        echo json_encode(['ok' => false, 'error' => $ex instanceof PeriodClosedException || $ex instanceof InvalidArgumentException
+            ? $ex->getMessage() : 'هەڵەیەک لە داتابەیس ڕوویدا'], JSON_UNESCAPED_UNICODE);
+    }
+    exit;
+}
+
 $kind = (string)($_GET['kind'] ?? '');
 $data = in_array($kind, INCOME_DETAIL_KINDS, true)
     ? income_detail_data(Database::getInstance(), $kind, (int)($_GET['id'] ?? 0), $from, $to)
