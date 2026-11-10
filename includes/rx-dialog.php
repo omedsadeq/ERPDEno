@@ -28,7 +28,13 @@ if (!$rxCanPrescribe && !$rxCanSee) {
 ?>
 <style>
 /* دەرمان — a large dialog (openMedicineDialog); the sheet scrolls inside it */
-.rx-dialog { max-width: 1400px; width: calc(100% - 32px); height: calc(100vh - 32px); max-height: calc(100vh - 32px); }
+/* Full screen: the whole sheet in sight, every column side by side */
+.rx-dialog { max-width: none; width: 100vw; height: 100vh; height: 100dvh; max-height: none; border-radius: 0; }
+/* A big close button, easy to hit */
+.rx-dialog-header .dialog-close { flex: 0 0 auto; width: 48px; height: 48px; border-radius: 12px; border: 2px solid #fecaca;
+    background: #fff; color: #dc2626; font-size: 24px !important; box-shadow: 0 2px 8px rgba(15, 23, 42, .15); }
+.rx-dialog-header .dialog-close i { font-size: 24px !important; }
+.rx-dialog-header .dialog-close:hover, .rx-dialog-header .dialog-close:focus-visible { background: #dc2626; border-color: #dc2626; color: #fff; outline: none; }
 .rx-dialog-header h4 { display: flex; align-items: center; gap: 10px; margin: 0; }
 .rx-dialog-header h4 .badge { font-size: 11px; font-weight: 600; }
 /* Fill the tall dialog: the page-wide .dialog-body cap (85vh - 110px) left an
@@ -156,8 +162,11 @@ if (!$rxCanPrescribe && !$rxCanSee) {
 .rxs-col { display:flex; flex-direction:column; min-width:0; }
 .rxs-head { background:#bde0f2; padding:10px 12px 9px; min-height:122px; }
 .rxs-head h5 { margin:0 0 8px; font-size:22px; font-weight:800; color:#0b0b0b; text-align:center; letter-spacing:.2px; }
-.rxs-types { display:grid; grid-template-columns:1fr 1fr; gap:3px 8px; }
-.rxs-t { display:flex; align-items:center; gap:6px; border:0; background:none; padding:1px 0; font:14px inherit; color:#111; cursor:pointer; text-align:left; }
+/* two per row while two fit, else one: a long name («PARACETAMOL 1000MG») wraps
+   at its spaces inside its own cell instead of running past the column's edge */
+.rxs-types { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 9em), 1fr)); gap:3px 8px; }
+.rxs-t { display:flex; align-items:center; gap:6px; min-width:0; border:0; background:none; padding:1px 0; font:14px inherit; color:#111; cursor:pointer; text-align:left;
+    overflow-wrap:break-word; line-height:1.25; }
 .rxs-t::before { content:""; width:15px; height:15px; flex:0 0 auto; border-radius:50%; border:1.5px solid #2e7d32; background:#fff; box-sizing:border-box; }
 .rxs-t.on { font-weight:800; }
 .rxs-t.on::before { background:#2e7d32; box-shadow:inset 0 0 0 2.5px #fff; }
@@ -331,7 +340,7 @@ button.rx-card-print { cursor:pointer; padding:0; }
                     <div class="dialog-header rx-dialog-header">
                         <h4><i class="fas fa-pills"></i> دەرمانی نەخۆش
                             <span class="badge badge-blue">لە کۆگای سەرەکیی دەرمانخانە</span></h4>
-                        <button type="button" class="dialog-close" onclick="closeDialog('medicineDialog')"><i class="fas fa-times"></i></button>
+                        <button type="button" class="dialog-close" onclick="closeDialog('medicineDialog')" title="داخستن" aria-label="داخستن"><i class="fas fa-times"></i></button>
                     </div>
                     <div class="dialog-body rx-dialog-body">
 
