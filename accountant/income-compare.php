@@ -21,6 +21,7 @@ require_once __DIR__ . '/../doctors/_daily_summary_lib.php';
 require_once __DIR__ . '/_income_compare_report.php';
 require_once __DIR__ . '/../includes/VisitReportMatrix.php';
 require_once __DIR__ . '/../includes/VisitReferralReport.php';
+require_once __DIR__ . '/../classes/IncomeArchive.php';
 
 $auth = new Auth();
 $auth->requireLogin();
@@ -32,6 +33,11 @@ if (!Permission::getInstance()->can('page.accountant_financial')) {
 /** The income sheet of one period: its rows and its totals. */
 function income_compare_period(string $from, string $to): array
 {
+    // A period of months kept from the old system (داتای پێشوو, 2025): their paper.
+    $kept = IncomeArchive::period($from, $to);
+    if ($kept !== null) {
+        return $kept;
+    }
     $saved = $_GET;
     $_GET = ['from' => $from, 'to' => $to];
     try {
@@ -98,12 +104,13 @@ $avg = !empty($_GET['avg']);
 $A = income_compare_period($aFrom, $aTo);
 $B = income_compare_period($bFrom, $bTo);
 // A monthly average: a period's figure scaled to an average month's length.
-$scale = fn(array $p) => $avg ? 30.4375 / max(1, $p['days']) : 1.0;
+$scale = fn(array $p) => !$avg ? 1.0 : (!empty($p['months']) ? 1 / $p['months'] : 30.4375 / max(1, $p['days']));
 $qs = fn(array $over) => '?' . http_build_query(array_merge(
     ['a_from' => $aFrom, 'a_to' => $aTo, 'b_from' => $bFrom, 'b_to' => $bTo] + ($avg ? ['avg' => 1] : []), $over));
 
 $periodTitle = fn(string $which, array $p) => $which . ': ' . ($p['from'] === $p['to'] ? $p['from'] : $p['from'] . ' بۆ ' . $p['to'])
-    . ' · ' . $p['days'] . ' ڕۆژ' . ($avg ? ' — تێکڕای مانگانە' : '');
+    . ' · ' . $p['days'] . ' ڕۆژ' . ($avg ? ' — تێکڕای مانگانە' : '')
+    . (!empty($p['archived']) ? ' — داتای پێشوو (' . implode('، ', $p['archived']) . ')' : '');
 $reportB = income_compare_report($B, $A, $periodTitle('ماوەی دووەم', $B), $scale($B), $scale($A));
 $reportA = income_compare_report($A, null, $periodTitle('ماوەی یەکەم', $A), $scale($A));
 
@@ -171,6 +178,7 @@ require_once __DIR__ . '/../includes/header.php';
 .cmp-presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .cmp-presets a{padding:4px 11px;border-radius:999px;border:1px solid #e2e8f0;background:#f8fafc;color:#334155;font-size:12px;text-decoration:none}
 .cmp-presets a:hover{border-color:#0284c7;color:#0284c7}
+.cmp-presets a.kept{border-color:#fcd34d;background:#fffbeb;color:#92400e}
 .cmp-sheet{margin-top:12px;background:#fff;border-radius:16px;padding:4px 14px 14px;box-shadow:0 1px 2px rgba(15,23,42,.06),0 10px 28px -14px rgba(15,23,42,.22)}
 .cmp-scroll{overflow-x:auto}
 /* the clinic's paper (_income_compare_report.php) */
@@ -204,6 +212,13 @@ require_once __DIR__ . '/../includes/header.php';
         <?php foreach ($presets as [$name, $af, $at, $bf, $bt]): ?>
         <a href="<?= dsEsc($qs(['a_from' => $ymd($af), 'a_to' => $ymd($at), 'b_from' => $ymd($bf), 'b_to' => $ymd($bt)])) ?>"><?= dsEsc($name) ?></a>
         <?php endforeach; ?>
+        <?php // as on the owner's paper: last month against the monthly average of a whole year kept in داتای پێشوو
+        $keptYears = array_unique(array_map(fn($m) => substr($m, 0, 4), array_keys(IncomeArchive::months())));
+        foreach ($keptYears as $ky): ?>
+        <a class="kept" href="?<?= dsEsc(http_build_query(['a_from' => $ky . '-01-01', 'a_to' => $ky . '-12-31', 'b_from' => $ymd($prevMonth), 'b_to' => $ymd($prevMonth->modify('last day of this month')), 'avg' => 1])) ?>"
+           title="لە داتای پێشوو — دەبێت هەموو ١٢ مانگەکەی <?= dsEsc($ky) ?> پاشەکەوت کرابێت">مانگی پێشوو ↔ تێکڕای مانگانەی <?= dsEsc($ky) ?></a>
+        <?php endforeach; ?>
+        <a class="kept" href="<?= APP_URL ?>/accountant/income-archive.php"><i class="fas fa-box-archive"></i> داتای پێشوو</a>
     </div>
 </form>
 
