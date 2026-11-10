@@ -39,6 +39,22 @@ $dateTo = $_GET['date_to'] ?? date('Y-m-d');
 $expenseType = $_GET['expense_type'] ?? 'all';
 $categoryId = $_GET['category'] ?? '';
 $doctorId = $_GET['doctor'] ?? '';
+
+// The doctor filter: one doctor, or «بێ دکتۆر» (none — a cost written on no
+// doctor, as most general expenses are). Every figure on the page follows it:
+// the list, the cards, the groups. $expScope(kind) is the WHERE and its values.
+$doctorId = (string)$doctorId;
+$expScope = function (string $kind) use ($dateFrom, $dateTo, $doctorId): array {
+    $w = 'e.expense_date BETWEEN :from AND :to';
+    $p = ['from' => $dateFrom, 'to' => $dateTo];
+    if ($doctorId === 'none') {
+        $w .= ' AND e.doctor_id IS NULL';
+    } elseif ($doctorId !== '') {
+        $w .= ' AND e.doctor_id = :doc';
+        $p['doc'] = (int)$doctorId;
+    }
+    return [$w, $p];
+};
 $groupBy = $_GET['group_by'] ?? 'date';
 
 // Load doctors
@@ -76,9 +92,11 @@ if ($expenseType === 'all' || $expenseType === 'general') {
         $whereGeneral .= " AND e.category_id = :cat_general";
         $params['cat_general'] = $categoryId;
     }
-    if ($doctorId) {
+    if ($doctorId === 'none') {
+        $whereGeneral .= " AND e.doctor_id IS NULL";
+    } elseif ($doctorId !== '') {
         $whereGeneral .= " AND e.doctor_id = :doc_general";
-        $params['doc_general'] = $doctorId;
+        $params['doc_general'] = (int)$doctorId;
     }
 
     $sqlGeneral = "SELECT e.*, 'general' as expense_type, 'خەرجی گشتی' as type_label,
@@ -104,9 +122,11 @@ if ($expenseType === 'all' || $expenseType === 'lab') {
         $whereLab .= " AND e.category_id = :cat_lab";
         $params['cat_lab'] = $categoryId;
     }
-    if ($doctorId) {
+    if ($doctorId === 'none') {
+        $whereLab .= " AND e.doctor_id IS NULL";
+    } elseif ($doctorId !== '') {
         $whereLab .= " AND e.doctor_id = :doc_lab";
-        $params['doc_lab'] = $doctorId;
+        $params['doc_lab'] = (int)$doctorId;
     }
 
     $sqlLab = "SELECT e.*, 'lab' as expense_type, 'خەرجی تاقیگە' as type_label,
@@ -134,9 +154,11 @@ if ($expenseType === 'all' || $expenseType === 'store') {
         $whereStore .= " AND e.category_id = :cat_store";
         $params['cat_store'] = $categoryId;
     }
-    if ($doctorId) {
+    if ($doctorId === 'none') {
+        $whereStore .= " AND e.doctor_id IS NULL";
+    } elseif ($doctorId !== '') {
         $whereStore .= " AND e.doctor_id = :doc_store";
-        $params['doc_store'] = $doctorId;
+        $params['doc_store'] = (int)$doctorId;
     }
 
     $sqlStore = "SELECT e.*, 'store' as expense_type, 'خەرجی کۆگا' as type_label,
@@ -163,22 +185,22 @@ $countAll = count($allExpenses);
 
 // Get totals by type
 $params = ['from' => $dateFrom, 'to' => $dateTo];
-$totalGeneral = $db->fetch("SELECT COALESCE(SUM(amount), 0) as total FROM expenses_general WHERE expense_date BETWEEN :from AND :to", $params)['total'];
-$totalLab = $db->fetch("SELECT COALESCE(SUM(amount), 0) as total FROM expenses_lab WHERE expense_date BETWEEN :from AND :to", $params)['total'];
-$totalStore = $db->fetch("SELECT COALESCE(SUM(amount), 0) as total FROM expenses_store WHERE expense_date BETWEEN :from AND :to", $params)['total'];
+$totalGeneral = $db->fetch("SELECT COALESCE(SUM(e.amount), 0) as total FROM expenses_general e WHERE " . $expScope('general')[0], $expScope('general')[1])['total'];
+$totalLab = $db->fetch("SELECT COALESCE(SUM(e.amount), 0) as total FROM expenses_lab e WHERE " . $expScope('lab')[0], $expScope('lab')[1])['total'];
+$totalStore = $db->fetch("SELECT COALESCE(SUM(e.amount), 0) as total FROM expenses_store e WHERE " . $expScope('store')[0], $expScope('store')[1])['total'];
 $grandTotal = $totalGeneral + $totalLab + $totalStore;
 
 // Get counts by type (bound params — never interpolate request values into SQL)
-$countGeneral = $db->count('expenses_general', "expense_date BETWEEN :from AND :to", $params);
-$countLab = $db->count('expenses_lab', "expense_date BETWEEN :from AND :to", $params);
-$countStore = $db->count('expenses_store', "expense_date BETWEEN :from AND :to", $params);
+$countGeneral = (int)$db->fetch("SELECT COUNT(*) AS n FROM expenses_general e WHERE " . $expScope('general')[0], $expScope('general')[1])['n'];
+$countLab = (int)$db->fetch("SELECT COUNT(*) AS n FROM expenses_lab e WHERE " . $expScope('lab')[0], $expScope('lab')[1])['n'];
+$countStore = (int)$db->fetch("SELECT COUNT(*) AS n FROM expenses_store e WHERE " . $expScope('store')[0], $expScope('store')[1])['n'];
 
 // Get statistics by category for each type
 $statsByTypeAndCategory = [];
 
 $subgroupTotals = [];
 foreach (['general', 'lab', 'store'] as $kind) {
-    $subgroupTotals[$kind] = expense_subgroup_totals($kind, 'e.expense_date BETWEEN :from AND :to', $params);
+    $subgroupTotals[$kind] = expense_subgroup_totals($kind, ...$expScope($kind));
 }
 
 // General stats
@@ -186,9 +208,9 @@ $statsGeneral = $db->fetchAll(
     "SELECT e.category_id, ec.category_name, SUM(e.amount) as total, COUNT(*) as count
      FROM expenses_general e
      LEFT JOIN expense_categories_general ec ON e.category_id = ec.id
-     WHERE e.expense_date BETWEEN :from AND :to
+     WHERE " . $expScope('general')[0] . "
      GROUP BY e.category_id, ec.category_name ORDER BY total DESC",
-    $params
+    $expScope('general')[1]
 );
 
 // Lab stats
@@ -196,9 +218,9 @@ $statsLab = $db->fetchAll(
     "SELECT e.category_id, ec.category_name, SUM(e.amount) as total, COUNT(*) as count
      FROM expenses_lab e
      LEFT JOIN expense_categories_lab ec ON e.category_id = ec.id
-     WHERE e.expense_date BETWEEN :from AND :to
+     WHERE " . $expScope('lab')[0] . "
      GROUP BY e.category_id, ec.category_name ORDER BY total DESC",
-    $params
+    $expScope('lab')[1]
 );
 
 // Store stats
@@ -206,9 +228,9 @@ $statsStore = $db->fetchAll(
     "SELECT e.category_id, ec.category_name, SUM(e.amount) as total, COUNT(*) as count
      FROM expenses_store e
      LEFT JOIN expense_categories_store ec ON e.category_id = ec.id
-     WHERE e.expense_date BETWEEN :from AND :to
+     WHERE " . $expScope('store')[0] . "
      GROUP BY e.category_id, ec.category_name ORDER BY total DESC",
-    $params
+    $expScope('store')[1]
 );
 
 // Get daily totals for chart
@@ -402,8 +424,8 @@ $typeConfig = [
 <div class="report-filters">
     <div class="report-filters-header">
         <h3><i class="fas fa-filter" style="color: #2196f3;"></i> فلتەرەکان</h3>
-        <a href="<?= APP_URL ?>/admin/print-expense-report.php?<?= http_build_query($_GET) ?>" target="_blank" class="btn btn-info">
-            <i class="fas fa-print"></i> چاپکردن
+        <a href="<?= APP_URL ?>/admin/print-expense-report.php?<?= http_build_query($_GET, '', '&amp;') ?>" target="_blank" class="btn btn-info" title="ڕاپۆرتەکە بە هەمان فلتەرەکان، وەک PDF">
+            <i class="fas fa-file-pdf"></i> PDF
         </a>
     </div>
     <form method="GET" class="report-filters-row">
@@ -455,8 +477,9 @@ $typeConfig = [
             <label>دکتۆر</label>
             <select name="doctor">
                 <option value="">هەموو دکتۆرەکان</option>
+                <option value="none" <?= $doctorId === 'none' ? 'selected' : '' ?>>خەرجی سەنتەر (بێ دکتۆر)</option>
                 <?php foreach ($doctors as $doc): ?>
-                <option value="<?= $doc['id'] ?>" <?= $doctorId == $doc['id'] ? 'selected' : '' ?>><?= htmlspecialchars($doc['full_name']) ?></option>
+                <option value="<?= $doc['id'] ?>" <?= $doctorId === (string)$doc['id'] ? 'selected' : '' ?>><?= htmlspecialchars($doc['full_name']) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
@@ -551,7 +574,7 @@ $typeConfig = [
                         <td><span class="type-badge <?= $exp['expense_type'] ?>"><?= $exp['type_label'] ?></span></td>
                         <td><?= htmlspecialchars(expense_group_label($exp)) ?></td>
                         <td style="text-align: right; max-width: 200px;"><?= htmlspecialchars($exp['description']) ?></td>
-                        <td><?= htmlspecialchars($exp['doctor_name'] ?? '-') ?></td>
+                        <td><?php if (!empty($exp['doctor_name'])): ?><?= htmlspecialchars($exp['doctor_name']) ?><?php else: ?><span style="color:#0f766e;font-weight:600">خەرجی سەنتەر</span><?php endif; ?></td>
                         <td><strong style="color: #c62828;"><?= number_format($exp['amount']) ?></strong></td>
                     </tr>
                     <?php endforeach; ?>

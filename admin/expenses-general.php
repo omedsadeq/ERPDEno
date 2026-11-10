@@ -334,7 +334,7 @@ $paymentMethods = [
                         </td>
                         <td style="text-align: right; max-width: 200px;">
                             <div style="font-weight: 500;"><?= htmlspecialchars($exp['description']) ?></div>
-                            <?php if (!empty($exp['doctor_name'])): ?><small style="color: #0f766e; display: block;" title="هەمووی لە پشکی ئەم دکتۆرە دەبڕدرێت"><i class="fas fa-user-md"></i> <?= htmlspecialchars($exp['doctor_name']) ?></small><?php endif; ?>
+                            <?php if (!empty($exp['doctor_name'])): ?><small style="color: #0f766e; display: block;" title="هەمووی لە پشکی ئەم دکتۆرە دەبڕدرێت"><i class="fas fa-user-md"></i> <?= htmlspecialchars($exp['doctor_name']) ?></small><?php else: ?><small style="color: #64748b; display: block;" title="لەسەر هیچ دکتۆرێک نییە — خەرجیی سەنتەرە"><i class="fas fa-building"></i> خەرجی سەنتەر</small><?php endif; ?>
                             <?php if (!empty($exp['vendor'])): ?><small style="color: #888;"><i class="fas fa-store"></i> <?= htmlspecialchars($exp['vendor']) ?></small><?php endif; ?>
                             <?php if (!empty($exp['receipt_number'])): ?><small style="color: #888; display: block;"><i class="fas fa-receipt"></i> #<?= htmlspecialchars($exp['receipt_number']) ?></small><?php endif; ?>
                         </td>
