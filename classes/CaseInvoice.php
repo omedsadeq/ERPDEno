@@ -375,6 +375,9 @@ class CaseInvoice {
             'doctor_note_to_accounting' => trim((string)($intent['doctor_note'] ?? '')) ?: null,
             'sent_by' => $userId ? (int)$userId : ($fresh['sent_by'] ?? null),
             'sent_at' => date('Y-m-d H:i:s'),
+            // the money taken in the chair, on the day of the work: what the
+            // accountant adds on a later day is that day's payment (approveWithAdvance)
+            'sent_received_amount' => array_key_exists('sent_received_amount', $fresh) ? (float)$fresh['draft_received_amount'] : null,
             'returned_by' => null,
             'returned_at' => null,
             'return_reason' => null,
@@ -739,7 +742,24 @@ class CaseInvoice {
     }
 
     /** Approve an invoice and its explicitly selected custody transfer together. */
-    public function approveWithAdvance($caseId, $invoiceId, $actorId, $advanceAmount, $receivedCash, $accountingNotes = '') {
+    /**
+     * The day money written on a receipt counts on: what the accountant gave
+     * (Y-m-d), else today; never after today, never before the work.
+     */
+    public static function receivedDay($asked, string $workDate): string {
+        $asked = is_string($asked) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $asked) ? $asked : date('Y-m-d');
+        return max($workDate, min($asked, date('Y-m-d')));
+    }
+
+    /**
+     * Approve with the accountant's cash (and custody). $receivedOn is the day
+     * the cash was received (today unless the accountant says): on a day after
+     * the work, what the accountant adds to what the receipt held when the
+     * doctor sent it is recorded as an approved PAYMENT on that day, so the
+     * income sheet, the cashbox and the reports count it the day it came in.
+     * The chair money stays on the receipt, on the day of the work.
+     */
+    public function approveWithAdvance($caseId, $invoiceId, $actorId, $advanceAmount, $receivedCash, $accountingNotes = '', $receivedOn = null) {
         $this->db->beginTransaction();
         try {
             $actor = $this->db->fetch('SELECT role,is_active FROM users WHERE id=?', [(int)$actorId]);
@@ -756,11 +776,40 @@ class CaseInvoice {
                 throw new DomainException('تەنها وەسڵی نێردراو کە هێشتا پەسەند نەکراوە دەکرێت پەسەند بکرێت');
             }
             // The displayed received total includes custody. Only the cash
-            // remainder belongs on the invoice itself.
-            $adjusted = $this->accountantAdjust($invoiceId, ['received_amount'=>CashboxLedger::decimal($cash)], $actorId);
+            // remainder belongs on the invoice itself — and of that, only the
+            // chair money when the accountant took it on a later day.
+            $day = self::receivedDay($receivedOn, (string)$invoice['work_date']);
+            $chair = ($invoice['sent_received_amount'] ?? null) !== null
+                ? CashboxLedger::cents($invoice['sent_received_amount'])
+                // sent before the figure was kept: with doctors kept from writing
+                // وەرگیراو none of it is the chair's
+                : (Settings::doctorReceivedLocked() ? 0 : CashboxLedger::cents($invoice['draft_received_amount']));
+            $later = $day > (string)$invoice['work_date'] ? max(0, $cash - $chair) : 0;
+            $adjusted = $this->accountantAdjust($invoiceId, ['received_amount'=>CashboxLedger::decimal($cash - $later)], $actorId);
             if (empty($adjusted['success'])) throw new RuntimeException($adjusted['message']);
             $approved = $this->approve($caseId, $invoiceId, $actorId, $accountingNotes);
             if (empty($approved['success'])) throw new RuntimeException($approved['message']);
+            $laterPaymentId = null;
+            if ($later > 0) {
+                require_once __DIR__ . '/Payment.php';
+                $paid = (new Payment())->directPayment([
+                    'case_id' => (int)$caseId, 'invoice_id' => (int)$invoiceId,
+                    'amount' => $later / 100, 'payment_method' => 'cash', 'payment_type' => 'cash',
+                    'payment_date' => $day,
+                    'notes' => 'وەرگیراو لەسەر وەسڵی ' . ($invoice['invoice_no'] ?: '#' . (int)$invoiceId) . ' — ناوەندی پەسەندکردن، ڕۆژی ' . $day,
+                    'cashbox_reason' => 'وەرگرتنی نەقد لەسەر وەسڵ',
+                ], (int)$actorId);
+                if (empty($paid['success'])) throw new RuntimeException($paid['message'] ?? 'تۆمارکردنی پارەدان سەرنەکەوت');
+                $laterPaymentId = (int)$paid['payment_id'];
+                // Part of this approval, not a قەبز taken after it: the printed
+                // receipt (AccountingLedger receipt_*) keeps it in its وەرگیراو,
+                // under the receipt's own date — the received day is the payment's.
+                $this->db->query(
+                    'UPDATE payment_allocations pa JOIN case_invoices ci ON ci.id = pa.invoice_id
+                     SET pa.created_at = ci.approved_at WHERE pa.payment_id = ? AND pa.invoice_id = ?',
+                    [$laterPaymentId, (int)$invoiceId]
+                );
+            }
             $funded = ['payment_id'=>null];
             if ($advance > 0) {
                 require_once __DIR__ . '/PatientAdvance.php';
@@ -771,7 +820,8 @@ class CaseInvoice {
             $intent = self::intentForRemaining((float)$after['remaining_amount'], $after['payment_intent']);
             $this->db->update('case_invoices', ['payment_intent'=>$intent], 'id=?', [(int)$invoiceId]);
             AuditLog::logChange('invoice_advance_approved', 'case_invoices', (int)$invoiceId, $invoice,
-                ['draft_received_amount'=>CashboxLedger::decimal($cash),'payment_intent'=>$intent], (int)$actorId);
+                ['draft_received_amount'=>CashboxLedger::decimal($cash - $later),'payment_intent'=>$intent,
+                 'received_on'=>$day, 'later_payment_id'=>$laterPaymentId, 'later_amount'=>CashboxLedger::decimal($later)], (int)$actorId);
             $this->db->commit();
             return ['success'=>true,'invoice'=>$this->getById((int)$invoiceId),'payment_id'=>$funded['payment_id']];
         } catch (Throwable $e) {

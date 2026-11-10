@@ -100,7 +100,8 @@ try {
             $invoiceId = (int)($_POST['invoice_id'] ?? 0);
             $result = array_key_exists('received_cash', $_POST) || !empty($_POST['advance_amount'])
                 ? $invoiceManager->approveWithAdvance($caseId, $invoiceId, $actorId,
-                    $_POST['advance_amount'] ?? '0', $_POST['received_cash'] ?? '0', $_POST['accounting_notes'] ?? '')
+                    $_POST['advance_amount'] ?? '0', $_POST['received_cash'] ?? '0', $_POST['accounting_notes'] ?? '',
+                    $_POST['received_on'] ?? null)
                 : $invoiceManager->approve($caseId, $invoiceId, $actorId, $_POST['accounting_notes'] ?? '');
             if (empty($result['success'])) {
                 echo json_encode(fa_fail($result, $invoiceManager->getById($invoiceId), 'accounting_status', 'sent'), JSON_UNESCAPED_UNICODE);

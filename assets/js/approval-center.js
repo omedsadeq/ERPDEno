@@ -1235,6 +1235,15 @@
                 + '<input type="number" class="vt-disc-input" id="acRecvInput" min="' + received.allocated + '" step="0.01" '
                 + 'max="' + Math.max(0, netAmount - priorPaid) + '" value="' + (received.total > 0.009 ? received.total : '') + '" placeholder="0">'
                 + '</span></div>';
+            if (inv.accounting_status === 'sent') {
+                // The day the money came in: today, or the day the accountant
+                // says. After the receipt's day it is recorded as that day's payment.
+                const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+                html += '<div class="vt-total-row"><span class="vt-total-label">ڕێکەوتی وەرگرتن :</span>'
+                    + '<span class="vt-total-box vt-disc-box"><input type="date" class="vt-disc-input" id="acRecvOn" value="' + today + '"'
+                    + ' min="' + esc(inv.work_date || '') + '" max="' + today + '"'
+                    + ' title="ئەو ڕۆژەی پارەکە وەرگیرا. ئەگەر دوای ڕۆژی وەسڵەکە بێت، وەک پارەدانی ئەو ڕۆژە تۆمار دەکرێت"></span></div>';
+            }
         } else {
             html += '<div class="vt-total-row"><span class="vt-total-label">وەرگیراو :</span>'
                 + '<span class="vt-total-box is-paid" id="acInvPaidBox">' + nf(received.total) + '</span></div>';
@@ -1747,7 +1756,9 @@
                 if (!Number.isFinite(received) || received < advance - 0.009 || received > netAmount() - priorPaid + 0.009) {
                     showDrawerErr('بڕی وەرگیراو یان ئامانەت نادروستە'); return null;
                 }
-                return { advance_amount: advance, received_cash: Math.round((received - advance) * 100) / 100 };
+                const recvOn = $('acRecvOn');
+                return { advance_amount: advance, received_cash: Math.round((received - advance) * 100) / 100,
+                    received_on: recvOn && recvOn.value ? recvOn.value : '' };
             },
         };
     }
