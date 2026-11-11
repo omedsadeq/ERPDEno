@@ -141,6 +141,9 @@ body.inc-full-open{overflow:hidden}
 .inc-box.left.neg{background:#fef2f2;border-color:#fecaca}
 .inc-box.left.neg .v{color:#dc2626}
 .inc-split{margin-top:10px}
+.inc-foot.inc-two{grid-template-columns:repeat(2,1fr)}
+.inc-foot.inc-split{grid-template-columns:repeat(4,1fr)}
+@media(max-width:1100px){.inc-foot.inc-split{grid-template-columns:repeat(2,1fr)}}
 .inc-box.doc{background:#faf8ff;border-color:#ddd6fe}
 .inc-box.doc .v{color:#5b21b6}
 .inc-box.ctr{background:#f0fdfa;border-color:#99f6e4}
@@ -149,7 +152,7 @@ body.inc-full-open{overflow:hidden}
 .inc-box.cnet .v{color:#047857}
 .inc-box.cnet.neg{background:#fef2f2;border-color:#fecaca}
 .inc-box.cnet.neg .v{color:#dc2626}
-@media(max-width:760px){.inc-foot{grid-template-columns:1fr}.inc-head{grid-template-columns:1fr}.inc-head .en{text-align:right}.inc-days{margin-inline-start:0}}
+@media(max-width:760px){.inc-foot,.inc-foot.inc-two,.inc-foot.inc-split{grid-template-columns:1fr}.inc-head{grid-template-columns:1fr}.inc-head .en{text-align:right}.inc-days{margin-inline-start:0}}
 </style>
 
 <div class="inc">
@@ -317,6 +320,8 @@ body.inc-full-open{overflow:hidden}
                         <?php if ($k === 'store' && !isset($storeParts['storeTotal'])): ?>
                         <?php elseif ($r['kind'] === 'doctor' && abs($r[$k]) >= 0.5): ?>
                         <td class="n exp"><div class="xi-amt"><?= income_detail_button($k, (int)$r['id']) ?><span><?= incCell($r[$k]) ?></span></div></td>
+                        <?php elseif ($r['kind'] === 'xray' && $k === 'general' && abs($r[$k]) >= 0.5): ?>
+                        <td class="n exp"><div class="xi-amt"><?= income_detail_button('general', INCOME_DETAIL_XRAY_DEPT) ?><span><?= incCell($r[$k]) ?></span></div></td>
                         <?php else: ?>
                         <td class="n exp"><?= incCell($r[$k]) ?></td>
                         <?php endif; ?>
@@ -372,7 +377,7 @@ body.inc-full-open{overflow:hidden}
             </table>
         </div>
 
-        <div class="inc-foot">
+        <div class="inc-foot inc-two">
             <div class="inc-box total">
                 <div class="k">کۆی گشتی</div>
                 <div class="v"><?= $sheetTotal < 0 ? '(' . dsMoney(abs($sheetTotal)) . ')' : dsMoney($sheetTotal) ?></div>
@@ -380,6 +385,26 @@ body.inc-full-open{overflow:hidden}
                 <?php if ($incLess): ?>
                 <div class="s">داهات <?= dsMoney($totals['amount']) ?> − <?= dsEsc(implode('، ', $incLess)) ?></div>
                 <?php endif; ?>
+            </div>
+            <div class="inc-box left<?= $remaining < 0 ? ' neg' : '' ?>">
+                <div class="k">ماوە</div>
+                <div class="v"><?= $remaining < 0 ? '(' . dsMoney(abs($remaining)) . ')' : dsMoney($remaining) ?></div>
+                <div class="s">کۆی گشتی − خەرجیات</div>
+            </div>
+        </div>
+
+        <!-- دابەشکردن: کۆی گشتی = پشکی دکتۆران + پشکی سەنتەر; the centre then
+             carries خەرجیات, which stands between its share and what is left of it. -->
+        <div class="inc-foot inc-split">
+            <div class="inc-box doc">
+                <div class="k">پشکی دکتۆران</div>
+                <div class="v"><?= $totals['doctorShare'] < 0 ? '(' . dsMoney(abs($totals['doctorShare'])) . ')' : dsMoney($totals['doctorShare']) ?></div>
+                <div class="s">ڕێژەی هەر دکتۆرێک لە کۆی ماوە دوای خەرجی − بەشی لە کۆگا (ئاسایی + Implant)</div>
+            </div>
+            <div class="inc-box ctr">
+                <div class="k">پشکی سەنتەر</div>
+                <div class="v"><?= $totals['centerShare'] < 0 ? '(' . dsMoney(abs($totals['centerShare'])) . ')' : dsMoney($totals['centerShare']) ?></div>
+                <div class="s">ماوەی دکتۆران + بەشەکانی تر</div>
             </div>
             <div class="inc-box exp">
                 <div class="k">خەرجیات</div>
@@ -393,25 +418,6 @@ body.inc-full-open{overflow:hidden}
                             array_keys($expenseLines), $expenseLines))
                         : (in_array('general', $expSel, true) ? 'هیچ خەرجییەکی گشتی نییە' : 'خەرجی گشتی کوژاوەتەوە');
                 ?></div>
-            </div>
-            <div class="inc-box left<?= $remaining < 0 ? ' neg' : '' ?>">
-                <div class="k">ماوە</div>
-                <div class="v"><?= $remaining < 0 ? '(' . dsMoney(abs($remaining)) . ')' : dsMoney($remaining) ?></div>
-            </div>
-        </div>
-
-        <!-- دابەشکردن: کۆی گشتی = پشکی دکتۆران + پشکی سەنتەر; the centre then
-             carries خەرجیات. -->
-        <div class="inc-foot inc-split">
-            <div class="inc-box doc">
-                <div class="k">پشکی دکتۆران</div>
-                <div class="v"><?= $totals['doctorShare'] < 0 ? '(' . dsMoney(abs($totals['doctorShare'])) . ')' : dsMoney($totals['doctorShare']) ?></div>
-                <div class="s">ڕێژەی هەر دکتۆرێک لە کۆی ماوە دوای خەرجی − بەشی لە کۆگا (ئاسایی + Implant)</div>
-            </div>
-            <div class="inc-box ctr">
-                <div class="k">پشکی سەنتەر</div>
-                <div class="v"><?= $totals['centerShare'] < 0 ? '(' . dsMoney(abs($totals['centerShare'])) . ')' : dsMoney($totals['centerShare']) ?></div>
-                <div class="s">ماوەی دکتۆران + بەشەکانی تر</div>
             </div>
             <div class="inc-box cnet<?= $centerAfterExpenses < 0 ? ' neg' : '' ?>">
                 <div class="k">سافی سەنتەر</div>

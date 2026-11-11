@@ -24,6 +24,8 @@ require_once __DIR__ . '/xray-income.php';
 require_once __DIR__ . '/../classes/IncomeManualEntry.php';
 
 const INCOME_DETAIL_KINDS = ['doctor', 'xray', 'pharmacy', 'exam', 'lab', 'store', 'general'];
+/** The id a general-expense figure uses for the X-ray department's own expenses (dept = 'xray'). */
+const INCOME_DETAIL_XRAY_DEPT = -1;
 
 /** The button beside a figure. */
 function income_detail_button(string $kind, int $id = 0): string
@@ -135,13 +137,16 @@ function income_detail_data(Database $db, string $kind, int $id, string $from, s
         // A doctor row's expense columns: the costs written in his name
         // (ds_compute_range: labExpense / storeExpense / generalExpense).
         // id 0: the centre's — written on no doctor (the sheet's خەرجیات).
-        $doctor = $id === 0 ? ['full_name' => 'سەنتەر (بێ دکتۆر)']
-            : $db->fetch("SELECT full_name FROM users WHERE id = ? AND role = 'doctor'", [$id]);
+        // INCOME_DETAIL_XRAY_DEPT: the X-ray department's general expenses.
+        $xrayDept = $kind === 'general' && $id === INCOME_DETAIL_XRAY_DEPT;
+        $doctor = $xrayDept ? ['full_name' => 'X-ray'] : ($id === 0 ? ['full_name' => 'سەنتەر (بێ دکتۆر)']
+            : ($id > 0 ? $db->fetch("SELECT full_name FROM users WHERE id = ? AND role = 'doctor'", [$id]) : null));
         if (!$doctor) {
             return null;
         }
-        $who = $id === 0 ? 'e.doctor_id IS NULL' . ($kind === 'general' ? ' AND e.dept IS NULL' : '') : 'e.doctor_id = :uid';
-        $whoParams = $id === 0 ? [] : ['uid' => $id];
+        $who = $xrayDept ? "e.doctor_id IS NULL AND e.dept = 'xray'"
+            : ($id === 0 ? 'e.doctor_id IS NULL' . ($kind === 'general' ? ' AND e.dept IS NULL' : '') : 'e.doctor_id = :uid');
+        $whoParams = $id > 0 ? ['uid' => $id] : [];
         $page = ['lab' => 'expenses-lab', 'store' => 'expenses-inventory', 'general' => 'expenses-general'][$kind];
         $listLink = fn($day) => ['لە لیستی خەرجی', 'fa-arrow-up-right-from-square', $app . '/admin/' . $page . '.php?date_from=' . $day . '&date_to=' . $day];
         $lines = [];
