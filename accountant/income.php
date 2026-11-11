@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/_income_data.php';
+require_once __DIR__ . '/../classes/IncomeSheetColumns.php';
 
 $pageTitle = 'داهات';
 $breadcrumb = [
@@ -174,6 +175,7 @@ body.inc-full-open{overflow:hidden}
             <?php endforeach; ?>
             <?php if ($canColumns): ?>
             <button type="button" class="inc-newcol" data-col-new title="کۆڵۆمێکی نوێ بۆ خشتەکە: خەرجی سەر دکتۆر یان لێبڕین"><i class="fas fa-plus"></i> کۆڵۆم</button>
+            <button type="button" class="inc-sheetcols" onclick="openDialog('incSheetColsDialog')" title="ناوی کۆڵۆمەکانی خشتەکە بگۆڕە یان بیانشارەوە — PDF ـیش هەروا دەبێت"><i class="fas fa-table-columns"></i> کۆڵۆمەکان</button>
             <?php endif; ?>
         </div>
         <div class="inc-days">
@@ -224,6 +226,9 @@ body.inc-full-open{overflow:hidden}
             <button type="button" class="inc-full-btn" id="incFullBtn" title="هەموو ستوونەکان لەسەر یەک شاشە"><i class="fas fa-expand"></i> <span>پڕ بە شاشە</span></button>
         </div>
 
+        <?php if (isset($_GET['sheet_cols'])): ?>
+        <div class="alert alert-success" data-auto-hide><i class="fas fa-check-circle alert-icon"></i> کۆڵۆمەکانی خشتە پاشەکەوت کران — PDF ـیش هەروا دەبێت.</div>
+        <?php endif; ?>
         <?php if ($doctorsWithoutRate): ?>
         <div class="inc-note">
             <i class="fas fa-percent" style="margin-top:4px;"></i>
@@ -246,22 +251,26 @@ body.inc-full-open{overflow:hidden}
                     // The store as on the owner's sheet: its total, then ئاسایی
                     // (دکتۆر by his store percentage · لێزان) and Implant (its
                     // division for information: the whole of it comes off before the split).
-                    $storeCols = in_array('store', $colSel, true);
+                    // Each column's name and whether it shows: «کۆڵۆمەکان» above the
+                    // table (classes/IncomeSheetColumns.php, the PDF reads it too).
+                    $colName = fn(string $k) => IncomeSheetColumns::label($k);
+                    $showCol = fn(string $k) => IncomeSheetColumns::shown($k);
+                    $expCols = IncomeSheetColumns::expenseKeys($colSel);
+                    $storeParts = IncomeSheetColumns::storeParts();
+                    $storeCols = in_array('store', $expCols, true);
                     $rs = $storeCols ? ' rowspan="2"' : '';
                     ?>
                     <tr>
-                        <th<?= $rs ?>>#</th><th<?= $rs ?>>ناوەڕۆک</th><th<?= $rs ?>>ژمارە</th><th<?= $rs ?>>بڕی</th>
-                        <?php foreach ($colSel as $k): ?><?php if ($k === 'store'): ?><th colspan="7" class="sto">خەرجی کۆگا</th><?php else: ?><th<?= $rs ?>><?= dsEsc($expenseKinds[$k]) ?></th><?php endif; ?><?php endforeach; ?>
+                        <th<?= $rs ?>>#</th><th<?= $rs ?>>ناوەڕۆک</th><th<?= $rs ?>>ژمارە</th><?php if ($showCol('amount')): ?><th<?= $rs ?>><?= dsEsc($colName('amount')) ?></th><?php endif; ?>
+                        <?php foreach ($expCols as $k): ?><?php if ($k === 'store'): ?><th colspan="<?= count($storeParts) ?>" class="sto"><?= dsEsc($colName('store')) ?></th><?php else: ?><th<?= $rs ?>><?= dsEsc($colName($k)) ?></th><?php endif; ?><?php endforeach; ?>
                         <?php foreach ($incColumns as $c): ?><th class="cus"<?= $rs ?>><?= dsEsc($c['name']) ?></th><?php endforeach; ?>
-                        <th<?= $rs ?>>کۆی ماوە دوای خەرجی<small>بڕی − گشتی − تاقیگە − Implant (بە ڕێژەی دکتۆر)</small></th>
-                        <th class="doc"<?= $rs ?>>پشکی دکتۆر<small>بە ڕێژەی خۆی − کۆگای ئاسایی</small></th>
-                        <th class="ctr"<?= $rs ?>>پشکی سەنتەر<small>بۆ <?= htmlspecialchars(Branding::shortName()) ?></small></th>
+                        <?php if ($showCol('pool')): ?><th<?= $rs ?>><?= dsEsc($colName('pool')) ?><small>بڕی − گشتی − تاقیگە − Implant (بە ڕێژەی دکتۆر)</small></th><?php endif; ?>
+                        <?php if ($showCol('doctorShare')): ?><th class="doc"<?= $rs ?>><?= dsEsc($colName('doctorShare')) ?><small>بە ڕێژەی خۆی − کۆگای ئاسایی</small></th><?php endif; ?>
+                        <?php if ($showCol('centerShare')): ?><th class="ctr"<?= $rs ?>><?= dsEsc($colName('centerShare')) ?><small>بۆ <?= htmlspecialchars(Branding::shortName()) ?></small></th><?php endif; ?>
                     </tr>
                     <?php if ($storeCols): ?>
                     <tr class="sub">
-                        <th>کۆ</th>
-                        <th class="nrm">ئاسایی</th><th class="nrm">سەر دکتۆر</th><th class="nrm">سەر لێزان</th>
-                        <th class="imp">Implant</th><th class="imp">سەر دکتۆر</th><th class="imp">لێزان</th>
+                        <?php foreach ($storeParts as $part => [, $cls]): ?><th<?= $cls ? ' class="' . $cls . '"' : '' ?>><?= dsEsc($colName($part)) ?></th><?php endforeach; ?>
                     </tr>
                     <?php endif; ?>
                 </thead>
@@ -298,21 +307,22 @@ body.inc-full-open{overflow:hidden}
                         <td class="lb en"><?= dsEsc($r['label']) ?></td>
                         <?php endif; ?>
                         <td class="c"><?= $r['count'] ? dsMoney($r['count']) : '' ?></td>
-                        <?php if (abs($r['amount']) >= 0.5 && in_array($r['kind'], INCOME_DETAIL_KINDS, true)): ?>
+                        <?php if (!$showCol('amount')): ?>
+                        <?php elseif (abs($r['amount']) >= 0.5 && in_array($r['kind'], INCOME_DETAIL_KINDS, true)): ?>
                         <td class="n amt"><div class="xi-amt"><?= income_detail_button($r['kind'], (int)($r['id'] ?? 0)) ?><span><?= incCell($r['amount']) ?></span></div></td>
                         <?php else: ?>
                         <td class="n amt"><?= incCell($r['amount']) ?></td>
                         <?php endif; ?>
-                        <?php foreach ($colSel as $k): ?>
-                        <?php if ($r['kind'] === 'doctor' && abs($r[$k]) >= 0.5): ?>
+                        <?php foreach ($expCols as $k): ?>
+                        <?php if ($k === 'store' && !isset($storeParts['storeTotal'])): ?>
+                        <?php elseif ($r['kind'] === 'doctor' && abs($r[$k]) >= 0.5): ?>
                         <td class="n exp"><div class="xi-amt"><?= income_detail_button($k, (int)$r['id']) ?><span><?= incCell($r[$k]) ?></span></div></td>
                         <?php else: ?>
                         <td class="n exp"><?= incCell($r[$k]) ?></td>
                         <?php endif; ?>
-                        <?php if ($k === 'store'): ?>
-                        <td class="n nrm"><?= incCell($r['storeNormal']) ?></td><td class="n nrm"><?= incCell($r['storeNormalDoc']) ?></td><td class="n nrm"><?= incCell($r['storeNormalCtr']) ?></td>
-                        <td class="n imp"><?= incCell($r['storeImplant']) ?><?php if ($r['storeImplant'] > 0.5 && $r['implantPool'] < 100): ?><small class="inc-ip" title="ئەم ڕێژەیەی Implant پێش دابەشکردن لە کۆی ماوە کەم دەکرێتەوە؛ ئەوەی تر بەر لێزان دەکەوێت"><?= rtrim(rtrim(number_format($r['implantPool'], 2, '.', ''), '0'), '.') ?>٪ لە کۆی ماوە</small><?php endif; ?></td><td class="n imp"><?= incCell($r['storeImplantDoc']) ?></td><td class="n imp"><?= incCell($r['storeImplantCtr']) ?></td>
-                        <?php endif; ?>
+                        <?php if ($k === 'store'): foreach ($storeParts as $part => [$field, $cls]): if ($part === 'storeTotal') continue; ?>
+                        <td class="n <?= $cls ?>"><?= incCell($r[$field]) ?><?php if ($part === 'storeImplant' && $r['storeImplant'] > 0.5 && $r['implantPool'] < 100): ?><small class="inc-ip" title="ئەم ڕێژەیەی Implant پێش دابەشکردن لە کۆی ماوە کەم دەکرێتەوە؛ ئەوەی تر بەر لێزان دەکەوێت"><?= rtrim(rtrim(number_format($r['implantPool'], 2, '.', ''), '0'), '.') ?>٪ لە کۆی ماوە</small><?php endif; ?></td>
+                        <?php endforeach; endif; ?>
                         <?php endforeach; ?>
                         <?php foreach ($incColumns as $c): ?>
                         <td class="n cus">
@@ -326,7 +336,8 @@ body.inc-full-open{overflow:hidden}
                             <?php endif; ?>
                         </td>
                         <?php endforeach; ?>
-                        <td class="n net<?= $r['pool'] < 0 ? ' neg' : '' ?>"><?= incCell($r['pool']) ?></td>
+                        <?php if ($showCol('pool')): ?><td class="n net<?= $r['pool'] < 0 ? ' neg' : '' ?>"><?= incCell($r['pool']) ?></td><?php endif; ?>
+                        <?php if ($showCol('doctorShare')): ?>
                         <td class="n doc">
                             <?php if ($r['kind'] === 'doctor'): ?>
                             <div class="inc-sh">
@@ -339,25 +350,23 @@ body.inc-full-open{overflow:hidden}
                             </div>
                             <?php endif; ?>
                         </td>
-                        <td class="n ctr<?= $r['centerShare'] < 0 ? ' neg' : '' ?>"><?= incCell($r['centerShare']) ?></td>
+                        <?php endif; ?>
+                        <?php if ($showCol('centerShare')): ?><td class="n ctr<?= $r['centerShare'] < 0 ? ' neg' : '' ?>"><?= incCell($r['centerShare']) ?></td><?php endif; ?>
                     </tr>
                 <?php endforeach; ?>
                     <tr class="tot">
                         <td></td>
                         <td>کۆ</td>
                         <td class="c"><?= dsMoney($totals['count']) ?></td>
-                        <td class="n"><?= dsMoney($totals['amount']) ?></td>
-                        <?php foreach ($colSel as $k): ?>
-                        <td class="n"><?= dsMoney($totals[$k]) ?></td>
-                        <?php if ($k === 'store'): ?>
-                        <td class="n nrm"><?= dsMoney($totals['storeNormal']) ?></td><td class="n nrm"><?= dsMoney($totals['storeNormalDoc']) ?></td><td class="n nrm"><?= dsMoney($totals['storeNormalCtr']) ?></td>
-                        <td class="n imp"><?= dsMoney($totals['storeImplant']) ?></td><td class="n imp"><?= dsMoney($totals['storeImplantDoc']) ?></td><td class="n imp"><?= dsMoney($totals['storeImplantCtr']) ?></td>
-                        <?php endif; ?>
+                        <?php if ($showCol('amount')): ?><td class="n"><?= dsMoney($totals['amount']) ?></td><?php endif; ?>
+                        <?php foreach ($expCols as $k): ?>
+                        <?php if ($k !== 'store'): ?><td class="n"><?= dsMoney($totals[$k]) ?></td>
+                        <?php else: foreach ($storeParts as [$field, $cls]): ?><td class="n <?= $cls ?>"><?= dsMoney($totals[$field]) ?></td><?php endforeach; endif; ?>
                         <?php endforeach; ?>
                         <?php foreach ($incColumns as $c): ?><td class="n cus"><?= dsMoney($totals['cols'][$c['id']]) ?></td><?php endforeach; ?>
-                        <td class="n"><?= $totals['pool'] < 0 ? '(' . dsMoney(abs($totals['pool'])) . ')' : dsMoney($totals['pool']) ?></td>
-                        <td class="n doc"><?= incCell($totals['doctorShare']) ?: '0' ?></td>
-                        <td class="n ctr"><?= incCell($totals['centerShare']) ?: '0' ?></td>
+                        <?php if ($showCol('pool')): ?><td class="n"><?= $totals['pool'] < 0 ? '(' . dsMoney(abs($totals['pool'])) . ')' : dsMoney($totals['pool']) ?></td><?php endif; ?>
+                        <?php if ($showCol('doctorShare')): ?><td class="n doc"><?= incCell($totals['doctorShare']) ?: '0' ?></td><?php endif; ?>
+                        <?php if ($showCol('centerShare')): ?><td class="n ctr"><?= incCell($totals['centerShare']) ?: '0' ?></td><?php endif; ?>
                     </tr>
                 </tbody>
             </table>
@@ -367,7 +376,7 @@ body.inc-full-open{overflow:hidden}
             <div class="inc-box total">
                 <div class="k">کۆی گشتی</div>
                 <div class="v"><?= $sheetTotal < 0 ? '(' . dsMoney(abs($sheetTotal)) . ')' : dsMoney($sheetTotal) ?></div>
-                <?php $incLess = array_merge(array_map(fn($k) => $expenseKinds[$k], $colSel), array_column(array_filter($incColumns, fn($c) => $c['period_total'] > 0), 'name')); ?>
+                <?php $incLess = array_merge(array_map(fn($k) => IncomeSheetColumns::label($k), $colSel), array_column(array_filter($incColumns, fn($c) => $c['period_total'] > 0), 'name')); ?>
                 <?php if ($incLess): ?>
                 <div class="s">داهات <?= dsMoney($totals['amount']) ?> − <?= dsEsc(implode('، ', $incLess)) ?></div>
                 <?php endif; ?>
@@ -622,6 +631,41 @@ body.inc-full-open{overflow:hidden}
 </div>
 
 <?php if ($canColumns): ?>
+<?php if ($canColumns): ?>
+<!-- کۆڵۆمەکانی خشتە: a name and «پیشاندان» for each column, for everyone and the PDF -->
+<div class="dialog-overlay" id="incSheetColsDialog"><div class="dialog inc-dlg inc-sc-dlg" role="dialog" aria-modal="true" aria-labelledby="inc-sc-title">
+    <div class="dialog-header"><h3 class="dialog-title" id="inc-sc-title">کۆڵۆمەکانی خشتە</h3><button type="button" class="dialog-close" onclick="closeDialog('incSheetColsDialog')" aria-label="داخستن"><i class="fas fa-times"></i></button></div>
+    <form method="post" action="<?= APP_URL ?>/accountant/income-sheet-columns.php" autocomplete="off">
+        <?= Csrf::field() ?>
+        <input type="hidden" name="return" value="<?= dsEsc($manReturn) ?>">
+        <div class="dialog-body">
+            <p class="inc-sc-note">ناوی هەر کۆڵۆمێک بگۆڕە یان نیشانەکەی لابدە بۆ شاردنەوە. بۆ هەمووان و بۆ PDF ـیش دەبێت. کۆڵۆمی شاراوە هێشتا لە ژمارەکاندا هەژمار دەکرێت.</p>
+            <?php
+            $scSections = ['main' => 'داهات', 'expense' => 'خەرجی', 'store' => 'خەرجی کۆگا', 'result' => 'ئەنجام'];
+            $scAll = IncomeSheetColumns::all();
+            foreach ($scSections as $section => $sectionName):
+            ?>
+            <div class="inc-sc-sec"><?= dsEsc($sectionName) ?></div>
+            <?php foreach ($scAll as $key => $c): if ($c['section'] !== $section) continue;
+                $fixed = in_array($key, IncomeSheetColumns::NOT_HIDEABLE, true); ?>
+            <div class="inc-sc-row<?= $key === 'store' ? ' is-head' : '' ?>">
+                <label class="inc-sc-show" title="<?= $fixed ? 'ئەم سەردێڕە کاتێک دەڕوات کە هەموو کۆڵۆمەکانی ژێری شاراوە بن' : 'پیشاندان' ?>">
+                    <input type="checkbox" name="shown[<?= $key ?>]" value="1" <?= $c['hidden'] ? '' : 'checked' ?> <?= $fixed ? 'disabled' : '' ?>>
+                </label>
+                <input type="text" name="label[<?= $key ?>]" value="<?= dsEsc($c['label']) ?>" maxlength="<?= IncomeSheetColumns::LABEL_MAX ?>" placeholder="<?= dsEsc($c['default']) ?>" aria-label="<?= dsEsc($c['default']) ?>">
+                <small><?= $c['label'] !== $c['default'] ? dsEsc($c['default']) : ($key === 'store' ? 'سەردێڕ' : '') ?></small>
+            </div>
+            <?php endforeach; endforeach; ?>
+        </div>
+        <div class="dialog-footer">
+            <button type="submit" name="action" value="reset" class="inc-mp-cancel inc-sc-reset" formnovalidate onclick="return confirm('هەموو ناوەکان دەگەڕێنەوە بۆ ناوی خۆیان و هەموو کۆڵۆمەکان پیشان دەدرێن؟')">گەڕانەوە بۆ سەرەتا</button>
+            <button type="button" class="inc-mp-cancel" onclick="closeDialog('incSheetColsDialog')">پاشگەزبوونەوە</button>
+            <button type="submit" name="action" value="save" class="inc-mp-save">پاشەکەوت</button>
+        </div>
+    </form>
+</div></div>
+<?php endif; ?>
+
 <div class="dialog-overlay" id="incColumnDialog"><div class="dialog inc-dlg" role="dialog" aria-modal="true" aria-labelledby="inc-column-title">
     <div class="dialog-header"><h3 class="dialog-title" id="inc-column-title">کۆڵۆمی نوێ</h3><button type="button" class="dialog-close" onclick="closeDialog('incColumnDialog')" aria-label="داخستن"><i class="fas fa-times"></i></button></div>
     <form method="post" action="<?= APP_URL ?>/accountant/income-columns.php" id="incColumnForm" autocomplete="off">
@@ -817,6 +861,20 @@ body.inc-full-open{overflow:hidden}
 .inc-cs .inc-mp-tbl th{background:#ffe4e6;color:#9f1239;border-color:#fecdd3}
 .inc-cs .inc-mp-tbl tfoot td{background:#fff1f2;border-top-color:#fecdd3}
 .inc-dlg{max-width:480px;width:calc(100vw - 32px)}
+.inc-bar button.inc-sheetcols{height:auto;padding:6px 11px;border-radius:999px;font-size:12.5px;color:#0369a1;background:#fff;border:1px dashed #7dd3fc}
+.inc-bar button.inc-sheetcols:hover{background:#e0f2fe}
+.inc-bar button.inc-sheetcols i{font-size:11px}
+.inc-sc-dlg .dialog-body{max-height:64vh;overflow:auto}
+.inc-sc-note{margin:0 0 10px;font-size:12px;color:#64748b;line-height:1.7}
+.inc-sc-sec{margin:12px 0 6px;font-size:12px;font-weight:800;color:#0369a1}
+.inc-sc-row{display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:8px;margin-bottom:6px}
+.inc-sc-row.is-head input[type=text]{font-weight:800;background:#fffbeb}
+.inc-sc-row input[type=text]{height:34px;border:1px solid #e2e8f0;border-radius:8px;padding:0 10px;font:inherit;font-size:13px}
+.inc-sc-row:has(input[type=checkbox]:not(:checked):not(:disabled)) input[type=text]{opacity:.45;text-decoration:line-through}
+.inc-sc-row small{font-size:11px;color:#94a3b8;white-space:nowrap}
+.inc-sc-show{display:grid;place-items:center}
+.inc-sc-show input{width:17px;height:17px;cursor:pointer}
+.inc-sc-reset{margin-inline-end:auto}
 .inc-dlg .dialog-footer{display:flex;justify-content:flex-end;gap:8px}
 .inc-dlg-f{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;font-size:12.5px;color:#475569}
 .inc-dlg-f input,.inc-dlg-f select{height:38px;border:1px solid #e2e8f0;border-radius:9px;background:#fff;padding:0 10px;font:inherit;font-size:13.5px;width:100%}

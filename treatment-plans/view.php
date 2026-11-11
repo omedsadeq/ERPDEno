@@ -295,13 +295,10 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
 
 <div class="panel tp-clinical-panel">
     <div class="tabs-container" role="tablist" aria-label="پیشاندانی پلان">
+        <?php // چارت و چارەسەر: one tab, as «چارت و وەسڵ» on a case ?>
         <button type="button" class="tab tab--chart active" id="pvTab-chart" role="tab" aria-controls="tab-chart" aria-selected="true" onclick="showTab('chart', this)">
             <i class="fas fa-tooth" aria-hidden="true"></i>
-            <span class="tab-label">چارتی ددان</span>
-        </button>
-        <button type="button" class="tab tab--treat" id="pvTab-items" role="tab" aria-controls="tab-items" aria-selected="false" onclick="showTab('items', this)">
-            <i class="fas fa-tasks" aria-hidden="true"></i>
-            <span class="tab-label">چارەسەرەکان</span>
+            <span class="tab-label">چارت و چارەسەر</span>
             <span class="tab-count" id="pvItemCount"><?= count($items) ?></span>
         </button>
         <?php if ($perm->can('erp2.prescriptions.create') || $perm->can('erp2.prescriptions.view')): ?>
@@ -317,6 +314,12 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
 
     <!-- ═══ Chart tab ═══ -->
     <div class="tab-content active" id="tab-chart" role="tabpanel" aria-labelledby="pvTab-chart" style="display: block;">
+    <?php // the chart on the right, the treatments it fills on the left (an RTL grid puts
+          // its first column on the right). ⤢ gives the treatments the whole width;
+          // the choice is kept on this computer. ?>
+    <div class="cw-split" id="chartWorkspace">
+    <script>try { if (localStorage.getItem('planReceiptWide') === '1') document.getElementById('chartWorkspace').classList.add('is-wide'); } catch (e) {}</script>
+    <div class="cw-chart">
         <div class="panel-body" style="padding: 12px;">
             <div class="ph-bar" id="pvChartToolbar">
                 <div class="pv-chart-tools">
@@ -395,30 +398,19 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
                 <div class="chart-legend" id="smartChartLegend"></div>
             </div>
         </div>
-    </div>
+    </div><!-- /cw-chart -->
 
-    <!-- ═══ Items tab — the estimate as a receipt: the header above already
-         names the plan and its totals, so the table starts straight away ═══ -->
-    <div class="tab-content" id="tab-items" role="tabpanel" aria-labelledby="pvTab-items" style="display: none;">
+    <!-- The estimate as a receipt: it was the «چارەسەرەکان» tab, and keeps that id for its scripts -->
+    <div class="cw-receipt" id="tab-items">
+        <button type="button" class="cw-wide-btn" id="cwWideBtn" onclick="toggleReceiptWide()" title="چارەسەرەکان بە پانی تەواو" aria-pressed="false"><i class="fas fa-expand"></i></button>
         <div class="panel-body tp-table-body">
-            <?php if ($isEditable): ?>
-            <div class="ph-bar">
-                <span></span>
-                <div class="pv-chart-adds">
-                <button type="button" class="chart-arch-btn" onclick="pvOpenArchDialog()" title="ئیشی هەموو ئەرکێک: زنجیر، تاخم …">
-                    <span class="chart-arch-ico"></span> ئیشی ئەرک <small>زنجیر · تاخم</small>
-                </button>
-                <button class="btn btn-primary btn-sm" onclick="pvOpenItemDialog({})">
-                    <i class="fas fa-plus"></i> زیادکردن
-                </button>
-                </div>
-            </div>
-            <?php endif; ?>
             <div class="vt-pane tp-estimate-receipt">
                 <div id="pvItemsTable"></div>
                 <div class="vt-foot" id="pvTotals"></div>
             </div>
         </div>
+    </div>
+    </div><!-- /cw-split -->
     </div>
 </div>
 </div><!-- .tp-workspace -->
@@ -438,6 +430,72 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
 }
 .smart-dental-chart .tooth.bulk-selected .tooth-number { background: #0d9488 !important; color: #fff !important; }
 .pv-chart-adds { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* ── چارت و چارەسەر: the chart on the right, the treatments on the left, as
+   «چارت و وەسڵ» on a case (cases/view.php .cw-*). The chart stays in view
+   while a long list scrolls; with less than ~1100px of room the two stack. */
+#tab-chart { container: cw / inline-size; }
+.cw-split { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); align-items: start; }
+.cw-chart { min-width: 0; }
+.cw-chart.is-sticky { position: sticky; top: 0; }
+.cw-receipt { position: relative; min-width: 0; border-inline-start: 1px solid #e3eaf2; }
+.cw-receipt .tp-table-body { padding-top: 54px; }
+.cw-wide-btn {
+    position: absolute; top: 14px; inset-inline-end: 12px; z-index: 3;
+    width: 32px; height: 32px; padding: 0; border-radius: 9px;
+    border: 1px solid #d6e0ea; background: #fff; color: #475569; cursor: pointer;
+    display: grid; place-items: center; font-size: 13px;
+}
+.cw-wide-btn:hover { background: #eef5fc; color: #0f6cbd; border-color: #b9d3ec; }
+.cw-split.is-wide { grid-template-columns: minmax(0, 1fr); }
+.cw-split.is-wide .cw-chart { display: none; }
+.cw-split.is-wide .cw-receipt { border-inline-start: 0; }
+/* the treatments beside list whole-arch and toothless work, so the chart does
+   not repeat it as chips over the jaws */
+#chartWorkspace .chart-service-work { display: none !important; }
+/* Side by side, the list is narrower: no English under the headings, tighter columns */
+@container cw (min-width: 1100px) {
+    .cw-split:not(.is-wide) .table.tp-items { min-width: 0; }
+    .cw-split:not(.is-wide) .table.tp-items thead .en { display: none; }
+    .cw-split:not(.is-wide) .table.tp-items th,
+    .cw-split:not(.is-wide) .table.tp-items td { padding-inline: 4px; }
+    .cw-split:not(.is-wide) .table.tp-items td { font-size: 11.5px; }
+    .cw-split:not(.is-wide) .tp-items .rt-c-no    { width: 22px; }
+    .cw-split:not(.is-wide) .tp-items .rt-c-desc  { min-width: 84px; }
+    .cw-split:not(.is-wide) .tp-items .rt-c-teeth { width: 76px; }
+    .cw-split:not(.is-wide) .tp-items .rt-c-qty   { width: 34px; }
+    .cw-split:not(.is-wide) .tp-items .rt-c-unit  { width: 62px; }
+    .cw-split:not(.is-wide) .tp-items .rt-c-disc  { width: 50px; }
+    .cw-split:not(.is-wide) .tp-items .rt-c-total { width: 66px; }
+    .cw-split:not(.is-wide) .tp-items .rt-c-act   { width: 32px; }
+    .cw-split:not(.is-wide) .tp-items .rt-c-teeth .tooth-cross { max-width: 76px; margin-inline: auto; }
+    .cw-split:not(.is-wide) .tp-items input { min-width: 0; max-width: 100%; }
+    /* the chart is right beside: no «pick from the chart» button, and the
+       «بێ ژمارەی ددان» badge may break onto two lines */
+    .cw-split:not(.is-wide) .tp-items .rt-teeth-btn { display: none; }
+    .cw-split:not(.is-wide) .tp-items .rt-location-badge { white-space: normal; padding: 3px 6px; line-height: 1.3; }
+    .cw-split:not(.is-wide) .tp-items .rt-row-actions { gap: 2px; flex-direction: column; align-items: center; }
+    .cw-split:not(.is-wide) .tp-items .rt-add-row .rt-c-act { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .cw-split:not(.is-wide) .tp-items .rt-add-row .rt-act-btn.is-clear { margin: 0; }
+    .cw-split:not(.is-wide) .tp-items .rt-row-action { width: 24px; height: 24px; min-width: 0; padding: 0; font-size: 11px; }
+    .cw-split:not(.is-wide) .tp-items input.rt-in-disc { width: 100%; padding-inline: 2px; }
+    .cw-split:not(.is-wide) .tp-items .rt-field { padding-inline: 4px; font-size: 12px; height: 30px; }
+    .cw-split:not(.is-wide) .tp-items .rt-act-btn { width: 24px; height: 26px; }
+    .cw-split:not(.is-wide) .tp-items .rt-act-btn.is-clear { margin-right: 2px; }
+    .cw-split:not(.is-wide) .cw-receipt .tp-table-body { padding-inline: 6px; }
+    .cw-split:not(.is-wide) .table.tp-items thead th { padding-inline: 3px; font-size: 12px; }
+    .cw-split:not(.is-wide) .tp-items .rt-c-desc { min-width: 70px; }
+    .cw-split:not(.is-wide) .tp-items .tooth-cross { max-width: 64px; }
+    .cw-split:not(.is-wide) .tp-items .rt-c-disc input { width: 44px; }
+    .cw-split:not(.is-wide) .tp-items .rt-c-unit,
+    .cw-split:not(.is-wide) .tp-items .rt-c-total { font-size: 11px; }
+}
+@container cw (max-width: 1099.98px) {
+    .cw-split { grid-template-columns: minmax(0, 1fr); }
+    .cw-chart.is-sticky { position: static; }
+    .cw-receipt { border-inline-start: 0; border-top: 1px solid #e3eaf2; }
+    .cw-receipt .tp-table-body { padding-top: 12px; }
+    .cw-wide-btn { display: none; }
+}
 .ch-stat--action { cursor: pointer; }
 .ch-stat--action:hover { background: rgba(255, 255, 255, .12); border-radius: 10px; }
 /* داشکاندنی پلان (pvOpenDiscount) */
@@ -453,6 +511,37 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
 </style>
 <?php require __DIR__ . '/_view_script.php'; ?>
 <?php require __DIR__ . '/_view_routing.php'; ?>
+<script>
+// ⤢ beside the treatments, and the chart kept in view, as on a case (cases/view.php)
+window.toggleReceiptWide = function (force) {
+    const split = document.getElementById('chartWorkspace');
+    const btn = document.getElementById('cwWideBtn');
+    if (!split || !btn) return;
+    const wide = typeof force === 'boolean' ? force : !split.classList.contains('is-wide');
+    split.classList.toggle('is-wide', wide);
+    btn.setAttribute('aria-pressed', wide ? 'true' : 'false');
+    btn.title = wide ? 'چارت و چارەسەر پێکەوە' : 'چارەسەرەکان بە پانی تەواو';
+    btn.innerHTML = '<i class="fas ' + (wide ? 'fa-compress' : 'fa-expand') + '"></i>';
+    if (typeof force !== 'boolean') {
+        try { localStorage.setItem('planReceiptWide', wide ? '1' : '0'); } catch (e) { /* private mode */ }
+    }
+};
+document.addEventListener('DOMContentLoaded', function () {
+    const split = document.getElementById('chartWorkspace');
+    if (split && split.classList.contains('is-wide')) toggleReceiptWide(true);
+    // The chart stays in view beside a long list only while all of it fits the
+    // screen: a taller one (adult + child) would hide its lower jaw.
+    const chartCol = split && split.querySelector('.cw-chart');
+    if (!chartCol) return;
+    const scroller = document.querySelector('.page-content') || document.documentElement;
+    const syncSticky = function () {
+        chartCol.classList.toggle('is-sticky', chartCol.offsetHeight + 16 <= scroller.clientHeight);
+    };
+    if (window.ResizeObserver) new ResizeObserver(syncSticky).observe(chartCol);
+    window.addEventListener('resize', syncSticky);
+    syncSticky();
+});
+</script>
 <?php
 // دەرمانی نەخۆش for the plan's patient: no case — the prescription stands on
 // the patient; the examiner is its doctor when someone else writes it.

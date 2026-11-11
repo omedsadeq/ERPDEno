@@ -414,6 +414,14 @@ function escapeHtml(text) { if (text === null || text === undefined) return ''; 
 function toast(type, message) { if (typeof showToast === 'function') showToast(type, message); else alert(message); }
 
 window.showTab = function (tabName, button) {
+    // The treatments sit beside the chart in one tab (as on a case): «items»
+    // opens that tab and brings the list into view.
+    if (tabName === 'items') {
+        showTab('chart', document.getElementById('pvTab-chart'));
+        const list = document.getElementById('tab-items');
+        if (list) requestAnimationFrame(() => list.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        return;
+    }
     const content = document.getElementById('tab-' + tabName);
     if (!content) return;
     document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');

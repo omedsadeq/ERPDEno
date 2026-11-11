@@ -8,6 +8,7 @@
  */
 
 require_once __DIR__ . '/_income_data.php';
+require_once __DIR__ . '/../classes/IncomeSheetColumns.php';
 require_once __DIR__ . '/../services/InvoicePdfService.php';
 
 require __DIR__ . '/../includes/clinic_branding.php';
@@ -28,8 +29,14 @@ $dateHtml = $from === $to
 $pdfColumns = array_values(array_filter($incColumns, fn($c) => $c['period_total'] > 0));
 // The store takes seven columns (کۆ · ئاسایی: دکتۆر · لێزان · Implant: دکتۆر ·
 // لێزان), as on the owner's sheet: the page then turns landscape.
-$storeCols = in_array('store', $colSel, true);
-$numCols = 4 + count($colSel) + ($storeCols ? 6 : 0) + count($pdfColumns);
+// Each column's name and whether it shows, as set on the screen (classes/IncomeSheetColumns.php).
+$colName = fn(string $k) => IncomeSheetColumns::label($k);
+$showCol = fn(string $k) => IncomeSheetColumns::shown($k);
+$expCols = IncomeSheetColumns::expenseKeys($colSel);
+$storeParts = IncomeSheetColumns::storeParts();
+$storeCols = in_array('store', $expCols, true);
+$numCols = (int)$showCol('amount') + count(array_diff($expCols, ['store'])) + count($storeParts) + count($pdfColumns)
+    + (int)$showCol('pool') + (int)$showCol('doctorShare') + (int)$showCol('centerShare');
 $landscape = $numCols >= 8;
 $numWidth = min(30, (int)floor(($landscape ? 225 : 125) / $numCols));
 $rs = $storeCols ? ' rowspan="2"' : '';
@@ -103,17 +110,29 @@ body { font-family: nrt; direction: rtl; font-size: 10pt; color: #0f172a; }
     : '') . '
 <table class="tbl">
     <thead><tr>
-        <th' . $rs . '>#</th><th' . $rs . '>ناوەڕۆک</th><th' . $rs . '>ژمارە</th><th' . $rs . '>بڕی</th>'
-        . implode('', array_map(fn($k) => $k === 'store' ? '<th colspan="7" class="sto">خەرجی کۆگا</th>' : '<th' . $rs . '>' . dsEsc($expenseKinds[$k]) . '</th>', $colSel))
+        <th' . $rs . '>#</th><th' . $rs . '>ناوەڕۆک</th><th' . $rs . '>ژمارە</th>'
+        . ($showCol('amount') ? '<th' . $rs . '>' . dsEsc($colName('amount')) . '</th>' : '')
+        . implode('', array_map(fn($k) => $k === 'store' ? '<th colspan="' . count($storeParts) . '" class="sto">' . dsEsc($colName('store')) . '</th>' : '<th' . $rs . '>' . dsEsc($colName($k)) . '</th>', $expCols))
         . implode('', array_map(fn($c) => '<th' . $rs . '>' . dsEsc($c['name']) . '</th>', $pdfColumns)) . '
-        <th' . $rs . '>کۆی ماوە دوای خەرجی</th>
-        <th class="doc"' . $rs . '>پشکی دکتۆر</th>
-        <th class="ctr"' . $rs . '>پشکی سەنتەر</th>
+        ' . ($showCol('pool') ? '<th' . $rs . '>' . dsEsc($colName('pool')) . '</th>' : '') . '
+        ' . ($showCol('doctorShare') ? '<th class="doc"' . $rs . '>' . dsEsc($colName('doctorShare')) . '</th>' : '') . '
+        ' . ($showCol('centerShare') ? '<th class="ctr"' . $rs . '>' . dsEsc($colName('centerShare')) . '</th>' : '') . '
     </tr>' . ($storeCols
-        ? '<tr><th>کۆ</th><th class="nrm">ئاسایی</th><th class="nrm">سەر دکتۆر</th><th class="nrm">سەر لێزان</th>'
-          . '<th class="imp">Implant</th><th class="imp">سەر دکتۆر</th><th class="imp">لێزان</th></tr>'
+        ? '<tr>' . implode('', array_map(fn($part) => '<th' . ($storeParts[$part][1] ? ' class="' . $storeParts[$part][1] . '"' : '') . '>'
+            . dsEsc($colName($part)) . '</th>', array_keys($storeParts))) . '</tr>'
         : '') . '</thead>
     <tbody>';
+
+// The store's cells under its heading, the shown ones only (its own total first)
+$storeCells = function (array $src, string $grp, callable $fmt, bool $notes) use ($storeParts): string {
+    $out = '';
+    foreach ($storeParts as $part => [$field]) {
+        $out .= '<td class="n' . ($part === 'storeTotal' ? '' : ' sm') . '"' . $grp . '>' . $fmt($src[$field])
+            . ($notes && $part === 'storeImplant' && $src[$field] > 0.5 && ($src['implantPool'] ?? 100) < 100
+                ? '<br><span class="rt">' . rtrim(rtrim(number_format($src['implantPool'], 2, '.', ''), '0'), '.') . '% لە کۆی ماوە</span>' : '') . '</td>';
+    }
+    return $out;
+};
 
 $n = 0;
 foreach ($rows as $i => $r) {
@@ -128,30 +147,26 @@ foreach ($rows as $i => $r) {
             : '')
         . '</td>'
         . '<td class="c"' . $grp . '>' . ($r['count'] ? dsMoney($r['count']) : '') . '</td>'
-        . '<td class="n"' . $grp . '>' . $money($r['amount']) . '</td>'
-        . implode('', array_map(fn($k) => '<td class="n"' . $grp . '>' . $money($r[$k]) . '</td>'
-            . ($k === 'store' ? implode('', array_map(fn($f) => '<td class="n sm"' . $grp . '>' . $money($r[$f])
-                    . ($f === 'storeImplant' && $r[$f] > 0.5 && ($r['implantPool'] ?? 100) < 100
-                        ? '<br><span class="rt">' . rtrim(rtrim(number_format($r['implantPool'], 2, '.', ''), '0'), '.') . '% لە کۆی ماوە</span>' : '') . '</td>',
-                ['storeNormal', 'storeNormalDoc', 'storeNormalCtr', 'storeImplant', 'storeImplantDoc', 'storeImplantCtr'])) : ''), $colSel))
+        . ($showCol('amount') ? '<td class="n"' . $grp . '>' . $money($r['amount']) . '</td>' : '')
+        . implode('', array_map(fn($k) => $k === 'store' ? $storeCells($r, $grp, $money, true)
+            : '<td class="n"' . $grp . '>' . $money($r[$k]) . '</td>', $expCols))
         . implode('', array_map(fn($c) => '<td class="n"' . $grp . '>' . $money($r['cols'][$c['id']] ?? 0.0) . '</td>', $pdfColumns))
-        . '<td class="n"' . $grp . '>' . $money($r['pool']) . '</td>'
-        . '<td class="n doc"' . $grp . '>' . ($r['kind'] === 'doctor'
-            ? $money($r['doctorShare']) . ' <span class="rt">' . $rateText($r['rate']) . '</span>' : '') . '</td>'
-        . '<td class="n ctr"' . $grp . '>' . $money($r['centerShare']) . '</td>'
+        . ($showCol('pool') ? '<td class="n"' . $grp . '>' . $money($r['pool']) . '</td>' : '')
+        . ($showCol('doctorShare') ? '<td class="n doc"' . $grp . '>' . ($r['kind'] === 'doctor'
+            ? $money($r['doctorShare']) . ' <span class="rt">' . $rateText($r['rate']) . '</span>' : '') . '</td>' : '')
+        . ($showCol('centerShare') ? '<td class="n ctr"' . $grp . '>' . $money($r['centerShare']) . '</td>' : '')
         . '</tr>';
 }
 $html .= '<tr class="tot">
         <td></td><td class="lb">کۆ</td>
-        <td class="c">' . dsMoney($totals['count']) . '</td>
-        <td class="n">' . dsMoney($totals['amount']) . '</td>'
-        . implode('', array_map(fn($k) => '<td class="n">' . dsMoney($totals[$k]) . '</td>'
-            . ($k === 'store' ? implode('', array_map(fn($f) => '<td class="n sm">' . dsMoney($totals[$f]) . '</td>',
-                ['storeNormal', 'storeNormalDoc', 'storeNormalCtr', 'storeImplant', 'storeImplantDoc', 'storeImplantCtr'])) : ''), $colSel))
-        . implode('', array_map(fn($c) => '<td class="n">' . dsMoney($totals['cols'][$c['id']]) . '</td>', $pdfColumns)) . '
-        <td class="n">' . ($totals['pool'] < 0 ? '(' . dsMoney(abs($totals['pool'])) . ')' : dsMoney($totals['pool'])) . '</td>
-        <td class="n doc">' . ($money($totals['doctorShare']) ?: '0') . '</td>
-        <td class="n ctr">' . ($money($totals['centerShare']) ?: '0') . '</td>
+        <td class="c">' . dsMoney($totals['count']) . '</td>'
+        . ($showCol('amount') ? '<td class="n">' . dsMoney($totals['amount']) . '</td>' : '')
+        . implode('', array_map(fn($k) => $k === 'store' ? $storeCells($totals, '', 'dsMoney', false)
+            : '<td class="n">' . dsMoney($totals[$k]) . '</td>', $expCols))
+        . implode('', array_map(fn($c) => '<td class="n">' . dsMoney($totals['cols'][$c['id']]) . '</td>', $pdfColumns))
+        . ($showCol('pool') ? '<td class="n">' . ($totals['pool'] < 0 ? '(' . dsMoney(abs($totals['pool'])) . ')' : dsMoney($totals['pool'])) . '</td>' : '')
+        . ($showCol('doctorShare') ? '<td class="n doc">' . ($money($totals['doctorShare']) ?: '0') . '</td>' : '')
+        . ($showCol('centerShare') ? '<td class="n ctr">' . ($money($totals['centerShare']) ?: '0') . '</td>' : '') . '
     </tr>
     </tbody>
 </table>
