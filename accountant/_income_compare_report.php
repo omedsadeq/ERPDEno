@@ -36,7 +36,10 @@ function income_compare_report_line(array $r, float $s): array
     $n = fn($v) => $v === null ? null : (float)$v * $s;
     $by = $rep['storeByKind'] ?? [];
     $doc = $rep['storeOnDoctorByKind'] ?? [];
-    $line = ['amount' => $n($r['amount']), 'net' => $n($r['net']), 'center' => $n($r['centerShare'])];
+    // ماوە is the income sheet's «کۆی ماوە دوای خەرجی» (pool: before the ئاسایی
+    // store and the implant part that is لێزان's); a kept 2025 month has only
+    // the paper's ماوە.
+    $line = ['amount' => $n($r['amount']), 'net' => $n(array_key_exists('pool', $r) ? $r['pool'] : $r['net']), 'center' => $n($r['centerShare'])];
     if ($rep) {
         $line += [
             'lab' => $n($r['lab']),
@@ -49,6 +52,16 @@ function income_compare_report_line(array $r, float $s): array
         ];
     }
     return $line;
+}
+
+/**
+ * Whether a row's ماوە is written: a doctor's always; a department's when the
+ * row is the live income sheet's (it has a pool, as on accountant/income.php),
+ * not when it is a kept 2025 month's (the paper leaves it empty).
+ */
+function income_compare_report_has_net(array $r): bool
+{
+    return $r['kind'] === 'doctor' || array_key_exists('pool', $r);
 }
 
 /** «+12%» / «−8%» against the other period, or '' when there is nothing to compare. */
@@ -82,7 +95,7 @@ function income_compare_report(array $P, ?array $base, string $title, float $sca
     $baseTotals = array_fill_keys($sumKeys, 0.0);
     foreach ($base['rows'] ?? [] as $r) {
         foreach (income_compare_report_line($r, $baseScale) as $k => $v) {
-            if ($k === 'net' && $r['kind'] !== 'doctor') {
+            if ($k === 'net' && !income_compare_report_has_net($r)) {
                 continue;
             }
             $baseTotals[$k] += (float)$v;
@@ -104,9 +117,9 @@ function income_compare_report(array $P, ?array $base, string $title, float $sca
     foreach ($P['rows'] as $key => $r) {
         $line = income_compare_report_line($r, $scale);
         $doctorRow = $r['kind'] === 'doctor';
+        $hasNet = income_compare_report_has_net($r);
         foreach ($line as $k => $v) {
-            // a department's ماوە is not written on the paper (its money is all لێزان's)
-            if ($k === 'net' && !$doctorRow) {
+            if ($k === 'net' && !$hasNet) {
                 continue;
             }
             $totals[$k] += (float)$v;
@@ -137,7 +150,7 @@ function income_compare_report(array $P, ?array $base, string $title, float $sca
                 $html .= '<td class="c">' . ($v === null ? '' : (abs($v) < 0.05 ? ($doctorRow ? 'نەبوو' : '') : rtrim(rtrim(number_format($v, 1), '0'), '.'))) . '</td>';
             } else {
                 $html .= '<td class="n' . (in_array($k, ['center', 'net'], true) ? ' b' : '') . '">'
-                    . ($k === 'net' && !$doctorRow ? '' : $money($line[$k] ?? null, $doctorRow)) . '</td>';
+                    . ($k === 'net' && !$hasNet ? '' : $money($line[$k] ?? null, $doctorRow)) . '</td>';
             }
         }
         $html .= '</tr>';
