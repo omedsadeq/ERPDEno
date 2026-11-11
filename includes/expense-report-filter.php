@@ -11,9 +11,11 @@
  *   subgroup             a sub-group («لق») id: names its group and kind too
  *   doctor               '' all | 'none' «خەرجی سەنتەر» (written on no doctor) | 'xray' the X-ray
  *                        department's general expenses | a doctor's id
+ *   sort, dir            a column of the list (includes/expense-report-layout.php) and asc|desc
  * A group or sub-group narrows the report to its own kind, whatever the type.
  */
 require_once __DIR__ . '/expense-subgroup.php';
+require_once __DIR__ . '/expense-report-layout.php';
 
 const EXP_REPORT_KINDS = ['general' => 'خەرجی گشتی', 'lab' => 'خەرجی تاقیگە', 'store' => 'خەرجی کۆگا'];
 const EXP_REPORT_CATEGORY_TABLES = ['general' => 'expense_categories_general', 'lab' => 'expense_categories_lab', 'store' => 'expense_categories_store'];
@@ -47,6 +49,9 @@ function exp_report_filters(array $in): array
     }
     $doc = (string)($in['doctor'] ?? '');
     $f['doctor'] = $doc === 'none' || $doc === 'xray' || ctype_digit($doc) ? $doc : '';
+    $sort = (string)($in['sort'] ?? '');
+    $f['sort'] = isset(EXP_REPORT_COLUMNS[$sort]) && EXP_REPORT_COLUMNS[$sort][2] ? $sort : '';
+    $f['dir'] = ($in['dir'] ?? '') === 'asc' ? 'asc' : 'desc';
     return $f;
 }
 
@@ -112,7 +117,8 @@ function exp_report_list(array $f, bool $newestFirst = true): array
     usort($out, fn($a, $b) => $newestFirst
         ? [$b['expense_date'], (int)$b['id']] <=> [$a['expense_date'], (int)$a['id']]
         : [$a['expense_date'], (int)$a['id']] <=> [$b['expense_date'], (int)$b['id']]);
-    return $out;
+    // a column the user sorted by
+    return ($f['sort'] ?? '') !== '' ? exp_report_sort($out, $f['sort'], $f['dir'] ?? 'desc') : $out;
 }
 
 /** Each kind's total and count under the filters (the type itself not applied): kind => [total, count]. */
@@ -162,6 +168,7 @@ function exp_report_query(array $f, array $over = []): string
         'date_from' => $f['from'], 'date_to' => $f['to'], 'expense_type' => $f['type'],
         'category' => $f['cat_kind'] !== null ? $f['cat_kind'] . ':' . $f['cat'] : '',
         'subgroup' => $f['sub'] ?: '', 'doctor' => $f['doctor'],
+        'sort' => $f['sort'] ?? '', 'dir' => ($f['sort'] ?? '') !== '' ? ($f['dir'] ?? 'desc') : '',
     ];
     $q = array_filter(array_merge($q, $over), fn($v) => $v !== '' && $v !== null);
     return http_build_query($q, '', '&');

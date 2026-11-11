@@ -26,6 +26,44 @@ if (!$auth->isAdmin()) {
 
 $currentUser = $auth->getCurrentUser();
 
+// Changing the page from itself (JSON): a row edited or deleted — the same
+// rules as the income sheet's dialog (includes/income-detail.php: permission,
+// a line owned by another screen, the month close, the audit log) — or the
+// list arranged («ڕێکخستنی پەڕە»).
+require_once __DIR__ . '/../includes/income-detail.php';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json; charset=utf-8');
+    if (!Csrf::validate()) {
+        http_response_code(419);
+        echo json_encode(['ok' => false, 'message' => 'کاتی پەڕەکە بەسەرچووە، پەڕەکە نوێ بکەرەوە'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    $uid = (int)($currentUser['id'] ?? 0);
+    try {
+        $action = (string)($_POST['action'] ?? '');
+        if ($action === 'layout_save') {
+            exp_report_layout_save(json_decode((string)($_POST['layout'] ?? ''), true) ?: [], $uid);
+            $message = 'ڕێکخستنی پەڕە پاشەکەوت کرا';
+        } elseif ($action === 'layout_reset') {
+            exp_report_layout_reset($uid);
+            $message = 'پەڕەکە گەڕایەوە بۆ شێوەی بنەڕەت';
+        } elseif ($action === 'expense_save' || $action === 'expense_delete') {
+            $message = income_detail_expense_write($db, ['full' => 1] + $_POST, $uid);
+        } else {
+            throw new InvalidArgumentException('کردارەکە نەناسرایەوە');
+        }
+        echo json_encode(['ok' => true, 'message' => $message], JSON_UNESCAPED_UNICODE);
+    } catch (Throwable $e) {
+        $known = $e instanceof InvalidArgumentException || $e instanceof DomainException || $e instanceof PeriodClosedException;
+        if (!$known) {
+            error_log('expense-reports: ' . $e->getMessage());
+        }
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'message' => $known ? $e->getMessage() : 'هەڵەیەک ڕوویدا، دووبارە هەوڵ بدەرەوە'], JSON_UNESCAPED_UNICODE);
+    }
+    exit;
+}
+
 // Page setup
 $currentPage = 'expense-reports';
 $pageTitle = 'ڕاپۆرتی خەرجییەکان';
@@ -48,6 +86,22 @@ foreach (EXP_REPORT_CATEGORY_TABLES as $kind => $table) {
     $categoriesByKind[$kind] = $db->fetchAll("SELECT id, category_name FROM $table WHERE is_active = 1 ORDER BY category_name");
 }
 $subgroups = $db->fetchAll('SELECT id, kind, category_id, name FROM expense_subgroups WHERE is_active = 1 ORDER BY kind, category_id, name');
+// The edit dialog: every group of each kind (a hidden one too, or editing such
+// an expense would lose it), the sub-groups, and the doctors an expense can be on.
+$editCats = [];
+foreach (EXP_REPORT_CATEGORY_TABLES as $kind => $table) {
+    $editCats[$kind] = array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['category_name'] . (!$c['is_active'] ? ' (ناچالاک)' : '')],
+        $db->fetchAll("SELECT id, category_name, is_active FROM $table ORDER BY is_active DESC, category_name"));
+}
+$editSubs = array_map(fn($s) => ['id' => (int)$s['id'], 'kind' => $s['kind'], 'cat' => (int)$s['category_id'], 'name' => $s['name']],
+    $db->fetchAll('SELECT id, kind, category_id, name FROM expense_subgroups ORDER BY is_active DESC, name'));
+$editDoctors = array_map(fn($d) => ['id' => (int)$d['id'], 'name' => $d['full_name']],
+    $db->fetchAll("SELECT id, full_name FROM users WHERE role = 'doctor' ORDER BY is_active DESC, full_name"));
+// How the list is laid out (includes/expense-report-layout.php)
+$layout = exp_report_layout();
+$shownCols = exp_report_visible_columns($layout);
+$shownKeys = array_column($shownCols, 'key');
+$canEditKind = ['general' => income_detail_can_edit_expense('general'), 'lab' => income_detail_can_edit_expense('lab'), 'store' => income_detail_can_edit_expense('store')];
 
 // What the filters keep
 $allExpenses = exp_report_list($f);
@@ -227,6 +281,25 @@ a.er-chip:hover { border-color: var(--c); }
 .report-table th { padding: 7px 6px; }
 .report-table td { padding: 5px 6px; }
 
+/* sorting, the row buttons, «ڕێکخستنی پەڕە» */
+.report-content-grid.no-summary { grid-template-columns: 1fr; }
+.report-table-header h3 .badge { margin-inline-start: 6px; }
+.er-tools { display: flex; gap: 6px; flex-wrap: wrap; }
+.er-tool { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 8px; border: 1px solid #bae6fd; background: #f0f9ff;
+    color: #0369a1; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: none; }
+.er-tool:hover { background: #0284c7; border-color: #0284c7; color: #fff; }
+.report-table th a.er-sort { color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.report-table th a.er-sort i { color: #cbd5e1; font-size: 10px; }
+.report-table th.er-sorted { background: #e0f2fe; }
+.report-table th.er-sorted a.er-sort i { color: #0284c7; }
+.report-table th a.er-sort:hover { color: #0284c7; }
+.report-table td.er-act, .report-table th.er-act-h { width: 66px; white-space: nowrap; }
+.er-btn { width: 26px; height: 26px; padding: 0; border-radius: 7px; border: 1px solid #bae6fd; background: #f0f9ff; color: #0369a1; cursor: pointer; font-size: 11px; display: inline-grid; place-items: center; }
+.er-btn:hover { background: #0284c7; border-color: #0284c7; color: #fff; }
+.er-btn.del { border-color: #fecaca; background: #fef2f2; color: #dc2626; }
+.er-btn.del:hover { background: #dc2626; border-color: #dc2626; color: #fff; }
+.er-lock { color: #94a3b8; cursor: help; }
+
 @media (max-width: 768px) {
     .report-stats-grid { grid-template-columns: repeat(2, 1fr); }
     .type-cards-grid { grid-template-columns: 1fr; }
@@ -236,6 +309,7 @@ a.er-chip:hover { border-color: var(--c); }
 
 <!-- One line of figures: each kind under the filters (a chip filters by it), and this month -->
 <?php $chipQ = fn(string $type) => exp_report_query($f, ['expense_type' => $type] + ($f['cat_kind'] !== null && $f['cat_kind'] !== $type ? ['category' => '', 'subgroup' => ''] : [])); ?>
+<?php if ($layout['panels']['chips']): ?>
 <div class="er-chips">
     <a class="er-chip<?= $expenseType === 'all' ? ' on' : '' ?>" style="--c:#2196f3" href="?<?= htmlspecialchars($chipQ('all')) ?>">
         <i class="fas fa-chart-line"></i><span>کۆی گشتی</span><b><?= number_format($grandTotal) ?></b><small><?= $countGeneral + $countLab + $countStore ?> تۆمار</small></a>
@@ -248,9 +322,11 @@ a.er-chip:hover { border-color: var(--c); }
     <span class="er-chip month" style="--c:#e91e63"><i class="fas fa-calendar-alt"></i><span>ئەم مانگە</span><b><?= number_format($thisMonth) ?></b>
         <?php if ($lastMonth > 0): ?><small class="<?= $monthlyChange > 0 ? 'up' : 'down' ?>"><i class="fas fa-arrow-<?= $monthlyChange > 0 ? 'up' : 'down' ?>"></i> <?= abs(round($monthlyChange, 1)) ?>% لە مانگی پێشوو</small><?php endif; ?></span>
 </div>
+<?php endif; ?>
 
 <!-- Filters, on one line -->
 <form method="GET" class="er-filters" id="erFilters">
+    <?php if ($f['sort'] !== ''): ?><input type="hidden" name="sort" value="<?= htmlspecialchars($f['sort']) ?>"><input type="hidden" name="dir" value="<?= htmlspecialchars($f['dir']) ?>"><?php endif; ?>
     <label><span>لە</span><input type="date" name="date_from" value="<?= htmlspecialchars($dateFrom) ?>"></label>
     <label><span>بۆ</span><input type="date" name="date_to" value="<?= htmlspecialchars($dateTo) ?>"></label>
     <label><span>جۆر</span>
@@ -293,12 +369,17 @@ a.er-chip:hover { border-color: var(--c); }
 </form>
 
 <!-- Main Content Grid -->
-<div class="report-content-grid">
+<div class="report-content-grid<?= $layout['panels']['summary'] ? '' : ' no-summary' ?>">
     <!-- Table -->
     <div class="report-table-container">
         <div class="report-table-header">
-            <h3><i class="fas fa-list" style="color: #2196f3;"></i> لیستی خەرجییەکان</h3>
-            <span class="badge"><?= count($allExpenses) ?></span>
+            <h3><i class="fas fa-list" style="color: #2196f3;"></i> لیستی خەرجییەکان <span class="badge"><?= count($allExpenses) ?></span></h3>
+            <div class="er-tools">
+                <?php if ($f['sort'] !== ''): ?>
+                <a class="er-tool" href="?<?= htmlspecialchars(exp_report_query($f, ['sort' => '', 'dir' => ''])) ?>" title="ڕیزبەندی بنەڕەت: نوێترین سەرەتا"><i class="fas fa-arrow-down-wide-short"></i> ڕیزبەندی بنەڕەت</a>
+                <?php endif; ?>
+                <button type="button" class="er-tool" onclick="erArrangeOpen()" title="کۆڵۆمەکان: ڕیزکردن، ناوگۆڕین، شاردنەوە"><i class="fas fa-sliders"></i> ڕێکخستنی پەڕە</button>
+            </div>
         </div>
         <?php if (empty($allExpenses)): ?>
         <div style="padding: 60px 20px; text-align: center;">
@@ -310,33 +391,61 @@ a.er-chip:hover { border-color: var(--c); }
             <table class="report-table">
                 <thead>
                     <tr>
-                        <th>#</th>
-                        <th>بەروار</th>
-                        <th>جۆر</th>
-                        <th>گرووپ</th>
-                        <th>وەسف</th>
-                        <th>دکتۆر</th>
-                        <th>بڕ</th>
+                        <?php foreach ($shownCols as $c):
+                            $k = $c['key'];
+                            $sortable = EXP_REPORT_COLUMNS[$k][2];
+                            $on = $f['sort'] === $k || ($f['sort'] === '' && $k === 'date');
+                            $dir = $f['sort'] === $k ? $f['dir'] : 'desc';
+                        ?>
+                        <th<?= $on ? ' class="er-sorted"' : '' ?>><?php if ($sortable): ?><a class="er-sort" href="?<?= htmlspecialchars(exp_report_query($f, ['sort' => $k, 'dir' => $on && $dir === 'desc' ? 'asc' : 'desc'])) ?>" title="ڕیزکردن بەپێی <?= htmlspecialchars($c['label']) ?>"><?= htmlspecialchars($c['label']) ?> <i class="fas fa-<?= $on ? ($dir === 'asc' ? 'sort-up' : 'sort-down') : 'sort' ?>"></i></a><?php else: ?><?= htmlspecialchars($c['label']) ?><?php endif; ?></th>
+                        <?php endforeach; ?>
+                        <th class="er-act-h"></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php $counter = 1; $displayedTotal = 0; ?>
-                    <?php foreach ($allExpenses as $exp): $displayedTotal += $exp['amount']; ?>
-                    <tr>
-                        <td><?= $counter++ ?></td>
-                        <td style="white-space: nowrap;"><?= $exp['expense_date'] ?></td>
-                        <td><span class="type-badge <?= $exp['expense_type'] ?>"><?= $exp['type_label'] ?></span></td>
-                        <td><?= htmlspecialchars(expense_group_label($exp)) ?></td>
-                        <td style="text-align: right; max-width: 200px;"><?= htmlspecialchars($exp['description']) ?></td>
-                        <td><?php if (!empty($exp['doctor_name'])): ?><?= htmlspecialchars($exp['doctor_name']) ?><?php elseif (($exp['dept'] ?? null) === 'xray'): ?><span style="color:#0369a1;font-weight:600">X-ray</span><?php else: ?><span style="color:#0f766e;font-weight:600">خەرجی سەنتەر</span><?php endif; ?></td>
-                        <td><strong style="color: #c62828;"><?= number_format($exp['amount']) ?></strong></td>
+                    <?php foreach ($allExpenses as $exp):
+                        $displayedTotal += $exp['amount'];
+                        $kind = $exp['expense_type'];
+                        $lock = income_detail_expense_lock($exp['source_type'] ?? null);
+                        $ref = ['kind' => $kind, 'id' => (int)$exp['id'], 'type' => $exp['type_label'], 'date' => $exp['expense_date'], 'amount' => (float)$exp['amount'],
+                                'desc' => (string)($exp['description'] ?? ''), 'cat' => (int)($exp['category_id'] ?? 0), 'sub' => (int)($exp['subgroup_id'] ?? 0),
+                                'doctor' => !empty($exp['doctor_id']) ? (string)(int)$exp['doctor_id'] : (($exp['dept'] ?? null) === 'xray' ? 'xray' : ''),
+                                'vendor' => exp_report_value('vendor', $exp), 'receipt' => exp_report_value('receipt', $exp), 'notes' => (string)($exp['notes'] ?? ''),
+                                'method' => (string)($exp['payment_method'] ?? ''), 'xkind' => (string)($exp['expense_kind'] ?? '')];
+                    ?>
+                    <tr data-exp="<?= htmlspecialchars(json_encode($ref, JSON_UNESCAPED_UNICODE)) ?>">
+                        <?php foreach ($shownKeys as $k): ?>
+                        <?php if ($k === 'num'): ?><td><?= $counter++ ?></td>
+                        <?php elseif ($k === 'date'): ?><td style="white-space: nowrap;"><?= htmlspecialchars($exp['expense_date']) ?></td>
+                        <?php elseif ($k === 'type'): ?><td><span class="type-badge <?= $kind ?>"><?= $exp['type_label'] ?></span></td>
+                        <?php elseif ($k === 'group'): ?><td><?= htmlspecialchars(in_array('sub', $shownKeys, true) ? ($exp['category_name'] ?? '-') : expense_group_label($exp)) ?></td>
+                        <?php elseif ($k === 'desc'): ?><td style="text-align: right; max-width: 240px;"><?= htmlspecialchars($exp['description']) ?></td>
+                        <?php elseif ($k === 'doctor'): ?><td><?php if (!empty($exp['doctor_name'])): ?><?= htmlspecialchars($exp['doctor_name']) ?><?php elseif (($exp['dept'] ?? null) === 'xray'): ?><span style="color:#0369a1;font-weight:600">X-ray</span><?php else: ?><span style="color:#0f766e;font-weight:600">خەرجی سەنتەر</span><?php endif; ?></td>
+                        <?php elseif ($k === 'amount'): ?><td><strong style="color: #c62828;"><?= number_format($exp['amount']) ?></strong></td>
+                        <?php elseif ($k === 'notes'): ?><td style="text-align: right; max-width: 200px; white-space: pre-line;"><?= htmlspecialchars(exp_report_value($k, $exp)) ?></td>
+                        <?php else: ?><td><?= htmlspecialchars((string)exp_report_value($k, $exp)) ?></td>
+                        <?php endif; ?>
+                        <?php endforeach; ?>
+                        <td class="er-act">
+                            <?php if ($lock !== null): ?><span class="er-lock" title="<?= htmlspecialchars($lock) ?>"><i class="fas fa-lock"></i></span>
+                            <?php elseif ($canEditKind[$kind] ?? false): ?>
+                            <button type="button" class="er-btn" onclick="erEdit(this)" title="دەستکاریکردن"><i class="fas fa-pen"></i></button>
+                            <button type="button" class="er-btn del" onclick="erDelete(this)" title="سڕینەوە"><i class="fas fa-trash"></i></button>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
                 <tfoot>
                     <tr>
-                        <td colspan="6" style="text-align: right;">کۆی گشتی:</td>
-                        <td><strong><?= number_format($displayedTotal) ?></strong></td>
+                        <?php $labelAt = array_key_first(array_filter($shownKeys, fn($k) => $k !== 'amount')); ?>
+                        <?php foreach ($shownKeys as $n => $k): ?>
+                        <?php if ($k === 'amount'): ?><td><strong><?= number_format($displayedTotal) ?></strong></td>
+                        <?php elseif ($n === $labelAt): ?><td style="text-align: right; white-space: nowrap;">کۆی گشتی:</td>
+                        <?php else: ?><td></td><?php endif; ?>
+                        <?php endforeach; ?>
+                        <td></td>
                     </tr>
                 </tfoot>
             </table>
@@ -346,6 +455,7 @@ a.er-chip:hover { border-color: var(--c); }
 
     <!-- Summary Panel -->
     <?php expense_subgroup_style(); ?>
+    <?php if ($layout['panels']['summary']): ?>
     <div class="summary-panel">
         <!-- General Summary -->
         <?php if (!empty($statsGeneral)): ?>
@@ -405,7 +515,10 @@ a.er-chip:hover { border-color: var(--c); }
         <?php endif; ?>
 
     </div>
+    <?php endif; ?>
 </div>
+
+<?php require __DIR__ . '/_expense_report_dialogs.php'; ?>
 
 <script>
 (function () {

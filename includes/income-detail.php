@@ -385,8 +385,12 @@ function income_detail_expense_ref(string $kind, array $r): array
 
 /**
  * Save or delete one expense ($in: action expense_save|expense_delete, kind,
- * id, and for a save expense_date, amount, description, doctor_id). Returns
- * a sentence for the user; throws InvalidArgumentException when it cannot.
+ * id, and for a save expense_date, amount, description, doctor_id). With
+ * `full` (the expense report's form, admin/expense-reports.php) also the
+ * group, the sub-group, the X-ray department (doctor_id 'xray', general
+ * only), the vendor, the receipt number, the notes, the payment method
+ * (general) and ئاسایی / ئیمپلانت (store). Returns a sentence for the user;
+ * throws InvalidArgumentException when it cannot.
  */
 function income_detail_expense_write(Database $db, array $in, int $userId): string
 {
@@ -431,11 +435,23 @@ function income_detail_expense_write(Database $db, array $in, int $userId): stri
     $set = ['expense_date' => $date, 'amount' => number_format((float)$amount, 2, '.', ''),
             'description' => mb_substr(trim(preg_replace('/\s+/u', ' ', (string)($in['description'] ?? ''))), 0, 255)];
     if ($kind !== 'old') {
-        $doc = (int)($in['doctor_id'] ?? 0);
+        $docIn = (string)($in['doctor_id'] ?? '');
+        $doc = ctype_digit($docIn) ? (int)$docIn : 0;
         if ($doc > 0 && !$db->fetch("SELECT id FROM users WHERE id = ? AND role = 'doctor'", [$doc])) {
             throw new InvalidArgumentException('دکتۆر نەدۆزرایەوە');
         }
         $set['doctor_id'] = $doc > 0 ? $doc : null;
+        // a general expense can be the X-ray department's (on no doctor)
+        if ($kind === 'general' && array_key_exists('dept', $row)) {
+            if ($docIn === 'xray') {
+                $set['dept'] = 'xray';
+            } elseif (!empty($in['full']) || $doc > 0) {
+                $set['dept'] = null;
+            }
+        }
+    }
+    if (!empty($in['full'])) {
+        $set += income_detail_expense_full_fields($db, $kind, $row, $in);
     }
     if (array_key_exists('updated_at', $row)) {
         $set['updated_at'] = date('Y-m-d H:i:s');
@@ -443,6 +459,46 @@ function income_detail_expense_write(Database $db, array $in, int $userId): stri
     $db->update($table, $set, 'id = :id', ['id' => $id]);
     AuditLog::logChange('expense_update', $table, $id, $row, $set, $userId);
     return 'خەرجییەکە نوێکرایەوە';
+}
+
+/** The expense report form's other fields, checked, for the columns this table has. */
+function income_detail_expense_full_fields(Database $db, string $kind, array $row, array $in): array
+{
+    $text = fn($k, $max) => mb_substr(trim(preg_replace('/\s+/u', ' ', (string)($in[$k] ?? ''))), 0, $max);
+    $set = [];
+    $catTables = ['general' => 'expense_categories_general', 'lab' => 'expense_categories_lab', 'store' => 'expense_categories_store'];
+    if (isset($catTables[$kind]) && array_key_exists('category_id', $row)) {
+        $cat = (int)($in['category_id'] ?? 0);
+        if ($cat > 0 && !$db->fetch("SELECT id FROM {$catTables[$kind]} WHERE id = ?", [$cat])) {
+            throw new InvalidArgumentException('گرووپ نەدۆزرایەوە');
+        }
+        if ($cat > 0 || $kind !== 'general') {
+            $set['category_id'] = $cat > 0 ? $cat : null;
+        }
+        if (array_key_exists('subgroup_id', $row)) {
+            $sub = (int)($in['subgroup_id'] ?? 0);
+            $useCat = $cat > 0 ? $cat : (int)$row['category_id'];
+            $set['subgroup_id'] = $sub > 0 && $db->fetch('SELECT id FROM expense_subgroups WHERE id = ? AND kind = ? AND category_id = ?', [$sub, $kind, $useCat]) ? $sub : null;
+        }
+    }
+    $vendor = ['general' => 'vendor', 'lab' => 'lab_name', 'store' => 'supplier', 'old' => 'vendor'][$kind] ?? null;
+    if ($vendor !== null && array_key_exists($vendor, $row) && array_key_exists('vendor', $in)) {
+        $set[$vendor] = $text('vendor', 150);
+    }
+    $receipt = $kind === 'store' ? 'invoice_number' : 'receipt_number';
+    if (array_key_exists($receipt, $row) && array_key_exists('receipt', $in)) {
+        $set[$receipt] = $text('receipt', 50);
+    }
+    if (array_key_exists('notes', $row) && array_key_exists('notes', $in)) {
+        $set['notes'] = mb_substr(trim((string)$in['notes']), 0, 2000);
+    }
+    if (array_key_exists('payment_method', $row) && in_array($in['payment_method'] ?? '', ['cash', 'card', 'transfer', 'check'], true)) {
+        $set['payment_method'] = $in['payment_method'];
+    }
+    if ($kind === 'store' && in_array($in['expense_kind'] ?? '', ['normal', 'implant'], true)) {
+        $set['expense_kind'] = $in['expense_kind'];
+    }
+    return $set;
 }
 
 /** The two dialogs and their script; once per page, for the period the page shows. */

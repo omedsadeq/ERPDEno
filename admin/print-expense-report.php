@@ -30,7 +30,12 @@ $labels = exp_report_labels($f);
 $reportTitle = $f['type'] === 'all' ? 'ڕاپۆرتی خەرجییەکان' : EXP_REPORT_KINDS[$f['type']];
 $doctorLabel = $labels['doctor'];
 
+// oldest first unless the page sorted it; the columns as arranged on the page
 $allExpenses = exp_report_list($f, false);
+$pdfCols = exp_report_visible_columns(exp_report_layout());
+$pdfKeys = array_column($pdfCols, 'key');
+$pdfWidths = ['num' => 25, 'date' => 60, 'type' => 70, 'group' => 80, 'sub' => 60, 'doctor' => 70, 'vendor' => 70, 'receipt' => 55,
+              'patient' => 70, 'kind' => 50, 'method' => 50, 'by' => 60, 'created' => 70, 'amount' => 65];
 $totals = exp_report_totals($f);
 $totalGeneral = $totals['general']['total'];
 $totalLab = $totals['lab']['total'];
@@ -335,40 +340,40 @@ if (!empty($allExpenses)) {
 <h2>لیستی خەرجییەکان</h2>
 <table class="expenses-table">
     <thead>
-        <tr>
-            <th style="width: 25px;">#</th>
-            <th style="width: 60px;">بەروار</th>
-            <th style="width: 70px;">جۆر</th>
-            <th style="width: 80px;">گرووپ</th>
-            <th>وەسف</th>
-            <th style="width: 70px;">دکتۆر</th>
-            <th style="width: 65px;">بڕ</th>
-        </tr>
+        <tr>' . implode('', array_map(fn($c) => '<th' . (isset($pdfWidths[$c['key']]) ? ' style="width: ' . $pdfWidths[$c['key']] . 'px;"' : '') . '>'
+            . htmlspecialchars($c['label']) . '</th>', $pdfCols)) . '</tr>
     </thead>
     <tbody>';
 
     $counter = 1;
     foreach ($allExpenses as $exp) {
         $typeClass = 'type-' . $exp['expense_type'];
-        $html .= '<tr>
-            <td>' . $counter++ . '</td>
-            <td>' . $exp['expense_date'] . '</td>
-            <td><span class="type-badge ' . $typeClass . '">' . $exp['type_label'] . '</span></td>
-            <td>' . htmlspecialchars(expense_group_label($exp)) . '</td>
-            <td style="text-align: right;">' . htmlspecialchars($exp['description']) . '</td>
-            <td>' . (!empty($exp['doctor_name']) ? htmlspecialchars($exp['doctor_name'])
-                : (($exp['dept'] ?? null) === 'xray' ? '<span style="color:#0369a1;">X-ray</span>' : '<span style="color:#0f766e;">خەرجی سەنتەر</span>')) . '</td>
-            <td style="text-align: right; font-weight: bold;">' . number_format($exp['amount']) . '</td>
-        </tr>';
+        $html .= '<tr>';
+        foreach ($pdfKeys as $k) {
+            $html .= match ($k) {
+                'num' => '<td>' . $counter++ . '</td>',
+                'type' => '<td><span class="type-badge ' . $typeClass . '">' . $exp['type_label'] . '</span></td>',
+                'group' => '<td>' . htmlspecialchars(in_array('sub', $pdfKeys, true) ? ($exp['category_name'] ?? '-') : expense_group_label($exp)) . '</td>',
+                'desc', 'notes' => '<td style="text-align: right;">' . htmlspecialchars((string)exp_report_value($k, $exp)) . '</td>',
+                'doctor' => '<td>' . (!empty($exp['doctor_name']) ? htmlspecialchars($exp['doctor_name'])
+                    : (($exp['dept'] ?? null) === 'xray' ? '<span style="color:#0369a1;">X-ray</span>' : '<span style="color:#0f766e;">خەرجی سەنتەر</span>')) . '</td>',
+                'amount' => '<td style="text-align: right; font-weight: bold;">' . number_format($exp['amount']) . '</td>',
+                default => '<td>' . htmlspecialchars((string)exp_report_value($k, $exp)) . '</td>',
+            };
+        }
+        $html .= '</tr>';
     }
 
+    $foot = '';
+    $labelAt = array_key_first(array_filter($pdfKeys, fn($k) => $k !== 'amount'));
+    foreach ($pdfKeys as $n => $k) {
+        $foot .= $k === 'amount' ? '<td style="text-align: right;">' . number_format($displayedTotal) . '</td>'
+            : ($n === $labelAt ? '<td style="text-align: right; white-space: nowrap;">کۆی گشتی:</td>' : '<td></td>');
+    }
     $html .= '
     </tbody>
     <tfoot>
-        <tr>
-            <td colspan="6" style="text-align: right;">کۆی گشتی:</td>
-            <td style="text-align: right;">' . number_format($displayedTotal) . '</td>
-        </tr>
+        <tr>' . $foot . '</tr>
     </tfoot>
 </table>';
 }
