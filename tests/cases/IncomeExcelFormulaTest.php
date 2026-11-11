@@ -3,8 +3,9 @@
 //   E کۆی گشتی 278,740,000 · F خەرجی گشتی 155,000 · G موختەبەر 2,500,000
 //   H کۆگا 34,496,000 = I ئاسایی 1,925,000 (J دکتۆر 481,250 · K لێزان 1,443,750)
 //                     + L Implant 32,571,000 (M دکتۆر 16,285,500 · N لێزان 16,285,500)
-//   O = E − F − G − L = 243,514,000
-//   P = O × 80% − J = 194,329,950 · Q = O × 20% − K = 47,259,050
+//   O = E − F − G = 276,085,000 (the store is not in it)
+//   P = O × 80% − J − M = 204,101,250 · Q = O × 20% − K − N = 37,487,750
+// P + Q is the net after every expense (E − F − G − H).
 // The percentages are the doctor's own (80 / 25 / 50 here), not the sheet's.
 require_once __DIR__ . '/../../classes/CaseInvoice.php';
 require_once __DIR__ . '/../../doctors/_daily_summary_lib.php';
@@ -13,16 +14,14 @@ require_once __DIR__ . '/../../doctors/_daily_summary_lib.php';
     $db = fx_db();
     // the function alone, with the sheet's figures: net = E − F − G − H
     $net = 278740000 - 155000 - 2500000 - 34496000;
-    $doctor = ds_doctor_share($net, 80, 0, 1925000, 481250);
-    $t->assertEqualsMoney(194329950, $doctor, 'P: 80% of 243,514,000 less the 481,250 of ئاسایی');
-    $t->assertEqualsMoney(47259050, $net - $doctor, 'Q: 20% of it less the 1,443,750');
-    $t->assertEqualsMoney(243514000, $net + 1925000, 'O: the net before the ئاسایی store');
-    // the store percentage not set: his income percentage, so the plain split of the net
-    $t->assertEqualsMoney(round($net * 0.8), ds_doctor_share($net, 80, 0, 1925000, 1925000 * 0.8), 'ئاسایی at his own percentage: 80% of the net');
+    $doctor = ds_doctor_share($net, 80, 0, 34496000, 481250 + 16285500);
+    $t->assertEqualsMoney(276085000, $net + 34496000, 'O: the net before the store');
+    $t->assertEqualsMoney(204101250, $doctor, 'P: 80% of 276,085,000 less the 481,250 of ئاسایی and the 16,285,500 of Implant');
+    $t->assertEqualsMoney(37487750, $net - $doctor, 'Q: 20% of it less the 1,443,750 of ئاسایی and the 16,285,500 of Implant');
+    // the store percentages not set: his income percentage, so the plain split of the net
+    $t->assertEqualsMoney(round($net * 0.8), ds_doctor_share($net, 80, 0, 34496000, 34496000 * 0.8), 'the store at his own percentage: 80% of the net');
     // a column wholly on him is his alone
-    $t->assertEqualsMoney(194329950 - 100000, ds_doctor_share($net - 100000, 80, 100000, 1925000, 481250), 'a column marked on him comes off him whole');
-    // a doctor whose implant comes off the pool by half: the other half is added back for the split (لێزان's)
-    $t->assertEqualsMoney(207358350, ds_doctor_share($net, 80, 0, 1925000 + 32571000 / 2, 481250), 'half the implant off the pool: 80% of 259,799,500 less the 481,250');
+    $t->assertEqualsMoney(204101250 - 100000, ds_doctor_share($net - 100000, 80, 100000, 34496000, 481250 + 16285500), 'a column marked on him comes off him whole');
 
     // the same through ds_compute_range, at a tenth of the sheet (one invoice)
     $savedSession = $_SESSION;
@@ -43,22 +42,22 @@ require_once __DIR__ . '/../../doctors/_daily_summary_lib.php';
     $t->assertEqualsMoney(27874000, $ds['cashIn'], 'E');
     $t->assertEqualsMoney(3449600, $ds['storeExpense'], 'H');
     $t->assertEqualsMoney(48125, $ds['storeOnDoctorByKind']['normal'], 'J');
-    $t->assertEqualsMoney(1628550, $ds['storeOnDoctorByKind']['implant'], 'M (information)');
-    $t->assertEqualsMoney(24351400, $ds['netBeforeNormal'], 'O');
-    $t->assertEqualsMoney(19432995, $ds['doctorShare'], 'P');
-    $t->assertEqualsMoney(4725905, $ds['centerShare'], 'Q');
+    $t->assertEqualsMoney(1628550, $ds['storeOnDoctorByKind']['implant'], 'M');
+    $t->assertEqualsMoney(27608500, $ds['netBeforeStore'], 'O');
+    $t->assertEqualsMoney(20410125, $ds['doctorShare'], 'P');
+    $t->assertEqualsMoney(3748775, $ds['centerShare'], 'Q');
+    $t->assertEqualsMoney($ds['netAfterExpenses'], $ds['doctorShare'] + $ds['centerShare'], 'the two shares are the whole net');
     $rows = array_column(ds_row_lists($ds)['money'], 1, 0);
     $t->assertSame('(192,500)', $rows['— ئاسایی: دکتۆر 48,125 · لێزان 144,375'] ?? null, 'the summary lists ئاسایی with its division');
-    $t->assertSame('(3,257,100)', $rows['— Implant: دکتۆر 1,628,550 · لێزان 1,628,550 (زانیاری)'] ?? null, 'and Implant, for information');
+    $t->assertSame('(3,257,100)', $rows['— Implant: دکتۆر 1,628,550 · لێزان 1,628,550'] ?? null, 'and Implant the same way');
 
-    // the same doctor at «Implant لە کۆی ماوە 50%»
-    $db->update('users', ['implant_pool_share' => 50], 'id = ?', [$doc]);
+    // the Implant percentage not set: his income percentage carries it
+    $db->update('users', ['store_share_implant' => null], 'id = ?', [$doc]);
     $ds = ds_compute_range($db, $doc, '2026-09-01', '2026-09-10', false);
     $t->assertEqualsMoney(24158900, $ds['netAfterExpenses'], 'the net is the same: every cost comes off it');
-    $t->assertEqualsMoney(25979950, $ds['netBeforeNormal'], 'O: half the implant is back in the pool');
-    $t->assertEqualsMoney(20735835, $ds['doctorShare'], 'P: 80% of that less his ئاسایی part');
-    $t->assertEqualsMoney(3423065, $ds['centerShare'], 'Q: لێزان carries the other half of the implant');
-    $rows = array_column(ds_row_lists($ds)['money'], 1, 0);
-    $t->assertSame('(3,257,100)', $rows['— Implant: دکتۆر 1,628,550 · لێزان 1,628,550 (زانیاری) · 50٪ی لە کۆی ماوە'] ?? null, 'the summary says so');
+    $t->assertEqualsMoney(27608500, $ds['netBeforeStore'], 'O is the same too');
+    $t->assertEqualsMoney(2605680, $ds['storeOnDoctorByKind']['implant'], 'M: 80% of the implant');
+    $t->assertEqualsMoney(19432995, $ds['doctorShare'], 'P: 80% of O less 48,125 and 2,605,680');
+    $t->assertEqualsMoney(4725905, $ds['centerShare'], 'the centre: the rest');
     $_SESSION = $savedSession;
 })();

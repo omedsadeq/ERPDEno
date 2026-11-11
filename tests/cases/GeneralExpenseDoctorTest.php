@@ -96,7 +96,7 @@ require_once __DIR__ . '/../../classes/IncomeSettlement.php';
     $t->assertEqualsMoney(10000, json_decode($row['snapshot'], true)['generalExpense'], 'the signed paper keeps it');
     $t->assertSame(0, $bal($key), 'paid out, box empty');
 
-    // ── Store: ئاسایی by its own percentage off his share; Implant whole before the split ──
+    // ── Store: not in the pool; ئاسایی and Implant each by its own percentage off his share ──
     $store = $doctorWithIncome(40);
     $storeKey = 'doctor:' . $store;
     $center = $bal($C);
@@ -108,41 +108,38 @@ require_once __DIR__ . '/../../classes/IncomeSettlement.php';
     $t->assertEqualsMoney(30000, $ds['storeExpense'], 'both kinds are the store cost');
     $t->assertEqualsMoney(10000, $ds['storeOnDoctor'], 'the sheet\'s lines: 50% of 10,000 + 25% of 20,000');
     $t->assertEqualsMoney(70000, $ds['netAfterExpenses'], 'the whole cost still comes off the net');
-    $t->assertEqualsMoney(80000, $ds['netBeforeNormal'], 'کۆی ماوە دوای خەرجی: before the ئاسایی store');
-    $t->assertEqualsMoney(27000, $ds['doctorShare'], '40% of the 80,000 less his 5,000 of ئاسایی');
-    $t->assertEqualsMoney(43000, $ds['centerShare'], 'the centre: 60% of the 80,000 less its 5,000');
+    $t->assertEqualsMoney(100000, $ds['netBeforeStore'], 'کۆی ماوە دوای خەرجی: before the store');
+    $t->assertEqualsMoney(30000, $ds['doctorShare'], '40% of the 100,000 less his 5,000 of ئاسایی and his 5,000 of Implant');
+    $t->assertEqualsMoney(40000, $ds['centerShare'], 'the centre: 60% of the 100,000 less its 5,000 and its 15,000');
 
     $ledger->reconcile($storeKey);
-    $t->assertSame([2700000, $center + 1300000], [$bal($storeKey), $bal($C)], 'box: 50% of ئاسایی and 40% of the implant go to the centre');
+    $t->assertSame([3000000, $center + 1000000], [$bal($storeKey), $bal($C)], 'box: 50% of ئاسایی and 25% of the implant go to the centre');
 
     // a percentage set later reaches the costs already booked
     $db->update('users', ['store_share_normal' => 100], 'id = ?', [$store]);
     $ledger->reconcile($storeKey);
-    $t->assertSame(2200000, $bal($storeKey), 'ئاسایی at 100%: 5,000 more on him');
-    $t->assertEqualsMoney(22000, ds_compute_range($db, $store, '2026-10-01', '2026-10-10', false)['doctorShare'], 'his share says the same');
+    $t->assertSame(2500000, $bal($storeKey), 'ئاسایی at 100%: 5,000 more on him');
+    $t->assertEqualsMoney(25000, ds_compute_range($db, $store, '2026-10-01', '2026-10-10', false)['doctorShare'], 'his share says the same');
 
     // 0% is a percentage, not a missing one
     $db->update('users', ['store_share_normal' => 0], 'id = ?', [$store]);
     $ledger->reconcile($storeKey);
-    $t->assertSame(3200000, $bal($storeKey), 'ئاسایی at 0%: none of it on him');
+    $t->assertSame(3500000, $bal($storeKey), 'ئاسایی at 0%: none of it on him');
 
     // not set: his income percentage, as before
     $db->update('users', ['store_share_normal' => null, 'store_share_implant' => null], 'id = ?', [$store]);
     $ledger->reconcile($storeKey);
     $t->assertSame(2800000, $bal($storeKey), 'not set: 40% of the 30,000');
     $t->assertEqualsMoney(28000, ds_compute_range($db, $store, '2026-10-01', '2026-10-10', false)['doctorShare'], 'not set: 40% of the 70,000 net');
-    // the ئیمپلانت percentage describes the line, it moves nothing
+    // the ئیمپلانت percentage moves money too
     $db->update('users', ['store_share_implant' => 100], 'id = ?', [$store]);
     $ledger->reconcile($storeKey);
-    $t->assertSame(2800000, $bal($storeKey), 'ئیمپلانت at 100%: the box is the same');
-    $t->assertEqualsMoney(28000, ds_compute_range($db, $store, '2026-10-01', '2026-10-10', false)['doctorShare'], 'and so is his share');
-    $db->update('users', ['store_share_implant' => null], 'id = ?', [$store]);
-    // «Implant لە کۆی ماوە» at 50%: only half the implant comes off before his split
-    $db->update('users', ['implant_pool_share' => 50], 'id = ?', [$store]);
+    $t->assertSame(1600000, $bal($storeKey), 'ئیمپلانت at 100%: the whole 20,000 on him');
+    $t->assertEqualsMoney(16000, ds_compute_range($db, $store, '2026-10-01', '2026-10-10', false)['doctorShare'], '40% of the 100,000 less 4,000 of ئاسایی and the 20,000');
+    $db->update('users', ['store_share_implant' => 0], 'id = ?', [$store]);
     $ledger->reconcile($storeKey);
-    $t->assertSame(3200000, $bal($storeKey), 'implant pool 50%: 40% of half the 20,000 on him');
-    $t->assertEqualsMoney(32000, ds_compute_range($db, $store, '2026-10-01', '2026-10-10', false)['doctorShare'], '40% of (70,000 + 10,000 + 10,000) less 4,000 of ئاسایی');
-    $db->update('users', ['implant_pool_share' => null], 'id = ?', [$store]);
+    $t->assertSame(3600000, $bal($storeKey), 'ئیمپلانت at 0%: none of it on him');
+    $db->update('users', ['store_share_implant' => null], 'id = ?', [$store]);
     $ledger->reconcile($storeKey);
     $db->delete('expenses_store', 'id = ?', [$normal]);
     $ledger->reconcile($storeKey);

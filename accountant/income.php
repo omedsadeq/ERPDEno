@@ -117,7 +117,6 @@ body.inc-full-open{overflow:hidden}
 .inc-tbl th.imp{background:#ede9fe;color:#6d28d9;border-color:#c4b5fd}
 .inc-tbl td.nrm{color:#0f766e;background:#f7fefc;font-size:12px}
 .inc-tbl td.imp{color:#6d28d9;background:#fbfaff;font-size:12px}
-.inc-ip{display:block;font-size:10px;font-weight:700;color:#9f1239;direction:rtl;text-align:right}
 .inc-tbl td.doc{color:#5b21b6;background:#faf8ff}
 .inc-tbl td.ctr{color:#0f766e;font-weight:700;background:#f4fdfb}
 .inc-tbl td.ctr.neg{color:#dc2626}
@@ -249,8 +248,9 @@ body.inc-full-open{overflow:hidden}
                 <thead>
                     <?php
                     // The store as on the owner's sheet: its total, then ئاسایی
-                    // (دکتۆر by his store percentage · لێزان) and Implant (its
-                    // division for information: the whole of it comes off before the split).
+                    // and Implant, each دکتۆر (by his percentage for that kind) · لێزان.
+                    // None of it is in «کۆی ماوە دوای خەرجی»: the doctor's parts come
+                    // off his share, the rest off the centre's.
                     // Each column's name and whether it shows: «کۆڵۆمەکان» above the
                     // table (classes/IncomeSheetColumns.php, the PDF reads it too).
                     $colName = fn(string $k) => IncomeSheetColumns::label($k);
@@ -264,8 +264,8 @@ body.inc-full-open{overflow:hidden}
                         <th<?= $rs ?>>#</th><th<?= $rs ?>>ناوەڕۆک</th><th<?= $rs ?>>ژمارە</th><?php if ($showCol('amount')): ?><th<?= $rs ?>><?= dsEsc($colName('amount')) ?></th><?php endif; ?>
                         <?php foreach ($expCols as $k): ?><?php if ($k === 'store'): ?><th colspan="<?= count($storeParts) ?>" class="sto"><?= dsEsc($colName('store')) ?></th><?php else: ?><th<?= $rs ?>><?= dsEsc($colName($k)) ?></th><?php endif; ?><?php endforeach; ?>
                         <?php foreach ($incColumns as $c): ?><th class="cus"<?= $rs ?>><?= dsEsc($c['name']) ?></th><?php endforeach; ?>
-                        <?php if ($showCol('pool')): ?><th<?= $rs ?>><?= dsEsc($colName('pool')) ?><small>بڕی − گشتی − تاقیگە − Implant (بە ڕێژەی دکتۆر)</small></th><?php endif; ?>
-                        <?php if ($showCol('doctorShare')): ?><th class="doc"<?= $rs ?>><?= dsEsc($colName('doctorShare')) ?><small>بە ڕێژەی خۆی − کۆگای ئاسایی</small></th><?php endif; ?>
+                        <?php if ($showCol('pool')): ?><th<?= $rs ?>><?= dsEsc($colName('pool')) ?><small>بڕی − گشتی − تاقیگە</small></th><?php endif; ?>
+                        <?php if ($showCol('doctorShare')): ?><th class="doc"<?= $rs ?>><?= dsEsc($colName('doctorShare')) ?><small>بە ڕێژەی خۆی − بەشی لە کۆگا (ئاسایی + Implant)</small></th><?php endif; ?>
                         <?php if ($showCol('centerShare')): ?><th class="ctr"<?= $rs ?>><?= dsEsc($colName('centerShare')) ?><small>بۆ <?= htmlspecialchars(Branding::shortName()) ?></small></th><?php endif; ?>
                     </tr>
                     <?php if ($storeCols): ?>
@@ -321,7 +321,7 @@ body.inc-full-open{overflow:hidden}
                         <td class="n exp"><?= incCell($r[$k]) ?></td>
                         <?php endif; ?>
                         <?php if ($k === 'store'): foreach ($storeParts as $part => [$field, $cls]): if ($part === 'storeTotal') continue; ?>
-                        <td class="n <?= $cls ?>"><?= incCell($r[$field]) ?><?php if ($part === 'storeImplant' && $r['storeImplant'] > 0.5 && $r['implantPool'] < 100): ?><small class="inc-ip" title="ئەم ڕێژەیەی Implant پێش دابەشکردن لە کۆی ماوە کەم دەکرێتەوە؛ ئەوەی تر بەر لێزان دەکەوێت"><?= rtrim(rtrim(number_format($r['implantPool'], 2, '.', ''), '0'), '.') ?>٪ لە کۆی ماوە</small><?php endif; ?></td>
+                        <td class="n <?= $cls ?>"><?= incCell($r[$field]) ?></td>
                         <?php endforeach; endif; ?>
                         <?php endforeach; ?>
                         <?php foreach ($incColumns as $c): ?>
@@ -406,7 +406,7 @@ body.inc-full-open{overflow:hidden}
             <div class="inc-box doc">
                 <div class="k">پشکی دکتۆران</div>
                 <div class="v"><?= $totals['doctorShare'] < 0 ? '(' . dsMoney(abs($totals['doctorShare'])) . ')' : dsMoney($totals['doctorShare']) ?></div>
-                <div class="s">ڕێژەی هەر دکتۆرێک لە کۆی ماوە دوای خەرجی − بەشی لە کۆگای ئاسایی</div>
+                <div class="s">ڕێژەی هەر دکتۆرێک لە کۆی ماوە دوای خەرجی − بەشی لە کۆگا (ئاسایی + Implant)</div>
             </div>
             <div class="inc-box ctr">
                 <div class="k">پشکی سەنتەر</div>

@@ -60,9 +60,9 @@ function income_compare_period(string $from, string $to): array
     }
     // The store percentages as set in the system (the store page's «ڕێژەی دکتۆرەکان»),
     // shown beside the doctor's own so the paper says which rule made each share.
-    foreach ($db->fetchAll("SELECT id, store_share_normal, store_share_implant, implant_pool_share FROM users WHERE role = 'doctor'") as $u) {
+    foreach ($db->fetchAll("SELECT id, store_share_normal, store_share_implant FROM users WHERE role = 'doctor'") as $u) {
         if (isset($byKey['d' . $u['id']])) {
-            $byKey['d' . $u['id']]['report']['storeRates'] = ['normal' => $u['store_share_normal'], 'implant' => $u['store_share_implant'], 'pool' => $u['implant_pool_share']];
+            $byKey['d' . $u['id']]['report']['storeRates'] = ['normal' => $u['store_share_normal'], 'implant' => $u['store_share_implant']];
         }
     }
     return [

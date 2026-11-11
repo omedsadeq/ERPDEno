@@ -36,9 +36,8 @@ function income_compare_report_line(array $r, float $s): array
     $n = fn($v) => $v === null ? null : (float)$v * $s;
     $by = $rep['storeByKind'] ?? [];
     $doc = $rep['storeOnDoctorByKind'] ?? [];
-    // ماوە is the income sheet's «کۆی ماوە دوای خەرجی» (pool: before the ئاسایی
-    // store and the implant part that is لێزان's); a kept 2025 month has only
-    // the paper's ماوە.
+    // ماوە is the income sheet's «کۆی ماوە دوای خەرجی» (pool: before the
+    // store); a kept 2025 month has only the paper's ماوە.
     $line = ['amount' => $n($r['amount']), 'net' => $n(array_key_exists('pool', $r) ? $r['pool'] : $r['net']), 'center' => $n($r['centerShare'])];
     if ($rep) {
         $line += [
@@ -137,7 +136,6 @@ function income_compare_report(array $P, ?array $base, string $title, float $sca
                 $parts = array_filter([
                     ($sr['normal'] ?? null) !== null ? 'کۆگا ' . $pct($sr['normal']) : null,
                     ($sr['implant'] ?? null) !== null ? 'ئیمپ ' . $pct($sr['implant']) : null,
-                    ($sr['pool'] ?? null) !== null && (float)$sr['pool'] < 100 ? 'ئیمپ لە ماوە ' . $pct($sr['pool']) : null,
                 ]);
                 $html .= '<td class="rt">' . $cell . ($cell !== '' && $parts ? '<br><small>' . implode(' · ', $parts) . '</small>' : '') . '</td>';
             } elseif ($k === 'change') {

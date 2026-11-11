@@ -152,22 +152,19 @@ class CashboxLedger
     /**
      * What falls on the doctor of a cost, in hundredths — the owner's sheet's
      * rule (ds_doctor_share): a lab cost and a general cost by his income
-     * percentage (they come off before the split); an implant cost by his
-     * income percentage of the part that comes off before the split
-     * (users.implant_pool_share, all of it until set); an ئاسایی store cost by
-     * its own percentage (users.store_share_normal; his income percentage until
-     * it is set). null for a doctor with no percentage: nothing of his is
-     * split. sourceIds() has the same rule in SQL.
+     * percentage (they come off before the split); a store cost by its own
+     * percentage — users.store_share_normal for ئاسایی, store_share_implant
+     * for an implant; his income percentage until it is set. null for a
+     * doctor with no percentage: nothing of his is split. sourceIds() has
+     * the same rule in SQL.
      */
     private function expenseRate100(string $key, string $type, array $cost): ?int
     {
         $rate = $this->doctorRate100($key);
         if ($rate === null || $type !== 'store') return $rate;
-        $u = $this->db->fetch("SELECT store_share_normal, implant_pool_share FROM users WHERE id=?", [(int)substr($key, 7)]) ?: [];
-        if (($cost['expense_kind'] ?? '') === 'implant') {
-            return (int)round($rate * (isset($u['implant_pool_share']) ? (float)$u['implant_pool_share'] : 100) / 100);
-        }
-        return ($u['store_share_normal'] ?? null) === null ? $rate : (int)round((float)$u['store_share_normal'] * 100);
+        $u = $this->db->fetch("SELECT store_share_normal, store_share_implant FROM users WHERE id=?", [(int)substr($key, 7)]) ?: [];
+        $own = $u[($cost['expense_kind'] ?? '') === 'implant' ? 'store_share_implant' : 'store_share_normal'] ?? null;
+        return $own === null ? $rate : (int)round((float)$own * 100);
     }
 
     private function doctorName(string $key): string
@@ -541,7 +538,7 @@ class CashboxLedger
             $start = "'" . self::START . "'";
             $rates = [
                 'lab' => 'st.split_rate',
-                'store' => "IF(u.commission_rate>0, IF(e.expense_kind='implant', LEAST(u.commission_rate,100)*COALESCE(u.implant_pool_share,100)/100, COALESCE(u.store_share_normal, LEAST(u.commission_rate,100))), NULL)",
+                'store' => "IF(u.commission_rate>0, COALESCE(IF(e.expense_kind='implant', u.store_share_implant, u.store_share_normal), LEAST(u.commission_rate,100)), NULL)",
                 'general' => 'IF(u.commission_rate>0, LEAST(u.commission_rate,100), NULL)',
             ];
             foreach (self::EXPENSE_TABLES as $type => $table) {

@@ -124,12 +124,10 @@ body { font-family: nrt; direction: rtl; font-size: 10pt; color: #0f172a; }
     <tbody>';
 
 // The store's cells under its heading, the shown ones only (its own total first)
-$storeCells = function (array $src, string $grp, callable $fmt, bool $notes) use ($storeParts): string {
+$storeCells = function (array $src, string $grp, callable $fmt) use ($storeParts): string {
     $out = '';
     foreach ($storeParts as $part => [$field]) {
-        $out .= '<td class="n' . ($part === 'storeTotal' ? '' : ' sm') . '"' . $grp . '>' . $fmt($src[$field])
-            . ($notes && $part === 'storeImplant' && $src[$field] > 0.5 && ($src['implantPool'] ?? 100) < 100
-                ? '<br><span class="rt">' . rtrim(rtrim(number_format($src['implantPool'], 2, '.', ''), '0'), '.') . '% لە کۆی ماوە</span>' : '') . '</td>';
+        $out .= '<td class="n' . ($part === 'storeTotal' ? '' : ' sm') . '"' . $grp . '>' . $fmt($src[$field]) . '</td>';
     }
     return $out;
 };
@@ -148,7 +146,7 @@ foreach ($rows as $i => $r) {
         . '</td>'
         . '<td class="c"' . $grp . '>' . ($r['count'] ? dsMoney($r['count']) : '') . '</td>'
         . ($showCol('amount') ? '<td class="n"' . $grp . '>' . $money($r['amount']) . '</td>' : '')
-        . implode('', array_map(fn($k) => $k === 'store' ? $storeCells($r, $grp, $money, true)
+        . implode('', array_map(fn($k) => $k === 'store' ? $storeCells($r, $grp, $money)
             : '<td class="n"' . $grp . '>' . $money($r[$k]) . '</td>', $expCols))
         . implode('', array_map(fn($c) => '<td class="n"' . $grp . '>' . $money($r['cols'][$c['id']] ?? 0.0) . '</td>', $pdfColumns))
         . ($showCol('pool') ? '<td class="n"' . $grp . '>' . $money($r['pool']) . '</td>' : '')
@@ -161,7 +159,7 @@ $html .= '<tr class="tot">
         <td></td><td class="lb">کۆ</td>
         <td class="c">' . dsMoney($totals['count']) . '</td>'
         . ($showCol('amount') ? '<td class="n">' . dsMoney($totals['amount']) . '</td>' : '')
-        . implode('', array_map(fn($k) => $k === 'store' ? $storeCells($totals, '', 'dsMoney', false)
+        . implode('', array_map(fn($k) => $k === 'store' ? $storeCells($totals, '', 'dsMoney')
             : '<td class="n">' . dsMoney($totals[$k]) . '</td>', $expCols))
         . implode('', array_map(fn($c) => '<td class="n">' . dsMoney($totals['cols'][$c['id']]) . '</td>', $pdfColumns))
         . ($showCol('pool') ? '<td class="n">' . ($totals['pool'] < 0 ? '(' . dsMoney(abs($totals['pool'])) . ')' : dsMoney($totals['pool'])) . '</td>' : '')
