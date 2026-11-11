@@ -29,11 +29,15 @@
  *                 (classes/IncomeColumn.php): always subtracted, whatever the
  *                 expense chips say
  *
- * Each row's کۆی گشتی is then split: پشکی دکتۆر = net × the doctor's
- * percentage (users.commission_rate, set on the doctor's account in
- * admin/users.php — the same rate doctors/general-report.php uses), and the
- * rest is پشکی سەنتەر. Rows with no doctor (x-ray, pharmacy, examinations)
- * belong to the centre whole.
+ * Each doctor row is then split the owner's way (Book1.xlsx, ds_doctor_share):
+ *   کۆی ماوە دوای خەرجی = بڕی − خەرجی گشتی − تاقیگە − Implant (− own columns)
+ *   پشکی دکتۆر        = that × his percentage (users.commission_rate, set on
+ *                       his account in admin/users.php) − his part of the
+ *                       ئاسایی store (users.store_share_normal)
+ *   پشکی سەنتەر       = the rest of the net
+ * The Implant line's دکتۆر / لێزان figures (store_share_implant) are shown as
+ * on the paper, for information. Rows with no doctor (x-ray, pharmacy,
+ * examinations) belong to the centre whole.
  */
 
 require_once __DIR__ . '/../config/config.php';
@@ -93,10 +97,6 @@ $rangeQs = fn(string $f, string $t) => '?from=' . urlencode($f) . '&to=' . urlen
 // any inactive doctor who still had money come in. Ordered by their clinic
 // record, which is the order the paper sheet lists them in.
 $doctorRows = [];
-// «کۆگا بەر دکتۆر»: the part of the store expense on each doctor, by the expense
-// percentages, for the column beside خەرجی کۆگا. null (shown as —) while a
-// percentage is missing; پشکی دکتۆر then uses the income percentage for that kind.
-$storeOnDoctors = store_share_on_doctors($from, $to);
 foreach ($db->fetchAll(
     "SELECT u.id, u.full_name, u.is_active, u.commission_rate
      FROM users u
@@ -152,6 +152,11 @@ foreach ($db->fetchAll(
         'store'  => $ds['storeExpense'],
         'general' => $ds['generalExpense'],
         'storeOnDoctor' => $ds['storeOnDoctor'],
+        // The store the sheet's way: ئاسایی (دکتۆر by store_share_normal · لێزان), Implant (its division is information)
+        'storeNormal' => (float)($ds['storeByKind']['normal'] ?? 0),
+        'storeNormalDoc' => (float)($ds['storeOnDoctorByKind']['normal'] ?? 0),
+        'storeImplant' => (float)($ds['storeByKind']['implant'] ?? 0),
+        'storeImplantDoc' => (float)($ds['storeOnDoctorByKind']['implant'] ?? 0),
         // What the comparison report (accountant/income-compare.php) shows beside the money.
         'report' => ['storeByKind' => $ds['storeByKind'], 'storeOnDoctorByKind' => $ds['storeOnDoctorByKind'],
                      'minutes' => $ds['attendanceMinutes'], 'days' => $ds['attendedDay'], 'checkups' => $ds['checkupBreakdown']],
@@ -159,15 +164,14 @@ foreach ($db->fetchAll(
         'cols'   => array_column($ds['columnCharges'], 'amount', 'id'),
         'colTotal' => $ds['columnTotal'],
         'colOnDoctor' => $ds['columnOnDoctor'],
-        // null while a spent kind has no percentage (not «??»: null must survive)
-        'storeDoctor' => array_key_exists($uid, $storeOnDoctors) ? $storeOnDoctors[$uid] : 0.0,
         // ڕێژەی دکتۆر — null until it is set on the doctor's account.
         'rate'   => (float)$u['commission_rate'] > 0 ? min(100.0, (float)$u['commission_rate']) : null,
     ];
 }
 
 if (in_array('general', $expSel, true) && array_sum(array_column($doctorRows, 'general')) > 0) {
-    $colSel[] = 'general';
+    // first, as on the owner's sheet: گشتی · تاقیگە · کۆگا
+    array_unshift($colSel, 'general');
 }
 
 // ── X-ray: one row, all the types together ───────────────────────────
@@ -235,12 +239,13 @@ foreach ([
 }
 
 // ── Totals ───────────────────────────────────────────────────────────
-// A row's net subtracts only the expense columns that are switched on; the
-// net is then split between the doctor (his percentage) and the centre. A
-// doctor's lab costs are therefore shared in the same proportion; his store
-// costs go by their own percentages and a general expense in his name is his alone. A
-// doctor with no percentage set yet gets nothing here — his whole net shows
-// as the centre's, and the sheet names him so it can be set.
+// A row's net subtracts only the expense columns that are switched on. It is
+// split the owner's way (ds_doctor_share): the lab, the general expense and
+// the whole Implant come off before the percentage, the ئاسایی store by its
+// own percentage after it. `pool` is the sheet's «کۆی ماوە دوای خەرجی» (the
+// net before the ئاسایی store). A doctor with no percentage set yet gets
+// nothing here — his whole net shows as the centre's, and the sheet names
+// him so it can be set.
 $rows = array_merge($doctorRows, $deptRows);
 $doctorsWithoutRate = [];
 foreach ($rows as &$r) {
@@ -249,13 +254,17 @@ foreach ($rows as &$r) {
         $r['net'] -= $r[$k];
     }
     $r['rate'] = $r['rate'] ?? null;
-    // What is wholly on the doctor comes off his share, not off the net the
-    // percentage is of, and the store falls on him by its own percentages: the
-    // rule of ds_compute_range, for the kinds switched on here.
-    $onDoctor = ($r['colOnDoctor'] ?? 0.0) + (in_array('general', $colSel, true) ? $r['general'] : 0.0);
-    $storeOn = in_array('store', $colSel, true);
+    $storeOn = in_array('store', $colSel, true) && $r['kind'] === 'doctor';
+    foreach (['storeNormal', 'storeNormalDoc', 'storeImplant', 'storeImplantDoc'] as $k) {
+        $r[$k] = $storeOn ? (float)($r[$k] ?? 0) : 0.0;
+    }
+    $r['storeNormalCtr'] = $r['storeNormal'] - $r['storeNormalDoc'];
+    $r['storeImplantCtr'] = $r['storeImplant'] - $r['storeImplantDoc'];
+    $r['pool'] = $r['net'] + $r['storeNormal'];
+    // A column marked «هەمووی لەسەر دکتۆر» comes off his share, not off the net
+    // the percentage is of: the rule of ds_compute_range.
     $r['doctorShare'] = $r['rate'] !== null
-        ? ds_doctor_share($r['net'], $r['rate'], $onDoctor, $storeOn ? $r['store'] : 0.0, $storeOn ? $r['storeOnDoctor'] : 0.0)
+        ? ds_doctor_share($r['net'], $r['rate'], $r['colOnDoctor'] ?? 0.0, $r['storeNormal'], $r['storeNormalDoc'])
         : 0.0;
     $r['centerShare'] = $r['net'] - $r['doctorShare'];
     if ($r['kind'] === 'doctor' && $r['rate'] === null && abs($r['net']) >= 0.5) {
@@ -265,14 +274,14 @@ foreach ($rows as &$r) {
 unset($r);
 
 $totals = ['count' => 0, 'amount' => 0.0, 'lab' => 0.0, 'store' => 0.0, 'general' => 0.0, 'net' => 0.0,
-           'doctorShare' => 0.0, 'centerShare' => 0.0];
+           'doctorShare' => 0.0, 'centerShare' => 0.0, 'pool' => 0.0,
+           'storeNormal' => 0.0, 'storeNormalDoc' => 0.0, 'storeNormalCtr' => 0.0,
+           'storeImplant' => 0.0, 'storeImplantDoc' => 0.0, 'storeImplantCtr' => 0.0];
 foreach ($rows as $r) {
     foreach ($totals as $k => $_) {
         $totals[$k] += $r[$k];
     }
 }
-// Only doctor rows have this one, so it stays out of the loop above
-$totals['storeDoctor'] = (float)array_sum(array_column($doctorRows, 'storeDoctor'));
 
 // ── کۆڵۆمی تایبەت: the sheet's own columns and their entries ──────────
 $incomeColumns = new IncomeColumn();

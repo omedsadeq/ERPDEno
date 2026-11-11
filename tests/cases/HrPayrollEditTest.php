@@ -32,7 +32,8 @@ require_once __DIR__ . '/../../doctors/_daily_summary_lib.php';
     $t->assertSame($doctor, (int)$exp['doctor_id'], 'the expense is in his name');
     $ds = ds_compute_range($db, $doctor, '2026-09-01', '2026-09-30', false);
     $t->assertEqualsMoney(500000, $ds['generalExpense'], 'it reaches his figures');
-    $t->assertEqualsMoney(-500000, $ds['doctorShare'], 'all of it comes off his share');
+    // the owner's sheet: a general expense comes off before the split, so his percentage of it is his
+    $t->assertEqualsMoney(-200000, $ds['doctorShare'], 'his 40% of it comes off his share');
 
     // ── the doctor changed, then removed ──
     $edit($id, ['doctor_id' => $other, 'calculated' => 500000]);

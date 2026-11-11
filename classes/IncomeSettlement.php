@@ -8,8 +8,9 @@
  *   کۆی نەقد  = cash for the period's work + old debt paid back
  *   سافی       = کۆی نەقد − the expenses in his name (lab, store, general) and
  *               what the income sheet's own columns put on him (IncomeColumn)
- *   پشکی دکتۆر = his percentage (users.commission_rate) less his part of the
- *               expenses (ds_doctor_share); the rest of سافی is پشکی سەنتەر
+ *   پشکی دکتۆر = his percentage (users.commission_rate) of سافی before the
+ *               ئاسایی store, less his part of that store (ds_doctor_share);
+ *               the rest of سافی is پشکی سەنتەر
  *   مافی سەنتەر = پشکی سەنتەر + those expenses — the centre paid them, so
  *               that money comes back to it too
  *               (= کۆی نەقد − پشکی دکتۆر)

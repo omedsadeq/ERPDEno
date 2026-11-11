@@ -8,9 +8,11 @@
  *
  * This is the clinic's own sheet (کۆگا · کۆگا دکتۆر · کۆگا لێزان · implant ·
  * دکتۆرimp · لێزانimp) on admin/expenses-inventory.php, and the «کۆگا بەر دکتۆر»
- * column of the income sheet (accountant/_income_data.php). These functions only
- * show the division. The money follows the same percentages in ds_compute_range
- * and CashboxLedger::expenseRate100, which use the income percentage until one is set.
+ * columns of the income sheet (accountant/_income_data.php). These functions
+ * only show the division. Of the two percentages only ئاسایی moves money
+ * (ds_compute_range, CashboxLedger::expenseRate100 — the income percentage
+ * until it is set): the owner's sheet takes the whole implant cost off before
+ * the doctor's split, so the ئیمپلانت percentage is information on the sheet.
  */
 
 const STORE_SHARE_KINDS = ['normal' => 'ئاسایی', 'implant' => 'ئیمپلانت'];
@@ -254,7 +256,8 @@ button.ss-rate-missing { cursor: pointer; }
         <form method="POST">
             <input type="hidden" name="action" value="store_shares">
             <div class="exp-dialog-body">
-                <p class="ss-dialog-note">ئەو ڕێژەیەی خەرجی کۆگا کە دەکەوێتە سەر دکتۆر، ئەوەی تر بەر لێزان دەکەوێت. جیایە لە ڕێژەی داهاتی دکتۆر.</p>
+                <p class="ss-dialog-note">ئەو ڕێژەیەی خەرجی کۆگا کە دەکەوێتە سەر دکتۆر، ئەوەی تر بەر لێزان دەکەوێت. جیایە لە ڕێژەی داهاتی دکتۆر.
+                    ڕێژەی ئاسایی لە پشکی دکتۆر کەم دەکرێتەوە؛ ڕێژەی ئیمپلانت تەنها بۆ زانیارییە — لە حیساب هەموو Implant پێش دابەشکردن کەم دەکرێتەوە (وەک پەڕەی خاوەن).</p>
                 <table class="ss-rates no-responsive">
                     <thead><tr><th>دکتۆر</th><th>ئاسایی ٪</th><th>ئیمپلانت ٪</th></tr></thead>
                     <tbody>

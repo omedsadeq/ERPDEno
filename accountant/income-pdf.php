@@ -26,8 +26,13 @@ $dateHtml = $from === $to
 // ~125mm an A4 page leaves beside #, ناوەڕۆک and ژمارە.
 // The sheet's own columns are printed when they have money in the period.
 $pdfColumns = array_values(array_filter($incColumns, fn($c) => $c['period_total'] > 0));
-$numCols = 4 + count($colSel) + (in_array('store', $colSel, true) ? 1 : 0) + count($pdfColumns);   // + «کۆگا بەر دکتۆر»
-$numWidth = min(30, (int)floor(125 / $numCols));
+// The store takes seven columns (کۆ · ئاسایی: دکتۆر · لێزان · Implant: دکتۆر ·
+// لێزان), as on the owner's sheet: the page then turns landscape.
+$storeCols = in_array('store', $colSel, true);
+$numCols = 4 + count($colSel) + ($storeCols ? 6 : 0) + count($pdfColumns);
+$landscape = $numCols >= 8;
+$numWidth = min(30, (int)floor(($landscape ? 225 : 125) / $numCols));
+$rs = $storeCols ? ' rowspan="2"' : '';
 $tblFont = $numCols >= 6 ? '8.5pt' : ($numCols === 5 ? '9pt' : '10pt');
 $rateText = fn(?float $r) => $r === null ? '؟' : rtrim(rtrim(number_format($r, 2, '.', ''), '0'), '.') . '%';
 
@@ -52,6 +57,10 @@ body { font-family: nrt; direction: rtl; font-size: 10pt; color: #0f172a; }
 .tbl td.n { text-align: left; direction: ltr; white-space: nowrap; width: ' . $numWidth . 'mm; }
 .tbl th.doc { background: #ede9fe; color: #5b21b6; }
 .tbl th.ctr { background: #ccfbf1; color: #115e59; }
+.tbl th.sto { background: #fde68a; color: #78350f; }
+.tbl th.nrm { background: #ccfbf1; color: #0f766e; font-size: 8pt; }
+.tbl th.imp { background: #ede9fe; color: #6d28d9; font-size: 8pt; }
+.tbl td.sm { font-size: 7.5pt; color: #475569; }
 .tbl td.doc { color: #5b21b6; }
 .tbl td.ctr { color: #0f766e; font-weight: bold; }
 .rt { font-size: 7pt; color: #6d28d9; }
@@ -94,13 +103,16 @@ body { font-family: nrt; direction: rtl; font-size: 10pt; color: #0f172a; }
     : '') . '
 <table class="tbl">
     <thead><tr>
-        <th>#</th><th>ناوەڕۆک</th><th>ژمارە</th><th>بڕی</th>'
-        . implode('', array_map(fn($k) => '<th>' . dsEsc($expenseKinds[$k]) . '</th>' . ($k === 'store' ? '<th>کۆگا بەر دکتۆر</th>' : ''), $colSel))
-        . implode('', array_map(fn($c) => '<th>' . dsEsc($c['name']) . '</th>', $pdfColumns)) . '
-        <th>کۆی گشتی</th>
-        <th class="doc">پشکی دکتۆر</th>
-        <th class="ctr">پشکی سەنتەر</th>
-    </tr></thead>
+        <th' . $rs . '>#</th><th' . $rs . '>ناوەڕۆک</th><th' . $rs . '>ژمارە</th><th' . $rs . '>بڕی</th>'
+        . implode('', array_map(fn($k) => $k === 'store' ? '<th colspan="7" class="sto">خەرجی کۆگا</th>' : '<th' . $rs . '>' . dsEsc($expenseKinds[$k]) . '</th>', $colSel))
+        . implode('', array_map(fn($c) => '<th' . $rs . '>' . dsEsc($c['name']) . '</th>', $pdfColumns)) . '
+        <th' . $rs . '>کۆی ماوە دوای خەرجی</th>
+        <th class="doc"' . $rs . '>پشکی دکتۆر</th>
+        <th class="ctr"' . $rs . '>پشکی سەنتەر</th>
+    </tr>' . ($storeCols
+        ? '<tr><th>کۆ</th><th class="nrm">ئاسایی</th><th class="nrm">سەر دکتۆر</th><th class="nrm">سەر لێزان</th>'
+          . '<th class="imp">Implant</th><th class="imp">سەر دکتۆر</th><th class="imp">لێزان</th></tr>'
+        : '') . '</thead>
     <tbody>';
 
 $n = 0;
@@ -118,9 +130,10 @@ foreach ($rows as $i => $r) {
         . '<td class="c"' . $grp . '>' . ($r['count'] ? dsMoney($r['count']) : '') . '</td>'
         . '<td class="n"' . $grp . '>' . $money($r['amount']) . '</td>'
         . implode('', array_map(fn($k) => '<td class="n"' . $grp . '>' . $money($r[$k]) . '</td>'
-            . ($k === 'store' ? '<td class="n"' . $grp . '>' . store_share_cell($r, $money) . '</td>' : ''), $colSel))
+            . ($k === 'store' ? implode('', array_map(fn($f) => '<td class="n sm"' . $grp . '>' . $money($r[$f]) . '</td>',
+                ['storeNormal', 'storeNormalDoc', 'storeNormalCtr', 'storeImplant', 'storeImplantDoc', 'storeImplantCtr'])) : ''), $colSel))
         . implode('', array_map(fn($c) => '<td class="n"' . $grp . '>' . $money($r['cols'][$c['id']] ?? 0.0) . '</td>', $pdfColumns))
-        . '<td class="n"' . $grp . '>' . $money($r['net']) . '</td>'
+        . '<td class="n"' . $grp . '>' . $money($r['pool']) . '</td>'
         . '<td class="n doc"' . $grp . '>' . ($r['kind'] === 'doctor'
             ? $money($r['doctorShare']) . ' <span class="rt">' . $rateText($r['rate']) . '</span>' : '') . '</td>'
         . '<td class="n ctr"' . $grp . '>' . $money($r['centerShare']) . '</td>'
@@ -131,9 +144,10 @@ $html .= '<tr class="tot">
         <td class="c">' . dsMoney($totals['count']) . '</td>
         <td class="n">' . dsMoney($totals['amount']) . '</td>'
         . implode('', array_map(fn($k) => '<td class="n">' . dsMoney($totals[$k]) . '</td>'
-            . ($k === 'store' ? '<td class="n">' . dsMoney($totals['storeDoctor']) . '</td>' : ''), $colSel))
+            . ($k === 'store' ? implode('', array_map(fn($f) => '<td class="n sm">' . dsMoney($totals[$f]) . '</td>',
+                ['storeNormal', 'storeNormalDoc', 'storeNormalCtr', 'storeImplant', 'storeImplantDoc', 'storeImplantCtr'])) : ''), $colSel))
         . implode('', array_map(fn($c) => '<td class="n">' . dsMoney($totals['cols'][$c['id']]) . '</td>', $pdfColumns)) . '
-        <td class="n">' . ($totals['net'] < 0 ? '(' . dsMoney(abs($totals['net'])) . ')' : dsMoney($totals['net'])) . '</td>
+        <td class="n">' . ($totals['pool'] < 0 ? '(' . dsMoney(abs($totals['pool'])) . ')' : dsMoney($totals['pool'])) . '</td>
         <td class="n doc">' . ($money($totals['doctorShare']) ?: '0') . '</td>
         <td class="n ctr">' . ($money($totals['centerShare']) ?: '0') . '</td>
     </tr>
@@ -170,7 +184,7 @@ $html .= '<tr class="tot">
 </tr></table>';
 
 $pdf = new InvoicePdfService([
-    'orientation'      => 'P',
+    'orientation'      => $landscape ? 'L' : 'P',
     'format'           => 'A4',
     'show_header'      => 0,
     'show_footer'      => 0,
