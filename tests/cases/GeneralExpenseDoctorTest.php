@@ -137,6 +137,13 @@ require_once __DIR__ . '/../../classes/IncomeSettlement.php';
     $t->assertSame(2800000, $bal($storeKey), 'ئیمپلانت at 100%: the box is the same');
     $t->assertEqualsMoney(28000, ds_compute_range($db, $store, '2026-10-01', '2026-10-10', false)['doctorShare'], 'and so is his share');
     $db->update('users', ['store_share_implant' => null], 'id = ?', [$store]);
+    // «Implant لە کۆی ماوە» at 50%: only half the implant comes off before his split
+    $db->update('users', ['implant_pool_share' => 50], 'id = ?', [$store]);
+    $ledger->reconcile($storeKey);
+    $t->assertSame(3200000, $bal($storeKey), 'implant pool 50%: 40% of half the 20,000 on him');
+    $t->assertEqualsMoney(32000, ds_compute_range($db, $store, '2026-10-01', '2026-10-10', false)['doctorShare'], '40% of (70,000 + 10,000 + 10,000) less 4,000 of ئاسایی');
+    $db->update('users', ['implant_pool_share' => null], 'id = ?', [$store]);
+    $ledger->reconcile($storeKey);
     $db->delete('expenses_store', 'id = ?', [$normal]);
     $ledger->reconcile($storeKey);
     $t->assertSame(3200000, $bal($storeKey), 'deleted: its part comes back');

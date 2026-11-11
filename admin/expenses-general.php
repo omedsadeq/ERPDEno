@@ -48,7 +48,9 @@ $expenseFields = function () {
     return [
         'category_id' => $categoryId,
         'subgroup_id' => expense_subgroup_posted('general', $categoryId),
-        'doctor_id' => !empty($_POST['doctor_id']) ? intval($_POST['doctor_id']) : null,
+        // a doctor, the X-ray department («xray»: on no doctor, off the X-ray row), or the centre
+        'doctor_id' => ctype_digit((string)($_POST['doctor_id'] ?? '')) && (int)$_POST['doctor_id'] > 0 ? (int)$_POST['doctor_id'] : null,
+        'dept' => ($_POST['doctor_id'] ?? '') === 'xray' ? 'xray' : null,
         'description' => trim($_POST['description'] ?? ''),
         'amount' => $amount,
         'expense_date' => $date,
@@ -334,7 +336,9 @@ $paymentMethods = [
                         </td>
                         <td style="text-align: right; max-width: 200px;">
                             <div style="font-weight: 500;"><?= htmlspecialchars($exp['description']) ?></div>
-                            <?php if (!empty($exp['doctor_name'])): ?><small style="color: #0f766e; display: block;" title="هەمووی لە پشکی ئەم دکتۆرە دەبڕدرێت"><i class="fas fa-user-md"></i> <?= htmlspecialchars($exp['doctor_name']) ?></small><?php else: ?><small style="color: #64748b; display: block;" title="لەسەر هیچ دکتۆرێک نییە — خەرجیی سەنتەرە"><i class="fas fa-building"></i> خەرجی سەنتەر</small><?php endif; ?>
+                            <?php if (!empty($exp['doctor_name'])): ?><small style="color: #0f766e; display: block;" title="لە ڕیزی ئەم دکتۆرە لە داهات کەم دەکرێتەوە"><i class="fas fa-user-md"></i> <?= htmlspecialchars($exp['doctor_name']) ?></small>
+                            <?php elseif (($exp['dept'] ?? null) === 'xray'): ?><small style="color: #0369a1; display: block;" title="لە ڕیزی X-ray لە داهات کەم دەکرێتەوە"><i class="fas fa-x-ray"></i> X-ray</small>
+                            <?php else: ?><small style="color: #64748b; display: block;" title="لەسەر هیچ دکتۆرێک نییە — خەرجیی سەنتەرە"><i class="fas fa-building"></i> خەرجی سەنتەر</small><?php endif; ?>
                             <?php if (!empty($exp['vendor'])): ?><small style="color: #888;"><i class="fas fa-store"></i> <?= htmlspecialchars($exp['vendor']) ?></small><?php endif; ?>
                             <?php if (!empty($exp['receipt_number'])): ?><small style="color: #888; display: block;"><i class="fas fa-receipt"></i> #<?= htmlspecialchars($exp['receipt_number']) ?></small><?php endif; ?>
                         </td>
@@ -398,8 +402,8 @@ $paymentMethods = [
                 <?= expense_subgroup_field() ?>
                 <div class="exp-form-grid" style="margin-top: 10px;">
                     <div class="exp-form-field">
-                        <label><i class="fas fa-user-md"></i> دکتۆر</label>
-                        <select name="doctor_id" title="ئەگەر دکتۆر هەڵبژێریت، هەمووی لە پشکی ئەو دکتۆرە دەبڕدرێت"><option value="">سەنتەر (بێ دکتۆر)</option><?php foreach ($doctors as $doc): ?><option value="<?= $doc['id'] ?>"><?= htmlspecialchars($doc['full_name']) ?></option><?php endforeach; ?></select>
+                        <label><i class="fas fa-user-md"></i> دکتۆر / بەش</label>
+                        <select name="doctor_id" title="دکتۆرێک: لە ڕیزی ئەو لە داهات کەم دەکرێتەوە. X-ray: لە ڕیزی X-ray. هیچیان: خەرجی سەنتەر"><option value="">سەنتەر (بێ دکتۆر)</option><option value="xray">X-ray (بەشی ئێکسڕەی)</option><?php foreach ($doctors as $doc): ?><option value="<?= $doc['id'] ?>"><?= htmlspecialchars($doc['full_name']) ?></option><?php endforeach; ?></select>
                     </div>
                     <div class="exp-form-field">
                         <label><i class="fas fa-file-alt"></i> وەسف <span class="required">*</span></label>
@@ -465,8 +469,8 @@ $paymentMethods = [
                 <?= expense_subgroup_field('edit_subgroup_id') ?>
                 <div class="exp-form-grid" style="margin-top: 10px;">
                     <div class="exp-form-field">
-                        <label><i class="fas fa-user-md"></i> دکتۆر</label>
-                        <select name="doctor_id" id="edit_doctor_id" title="ئەگەر دکتۆر هەڵبژێریت، هەمووی لە پشکی ئەو دکتۆرە دەبڕدرێت"><option value="">سەنتەر (بێ دکتۆر)</option><?php foreach ($doctors as $doc): ?><option value="<?= $doc['id'] ?>"><?= htmlspecialchars($doc['full_name']) ?></option><?php endforeach; ?></select>
+                        <label><i class="fas fa-user-md"></i> دکتۆر / بەش</label>
+                        <select name="doctor_id" id="edit_doctor_id" title="دکتۆرێک: لە ڕیزی ئەو لە داهات کەم دەکرێتەوە. X-ray: لە ڕیزی X-ray. هیچیان: خەرجی سەنتەر"><option value="">سەنتەر (بێ دکتۆر)</option><option value="xray">X-ray (بەشی ئێکسڕەی)</option><?php foreach ($doctors as $doc): ?><option value="<?= $doc['id'] ?>"><?= htmlspecialchars($doc['full_name']) ?></option><?php endforeach; ?></select>
                     </div>
                     <div class="exp-form-field">
                         <label><i class="fas fa-file-alt"></i> وەسف <span class="required">*</span></label>
@@ -513,7 +517,7 @@ function editExpense(expense) {
     document.getElementById('edit_expense_id').value = expense.id;
     document.getElementById('edit_category_id').value = expense.category_id || '';
     fillExpenseSubgroup(document.getElementById('edit_subgroup_id'), expense.subgroup_id);
-    document.getElementById('edit_doctor_id').value = expense.doctor_id || '';
+    document.getElementById('edit_doctor_id').value = expense.dept === 'xray' ? 'xray' : (expense.doctor_id || '');
     document.getElementById('edit_expense_date').value = expense.expense_date;
     document.getElementById('edit_description').value = expense.description;
     document.getElementById('edit_amount').value = expense.amount;

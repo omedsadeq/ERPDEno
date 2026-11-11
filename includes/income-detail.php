@@ -140,7 +140,7 @@ function income_detail_data(Database $db, string $kind, int $id, string $from, s
         if (!$doctor) {
             return null;
         }
-        $who = $id === 0 ? 'e.doctor_id IS NULL' : 'e.doctor_id = :uid';
+        $who = $id === 0 ? 'e.doctor_id IS NULL' . ($kind === 'general' ? ' AND e.dept IS NULL' : '') : 'e.doctor_id = :uid';
         $whoParams = $id === 0 ? [] : ['uid' => $id];
         $page = ['lab' => 'expenses-lab', 'store' => 'expenses-inventory', 'general' => 'expenses-general'][$kind];
         $listLink = fn($day) => ['لە لیستی خەرجی', 'fa-arrow-up-right-from-square', $app . '/admin/' . $page . '.php?date_from=' . $day . '&date_to=' . $day];

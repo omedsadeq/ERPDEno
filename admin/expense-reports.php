@@ -280,6 +280,7 @@ a.er-chip:hover { border-color: var(--c); }
         <select name="doctor">
             <option value="">هەموو دکتۆرەکان</option>
             <option value="none" <?= $doctorId === 'none' ? 'selected' : '' ?>>خەرجی سەنتەر (بێ دکتۆر)</option>
+            <option value="xray" <?= $doctorId === 'xray' ? 'selected' : '' ?>>X-ray (بەشی ئێکسڕەی)</option>
             <?php foreach ($doctors as $doc): ?>
             <option value="<?= $doc['id'] ?>" <?= $doctorId === (string)$doc['id'] ? 'selected' : '' ?>><?= htmlspecialchars($doc['full_name']) ?></option>
             <?php endforeach; ?>
@@ -327,7 +328,7 @@ a.er-chip:hover { border-color: var(--c); }
                         <td><span class="type-badge <?= $exp['expense_type'] ?>"><?= $exp['type_label'] ?></span></td>
                         <td><?= htmlspecialchars(expense_group_label($exp)) ?></td>
                         <td style="text-align: right; max-width: 200px;"><?= htmlspecialchars($exp['description']) ?></td>
-                        <td><?php if (!empty($exp['doctor_name'])): ?><?= htmlspecialchars($exp['doctor_name']) ?><?php else: ?><span style="color:#0f766e;font-weight:600">خەرجی سەنتەر</span><?php endif; ?></td>
+                        <td><?php if (!empty($exp['doctor_name'])): ?><?= htmlspecialchars($exp['doctor_name']) ?><?php elseif (($exp['dept'] ?? null) === 'xray'): ?><span style="color:#0369a1;font-weight:600">X-ray</span><?php else: ?><span style="color:#0f766e;font-weight:600">خەرجی سەنتەر</span><?php endif; ?></td>
                         <td><strong style="color: #c62828;"><?= number_format($exp['amount']) ?></strong></td>
                     </tr>
                     <?php endforeach; ?>

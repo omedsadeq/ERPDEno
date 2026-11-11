@@ -41,7 +41,7 @@ class IncomeArchive
      * لێزان's, as the sheet does; «Other» is only لێزان's, as on the paper.
      */
     public const TEMPLATE_2025 = [
-        'head' => ['expenses' => 22856000, 'deductions' => 3500000, 'note' => 'لە پەڕەی ساڵی 2025 (مووچەی نورالدین و محمد لە لێبڕینی تر)'],
+        'head' => ['expenses' => 22856000, 'deductions' => 3500000, 'note' => 'راتب نورالدین و محمد'],
         'rows' => [
             ['match' => ['هێرش', 'هيرش'], 'label' => 'د.هێرش', 'amount' => 175192000, 'lab' => 11275000, 'store_normal' => 2147000, 'store_normal_doc' => 1073000,
              'store_implant' => 16677000, 'store_implant_doc' => 8338000, 'net' => 145093000, 'rate' => 80, 'doctor_share' => 116074000, 'center_share' => 29018000,
@@ -292,11 +292,16 @@ class IncomeArchive
         $db = Database::getInstance();
         $names = array_column($db->fetchAll("SELECT id, full_name FROM users WHERE role = 'doctor'"), 'full_name', 'id');
         $rows = [];
-        $expenses = 0.0;
+        $expenses = $deductions = 0.0;
+        $notes = [];
         $sort = [];
         foreach ($parts as $month => $f) {
             $data = self::month($month);
-            $expenses += ((float)($data['head']['expenses'] ?? 0) + (float)($data['head']['deductions'] ?? 0)) * $f;
+            $expenses += (float)($data['head']['expenses'] ?? 0) * $f;
+            $deductions += (float)($data['head']['deductions'] ?? 0) * $f;
+            if (trim((string)($data['head']['note'] ?? '')) !== '') {
+                $notes[trim((string)$data['head']['note'])] = true;
+            }
             foreach ($data['rows'] as $key => $r) {
                 $isDoctor = $r['kind'] === 'doctor';
                 $outKey = $key;
@@ -344,7 +349,10 @@ class IncomeArchive
         $center = array_sum(array_column($rows, 'centerShare'));
         return [
             'from' => $from, 'to' => $to, 'days' => (int)round((strtotime($to) - strtotime($from)) / 86400) + 1,
-            'rows' => $rows, 'totals' => [], 'expenses' => $expenses, 'centerAfter' => $center - $expenses,
+            'rows' => $rows, 'totals' => [], 'expenses' => $expenses,
+            // لێبڕینی تر with its note (the paper's «راتب نورالدین و محمد»), after خەرجی
+            'deductions' => $deductions, 'note' => implode('، ', array_keys($notes)),
+            'centerAfter' => $center - $expenses - $deductions,
             'archived' => array_keys($parts),
             // how many months it holds (a cut month counts for its share): its
             // monthly average is the sum over this, as the paper averages a year

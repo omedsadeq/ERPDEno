@@ -60,14 +60,15 @@ function income_compare_period(string $from, string $to): array
     }
     // The store percentages as set in the system (the store page's «ڕێژەی دکتۆرەکان»),
     // shown beside the doctor's own so the paper says which rule made each share.
-    foreach ($db->fetchAll("SELECT id, store_share_normal, store_share_implant FROM users WHERE role = 'doctor'") as $u) {
+    foreach ($db->fetchAll("SELECT id, store_share_normal, store_share_implant, implant_pool_share FROM users WHERE role = 'doctor'") as $u) {
         if (isset($byKey['d' . $u['id']])) {
-            $byKey['d' . $u['id']]['report']['storeRates'] = ['normal' => $u['store_share_normal'], 'implant' => $u['store_share_implant']];
+            $byKey['d' . $u['id']]['report']['storeRates'] = ['normal' => $u['store_share_normal'], 'implant' => $u['store_share_implant'], 'pool' => $u['implant_pool_share']];
         }
     }
     return [
         'from' => $from, 'to' => $to, 'days' => (int)round((strtotime($to) - strtotime($from)) / 86400) + 1,
-        'rows' => $byKey, 'totals' => $totals, 'expenses' => $expensesAll, 'centerAfter' => $centerAfterExpenses,
+        'rows' => $byKey, 'totals' => $totals, 'expenses' => $expensesAll, 'deductions' => 0.0, 'note' => '',
+        'centerAfter' => $centerAfterExpenses,
     ];
 }
 
@@ -135,10 +136,12 @@ body { font-family: nrt; direction: rtl; color: #0f172a; }
 .cr td.n { text-align: center; white-space: nowrap; }
 .cr td.c, .cr td.rt, .cr td.ch { text-align: center; white-space: nowrap; }
 .cr td.b { font-weight: bold; }
-.cr tr.dept td { background: #f1f5f9; }
+.cr tr.alt td { background: #e5e7eb; }
 .cr tr.tot td { background: #fde68a; font-weight: bold; }
 .cr tr.chg td { font-size: ' . $pt(6.4) . '; color: #334155; }
 .cr tr.end td { font-weight: bold; }
+.cr tr.end.y td { background: #fde68a; }
+.cr tr.end td.ch { font-size: ' . $pt(6.4) . '; }
 </style>';
     };
     $sizes = [1.0, 0.92, 0.85, 0.78, 0.72, 0.66, 0.6, 0.55, 0.5];
@@ -198,10 +201,12 @@ require_once __DIR__ . '/../includes/header.php';
 .cr td.b{font-weight:800}
 .cr td.rt{color:#6d28d9;font-size:11.5px}
 .cr td.ch{color:#0369a1;font-weight:700}
-.cr tr.dept td{background:#f8fafc}
+.cr tr.alt td{background:#eef1f5}
 .cr tr.tot td{background:#fef3c7;font-weight:800}
 .cr tr.chg td{background:#fffbeb;font-size:11.5px}
 .cr tr.end td{font-weight:800}
+.cr tr.end.y td{background:#fef3c7}
+.cr tr.end td.ch{font-size:11.5px}
 </style>
 
 <form method="get" class="cmp-bar">

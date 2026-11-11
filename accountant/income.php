@@ -116,6 +116,7 @@ body.inc-full-open{overflow:hidden}
 .inc-tbl th.imp{background:#ede9fe;color:#6d28d9;border-color:#c4b5fd}
 .inc-tbl td.nrm{color:#0f766e;background:#f7fefc;font-size:12px}
 .inc-tbl td.imp{color:#6d28d9;background:#fbfaff;font-size:12px}
+.inc-ip{display:block;font-size:10px;font-weight:700;color:#9f1239;direction:rtl;text-align:right}
 .inc-tbl td.doc{color:#5b21b6;background:#faf8ff}
 .inc-tbl td.ctr{color:#0f766e;font-weight:700;background:#f4fdfb}
 .inc-tbl td.ctr.neg{color:#dc2626}
@@ -252,7 +253,7 @@ body.inc-full-open{overflow:hidden}
                         <th<?= $rs ?>>#</th><th<?= $rs ?>>ناوەڕۆک</th><th<?= $rs ?>>ژمارە</th><th<?= $rs ?>>بڕی</th>
                         <?php foreach ($colSel as $k): ?><?php if ($k === 'store'): ?><th colspan="7" class="sto">خەرجی کۆگا</th><?php else: ?><th<?= $rs ?>><?= dsEsc($expenseKinds[$k]) ?></th><?php endif; ?><?php endforeach; ?>
                         <?php foreach ($incColumns as $c): ?><th class="cus"<?= $rs ?>><?= dsEsc($c['name']) ?></th><?php endforeach; ?>
-                        <th<?= $rs ?>>کۆی ماوە دوای خەرجی<small>بڕی − گشتی − تاقیگە − Implant</small></th>
+                        <th<?= $rs ?>>کۆی ماوە دوای خەرجی<small>بڕی − گشتی − تاقیگە − Implant (بە ڕێژەی دکتۆر)</small></th>
                         <th class="doc"<?= $rs ?>>پشکی دکتۆر<small>بە ڕێژەی خۆی − کۆگای ئاسایی</small></th>
                         <th class="ctr"<?= $rs ?>>پشکی سەنتەر<small>بۆ <?= htmlspecialchars(Branding::shortName()) ?></small></th>
                     </tr>
@@ -310,7 +311,7 @@ body.inc-full-open{overflow:hidden}
                         <?php endif; ?>
                         <?php if ($k === 'store'): ?>
                         <td class="n nrm"><?= incCell($r['storeNormal']) ?></td><td class="n nrm"><?= incCell($r['storeNormalDoc']) ?></td><td class="n nrm"><?= incCell($r['storeNormalCtr']) ?></td>
-                        <td class="n imp"><?= incCell($r['storeImplant']) ?></td><td class="n imp"><?= incCell($r['storeImplantDoc']) ?></td><td class="n imp"><?= incCell($r['storeImplantCtr']) ?></td>
+                        <td class="n imp"><?= incCell($r['storeImplant']) ?><?php if ($r['storeImplant'] > 0.5 && $r['implantPool'] < 100): ?><small class="inc-ip" title="ئەم ڕێژەیەی Implant پێش دابەشکردن لە کۆی ماوە کەم دەکرێتەوە؛ ئەوەی تر بەر لێزان دەکەوێت"><?= rtrim(rtrim(number_format($r['implantPool'], 2, '.', ''), '0'), '.') ?>٪ لە کۆی ماوە</small><?php endif; ?></td><td class="n imp"><?= incCell($r['storeImplantDoc']) ?></td><td class="n imp"><?= incCell($r['storeImplantCtr']) ?></td>
                         <?php endif; ?>
                         <?php endforeach; ?>
                         <?php foreach ($incColumns as $c): ?>

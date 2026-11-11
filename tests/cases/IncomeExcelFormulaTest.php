@@ -21,6 +21,8 @@ require_once __DIR__ . '/../../doctors/_daily_summary_lib.php';
     $t->assertEqualsMoney(round($net * 0.8), ds_doctor_share($net, 80, 0, 1925000, 1925000 * 0.8), 'ئاسایی at his own percentage: 80% of the net');
     // a column wholly on him is his alone
     $t->assertEqualsMoney(194329950 - 100000, ds_doctor_share($net - 100000, 80, 100000, 1925000, 481250), 'a column marked on him comes off him whole');
+    // a doctor whose implant comes off the pool by half: the other half is added back for the split (لێزان's)
+    $t->assertEqualsMoney(207358350, ds_doctor_share($net, 80, 0, 1925000 + 32571000 / 2, 481250), 'half the implant off the pool: 80% of 259,799,500 less the 481,250');
 
     // the same through ds_compute_range, at a tenth of the sheet (one invoice)
     $savedSession = $_SESSION;
@@ -48,5 +50,15 @@ require_once __DIR__ . '/../../doctors/_daily_summary_lib.php';
     $rows = array_column(ds_row_lists($ds)['money'], 1, 0);
     $t->assertSame('(192,500)', $rows['— ئاسایی: دکتۆر 48,125 · لێزان 144,375'] ?? null, 'the summary lists ئاسایی with its division');
     $t->assertSame('(3,257,100)', $rows['— Implant: دکتۆر 1,628,550 · لێزان 1,628,550 (زانیاری)'] ?? null, 'and Implant, for information');
+
+    // the same doctor at «Implant لە کۆی ماوە 50%»
+    $db->update('users', ['implant_pool_share' => 50], 'id = ?', [$doc]);
+    $ds = ds_compute_range($db, $doc, '2026-09-01', '2026-09-10', false);
+    $t->assertEqualsMoney(24158900, $ds['netAfterExpenses'], 'the net is the same: every cost comes off it');
+    $t->assertEqualsMoney(25979950, $ds['netBeforeNormal'], 'O: half the implant is back in the pool');
+    $t->assertEqualsMoney(20735835, $ds['doctorShare'], 'P: 80% of that less his ئاسایی part');
+    $t->assertEqualsMoney(3423065, $ds['centerShare'], 'Q: لێزان carries the other half of the implant');
+    $rows = array_column(ds_row_lists($ds)['money'], 1, 0);
+    $t->assertSame('(3,257,100)', $rows['— Implant: دکتۆر 1,628,550 · لێزان 1,628,550 (زانیاری) · 50٪ی لە کۆی ماوە'] ?? null, 'the summary says so');
     $_SESSION = $savedSession;
 })();

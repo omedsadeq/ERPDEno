@@ -179,7 +179,7 @@ function ds_compute(Database $db, int $docUserId, string $day): array
  */
 function ds_compute_range(Database $db, int $docUserId, string $from, string $to, bool $withPatients = true): array
 {
-    $docRow = $db->fetch("SELECT id, full_name, commission_rate, store_share_normal, store_share_implant FROM users WHERE id = :id", ['id' => $docUserId]);
+    $docRow = $db->fetch("SELECT id, full_name, commission_rate, store_share_normal, store_share_implant, implant_pool_share FROM users WHERE id = :id", ['id' => $docUserId]);
 
     // visits.* point at doctors.id, everything else at users.id — bridge here.
     $bridge = $db->fetch("SELECT id FROM doctors WHERE user_id = :uid LIMIT 1", ['uid' => $docUserId]);
@@ -360,9 +360,14 @@ function ds_compute_range(Database $db, int $docUserId, string $from, string $to
         $storeOnDoctor += $storeOnDoctorByKind[$kind];
     }
     $storeNormal = (float)($storeByKind['normal'] ?? 0);
+    // How much of the implant cost comes off before the split (Book1.xlsx):
+    // all of it for د.هێرش, half for some doctors — users.implant_pool_share,
+    // 100 until set. The rest is added back for the split, so لێزان carries it.
+    $implantPool = isset($docRow['implant_pool_share']) ? (float)$docRow['implant_pool_share'] : 100.0;
+    $implantBack = (float)($storeByKind['implant'] ?? 0) * (100 - $implantPool) / 100;
     // A column marked «هەمووی لەسەر دکتۆر» is wholly his.
     $doctorShare = $doctorRate !== null
-        ? ds_doctor_share($netAfterExpenses, $doctorRate, $columns['onDoctor'], $storeNormal, $storeOnDoctorByKind['normal'] ?? 0.0)
+        ? ds_doctor_share($netAfterExpenses, $doctorRate, $columns['onDoctor'], $storeNormal + $implantBack, $storeOnDoctorByKind['normal'] ?? 0.0)
         : null;
 
     // ── Patients sent to x-ray (statistics only) ─────────────────────
@@ -543,8 +548,11 @@ function ds_compute_range(Database $db, int $docUserId, string $from, string $to
         'columnCashOut'     => $columns['cashOut'],
         'cashIn'            => $cashIn,
         'netAfterExpenses'  => $netAfterExpenses,
-        // The sheet's «کۆی ماوە دوای خەرجی»: before the ئاسایی store, which is split by its own percentage
-        'netBeforeNormal'   => $netAfterExpenses + $storeNormal,
+        // The sheet's «کۆی ماوە دوای خەرجی»: before the ئاسایی store (split by its
+        // own percentage) and the part of the implant that is not his to split
+        'netBeforeNormal'   => $netAfterExpenses + $storeNormal + $implantBack,
+        'implantPoolShare'  => $implantPool,
+        'implantBack'       => $implantBack,
         'doctorRate'        => $doctorRate,
         'doctorShare'       => $doctorShare,
         'centerShare'       => $doctorShare !== null ? $netAfterExpenses - $doctorShare : null,
@@ -579,18 +587,21 @@ function ds_has_activity(array $ds): bool
 
 /**
  * The doctor's share of a net, the owner's way (Book1.xlsx):
- *   کۆی ماوە دوای خەرجی = بڕی − خەرجی گشتی − تاقیگە − Implant (− columns)
+ *   کۆی ماوە دوای خەرجی = بڕی − خەرجی گشتی − تاقیگە − Implant × his pool
+ *                         percentage (− columns)
  *   پشکی دکتۆر        = that × his percentage − his part of the ئاسایی store
  *   پشکی لێزان        = the rest of the net
- * $net is the net after EVERY expense (the ئاسایی store too); $storeNormal is
- * added back for the split and $storeNormalOnDoctor (by store_share_normal)
- * taken off his share after it. $whole is what is his alone (a column marked
- * so): added back for the split, taken off him whole. The centre's share is the
- * net less this. Used by ds_compute_range and the income sheet.
+ * $net is the net after EVERY expense (the whole store too); $backForSplit is
+ * what is added back for the split — the ئاسایی store, and the part of the
+ * implant that is not his to split (implant_pool_share) — and $offShare (his
+ * part of ئاسایی, by store_share_normal) is taken off his share after it.
+ * $whole is what is his alone (a column marked so): added back for the split,
+ * taken off him whole. The centre's share is the net less this. Used by
+ * ds_compute_range and the income sheet.
  */
-function ds_doctor_share(float $net, float $rate, float $whole, float $storeNormal, float $storeNormalOnDoctor): float
+function ds_doctor_share(float $net, float $rate, float $whole, float $backForSplit, float $offShare): float
 {
-    return round(($net + $whole + $storeNormal) * $rate / 100 - $storeNormalOnDoctor) - $whole;
+    return round(($net + $whole + $backForSplit) * $rate / 100 - $offShare) - $whole;
 }
 
 /**
@@ -628,8 +639,10 @@ function ds_row_lists(array $ds): array
         $amount = (float)($ds['storeByKind'][$kind] ?? 0);
         if ($amount > 0.5) {
             $onDoctor = (float)($ds['storeOnDoctorByKind'][$kind] ?? 0);
+            $pool = (float)($ds['implantPoolShare'] ?? 100);
             $money[] = ['— ' . $label . ': دکتۆر ' . dsMoney($onDoctor) . ' · لێزان ' . dsMoney($amount - $onDoctor)
-                . ($kind === 'implant' ? ' (زانیاری)' : ''), '(' . dsMoney($amount) . ')', ''];
+                . ($kind === 'implant' ? ' (زانیاری)' . ($pool < 100 ? ' · ' . rtrim(rtrim(number_format($pool, 2, '.', ''), '0'), '.') . '٪ی لە کۆی ماوە' : '') : ''),
+                '(' . dsMoney($amount) . ')', ''];
         }
     }
     if ($ds['generalExpense'] > 0.5) {

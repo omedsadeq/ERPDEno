@@ -16,11 +16,11 @@
 function income_compare_report_columns(bool $withChange): array
 {
     $cols = [
-        'name' => 'دکتۆر', 'amount' => 'داهات', 'lab' => 'تاقیگە',
+        'name' => 'دکتۆر', 'amount' => 'داهات', 'lab' => 'مختبر',
         'normal' => 'کۆگا', 'normalDoc' => 'کۆگا دکتۆر', 'normalCtr' => 'کۆگا لێزان',
-        'implant' => 'ئیمپلانت', 'implantDoc' => 'ئیمپلانت دکتۆر', 'implantCtr' => 'ئیمپلانت لێزان',
+        'implant' => 'implant', 'implantDoc' => 'دکتۆر imp', 'implantCtr' => 'لێزان imp',
         'net' => 'ماوە', 'rate' => 'دابەشکردن', 'doctor' => 'ماوەی دکتۆر', 'center' => 'ماوەی لێزان',
-        'change' => 'بەراورد', 'minutes' => 'سەعات', 'days' => 'ڕۆژ',
+        'change' => 'بەراوردی پار سال', 'minutes' => 'سعات', 'days' => 'ڕۆژ',
         'pending' => 'داواکراو', 'given' => 'پێدراو', 'old' => 'کۆن', 'new' => 'نوێ', 'cases' => 'کەیسی پێدراو',
     ];
     if (!$withChange) {
@@ -73,7 +73,7 @@ function income_compare_report(array $P, ?array $base, string $title, float $sca
         if ($v === null) {
             return '';
         }
-        return abs($v) < 0.5 ? ($doctorRow ? 'نەبوو' : '') : '<span dir="ltr">' . ($v < 0 ? '−' : '') . number_format(abs(round($v))) . '</span>';
+        return abs($v) < 0.5 ? ($doctorRow ? 'نیە' : '') : '<span dir="ltr">' . ($v < 0 ? '−' : '') . number_format(abs(round($v))) . '</span>';
     };
     $hours = fn($m) => $m === null ? '' : '<span dir="ltr">' . intdiv((int)round($m), 60) . ':' . str_pad((string)((int)round($m) % 60), 2, '0', STR_PAD_LEFT) . '</span>';
     $sumKeys = array_diff(array_keys($cols), ['name', 'rate', 'change']);
@@ -82,6 +82,9 @@ function income_compare_report(array $P, ?array $base, string $title, float $sca
     $baseTotals = array_fill_keys($sumKeys, 0.0);
     foreach ($base['rows'] ?? [] as $r) {
         foreach (income_compare_report_line($r, $baseScale) as $k => $v) {
+            if ($k === 'net' && $r['kind'] !== 'doctor') {
+                continue;
+            }
             $baseTotals[$k] += (float)$v;
         }
     }
@@ -95,17 +98,24 @@ function income_compare_report(array $P, ?array $base, string $title, float $sca
         $html .= '<th width="' . ($widths[$k] ?? 4) . '%">' . $e($label) . '</th>';
     }
     $html .= '</tr></thead><tbody>';
+    // The departments as the paper names them
+    $deptNames = ['pharmacy' => 'صیدلیە', 'xray' => 'x.ray', 'exam' => 'exam', 'other' => 'other'];
+    $i = 0;
     foreach ($P['rows'] as $key => $r) {
         $line = income_compare_report_line($r, $scale);
         $doctorRow = $r['kind'] === 'doctor';
-        $anyMinutes = ($anyMinutes ?? false) || ($line['minutes'] ?? null) !== null;
         foreach ($line as $k => $v) {
+            // a department's ماوە is not written on the paper (its money is all لێزان's)
+            if ($k === 'net' && !$doctorRow) {
+                continue;
+            }
             $totals[$k] += (float)$v;
         }
-        $html .= '<tr' . ($doctorRow ? '' : ' class="dept"') . '>';
+        // grey and white by turns, as on the paper
+        $html .= '<tr class="' . ($doctorRow ? '' : 'dept') . ($i++ % 2 ? ' alt' : '') . '">';
         foreach ($cols as $k => $label) {
             if ($k === 'name') {
-                $html .= '<td class="nm">' . $e($r['label']) . '</td>';
+                $html .= '<td class="nm">' . $e($deptNames[$r['kind']] ?? $r['label']) . '</td>';
             } elseif ($k === 'rate') {
                 $pct = fn($v) => rtrim(rtrim(number_format((float)$v, 2, '.', ''), '0'), '.') . '%';
                 $cell = $doctorRow && $r['rate'] !== null ? 'دکتۆر ' . $pct($r['rate']) : '';
@@ -114,6 +124,7 @@ function income_compare_report(array $P, ?array $base, string $title, float $sca
                 $parts = array_filter([
                     ($sr['normal'] ?? null) !== null ? 'کۆگا ' . $pct($sr['normal']) : null,
                     ($sr['implant'] ?? null) !== null ? 'ئیمپ ' . $pct($sr['implant']) : null,
+                    ($sr['pool'] ?? null) !== null && (float)$sr['pool'] < 100 ? 'ئیمپ لە ماوە ' . $pct($sr['pool']) : null,
                 ]);
                 $html .= '<td class="rt">' . $cell . ($cell !== '' && $parts ? '<br><small>' . implode(' · ', $parts) . '</small>' : '') . '</td>';
             } elseif ($k === 'change') {
@@ -125,22 +136,22 @@ function income_compare_report(array $P, ?array $base, string $title, float $sca
                 $v = $line[$k] ?? null;
                 $html .= '<td class="c">' . ($v === null ? '' : (abs($v) < 0.05 ? ($doctorRow ? 'نەبوو' : '') : rtrim(rtrim(number_format($v, 1), '0'), '.'))) . '</td>';
             } else {
-                $html .= '<td class="n' . (in_array($k, ['center', 'net'], true) ? ' b' : '') . '">' . $money($line[$k] ?? null, $doctorRow) . '</td>';
+                $html .= '<td class="n' . (in_array($k, ['center', 'net'], true) ? ' b' : '') . '">'
+                    . ($k === 'net' && !$doctorRow ? '' : $money($line[$k] ?? null, $doctorRow)) . '</td>';
             }
         }
         $html .= '</tr>';
     }
+    // کۆی گشتی: the money and the examinations; the paper adds up no hours or days.
     $html .= '</tbody><tfoot><tr class="tot">';
     foreach ($cols as $k => $label) {
         if ($k === 'name') {
             $html .= '<td class="nm">کۆی گشتی</td>';
-        } elseif ($k === 'rate') {
+        } elseif (in_array($k, ['rate', 'minutes', 'days'], true)) {
             $html .= '<td></td>';
         } elseif ($k === 'change') {
             $html .= '<td class="ch">' . income_compare_report_pct($baseTotals['center'], $totals['center']) . '</td>';
-        } elseif ($k === 'minutes') {
-            $html .= '<td class="n">' . $hours(!empty($anyMinutes) ? $totals['minutes'] : null) . '</td>';
-        } elseif (in_array($k, ['days', 'pending', 'given', 'old', 'new', 'cases'], true)) {
+        } elseif (in_array($k, ['pending', 'given', 'old', 'new', 'cases'], true)) {
             $html .= '<td class="c">' . rtrim(rtrim(number_format($totals[$k], 1), '0'), '.') . '</td>';
         } else {
             $html .= '<td class="n">' . $money($totals[$k], false) . '</td>';
@@ -150,18 +161,42 @@ function income_compare_report(array $P, ?array $base, string $title, float $sca
     if ($base !== null) {
         $html .= '<tr class="chg">';
         foreach ($cols as $k => $label) {
-            $html .= in_array($k, $sumKeys, true)
+            $html .= in_array($k, $sumKeys, true) && !in_array($k, ['minutes', 'days'], true)
                 ? '<td class="ch">' . income_compare_report_pct($baseTotals[$k], $totals[$k]) . '</td>'
                 : '<td>' . ($k === 'name' ? 'گۆڕان' : '') . '</td>';
         }
         $html .= '</tr>';
     }
-    // The bottom of the paper: what the centre spent, and what it keeps.
-    $span = count($cols) - 2;
-    foreach ([['خەرجی', $P['expenses'] * $scale, $base ? $base['expenses'] * $baseScale : null],
-              ['ماوە', $P['centerAfter'] * $scale, $base ? $base['centerAfter'] * $baseScale : null]] as [$name, $v, $was]) {
-        $html .= '<tr class="end"><td class="nm">' . $e($name) . '</td><td class="n b">' . $money($v, false) . '</td>'
-            . '<td class="ch">' . ($was === null ? '' : income_compare_report_pct($was, $v)) . '</td><td colspan="' . ($span - 1) . '"></td></tr>';
+    // The bottom of the paper, under ماوەی لێزان: خەرجی, then ماوە (what the
+    // centre keeps, yellow); a deduction with its note beside it, and what is
+    // left after it (yellow). The change against the other period sits where
+    // the paper writes its «بەراوردی پار سال».
+    $exp = $P['expenses'] * $scale;
+    $ded = (float)($P['deductions'] ?? 0) * $scale;
+    $keep = $totals['center'] - $exp;
+    $baseExp = $base ? $base['expenses'] * $baseScale : null;
+    $baseDed = $base ? (float)($base['deductions'] ?? 0) * $baseScale : 0.0;
+    $baseKeep = $base ? $baseTotals['center'] - $baseExp : null;
+    $bottom = [['خەرجی', $exp, $baseExp, '', false], ['ماوە', $keep, $baseKeep, '', true]];
+    if (abs($ded) >= 0.5 || abs($baseDed) >= 0.5) {
+        $bottom[] = ['', -$ded, null, (string)($P['note'] ?? ''), false];
+        $bottom[] = ['', $keep - $ded, $baseKeep === null ? null : $baseKeep - $baseDed, '', true];
+    }
+    $noteCol = isset($cols['change']) ? 'change' : 'minutes';
+    foreach ($bottom as [$name, $v, $was, $note, $yellow]) {
+        $html .= '<tr class="end' . ($yellow ? ' y' : '') . '">';
+        foreach ($cols as $k => $label) {
+            if ($k === 'name') {
+                $html .= '<td class="nm">' . $e($name) . '</td>';
+            } elseif ($k === 'center') {
+                $html .= '<td class="n b">' . $money($v, false) . '</td>';
+            } elseif ($k === $noteCol) {
+                $html .= '<td class="ch">' . ($note !== '' ? $e($note) : ($was === null ? '' : income_compare_report_pct($was, $v))) . '</td>';
+            } else {
+                $html .= '<td></td>';
+            }
+        }
+        $html .= '</tr>';
     }
     return $html . '</tfoot></table>';
 }

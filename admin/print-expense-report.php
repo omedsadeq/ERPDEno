@@ -356,7 +356,8 @@ if (!empty($allExpenses)) {
             <td><span class="type-badge ' . $typeClass . '">' . $exp['type_label'] . '</span></td>
             <td>' . htmlspecialchars(expense_group_label($exp)) . '</td>
             <td style="text-align: right;">' . htmlspecialchars($exp['description']) . '</td>
-            <td>' . (!empty($exp['doctor_name']) ? htmlspecialchars($exp['doctor_name']) : '<span style="color:#0f766e;">خەرجی سەنتەر</span>') . '</td>
+            <td>' . (!empty($exp['doctor_name']) ? htmlspecialchars($exp['doctor_name'])
+                : (($exp['dept'] ?? null) === 'xray' ? '<span style="color:#0369a1;">X-ray</span>' : '<span style="color:#0f766e;">خەرجی سەنتەر</span>')) . '</td>
             <td style="text-align: right; font-weight: bold;">' . number_format($exp['amount']) . '</td>
         </tr>';
     }

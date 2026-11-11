@@ -157,6 +157,9 @@ foreach ($db->fetchAll(
         'storeNormalDoc' => (float)($ds['storeOnDoctorByKind']['normal'] ?? 0),
         'storeImplant' => (float)($ds['storeByKind']['implant'] ?? 0),
         'storeImplantDoc' => (float)($ds['storeOnDoctorByKind']['implant'] ?? 0),
+        // the part of the implant not taken off before his split (implant_pool_share < 100)
+        'implantBack' => (float)($ds['implantBack'] ?? 0),
+        'implantPool' => (float)($ds['implantPoolShare'] ?? 100),
         // What the comparison report (accountant/income-compare.php) shows beside the money.
         'report' => ['storeByKind' => $ds['storeByKind'], 'storeOnDoctorByKind' => $ds['storeOnDoctorByKind'],
                      'minutes' => $ds['attendanceMinutes'], 'days' => $ds['attendedDay'], 'checkups' => $ds['checkupBreakdown']],
@@ -170,7 +173,7 @@ foreach ($db->fetchAll(
 }
 
 if (in_array('general', $expSel, true) && array_sum(array_column($doctorRows, 'general')) > 0) {
-    // first, as on the owner's sheet: گشتی · تاقیگە · کۆگا
+    // first, as on the owner's sheet: گشتی · تاقیگە · کۆگا (the X-ray row may add it below)
     array_unshift($colSel, 'general');
 }
 
@@ -181,11 +184,20 @@ $xrayLines = xray_income_lines($db, $from, $to);
 $xrayTypes = xray_income_totals($xrayLines);
 // کۆڵۆمی تایبەت on this row (a cost of the x-ray's own), off its net
 $xrayCols = IncomeColumn::forRow($db, 'xray', $from, $to);
+// A general expense written on the X-ray department (admin/expenses-general.php,
+// dept = 'xray') comes off this row, not off the centre's خەرجیات below.
+$xrayGeneral = (float)($db->fetch(
+    "SELECT COALESCE(SUM(amount), 0) AS t FROM expenses_general WHERE dept = 'xray' AND expense_date BETWEEN :f AND :t",
+    ['f' => $from, 't' => $to]
+)['t'] ?? 0);
 $deptRows = [['kind' => 'xray', 'label' => 'X-ray',
               'count' => array_sum(array_column($xrayTypes, 'count')),
               'amount' => array_sum(array_column($xrayTypes, 'amount')),
-              'lab' => 0.0, 'store' => 0.0, 'general' => 0.0,
+              'lab' => 0.0, 'store' => 0.0, 'general' => $xrayGeneral,
               'cols' => $xrayCols['cols'], 'colTotal' => $xrayCols['total']]];
+if (in_array('general', $expSel, true) && $xrayGeneral > 0 && !in_array('general', $colSel, true)) {
+    array_unshift($colSel, 'general');
+}
 
 // ── Pharmacy: what the pharmacy (erp2) SOLD ──────────────────────────
 // Every confirmed sale on its sale date, whether paid in cash or on credit —
@@ -255,16 +267,17 @@ foreach ($rows as &$r) {
     }
     $r['rate'] = $r['rate'] ?? null;
     $storeOn = in_array('store', $colSel, true) && $r['kind'] === 'doctor';
-    foreach (['storeNormal', 'storeNormalDoc', 'storeImplant', 'storeImplantDoc'] as $k) {
+    foreach (['storeNormal', 'storeNormalDoc', 'storeImplant', 'storeImplantDoc', 'implantBack'] as $k) {
         $r[$k] = $storeOn ? (float)($r[$k] ?? 0) : 0.0;
     }
+    $r['implantPool'] = (float)($r['implantPool'] ?? 100);
     $r['storeNormalCtr'] = $r['storeNormal'] - $r['storeNormalDoc'];
     $r['storeImplantCtr'] = $r['storeImplant'] - $r['storeImplantDoc'];
-    $r['pool'] = $r['net'] + $r['storeNormal'];
+    $r['pool'] = $r['net'] + $r['storeNormal'] + $r['implantBack'];
     // A column marked «هەمووی لەسەر دکتۆر» comes off his share, not off the net
     // the percentage is of: the rule of ds_compute_range.
     $r['doctorShare'] = $r['rate'] !== null
-        ? ds_doctor_share($r['net'], $r['rate'], $r['colOnDoctor'] ?? 0.0, $r['storeNormal'], $r['storeNormalDoc'])
+        ? ds_doctor_share($r['net'], $r['rate'], $r['colOnDoctor'] ?? 0.0, $r['storeNormal'] + $r['implantBack'], $r['storeNormalDoc'])
         : 0.0;
     $r['centerShare'] = $r['net'] - $r['doctorShare'];
     if ($r['kind'] === 'doctor' && $r['rate'] === null && abs($r['net']) >= 0.5) {
@@ -328,7 +341,7 @@ $expenseLines = [];   // label => amount, shown under خەرجیات
 if (in_array('general', $expSel, true)) {
     $centreGeneral = $legacyGeneral + (float)($db->fetch(
         "SELECT COALESCE(SUM(amount), 0) AS t FROM expenses_general
-         WHERE doctor_id IS NULL AND expense_date BETWEEN :f AND :t",
+         WHERE doctor_id IS NULL AND dept IS NULL AND expense_date BETWEEN :f AND :t",
         ['f' => $from, 't' => $to]
     )['t'] ?? 0);
     $expenseLines['گشتی سەنتەر (بێ دکتۆر)'] = $centreGeneral;

@@ -9,7 +9,8 @@
  *   expense_type         all | general | lab | store
  *   category             "kind:id" — a group of any kind (a bare id with a type, as before)
  *   subgroup             a sub-group («لق») id: names its group and kind too
- *   doctor               '' all | 'none' «خەرجی سەنتەر» (written on no doctor) | a doctor's id
+ *   doctor               '' all | 'none' «خەرجی سەنتەر» (written on no doctor) | 'xray' the X-ray
+ *                        department's general expenses | a doctor's id
  * A group or sub-group narrows the report to its own kind, whatever the type.
  */
 require_once __DIR__ . '/expense-subgroup.php';
@@ -45,7 +46,7 @@ function exp_report_filters(array $in): array
         $f['type'] = $f['cat_kind'];
     }
     $doc = (string)($in['doctor'] ?? '');
-    $f['doctor'] = $doc === 'none' || ctype_digit($doc) ? $doc : '';
+    $f['doctor'] = $doc === 'none' || $doc === 'xray' || ctype_digit($doc) ? $doc : '';
     return $f;
 }
 
@@ -73,7 +74,10 @@ function exp_report_where(string $kind, array $f, bool $withType = true): ?array
         $p['sub'] = $f['sub'];
     }
     if ($f['doctor'] === 'none') {
-        $w .= ' AND e.doctor_id IS NULL';
+        $w .= ' AND e.doctor_id IS NULL' . ($kind === 'general' ? ' AND e.dept IS NULL' : '');
+    } elseif ($f['doctor'] === 'xray') {
+        // only a general expense can be the department's
+        $w .= $kind === 'general' ? " AND e.dept = 'xray'" : ' AND 0';
     } elseif ($f['doctor'] !== '') {
         $w .= ' AND e.doctor_id = :doc';
         $p['doc'] = (int)$f['doctor'];
@@ -94,7 +98,7 @@ function exp_report_list(array $f, bool $newestFirst = true): array
         $patient = $kind === 'lab' ? ', p.full_name AS patient_name' : '';
         $patientJoin = $kind === 'lab' ? ' LEFT JOIN patients p ON e.patient_id = p.id' : '';
         $out = array_merge($out, $db->fetchAll(
-            "SELECT e.*, '$kind' AS expense_type, '$label' AS type_label,
+            "SELECT e.*, '$kind' AS expense_type, '$label' AS type_label, " . ($kind === 'general' ? 'e.dept' : 'NULL') . " AS dept,
                     ec.category_name, s.name AS subgroup_name, u.full_name AS created_by_name, d.full_name AS doctor_name$patient
              FROM " . EXPENSE_SUBGROUP_TABLES[$kind] . " e
              LEFT JOIN " . EXP_REPORT_CATEGORY_TABLES[$kind] . " ec ON e.category_id = ec.id
@@ -170,6 +174,8 @@ function exp_report_labels(array $f): array
     $doctor = 'هەموو دکتۆرەکان';
     if ($f['doctor'] === 'none') {
         $doctor = 'خەرجی سەنتەر (بێ دکتۆر)';
+    } elseif ($f['doctor'] === 'xray') {
+        $doctor = 'X-ray (بەشی ئێکسڕەی)';
     } elseif ($f['doctor'] !== '') {
         $doctor = (string)($db->fetch('SELECT full_name FROM users WHERE id = ?', [(int)$f['doctor']])['full_name'] ?? '—');
     }

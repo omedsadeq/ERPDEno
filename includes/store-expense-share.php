@@ -42,7 +42,7 @@ function store_share_split(float $amount, ?float $rate): array {
 /** Who can carry a share: the same people the page offers as an expense's doctor. */
 function store_share_doctors(): array {
     return Database::getInstance()->fetchAll(
-        "SELECT id, full_name, store_share_normal, store_share_implant
+        "SELECT id, full_name, store_share_normal, store_share_implant, implant_pool_share
          FROM users WHERE role IN ('doctor', 'admin') AND is_active = 1 ORDER BY full_name"
     );
 }
@@ -55,10 +55,12 @@ function store_share_save(array $posted, int $userId): void {
         $new = [
             'store_share_normal'  => store_share_clean($posted[$id]['normal'] ?? ''),
             'store_share_implant' => store_share_clean($posted[$id]['implant'] ?? ''),
+            'implant_pool_share'  => store_share_clean($posted[$id]['pool'] ?? ''),
         ];
         $old = [
             'store_share_normal'  => store_share_clean($doctor['store_share_normal']),
             'store_share_implant' => store_share_clean($doctor['store_share_implant']),
+            'implant_pool_share'  => store_share_clean($doctor['implant_pool_share'] ?? null),
         ];
         if ($new !== $old) {
             $db->update('users', $new, 'id = :id', ['id' => $id]);
@@ -257,16 +259,18 @@ button.ss-rate-missing { cursor: pointer; }
             <input type="hidden" name="action" value="store_shares">
             <div class="exp-dialog-body">
                 <p class="ss-dialog-note">ئەو ڕێژەیەی خەرجی کۆگا کە دەکەوێتە سەر دکتۆر، ئەوەی تر بەر لێزان دەکەوێت. جیایە لە ڕێژەی داهاتی دکتۆر.
-                    ڕێژەی ئاسایی لە پشکی دکتۆر کەم دەکرێتەوە؛ ڕێژەی ئیمپلانت تەنها بۆ زانیارییە — لە حیساب هەموو Implant پێش دابەشکردن کەم دەکرێتەوە (وەک پەڕەی خاوەن).</p>
+                    ڕێژەی ئاسایی لە پشکی دکتۆر کەم دەکرێتەوە؛ ڕێژەی ئیمپلانت تەنها بۆ زانیارییە.
+                    «Implant لە کۆی ماوە ٪»: چەند لە Implant پێش دابەشکردن لە کۆی ماوە دوای خەرجی کەم دەکرێتەوە (وەک پەڕەی خاوەن: د.هێرش ١٠٠٪، هەندێک دکتۆر ٥٠٪) — ئەوەی تر بەر لێزان دەکەوێت. بەتاڵ = ١٠٠٪.</p>
                 <table class="ss-rates no-responsive">
-                    <thead><tr><th>دکتۆر</th><th>ئاسایی ٪</th><th>ئیمپلانت ٪</th></tr></thead>
+                    <thead><tr><th>دکتۆر</th><th>ئاسایی ٪</th><th>ئیمپلانت ٪</th><th>Implant لە کۆی ماوە ٪</th></tr></thead>
                     <tbody>
                         <?php foreach (store_share_doctors() as $doctor): $id = (int)$doctor['id']; ?>
                         <tr>
                             <td><?= $e($doctor['full_name']) ?></td>
                             <?php foreach (array_keys(STORE_SHARE_KINDS) as $kind): $rate = store_share_clean($doctor["store_share_$kind"]); ?>
                             <td style="text-align: center;"><input type="number" name="share[<?= $id ?>][<?= $kind ?>]" min="0" max="100" step="0.01" value="<?= $rate === null ? '' : $e($rate) ?>" aria-label="<?= $e($doctor['full_name'] . ' — ' . STORE_SHARE_KINDS[$kind]) ?>"></td>
-                            <?php endforeach; ?>
+                            <?php endforeach; $pool = store_share_clean($doctor['implant_pool_share'] ?? null); ?>
+                            <td style="text-align: center;"><input type="number" name="share[<?= $id ?>][pool]" min="0" max="100" step="0.01" value="<?= $pool === null ? '' : $e($pool) ?>" placeholder="100" aria-label="<?= $e($doctor['full_name']) ?> — Implant لە کۆی ماوە"></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>

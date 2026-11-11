@@ -130,7 +130,9 @@ foreach ($rows as $i => $r) {
         . '<td class="c"' . $grp . '>' . ($r['count'] ? dsMoney($r['count']) : '') . '</td>'
         . '<td class="n"' . $grp . '>' . $money($r['amount']) . '</td>'
         . implode('', array_map(fn($k) => '<td class="n"' . $grp . '>' . $money($r[$k]) . '</td>'
-            . ($k === 'store' ? implode('', array_map(fn($f) => '<td class="n sm"' . $grp . '>' . $money($r[$f]) . '</td>',
+            . ($k === 'store' ? implode('', array_map(fn($f) => '<td class="n sm"' . $grp . '>' . $money($r[$f])
+                    . ($f === 'storeImplant' && $r[$f] > 0.5 && ($r['implantPool'] ?? 100) < 100
+                        ? '<br><span class="rt">' . rtrim(rtrim(number_format($r['implantPool'], 2, '.', ''), '0'), '.') . '% لە کۆی ماوە</span>' : '') . '</td>',
                 ['storeNormal', 'storeNormalDoc', 'storeNormalCtr', 'storeImplant', 'storeImplantDoc', 'storeImplantCtr'])) : ''), $colSel))
         . implode('', array_map(fn($c) => '<td class="n"' . $grp . '>' . $money($r['cols'][$c['id']] ?? 0.0) . '</td>', $pdfColumns))
         . '<td class="n"' . $grp . '>' . $money($r['pool']) . '</td>'
