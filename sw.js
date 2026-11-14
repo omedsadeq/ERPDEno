@@ -15,7 +15,7 @@
  * new worker takes over immediately, so users never keep broken cached files.
  */
 
-const CACHE_VERSION = 'denthisab-v8'; // v8: the closed side menu (style.css)
+const CACHE_VERSION = 'denthisab-v9'; // v9: the printed expense reports (print-report.css)
 const STATIC_CACHE = CACHE_VERSION + '-static';
 const OFFLINE_URL = 'offline.html'; // relative to SW scope
 

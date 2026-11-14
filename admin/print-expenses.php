@@ -1,14 +1,19 @@
 <?php
 /**
- * Print Expenses Report (PDF) using InvoicePdfService
- * سیستەمی زیرەکی کلینیکی ددان
+ * خەرجی گشتی / تاقیگە / کۆگا — one kind's list, printed through the browser's
+ * own print dialog (cleaner type than mPDF), with the filters of the page it
+ * was opened from (admin/expenses-general.php, -lab.php, -inventory.php).
+ *
+ * A long list runs over as many pages as it needs: the column heads repeat on
+ * each page, a line never splits, and every page carries the report's name,
+ * who printed it and «لاپەڕە n / m». Shares assets/css/print-report.css with
+ * admin/print-expense-report.php.
  */
 
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Database.php';
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../includes/expense-subgroup.php';
-require_once __DIR__ . '/../services/InvoicePdfService.php';
 
 // Check authentication
 $auth = new Auth();
@@ -132,221 +137,106 @@ usort($stats, fn($a, $b) => $b['total'] <=> $a['total']);
 $totalExpenses = array_sum(array_column($expenses, 'amount'));
 $totalCount = count($expenses);
 
-// Initialize InvoicePdfService (uses global PDF settings for header/footer)
-$pdfService = new InvoicePdfService();
-$pdfService->setTitle($reportTitle);
-$pdfService->setAuthor($currentUser['full_name']);
-
-// Build HTML content
-$html = '
+// Print-page bits
+require __DIR__ . '/../includes/clinic_branding.php';
+$kindColor = ['general' => '#15803d', 'lab' => '#7e22ce', 'inventory' => '#c2410c'][$type] ?? '#0369a1';
+$isLab = $type === 'lab';
+$e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+$iso = fn(string $d) => "\u{2066}" . $d . "\u{2069}";
+$periodText = $dateFrom === $dateTo ? $iso($dateFrom) : $iso($dateFrom) . ' بۆ ' . $iso($dateTo);
+$printedBy = 'چاپکراوە لەلایەن ' . ($currentUser['full_name'] ?? '') . ' — ' . date('Y-m-d H:i');
+$cssStr = fn(string $s) => '"' . str_replace(['\\', '"', "\n"], ['\\\\', '\\"', ' '], $s) . '"';
+$colCount = $isLab ? 7 : 6;
+$backPage = ['general' => 'expenses-general', 'lab' => 'expenses-lab', 'inventory' => 'expenses-inventory'][$type] ?? 'expenses-general';
+$backQs = $_GET;
+unset($backQs['type'], $backQs['autoprint']);
+?>
 <!DOCTYPE html>
-<html dir="rtl">
+<html lang="ku" dir="rtl">
 <head>
-    <style>
-        body {
-            font-family: nrt, sans-serif;
-            direction: rtl;
-            font-size: 10pt;
-        }
-        h2 {
-            color: ' . Branding::primaryColor() . ';
-            border-bottom: 1px solid ' . Branding::primaryColor() . ';
-            padding-bottom: 4px;
-            margin-top: 10px;
-            margin-bottom: 6px;
-        }
-        .expenses-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 8px;
-        }
-        .expenses-table th {
-            background: ' . Branding::primaryColor() . ';
-            color: white;
-            padding: 4px 3px;
-            text-align: center;
-            font-weight: bold;
-        }
-        .expenses-table td {
-            border: 1px solid #ddd;
-            padding: 3px 4px;
-            text-align: center;
-        }
-        .expenses-table tr:nth-child(even) {
-            background: #f9f9f9;
-        }
-        .totals-section {
-            margin-top: 8px;
-            background: #f5f5f5;
-            padding: 6px;
-        }
-        .totals-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .totals-table td {
-            padding: 4px 6px;
-        }
-        .totals-table td:first-child {
-            font-weight: bold;
-            width: 70%;
-            text-align: right;
-        }
-        .totals-table td:last-child {
-            text-align: left;
-            font-weight: bold;
-        }
-        .totals-table .grand-total {
-            background: ' . Branding::primaryColor() . ';
-            color: white;
-        }
-        .summary-box {
-            background: #f0f8ff;
-            border: 1px solid ' . Branding::primaryColor() . ';
-            padding: 4px;
-            margin-bottom: 6px;
-        }
-        .summary-item {
-            padding: 3px 4px;
-            border-bottom: 1px solid #ddd;
-            display: table;
-            width: 100%;
-        }
-        .summary-item:last-child {
-            border-bottom: none;
-        }
-        .summary-label {
-            display: table-cell;
-            width: 60%;
-            font-weight: bold;
-            color: #333;
-        }
-        .summary-value {
-            display: table-cell;
-            width: 40%;
-            text-align: left;
-            color: ' . Branding::primaryColor() . ';
-            font-weight: bold;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><?= $e($reportTitle . ' — ' . $dateFrom . ($dateFrom === $dateTo ? '' : ' / ' . $dateTo)) ?></title>
+<link rel="stylesheet" href="<?= APP_URL ?>/assets/css/fonts.css">
+<link rel="stylesheet" href="<?= APP_URL ?>/assets/css/print-report.css">
+<style>
+@page {
+    size: A4 portrait;
+    margin: 8mm 8mm 11mm;
+    @top-right { content: <?= $cssStr($reportTitle . ' · ' . $periodText) ?>; font-family: 'NRT', Tahoma, sans-serif; font-size: 7.5pt; color: #94a3b8; direction: rtl; }
+    @bottom-right { content: <?= $cssStr($printedBy) ?>; font-family: 'NRT', Tahoma, sans-serif; font-size: 7pt; color: #64748b; direction: rtl; }
+    @bottom-left { content: "لاپەڕە " counter(page) " / " counter(pages); font-family: 'NRT', Tahoma, sans-serif; font-size: 7.5pt; color: #64748b; }
+}
+/* the first page has the title itself */
+@page :first { @top-right { content: none; } }
+:root { --acc: <?= $e($kindColor) ?>; }
+.lt td.desc { min-width: 40mm; }
+</style>
 </head>
 <body>
-    <!-- Info Boxes Section -->
-    <table width="100%" style="margin-bottom: 6px; border-collapse: collapse;">
+
+<div class="bar">
+    <button type="button" onclick="window.print()">🖨 چاپکردن</button>
+    <a href="<?= $e(APP_URL . '/admin/' . $backPage . '.php' . ($backQs ? '?' . http_build_query($backQs) : '')) ?>">گەڕانەوە</a>
+</div>
+
+<div class="sheet">
+
+    <div class="top">
+        <div class="t"><?= $e($reportTitle) ?></div>
+        <div class="d"><?php if ($dateFrom === $dateTo): ?><bdi><?= $e($dateFrom) ?></bdi><?php else: ?><bdi><?= $e($dateFrom) ?></bdi> بۆ <bdi><?= $e($dateTo) ?></bdi><?php endif; ?></div>
+        <div class="x"><?= $e($clinicNameEn ?: $clinicName) ?></div>
+    </div>
+
+    <h2>لیستی خەرجییەکان <small><?= number_format($totalCount) ?> تۆمار · <?= number_format($totalExpenses) ?></small></h2>
+    <?php if (!$expenses): ?>
+    <div class="empty">هیچ خەرجییەک لەم ماوەیەدا نییە</div>
+    <?php else: ?>
+    <table class="lt">
+        <thead><tr><th>#</th><th>بەروار</th><th>گرووپ</th><th>وەسف</th><?php if ($isLab): ?><th>نەخۆش</th><?php endif; ?><th>فرۆشیار</th><th class="n">بڕ</th></tr></thead>
+        <tbody>
+        <?php $i = 0; foreach ($expenses as $x): $i++; ?>
         <tr>
-            <td width="50%" style="padding: 1px;">
-                <table width="100%" style="border: 1px solid ' . Branding::primaryColor() . '; background: #f0f8ff;">
-                    <tr>
-                        <td style="padding: 2px 4px; font-weight: bold; text-align: right; border-bottom: 1px solid #ccc;">جۆری ڕاپۆرت :</td>
-                        <td style="padding: 2px 4px; background: white; border-bottom: 1px solid #ccc; font-weight: bold; color: ' . Branding::primaryColor() . ';">' . $reportTitle . '</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 2px 4px; font-weight: bold; text-align: right; border-bottom: 1px solid #ccc;">لە بەروار :</td>
-                        <td style="padding: 2px 4px; background: white; border-bottom: 1px solid #ccc;">' . $dateFrom . '</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 2px 4px; font-weight: bold; text-align: right;">بۆ بەروار :</td>
-                        <td style="padding: 2px 4px; background: white;">' . $dateTo . '</td>
-                    </tr>
-                </table>
-            </td>
-            <td width="50%" style="padding: 1px;">
-                <table width="100%" style="border: 1px solid ' . Branding::primaryColor() . '; background: #f0f8ff;">
-                    <tr>
-                        <td style="padding: 2px 4px; font-weight: bold; text-align: right; border-bottom: 1px solid #ccc;">بەرواری چاپکردن :</td>
-                        <td style="padding: 2px 4px; background: white; border-bottom: 1px solid #ccc;">' . date('Y-m-d H:i') . '</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 2px 4px; font-weight: bold; text-align: right; border-bottom: 1px solid #ccc;">چاپکراوە لەلایەن :</td>
-                        <td style="padding: 2px 4px; background: white; border-bottom: 1px solid #ccc;">' . htmlspecialchars($currentUser['full_name']) . '</td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 2px 4px; font-weight: bold; text-align: right;">ژمارەی تۆماکان :</td>
-                        <td style="padding: 2px 4px; background: white; font-weight: bold; color: ' . Branding::primaryColor() . ';">' . $totalCount . '</td>
-                    </tr>
-                </table>
-            </td>
+            <td class="num"><?= $i ?></td>
+            <td class="date"><?= $e($x['expense_date']) ?></td>
+            <td><?= $e(expense_group_label($x)) ?></td>
+            <td class="desc"><?= $e($x['description'] ?? '') ?></td>
+            <?php if ($isLab): ?><td><?= $e(!empty($x['patient_name']) ? $x['patient_name'] : '-') ?></td><?php endif; ?>
+            <td class="vendor"><?= $e($x['vendor'] ?? $x['supplier'] ?? $x['lab_name'] ?? '-') ?></td>
+            <td class="n amount"><?= number_format((float)$x['amount']) ?></td>
         </tr>
-    </table>
-
-    <table class="expenses-table">
-        <thead>
-            <tr>
-                <th style="width: 20px;">#</th>
-                <th style="width: 60px;">بەروار</th>
-                <th style="width: 80px;">گرووپ</th>
-                <th>وەسف</th>';
-
-if ($type === 'lab') {
-    $html .= '<th style="width: 80px;">نەخۆش</th>';
-}
-
-$html .= '
-                <th style="width: 70px;">فرۆشیار</th>
-                <th style="width: 60px;">بڕ</th>
-            </tr>
-        </thead>
-        <tbody>';
-
-$counter = 1;
-foreach ($expenses as $exp) {
-    $html .= '<tr>
-                <td>' . $counter++ . '</td>
-                <td>' . $exp['expense_date'] . '</td>
-                <td>' . htmlspecialchars(expense_group_label($exp)) . '</td>
-                <td style="text-align: right;">' . htmlspecialchars($exp['description']) . '</td>';
-
-    if ($type === 'lab') {
-        $patientInfo = !empty($exp['patient_name']) ? htmlspecialchars($exp['patient_name']) : '-';
-        $html .= '<td>' . $patientInfo . '</td>';
-    }
-
-    $html .= '<td>' . htmlspecialchars($exp['vendor'] ?? $exp['supplier'] ?? '-') . '</td>
-                <td style="text-align: right; font-weight: bold;">' . number_format($exp['amount']) . '</td>
-            </tr>';
-}
-
-$html .= '
+        <?php endforeach; ?>
+        <!-- the total as the last row (a tfoot would repeat on every page) -->
+        <tr class="tot"><td colspan="<?= $colCount - 1 ?>">کۆی گشتی</td><td class="n"><?= number_format($totalExpenses) ?></td></tr>
         </tbody>
-    </table>';
+    </table>
+    <?php endif; ?>
 
-// Totals section
-$html .= '
-    <div class="totals-section">
-        <table class="totals-table">
-            <tr class="grand-total">
-                <td>کۆی گشتی:</td>
-                <td>' . number_format($totalExpenses) . '</td>
-            </tr>
-        </table>
-    </div>';
+    <?php if ($stats): ?>
+    <!-- the totals, as a plain table under the list -->
+    <h3 class="ct-h">پوختە بەپێی گرووپ</h3>
+    <table class="ct">
+        <thead><tr><th>گرووپ</th><th class="c">ژمارە</th><th class="c">ڕێژە</th><th class="n">کۆ</th></tr></thead>
+        <tbody>
+        <?php foreach ($stats as $st): ?>
+        <tr>
+            <td><?= $e($st['category_name'] ?? 'بێ گرووپ') ?></td>
+            <td class="c"><?= (int)$st['count'] ?></td>
+            <td class="c"><?= $totalExpenses > 0 ? round($st['total'] / $totalExpenses * 100, 1) : 0 ?>%</td>
+            <td class="n"><?= number_format($st['total']) ?></td>
+        </tr>
+        <?php if (array_keys($st['subs']) !== ['بێ لق']): arsort($st['subs']); foreach ($st['subs'] as $subName => $subTotal): ?>
+        <tr class="sub"><td><?= $e($subName) ?></td><td class="c"></td><td class="c"></td><td class="n"><?= number_format($subTotal) ?></td></tr>
+        <?php endforeach; endif; ?>
+        <?php endforeach; ?>
+        <tr class="tot"><td>کۆی گشتی</td><td class="c"><?= number_format($totalCount) ?></td><td class="c">100%</td><td class="n"><?= number_format($totalExpenses) ?></td></tr>
+        </tbody>
+    </table>
+    <?php endif; ?>
 
-// Add summary section by category
-if (!empty($stats)) {
-    $html .= '<h2>پوختە بەپێی گرووپ</h2><div class="summary-box">';
-    foreach ($stats as $st) {
-        $percentage = $totalExpenses > 0 ? round(($st['total'] / $totalExpenses) * 100, 1) : 0;
-        // the sub-groups on one line under the group; a group none of whose
-        // expenses has one has nothing to divide
-        $subLine = '';
-        if (array_keys($st['subs']) !== ['بێ لق']) {
-            arsort($st['subs']);
-            $parts = [];
-            foreach ($st['subs'] as $subName => $subTotal) {
-                $parts[] = htmlspecialchars($subName) . ': ' . number_format($subTotal);
-            }
-            $subLine = '<div style="color: #666;">' . implode(' · ', $parts) . '</div>';
-        }
-        $html .= '<div class="summary-item"><div class="summary-label">' . htmlspecialchars($st['category_name'] ?? 'بێ گرووپ') . ' (' . $st['count'] . ' تۆمار - ' . $percentage . '%)</div><div class="summary-value">' . number_format($st['total']) . '</div>' . $subLine . '</div>';
-    }
-    $html .= '</div>';
-}
-
-$html .= '
+</div>
+<?php if (($_GET['autoprint'] ?? '') === '1'): ?>
+<script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 300); });</script>
+<?php endif; ?>
 </body>
-</html>';
-
-// Set content and output PDF
-$pdfService->setContent($html);
-$filename = $reportTitle . '_' . $dateFrom . '_to_' . $dateTo . '.pdf';
-$pdfService->output($filename, 'I'); // 'I' for inline display, 'D' for download
+</html>

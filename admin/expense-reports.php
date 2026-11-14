@@ -364,7 +364,7 @@ a.er-chip:hover { border-color: var(--c); }
     <div class="er-acts">
         <button type="submit" class="btn btn-primary" title="گەڕان"><i class="fas fa-search"></i></button>
         <a href="<?= APP_URL ?>/admin/expense-reports.php" class="btn btn-secondary" title="پاککردنەوەی فلتەرەکان"><i class="fas fa-redo"></i></a>
-        <a href="<?= APP_URL ?>/admin/print-expense-report.php?<?= htmlspecialchars(exp_report_query($f)) ?>" target="_blank" class="btn btn-info" title="ڕاپۆرتەکە بە هەمان فلتەرەکان، وەک PDF"><i class="fas fa-file-pdf"></i> PDF</a>
+        <a href="<?= APP_URL ?>/admin/print-expense-report.php?<?= htmlspecialchars(exp_report_query($f)) ?>" target="_blank" class="btn btn-info" title="ڕاپۆرتەکە بە هەمان فلتەرەکان، بۆ چاپکردن"><i class="fas fa-print"></i> چاپ</a>
     </div>
 </form>
 

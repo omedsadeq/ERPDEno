@@ -1,0 +1,76 @@
+/*
+ * The browser-printed expense reports (admin/print-expense-report.php,
+ * admin/print-expenses.php): a sheet on screen, A4 on paper. Each page sets
+ * its own @page (size, running header) and --acc; .sheet.land is landscape.
+ * Long lists: thead repeats on every page and no row splits across pages.
+ */
+:root { --ink: #0f172a; --sub: #475569; --mute: #94a3b8; --line: #dbe4ec; --acc: #0369a1; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #e8edf2; color: var(--ink); font-family: var(--app-font-family, 'NRT', Tahoma, sans-serif);
+             -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.bar { position: sticky; top: 0; z-index: 5; display: flex; justify-content: center; align-items: center; gap: 8px; padding: 9px; background: #0f2a3a; }
+.bar button, .bar a { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 18px; border: 0; border-radius: 8px;
+                      background: #0284c7; color: #fff; font: inherit; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
+.bar a { background: #475569; }
+.bar span { color: #cbd5e1; font-size: 12px; }
+.sheet { width: 210mm; min-height: 297mm; margin: 14px auto 28px; padding: 8mm;
+         background: #fff; box-shadow: 0 8px 26px rgba(15, 30, 50, .16); }
+
+/* ── title line and the filters ── */
+.top { display: flex; align-items: stretch; margin-bottom: 2mm; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.top .t { display: flex; align-items: center; padding: 1.6mm 4mm; background: var(--acc); color: #fff; font-size: 11pt; font-weight: 700; white-space: nowrap; }
+.top .d { flex: 1; display: flex; align-items: center; gap: 5px; padding: 1.6mm 4mm; background: color-mix(in srgb, var(--acc) 10%, #fff);
+          font-weight: 700; font-size: 10pt; color: var(--ink); }
+.top .d bdi { direction: ltr; }
+.top .x { display: flex; align-items: center; padding: 1.6mm 4mm; font-size: 8pt; color: var(--sub); }
+.filters { display: flex; flex-wrap: wrap; gap: 1.4mm; margin-bottom: 2.5mm; }
+.filters span { padding: .5mm 2.6mm; border-radius: 99px; background: #f1f5f9; font-size: 7.5pt; color: var(--sub); }
+.filters span b { color: var(--ink); }
+
+/* ── the list ── */
+h2 { display: flex; align-items: center; gap: 2mm; margin: 0 0 1.6mm; padding-bottom: 1.2mm; border-bottom: 2px solid var(--acc);
+     font-size: 10.5pt; color: var(--acc); break-after: avoid; page-break-after: avoid; }
+h2 small { margin-inline-start: auto; font-size: 7.5pt; color: var(--sub); font-weight: 400; }
+table { border-collapse: collapse; width: 100%; }
+thead { display: table-header-group; }
+tr { break-inside: avoid; page-break-inside: avoid; }
+.lt { font-size: 7.8pt; }
+.lt th { padding: 1.1mm 1.3mm; background: #f1f5f9; color: var(--sub); font-size: 7.5pt; font-weight: 700; text-align: right;
+         border-bottom: 1.5px solid #cbd5e1; white-space: nowrap; }
+.lt td { padding: .6mm 1.3mm; border-bottom: 1px solid #edf1f5; vertical-align: top; line-height: 1.3; }
+.lt tbody tr:nth-child(even) td { background: #fafcfe; }
+.lt .n { text-align: left; direction: ltr; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lt td.amount { font-weight: 700; }
+.lt td.num { width: 6mm; color: var(--mute); text-align: center; }
+.lt td.date, .lt td.created { white-space: nowrap; direction: ltr; text-align: right; color: var(--sub); }
+.lt td.receipt, .lt td.by, .lt td.method, .lt td.vendor, .lt td.notes { color: var(--sub); font-size: 7.4pt; }
+.tag { display: inline-block; padding: 0 1.8mm; border-radius: 99px; font-size: 7pt; font-weight: 700; white-space: nowrap; background: var(--s); color: var(--c); }
+.who-c { color: #0f766e; font-weight: 700; }
+.who-x { color: #0369a1; font-weight: 700; }
+.lt tr.tot td { padding: 1.6mm 1.4mm; border-top: 2px solid var(--acc); border-bottom: 0; background: color-mix(in srgb, var(--acc) 9%, #fff) !important;
+                font-weight: 700; font-size: 9pt; color: var(--ink); }
+.empty { padding: 5mm; text-align: center; color: var(--mute); font-size: 9pt; border: 1px dashed #cbd5e1; border-radius: 6px; }
+
+/* ── the totals under the list: plain bordered tables ── */
+.ct-h { margin: 5mm 0 1.4mm; font-size: 9.5pt; color: var(--ink); break-after: avoid; page-break-after: avoid; }
+.ct { width: 125mm; font-size: 8pt; border: 1px solid #b8c6d3; }
+.ct th { padding: 1mm 2mm; background: #eef2f6; border: 1px solid #b8c6d3; font-size: 7.8pt; font-weight: 700; text-align: right; color: var(--ink); }
+.ct td { padding: .8mm 2mm; border: 1px solid #d3dde6; color: var(--ink); }
+.ct .n { text-align: left; direction: ltr; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ct .c { width: 15mm; text-align: center; }
+.ct td.n { width: 30mm; font-weight: 700; }
+.ct tr.kh td { background: #f7f9fb; font-weight: 700; }
+.ct tr.sub td { color: var(--sub); font-size: 7.4pt; }
+.ct tr.sub td:first-child { padding-inline-start: 6mm; }
+.ct tr.sub td.n { font-weight: 400; }
+.ct tr.tot td { background: #eef2f6; font-weight: 700; font-size: 8.6pt; border-top: 1.5px solid #94a3b8; }
+
+@media print {
+    html, body { background: #fff; }
+    .bar { display: none; }
+    .sheet { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+}
+@media screen and (max-width: 900px) {
+    .sheet { width: auto; min-height: 0; margin: 8px; padding: 12px; overflow-x: auto; }
+}
+.sheet.land { width: 297mm; min-height: 210mm; }

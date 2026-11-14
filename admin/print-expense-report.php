@@ -1,8 +1,13 @@
 <?php
 /**
- * Print Comprehensive Expense Report (PDF) using InvoicePdfService
- * ڕاپۆرتی تەواوی خەرجییەکان
- * سیستەمی زیرەکی کلینیکی ددان
+ * ڕاپۆرتی خەرجی — the report printed through the browser's own print dialog
+ * (cleaner type than mPDF), with the page's filters, columns and order
+ * (includes/expense-report-filter.php, includes/expense-report-layout.php):
+ * the filters, each kind's total, every expense, then each kind by group.
+ *
+ * A long list runs over as many pages as it needs: the column heads repeat on
+ * each page, a line never splits, and every page carries the report's name,
+ * who printed it and «لاپەڕە n / m».
  */
 
 require_once __DIR__ . '/../config/config.php';
@@ -10,460 +15,167 @@ require_once __DIR__ . '/../classes/Database.php';
 require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../includes/expense-subgroup.php';
 require_once __DIR__ . '/../includes/expense-report-filter.php';
-require_once __DIR__ . '/../services/InvoicePdfService.php';
 
-// Check authentication
 $auth = new Auth();
 if (!$auth->isLoggedIn() || !Permission::getInstance()->can('page.expense_reports')) {
     die('Unauthorized access');
 }
-
-$db = Database::getInstance();
 $currentUser = $auth->getCurrentUser();
+require __DIR__ . '/../includes/clinic_branding.php';
 
-// The report's own filters (includes/expense-report-filter.php, as on the page)
+// The report's own filters, as on the page
 $f = exp_report_filters($_GET);
-$dateFrom = $f['from'];
-$dateTo = $f['to'];
-$expenseType = $f['type'];
 $labels = exp_report_labels($f);
 $reportTitle = $f['type'] === 'all' ? 'ڕاپۆرتی خەرجییەکان' : EXP_REPORT_KINDS[$f['type']];
-$doctorLabel = $labels['doctor'];
 
 // oldest first unless the page sorted it; the columns as arranged on the page
 $allExpenses = exp_report_list($f, false);
-$pdfCols = exp_report_visible_columns(exp_report_layout());
-$pdfKeys = array_column($pdfCols, 'key');
-$pdfWidths = ['num' => 25, 'date' => 60, 'type' => 70, 'group' => 80, 'sub' => 60, 'doctor' => 70, 'vendor' => 70, 'receipt' => 55,
-              'patient' => 70, 'kind' => 50, 'method' => 50, 'by' => 60, 'created' => 70, 'amount' => 65];
+$cols = exp_report_visible_columns(exp_report_layout());
+$keys = array_column($cols, 'key');
 $totals = exp_report_totals($f);
-$totalGeneral = $totals['general']['total'];
-$totalLab = $totals['lab']['total'];
-$totalStore = $totals['store']['total'];
-$grandTotal = $totalGeneral + $totalLab + $totalStore;
-$countGeneral = $totals['general']['count'];
-$countLab = $totals['lab']['count'];
-$countStore = $totals['store']['count'];
-$totalCount = count($allExpenses);
-$subgroupTotals = [];
+$grandTotal = array_sum(array_column($totals, 'total'));
+$listTotal = array_sum(array_map(fn($x) => (float)$x['amount'], $allExpenses));
+$kindColor = ['general' => '#15803d', 'lab' => '#7e22ce', 'store' => '#c2410c'];
+$kindSoft = ['general' => '#e8f7ee', 'lab' => '#f3e8ff', 'store' => '#fff1e6'];
+
+// Each kind by group (with its sub-groups), for the kinds the filters keep
+$byGroup = [];
 foreach (array_keys(EXP_REPORT_KINDS) as $kind) {
-    $subgroupTotals[$kind] = exp_report_subgroup_totals($kind, $f);
+    if ($f['type'] !== 'all' && $f['type'] !== $kind) {
+        continue;
+    }
+    $stats = exp_report_stats($kind, $f);
+    if ($stats) {
+        $byGroup[$kind] = ['stats' => $stats, 'subs' => exp_report_subgroup_totals($kind, $f),
+                           'total' => array_sum(array_map(fn($s) => (float)$s['total'], $stats))];
+    }
 }
 
-// A group's sub-groups under it in the tables below
-$subgroupRows = function (array $parts) {
-    $rows = '';
-    foreach ($parts as $part) {
-        $rows .= '<tr style="color: #666;">
-            <td style="padding-right: 16px;">' . htmlspecialchars(expense_subgroup_name($part)) . '</td>
-            <td style="text-align: center;">' . $part['count'] . '</td>
-            <td>' . number_format((float)$part['total']) . '</td>
-        </tr>';
-    }
-    return $rows;
-};
-$statsGeneral = exp_report_stats('general', $f);
-$statsLab = exp_report_stats('lab', $f);
-$statsStore = exp_report_stats('store', $f);
+// Wide columns in use turn the page landscape.
+$weight = ['num' => .5, 'date' => 1, 'type' => 1, 'group' => 1.2, 'sub' => 1, 'desc' => 2.4, 'doctor' => 1.2, 'vendor' => 1.2, 'receipt' => .9,
+           'patient' => 1.2, 'kind' => .9, 'method' => .9, 'notes' => 1.8, 'by' => 1, 'created' => 1.2, 'amount' => 1];
+$landscape = array_sum(array_map(fn($k) => $weight[$k] ?? 1, $keys)) > 11;
 
-// Calculate displayed total
-$displayedTotal = array_sum(array_column($allExpenses, 'amount'));
-
-// Initialize InvoicePdfService
-$pdfService = new InvoicePdfService(['format' => 'A4']);
-$pdfService->setTitle($reportTitle);
-$pdfService->setAuthor($currentUser['full_name']);
-
-// Build HTML content
-$html = '
+$e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+$iso = fn(string $d) => "\u{2066}" . $d . "\u{2069}";
+$periodText = $f['from'] === $f['to'] ? $iso($f['from']) : $iso($f['from']) . ' بۆ ' . $iso($f['to']);
+$printedBy = 'چاپکراوە لەلایەن ' . ($currentUser['full_name'] ?? '') . ' — ' . date('Y-m-d H:i');
+$cssStr = fn(string $s) => '"' . str_replace(['\\', '"', "\n"], ['\\\\', '\\"', ' '], $s) . '"';
+$accent = Branding::primaryColor();
+?>
 <!DOCTYPE html>
-<html dir="rtl">
+<html lang="ku" dir="rtl">
 <head>
-    <style>
-        body {
-            font-family: nrt, sans-serif;
-            direction: rtl;
-            font-size: 9pt;
-        }
-        h2 {
-            color: ' . Branding::primaryColor() . ';
-            border-bottom: 2px solid ' . Branding::primaryColor() . ';
-            padding-bottom: 4px;
-            margin-top: 12px;
-            margin-bottom: 8px;
-            font-size: 12pt;
-        }
-        h3 {
-            color: #333;
-            margin-top: 10px;
-            margin-bottom: 6px;
-            font-size: 10pt;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><?= $e($reportTitle . ' — ' . $f['from'] . ($f['from'] === $f['to'] ? '' : ' / ' . $f['to'])) ?></title>
+<link rel="stylesheet" href="<?= APP_URL ?>/assets/css/fonts.css">
+<link rel="stylesheet" href="<?= APP_URL ?>/assets/css/print-report.css">
+<style>
+@page {
+    size: A4 <?= $landscape ? 'landscape' : 'portrait' ?>;
+    margin: 8mm 8mm 11mm;
+    @top-right { content: <?= $cssStr($reportTitle . ' · ' . $periodText) ?>; font-family: 'NRT', Tahoma, sans-serif; font-size: 7.5pt; color: #94a3b8; direction: rtl; }
+    @bottom-right { content: <?= $cssStr($printedBy) ?>; font-family: 'NRT', Tahoma, sans-serif; font-size: 7pt; color: #64748b; direction: rtl; }
+    @bottom-left { content: "لاپەڕە " counter(page) " / " counter(pages); font-family: 'NRT', Tahoma, sans-serif; font-size: 7.5pt; color: #64748b; }
+}
+/* the first page has the title itself */
+@page :first { @top-right { content: none; } }
 
-        /* Info Boxes */
-        .info-section {
-            margin-bottom: 10px;
-        }
-        .info-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .info-box {
-            border: 1px solid ' . Branding::primaryColor() . ';
-            background: #f0f8ff;
-        }
-        .info-box td {
-            padding: 3px 6px;
-            font-size: 9pt;
-            border-bottom: 1px solid #ccc;
-        }
-        .info-box tr:last-child td {
-            border-bottom: none;
-        }
-        .info-box td:first-child {
-            font-weight: bold;
-            text-align: right;
-            width: 40%;
-        }
-        .info-box td:last-child {
-            background: white;
-        }
-
-        /* Summary Cards */
-        .summary-cards {
-            margin-bottom: 10px;
-        }
-        .summary-card {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: center;
-            background: #fafafa;
-        }
-        .summary-card.general { border-top: 3px solid #4caf50; }
-        .summary-card.lab { border-top: 3px solid #9c27b0; }
-        .summary-card.store { border-top: 3px solid #ff9800; }
-        .summary-card.total { border-top: 3px solid #2196f3; background: #e3f2fd; }
-        .summary-value {
-            font-size: 14pt;
-            font-weight: bold;
-            color: #1a1a1a;
-        }
-        .summary-label {
-            font-size: 8pt;
-            color: #666;
-        }
-
-        /* Main Table */
-        .expenses-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 10px;
-        }
-        .expenses-table th {
-            background: ' . Branding::primaryColor() . ';
-            color: white;
-            padding: 5px 4px;
-            text-align: center;
-            font-weight: bold;
-            font-size: 9pt;
-        }
-        .expenses-table td {
-            border: 1px solid #ddd;
-            padding: 4px 5px;
-            text-align: center;
-            font-size: 9pt;
-        }
-        .expenses-table tr:nth-child(even) {
-            background: #f9f9f9;
-        }
-        .expenses-table tfoot td {
-            background: #e8f5e9;
-            font-weight: bold;
-            border-top: 2px solid #4caf50;
-        }
-
-        /* Type Badge */
-        .type-badge {
-            display: inline-block;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 8pt;
-            font-weight: bold;
-        }
-        .type-general { background: #e8f5e9; color: #2e7d32; }
-        .type-lab { background: #f3e5f5; color: #7b1fa2; }
-        .type-store { background: #fff3e0; color: #ef6c00; }
-
-        /* Category Summary */
-        .category-summary {
-            margin-top: 10px;
-        }
-        .category-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 8px;
-        }
-        .category-table th {
-            padding: 5px 8px;
-            text-align: right;
-            font-weight: bold;
-            color: white;
-            font-size: 9pt;
-        }
-        .category-table.general th { background: #4caf50; }
-        .category-table.lab th { background: #9c27b0; }
-        .category-table.store th { background: #ff9800; }
-        .category-table td {
-            padding: 4px 8px;
-            border: 1px solid #ddd;
-            font-size: 9pt;
-        }
-        .category-table td:first-child {
-            text-align: right;
-        }
-        .category-table td:last-child {
-            text-align: left;
-            font-weight: bold;
-        }
-
-        /* Totals Section */
-        .totals-section {
-            margin-top: 10px;
-            background: #f5f5f5;
-            padding: 8px;
-            border: 1px solid #ddd;
-        }
-        .totals-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .totals-table td {
-            padding: 5px 8px;
-        }
-        .totals-table td:first-child {
-            font-weight: bold;
-            text-align: right;
-            width: 70%;
-        }
-        .totals-table td:last-child {
-            text-align: left;
-            font-weight: bold;
-        }
-        .totals-table .grand-total {
-            background: ' . Branding::primaryColor() . ';
-            color: white;
-            font-size: 11pt;
-        }
-    </style>
+:root { --acc: <?= $e($accent) ?>; }
+</style>
 </head>
 <body>
 
-<!-- Report Header Info -->
-<table class="info-table" style="margin-bottom: 10px;">
-    <tr>
-        <td width="50%" style="padding: 2px;">
-            <table width="100%" class="info-box">
-                <tr>
-                    <td>جۆری ڕاپۆرت :</td>
-                    <td style="font-weight: bold; color: ' . Branding::primaryColor() . ';">' . $reportTitle . '</td>
-                </tr>
-                <tr>
-                    <td>لە بەروار :</td>
-                    <td>' . $dateFrom . '</td>
-                </tr>
-                <tr>
-                    <td>بۆ بەروار :</td>
-                    <td>' . $dateTo . '</td>
-                </tr>
-                <tr>
-                    <td>گرووپ :</td>
-                    <td>' . htmlspecialchars($labels['group']) . '</td>
-                </tr>
-                <tr>
-                    <td>دکتۆر :</td>
-                    <td>' . htmlspecialchars($doctorLabel) . '</td>
-                </tr>
-            </table>
-        </td>
-        <td width="50%" style="padding: 2px;">
-            <table width="100%" class="info-box">
-                <tr>
-                    <td>بەرواری چاپکردن :</td>
-                    <td>' . date('Y-m-d H:i') . '</td>
-                </tr>
-                <tr>
-                    <td>چاپکراوە لەلایەن :</td>
-                    <td>' . htmlspecialchars($currentUser['full_name']) . '</td>
-                </tr>
-                <tr>
-                    <td>ژمارەی تۆماکان :</td>
-                    <td style="font-weight: bold; color: ' . Branding::primaryColor() . ';">' . $totalCount . '</td>
-                </tr>
-            </table>
-        </td>
-    </tr>
-</table>
-
-<!-- Summary Cards -->
-<table width="100%" class="summary-cards" style="border-collapse: collapse;">
-    <tr>
-        <td width="25%" style="padding: 2px;">
-            <div class="summary-card general">
-                <div class="summary-value">' . number_format($totalGeneral) . '</div>
-                <div class="summary-label">خەرجی گشتی (' . $countGeneral . ' تۆمار)</div>
-            </div>
-        </td>
-        <td width="25%" style="padding: 2px;">
-            <div class="summary-card lab">
-                <div class="summary-value">' . number_format($totalLab) . '</div>
-                <div class="summary-label">خەرجی تاقیگە (' . $countLab . ' تۆمار)</div>
-            </div>
-        </td>
-        <td width="25%" style="padding: 2px;">
-            <div class="summary-card store">
-                <div class="summary-value">' . number_format($totalStore) . '</div>
-                <div class="summary-label">خەرجی کۆگا (' . $countStore . ' تۆمار)</div>
-            </div>
-        </td>
-        <td width="25%" style="padding: 2px;">
-            <div class="summary-card total">
-                <div class="summary-value">' . number_format($grandTotal) . '</div>
-                <div class="summary-label">کۆی گشتی</div>
-            </div>
-        </td>
-    </tr>
-</table>';
-
-// Main Expenses Table
-if (!empty($allExpenses)) {
-    $html .= '
-<h2>لیستی خەرجییەکان</h2>
-<table class="expenses-table">
-    <thead>
-        <tr>' . implode('', array_map(fn($c) => '<th' . (isset($pdfWidths[$c['key']]) ? ' style="width: ' . $pdfWidths[$c['key']] . 'px;"' : '') . '>'
-            . htmlspecialchars($c['label']) . '</th>', $pdfCols)) . '</tr>
-    </thead>
-    <tbody>';
-
-    $counter = 1;
-    foreach ($allExpenses as $exp) {
-        $typeClass = 'type-' . $exp['expense_type'];
-        $html .= '<tr>';
-        foreach ($pdfKeys as $k) {
-            $html .= match ($k) {
-                'num' => '<td>' . $counter++ . '</td>',
-                'type' => '<td><span class="type-badge ' . $typeClass . '">' . $exp['type_label'] . '</span></td>',
-                'group' => '<td>' . htmlspecialchars(in_array('sub', $pdfKeys, true) ? ($exp['category_name'] ?? '-') : expense_group_label($exp)) . '</td>',
-                'desc', 'notes' => '<td style="text-align: right;">' . htmlspecialchars((string)exp_report_value($k, $exp)) . '</td>',
-                'doctor' => '<td>' . (!empty($exp['doctor_name']) ? htmlspecialchars($exp['doctor_name'])
-                    : (($exp['dept'] ?? null) === 'xray' ? '<span style="color:#0369a1;">X-ray</span>' : '<span style="color:#0f766e;">خەرجی سەنتەر</span>')) . '</td>',
-                'amount' => '<td style="text-align: right; font-weight: bold;">' . number_format($exp['amount']) . '</td>',
-                default => '<td>' . htmlspecialchars((string)exp_report_value($k, $exp)) . '</td>',
-            };
-        }
-        $html .= '</tr>';
-    }
-
-    $foot = '';
-    $labelAt = array_key_first(array_filter($pdfKeys, fn($k) => $k !== 'amount'));
-    foreach ($pdfKeys as $n => $k) {
-        $foot .= $k === 'amount' ? '<td style="text-align: right;">' . number_format($displayedTotal) . '</td>'
-            : ($n === $labelAt ? '<td style="text-align: right; white-space: nowrap;">کۆی گشتی:</td>' : '<td></td>');
-    }
-    $html .= '
-    </tbody>
-    <tfoot>
-        <tr>' . $foot . '</tr>
-    </tfoot>
-</table>';
-}
-
-// Category Summaries
-$html .= '<div class="category-summary">';
-
-// General Categories
-if (!empty($statsGeneral) && ($expenseType === 'all' || $expenseType === 'general')) {
-    $html .= '<h3>پوختەی خەرجی گشتی بەپێی گرووپ</h3>
-    <table class="category-table general">
-        <thead><tr><th>گرووپ</th><th style="width: 60px;">ژمارە</th><th style="width: 100px;">کۆ</th></tr></thead>
-        <tbody>';
-    foreach ($statsGeneral as $st) {
-        $percent = $totalGeneral > 0 ? round(($st['total'] / $totalGeneral) * 100, 1) : 0;
-        $html .= '<tr>
-            <td>' . htmlspecialchars($st['category_name'] ?? 'بێ گرووپ') . ' (' . $percent . '%)</td>
-            <td style="text-align: center;">' . $st['count'] . '</td>
-            <td>' . number_format($st['total']) . '</td>
-        </tr>';
-        $html .= $subgroupRows($subgroupTotals['general'][(int)$st['category_id']] ?? []);
-    }
-    $html .= '</tbody></table>';
-}
-
-// Lab Categories
-if (!empty($statsLab) && ($expenseType === 'all' || $expenseType === 'lab')) {
-    $html .= '<h3>پوختەی خەرجی تاقیگە بەپێی گرووپ</h3>
-    <table class="category-table lab">
-        <thead><tr><th>گرووپ</th><th style="width: 60px;">ژمارە</th><th style="width: 100px;">کۆ</th></tr></thead>
-        <tbody>';
-    foreach ($statsLab as $st) {
-        $percent = $totalLab > 0 ? round(($st['total'] / $totalLab) * 100, 1) : 0;
-        $html .= '<tr>
-            <td>' . htmlspecialchars($st['category_name'] ?? 'بێ گرووپ') . ' (' . $percent . '%)</td>
-            <td style="text-align: center;">' . $st['count'] . '</td>
-            <td>' . number_format($st['total']) . '</td>
-        </tr>';
-        $html .= $subgroupRows($subgroupTotals['lab'][(int)$st['category_id']] ?? []);
-    }
-    $html .= '</tbody></table>';
-}
-
-// Store Categories
-if (!empty($statsStore) && ($expenseType === 'all' || $expenseType === 'store')) {
-    $html .= '<h3>پوختەی خەرجی کۆگا بەپێی گرووپ</h3>
-    <table class="category-table store">
-        <thead><tr><th>گرووپ</th><th style="width: 60px;">ژمارە</th><th style="width: 100px;">کۆ</th></tr></thead>
-        <tbody>';
-    foreach ($statsStore as $st) {
-        $percent = $totalStore > 0 ? round(($st['total'] / $totalStore) * 100, 1) : 0;
-        $html .= '<tr>
-            <td>' . htmlspecialchars($st['category_name'] ?? 'بێ گرووپ') . ' (' . $percent . '%)</td>
-            <td style="text-align: center;">' . $st['count'] . '</td>
-            <td>' . number_format($st['total']) . '</td>
-        </tr>';
-        $html .= $subgroupRows($subgroupTotals['store'][(int)$st['category_id']] ?? []);
-    }
-    $html .= '</tbody></table>';
-}
-
-$html .= '</div>';
-
-// Grand Total Section
-$html .= '
-<div class="totals-section">
-    <table class="totals-table">
-        <tr>
-            <td>کۆی خەرجی گشتی:</td>
-            <td>' . number_format($totalGeneral) . '</td>
-        </tr>
-        <tr>
-            <td>کۆی خەرجی تاقیگە:</td>
-            <td>' . number_format($totalLab) . '</td>
-        </tr>
-        <tr>
-            <td>کۆی خەرجی کۆگا:</td>
-            <td>' . number_format($totalStore) . '</td>
-        </tr>
-        <tr class="grand-total">
-            <td>کۆی گشتی هەموو خەرجییەکان:</td>
-            <td>' . number_format($grandTotal) . '</td>
-        </tr>
-    </table>
+<div class="bar">
+    <button type="button" onclick="window.print()">🖨 چاپکردن</button>
+    <a href="<?= $e(APP_URL . '/admin/expense-reports.php?' . exp_report_query($f)) ?>">گەڕانەوە بۆ ڕاپۆرت</a>
+    <span><?= $landscape ? 'A4 ئاسۆیی' : 'A4 ستوونی' ?></span>
 </div>
 
-</body>
-</html>';
+<div class="sheet<?= $landscape ? ' land' : '' ?>">
 
-// Set content and output PDF
-$pdfService->setContent($html);
-$filename = 'Expense_Report_' . $dateFrom . '_to_' . $dateTo . '.pdf';
-$pdfService->output($filename, 'I'); // 'I' for inline display
+    <div class="top">
+        <div class="t"><?= $e($reportTitle) ?></div>
+        <div class="d"><?php if ($f['from'] === $f['to']): ?><bdi><?= $e($f['from']) ?></bdi><?php else: ?><bdi><?= $e($f['from']) ?></bdi> بۆ <bdi><?= $e($f['to']) ?></bdi><?php endif; ?></div>
+        <div class="x"><?= $e($clinicNameEn ?: $clinicName) ?></div>
+    </div>
+    <div class="filters">
+        <span>جۆر: <b><?= $e($labels['type']) ?></b></span>
+        <span>گرووپ: <b><?= $e($labels['group']) ?></b></span>
+        <span>دکتۆر: <b><?= $e($labels['doctor']) ?></b></span>
+        <span>ژمارەی تۆمار: <b><?= number_format(count($allExpenses)) ?></b></span>
+    </div>
+
+    <h2>لیستی خەرجییەکان <small><?= number_format(count($allExpenses)) ?> تۆمار · <?= number_format($listTotal) ?></small></h2>
+    <?php if (!$allExpenses): ?>
+    <div class="empty">هیچ خەرجییەک بەم فلتەرانە نییە</div>
+    <?php else: ?>
+    <table class="lt">
+        <thead><tr><?php foreach ($cols as $c): ?><th<?= $c['key'] === 'amount' ? ' class="n"' : '' ?>><?= $e($c['label']) ?></th><?php endforeach; ?></tr></thead>
+        <tbody>
+        <?php $i = 0; foreach ($allExpenses as $x): $i++; $kind = $x['expense_type']; ?>
+        <tr>
+            <?php foreach ($keys as $k): ?>
+            <?php if ($k === 'num'): ?><td class="num"><?= $i ?></td>
+            <?php elseif ($k === 'type'): ?><td><span class="tag" style="--c:<?= $kindColor[$kind] ?>;--s:<?= $kindSoft[$kind] ?>"><?= $e($x['type_label']) ?></span></td>
+            <?php elseif ($k === 'group'): ?><td><?= $e(in_array('sub', $keys, true) ? ($x['category_name'] ?? '-') : expense_group_label($x)) ?></td>
+            <?php elseif ($k === 'doctor'): ?><td><?php if (!empty($x['doctor_name'])): ?><?= $e($x['doctor_name']) ?><?php elseif (($x['dept'] ?? null) === 'xray'): ?><span class="who-x">X-ray</span><?php else: ?><span class="who-c">خەرجی سەنتەر</span><?php endif; ?></td>
+            <?php elseif ($k === 'amount'): ?><td class="n amount"><?= number_format((float)$x['amount']) ?></td>
+            <?php else: ?><td class="<?= $e($k) ?>"><?= $e((string)exp_report_value($k, $x)) ?></td>
+            <?php endif; ?>
+            <?php endforeach; ?>
+        </tr>
+        <?php endforeach; ?>
+        <!-- the total as the last row (a tfoot would repeat on every page) -->
+        <tr class="tot">
+            <td colspan="<?= max(1, count($keys) - 1) ?>">کۆی گشتی</td>
+            <td class="n"><?= number_format($listTotal) ?></td>
+        </tr>
+        </tbody>
+    </table>
+    <?php endif; ?>
+
+    <!-- the totals, as plain tables under the list -->
+    <h3 class="ct-h">کۆی خەرجییەکان</h3>
+    <table class="ct">
+        <thead><tr><th>جۆر</th><th class="c">ژمارە</th><th class="n">کۆ</th></tr></thead>
+        <tbody>
+        <?php foreach (EXP_REPORT_KINDS as $kind => $label): ?>
+        <tr><td><?= $e($label) ?></td><td class="c"><?= number_format($totals[$kind]['count']) ?></td><td class="n"><?= number_format($totals[$kind]['total']) ?></td></tr>
+        <?php endforeach; ?>
+        <tr class="tot"><td>کۆی گشتی</td><td class="c"><?= number_format(array_sum(array_column($totals, 'count'))) ?></td><td class="n"><?= number_format($grandTotal) ?></td></tr>
+        </tbody>
+    </table>
+
+    <?php if ($byGroup): ?>
+    <h3 class="ct-h">پوختە بەپێی گرووپ</h3>
+    <table class="ct">
+        <thead><tr><th>گرووپ</th><th class="c">ژمارە</th><th class="c">ڕێژە</th><th class="n">کۆ</th></tr></thead>
+        <tbody>
+        <?php foreach ($byGroup as $kind => $g): ?>
+        <?php if (count($byGroup) > 1): ?>
+        <tr class="kh"><td><?= $e(EXP_REPORT_KINDS[$kind]) ?></td><td class="c"><?= number_format(array_sum(array_map(fn($s) => (int)$s['count'], $g['stats']))) ?></td><td class="c"></td><td class="n"><?= number_format($g['total']) ?></td></tr>
+        <?php endif; ?>
+        <?php foreach ($g['stats'] as $s): ?>
+        <tr>
+            <td><?= $e($s['category_name'] ?? 'بێ گرووپ') ?></td>
+            <td class="c"><?= (int)$s['count'] ?></td>
+            <td class="c"><?= $g['total'] > 0 ? round((float)$s['total'] / $g['total'] * 100, 1) : 0 ?>%</td>
+            <td class="n"><?= number_format((float)$s['total']) ?></td>
+        </tr>
+        <?php foreach ($g['subs'][(int)$s['category_id']] ?? [] as $part): ?>
+        <tr class="sub"><td><?= $e(expense_subgroup_name($part)) ?></td><td class="c"><?= (int)$part['count'] ?></td><td class="c"></td><td class="n"><?= number_format((float)$part['total']) ?></td></tr>
+        <?php endforeach; ?>
+        <?php endforeach; ?>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+    <?php endif; ?>
+
+</div>
+<?php if (($_GET['autoprint'] ?? '') === '1'): ?>
+<script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 300); });</script>
+<?php endif; ?>
+</body>
+</html>
