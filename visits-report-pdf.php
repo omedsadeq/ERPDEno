@@ -29,7 +29,7 @@ $rangeTo = $filters['to'];
 $rangeLabel = $filters['label'];
 $dateFilter = $filters['date_filter'];
 $visitType = $filters['visit_type'];
-$visitTypeLabel = $visitType === 'treatment' ? 'ئیش' : 'پشکنین';
+$visitTypeLabel = dh_visit_report_type_label($visitType);
 $reportPeriod = $mode === 'month' ? $reportMonth : ($rangeFrom === $rangeTo ? $rangeFrom : $rangeFrom . ' — ' . $rangeTo);
 $reportLetterhead = dh_visit_report_letterhead($db, true);
 if ($filters['tab'] === 'referrals') {
@@ -64,7 +64,8 @@ if ($filters['tab'] === 'referrals') {
     $pdf->output($filename, in_array($output, ['I', 'D', 'F'], true) ? $output : 'I');
     exit;
 }
-$p = ['from' => $rangeFrom, 'to' => $rangeTo, 'visit_type' => $visitType];
+[$typeSql, $typeParams] = dh_visit_report_type_where($visitType);
+$p = ['from' => $rangeFrom, 'to' => $rangeTo] + $typeParams;
 $matrixStats = dh_visit_report_stats($db, $rangeFrom, $rangeTo, $dateFilter, $visitType);
 $reportDoctorSql = dh_visit_report_doctor_sql($visitType);
 
@@ -72,7 +73,7 @@ $summary = $db->fetch(
     "SELECT COUNT(*) AS total_visits
      FROM visits v
      WHERE v.visit_date BETWEEN :from AND :to
-       AND v.visit_type = :visit_type", $p);
+       AND {$typeSql}", $p);
 $total  = (int)$summary['total_visits'];
 $pct = fn($n) => $total > 0 ? round($n / $total * 100, 1) : 0;
 
@@ -85,27 +86,27 @@ $byDoctor = $db->fetchAll(
             ) THEN 1 ELSE 0 END) AS with_apt
      FROM visits v LEFT JOIN doctors d ON {$reportDoctorSql}=d.id
      WHERE v.visit_date BETWEEN :from AND :to
-       AND v.visit_type = :visit_type
+       AND {$typeSql}
      GROUP BY d.id, d.name ORDER BY visits DESC", $p);
 
 $bySource = $db->fetchAll(
     "SELECT COALESCE(NULLIF(TRIM(referral_source), ''), 'نادیار') AS source, COUNT(*) c
      FROM visits v
      WHERE v.visit_date BETWEEN :from AND :to
-       AND v.visit_type = :visit_type
+       AND {$typeSql}
      GROUP BY source ORDER BY c DESC", $p);
 
 $byProcedure = $db->fetchAll(
     "SELECT COALESCE(NULLIF(TRIM(procedure_treatment), ''), 'نادیار') AS proc, COUNT(*) c
      FROM visits v
      WHERE v.visit_date BETWEEN :from AND :to
-       AND v.visit_type = :visit_type
+       AND {$typeSql}
      GROUP BY proc ORDER BY c DESC LIMIT 10", $p);
 
 $byHour = $db->fetchAll(
     "SELECT HOUR(arrival_time) h, COUNT(*) c FROM visits v
      WHERE v.visit_date BETWEEN :from AND :to
-       AND v.visit_type = :visit_type
+       AND {$typeSql}
        AND arrival_time IS NOT NULL
      GROUP BY HOUR(arrival_time) ORDER BY h", $p);
 $hourCounts = [];

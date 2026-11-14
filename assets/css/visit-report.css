@@ -10,6 +10,9 @@
 .vr-photo-table .vr-photo-total { color: #3768a1; font-size: 21px; font-weight: 800; min-width: 95px; background: #f0f4f9; }
 .vr-photo-table .vr-photo-grand td, .vr-photo-table .vr-photo-grand th { background: #dae5f2; font-weight: 800; border-top: 2px solid #3768a1; }
 .vr-photo-table .vr-photo-grand .vr-photo-total { text-decoration: underline; }
+.vr-photo-table .vr-photo-patients td, .vr-photo-table .vr-photo-patients th { background: #eef7f1; font-weight: 800; border-bottom: 2px solid #15803d; }
+.vr-photo-table .vr-photo-patients .vr-photo-total { color: #15803d; background: #e3f3e8; }
+.vr-photo-table .vr-pt-split { font-size: 11px; font-weight: 600; color: #475569; margin-top: 3px; white-space: nowrap; }
 .vr-photo-table .vr-photo-section { background: #cbd6e4; text-align: center; font-size: 16px; padding: 14px; }
 .vr-photo-note { font-size: 12px; color: #52647a; line-height: 1.9; margin-top: 14px; }
 .vr-photo-note div { font-weight: 700; color: #315880; }

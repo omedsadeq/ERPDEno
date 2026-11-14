@@ -11,6 +11,7 @@ require_once __DIR__ . '/includes/VisitReportStats.php';
 require_once __DIR__ . '/includes/VisitReportFilters.php';
 require_once __DIR__ . '/includes/VisitReferralReport.php';
 require_once __DIR__ . '/includes/VisitReportLetterhead.php';
+require_once __DIR__ . '/includes/VisitReportDetail.php';
 
 $db   = Database::getInstance();
 $auth = new Auth();
@@ -38,12 +39,13 @@ $rangeLabel = $filters['label'];
 $dateFilter = $filters['date_filter'];
 $dateFilterLabel = $dateFilter === 'appointment_date' ? 'بەرواری مەوعید' : 'بەرواری سەردان';
 $visitType = $filters['visit_type'];
-$visitTypeLabel = $visitType === 'treatment' ? 'ئیش' : 'پشکنین';
+$visitTypeLabel = dh_visit_report_type_label($visitType);
 $reportTab = $filters['tab'];
 $referralReport = $reportTab === 'referrals' ? dh_visit_referral_report($db, $filters) : null;
 $examinerId = $referralReport['examiner_id'] ?? $filters['examiner_id'];
 $reportPeriod = $mode === 'month' ? $reportMonth : ($rangeFrom === $rangeTo ? $rangeFrom : $rangeFrom . ' — ' . $rangeTo);
-$p = ['from' => $rangeFrom, 'to' => $rangeTo, 'visit_type' => $visitType];
+[$typeSql, $typeParams] = dh_visit_report_type_where($visitType);
+$p = ['from' => $rangeFrom, 'to' => $rangeTo] + $typeParams;
 $matrixStats = dh_visit_report_stats($db, $rangeFrom, $rangeTo, $dateFilter, $visitType);
 $reportDoctorSql = dh_visit_report_doctor_sql($visitType);
 
@@ -61,7 +63,7 @@ $summary = $db->fetch(
          ) THEN 1 ELSE 0 END) AS with_appointment
      FROM visits v
      WHERE v.visit_date BETWEEN :from AND :to
-       AND v.visit_type = :visit_type",
+       AND {$typeSql}",
     $p
 );
 $total  = (int)$summary['total_visits'];
@@ -86,7 +88,7 @@ $byDoctor = $db->fetchAll(
      FROM visits v
      LEFT JOIN doctors d ON {$reportDoctorSql} = d.id
      WHERE v.visit_date BETWEEN :from AND :to
-       AND v.visit_type = :visit_type
+       AND {$typeSql}
      GROUP BY d.id, d.name
      ORDER BY visits DESC", $p);
 
@@ -95,14 +97,14 @@ $bySource = $db->fetchAll(
     "SELECT COALESCE(NULLIF(TRIM(referral_source), ''), 'نادیار') AS source, COUNT(*) c
      FROM visits v
      WHERE v.visit_date BETWEEN :from AND :to
-       AND v.visit_type = :visit_type
+       AND {$typeSql}
      GROUP BY source ORDER BY c DESC LIMIT 10", $p);
 
 // Hourly distribution (peak hours)
 $byHour = $db->fetchAll(
     "SELECT HOUR(arrival_time) h, COUNT(*) c FROM visits v
      WHERE v.visit_date BETWEEN :from AND :to
-       AND v.visit_type = :visit_type
+       AND {$typeSql}
        AND arrival_time IS NOT NULL
      GROUP BY HOUR(arrival_time) ORDER BY h", $p);
 $hourCounts = array_fill(8, 14, 0); // cover 8 AM → 21 PM (14 hours)
@@ -114,7 +116,7 @@ $byProcedure = $db->fetchAll(
     "SELECT COALESCE(NULLIF(TRIM(procedure_treatment), ''), 'نادیار') AS proc, COUNT(*) c
      FROM visits v
      WHERE v.visit_date BETWEEN :from AND :to
-       AND v.visit_type = :visit_type
+       AND {$typeSql}
      GROUP BY proc ORDER BY c DESC LIMIT 10", $p);
 
 $pageTitle = 'ڕاپۆرتی سەردانەکان';
@@ -122,10 +124,12 @@ $breadcrumb = [
     ['title' => 'سەردانەکان', 'url' => APP_URL . '/visits.php'],
     ['title' => 'ڕاپۆرت']
 ];
+// No title and breadcrumb bar: the report's own filters start the page.
+$hidePageHeader = true;
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<link rel="stylesheet" href="<?= APP_URL ?>/assets/css/visit-report.css?v=20261020d">
+<link rel="stylesheet" href="<?= APP_URL ?>/assets/css/visit-report.css?v=20261112a">
 <style>
 html { overflow-y: scroll; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: #cbd5e1 #f1f5f9; }
 html::-webkit-scrollbar { width: 10px; }
@@ -256,6 +260,10 @@ $chips = [
        class="vr-chip <?= $visitType === 'treatment' ? 'active' : '' ?>" style="<?= $visitType === 'treatment' ? 'background:#16a34a;border-color:#16a34a;' : '' ?>">
         <i class="fas fa-tooth"></i> ئیش
     </a>
+    <a href="?<?= htmlspecialchars(http_build_query(array_merge($reportQuery, ['visit_type' => 'both']))) ?>"
+       class="vr-chip <?= $visitType === 'both' ? 'active' : '' ?>" style="<?= $visitType === 'both' ? 'background:#0f766e;border-color:#0f766e;' : '' ?>">
+        <i class="fas fa-users"></i> هەردووکیان
+    </a>
     <?php endif; ?>
 
     <span class="vr-sep"></span>
@@ -299,10 +307,11 @@ $chips = [
 <section class="vr-photo-sheet" aria-label="ئاماری سەردانەکان">
     <?= dh_visit_report_letterhead($db) ?>
     <div class="vr-photo-scroll">
-        <?= dh_visit_report_render_matrix($matrixStats, $reportPeriod, $visitTypeLabel) ?>
+        <?= dh_visit_report_render_matrix($matrixStats, $reportPeriod, $visitTypeLabel, true) ?>
     </div>
     <?= dh_visit_report_matrix_note($matrixStats) ?>
 </section>
+<?php dh_visit_report_detail_shell(APP_URL . '/visits-report-detail.php?' . http_build_query($reportQuery)); ?>
 <div class="vr-wide-card">
     <div class="vr-card">
         <div class="hd"><span><i class="fas fa-user-tie"></i> سەردانە تۆمارکراوەکان بەپێی کارمەندی پێشوازی</span></div>

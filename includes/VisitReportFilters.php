@@ -55,7 +55,8 @@ function dh_visit_report_filters(array $input, ?string $today = null): array
         'to' => $to,
         'label' => $label,
         'date_filter' => $value('date_filter') === 'appointment_date' ? 'appointment_date' : 'visit_date',
-        'visit_type' => $value('visit_type') === 'treatment' ? 'treatment' : 'checkup',
+        // ئیش, پشکنین, or both (the matrix then opens with a نەخۆشەکان row)
+        'visit_type' => in_array($value('visit_type'), ['treatment', 'both'], true) ? $value('visit_type') : 'checkup',
         'tab' => $value('tab') === 'referrals' ? 'referrals' : 'visits',
         'examiner_id' => ctype_digit($value('examiner_id')) ? (int) $value('examiner_id') : 0,
     ];
