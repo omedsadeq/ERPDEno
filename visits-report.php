@@ -136,18 +136,27 @@ html::-webkit-scrollbar { width: 10px; }
 html::-webkit-scrollbar-track { background: #f1f5f9; }
 html::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; border: 2px solid #f1f5f9; }
 
-.vr-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px; }
-.vr-header h3 { margin:0; font-size:20px; color:#0f172a; }
-.vr-header .sub { color:#607d8b; font-size:13px; }
+.vr-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:8px; }
+.vr-header h3 { margin:0; font-size:17px; color:#0f172a; }
+.vr-header .sub { color:#607d8b; font-size:12px; }
+.vr-header .btn { padding:5px 11px; font-size:12.5px; min-height:0; line-height:1.4; }
+/* the two tabs and the month picker on one line */
+.vr-tabbar { display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:6px 10px; border-bottom:2px solid #d9e2ee; margin-bottom:8px; }
+.vr-tabbar .vr-report-tabs { border-bottom:0; margin-bottom:0; gap:4px; }
+.vr-tabbar .vr-report-tabs a { padding:7px 14px; font-size:13px; gap:6px; }
+.vr-tabbar .vr-month-filter { margin:0 0 5px; gap:6px; font-size:12.5px; }
+.vr-tabbar .vr-month-filter input { padding:3px 6px; font-size:12.5px; }
+.vr-tabbar .vr-apply { padding:4px 11px; font-size:12.5px; }
 
-.vr-filter { background:#fff; border:1px solid #e3e8ee; border-radius:10px; padding:10px 12px; margin-bottom:12px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-.vr-chip { padding:6px 12px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; border-radius:20px; cursor:pointer; font-size:13px; text-decoration:none; display:inline-flex; align-items:center; gap:5px; }
+.vr-filter { background:#fff; border:1px solid #e3e8ee; border-radius:10px; padding:6px 10px; margin-bottom:10px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.vr-filter select { padding:4px 6px !important; font-size:12.5px !important; }
+.vr-chip { padding:4px 10px; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; border-radius:20px; cursor:pointer; font-size:13px; text-decoration:none; display:inline-flex; align-items:center; gap:5px; }
 .vr-chip:hover { background:#e2e8f0; color:#0f172a; }
 .vr-chip.active { background:#7c3aed; border-color:#7c3aed; color:#fff; }
-.vr-sep { width:1px; height:24px; background:#e2e8f0; }
-.vr-filter input[type=date] { padding:6px 8px; border:1px solid #cfd8dc; border-radius:6px; font-size:13px; }
+.vr-sep { width:1px; height:20px; background:#e2e8f0; }
+.vr-filter input[type=date] { padding:3px 4px; border:1px solid #cfd8dc; border-radius:6px; font-size:12.5px; width:122px; }
 .vr-filter label { font-size:12px; color:#607d8b; }
-.vr-apply { padding:6px 14px; background:#22c55e; color:#fff; border:1px solid #16a34a; border-radius:6px; cursor:pointer; font-size:13px; }
+.vr-apply { padding:4px 12px; background:#22c55e; color:#fff; border:1px solid #16a34a; border-radius:6px; cursor:pointer; font-size:13px; }
 
 .vr-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px; }
 .vr-card { background:#fff; border:1px solid #e3e8ee; border-radius:10px; overflow:hidden; }
@@ -200,10 +209,19 @@ $summaryPdfUrl = $pdfUrl . '&layout=summary';
 ?>
 <div class="vr-header">
     <div>
-        <h3><i class="fas fa-chart-line"></i> <?= $reportTab === 'referrals' ? 'ڕاپۆرتی ناردن بۆ ئیش' : 'ڕاپۆرتی سەردانەکان' ?> <span style="font-size:13px; color:#7c3aed; font-weight:600;">(<?= $reportTab === 'referrals' ? 'لە پشکنینەوە بۆ ئیش' : htmlspecialchars($visitTypeLabel) ?>)</span></h3>
+        <h3><i class="fas fa-chart-line"></i> <?= $reportTab === 'referrals' ? 'ڕاپۆرتی ناردن بۆ ئیش' : ($reportTab === 'compare' ? 'بەراوردی سەردانەکان' : 'ڕاپۆرتی سەردانەکان') ?> <span style="font-size:13px; color:#7c3aed; font-weight:600;">(<?= $reportTab === 'referrals' ? 'لە پشکنینەوە بۆ ئیش' : htmlspecialchars($visitTypeLabel) ?>)</span></h3>
+        <?php if ($reportTab === 'compare'): ?>
+        <div class="sub">دوو ماوە لە ئاماری سەردانەکان بەرامبەر یەک</div>
+        <?php else: ?>
         <div class="sub"><?= htmlspecialchars($rangeLabel) ?> — <?= htmlspecialchars($rangeFrom) ?><?= $rangeFrom !== $rangeTo ? ' بۆ ' . htmlspecialchars($rangeTo) : '' ?></div>
+        <?php endif; ?>
     </div>
     <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <?php if ($reportTab === 'compare'): ?>
+        <button type="button" onclick="window.print()" class="btn" style="background:#3768a1;border-color:#3768a1;color:#fff;">
+            <i class="fas fa-print"></i> چاپکردن
+        </button>
+        <?php else: ?>
         <a href="<?= htmlspecialchars($summaryPdfUrl) ?>" target="_blank" rel="noopener" class="btn" style="background:#3768a1;border-color:#3768a1;color:#fff;">
             <i class="fas fa-file-pdf"></i> پوختەی PDF
         </a>
@@ -212,17 +230,21 @@ $summaryPdfUrl = $pdfUrl . '&layout=summary';
             <i class="fas fa-file-pdf"></i> PDFی تەواو
         </a>
         <?php endif; ?>
+        <?php endif; ?>
         <a href="<?= APP_URL ?>/visits.php" class="btn btn-secondary">
             <i class="fas fa-arrow-right"></i> گەڕانەوە
         </a>
     </div>
 </div>
 
+<div class="vr-tabbar">
 <nav class="vr-report-tabs" aria-label="جۆری ڕاپۆرت">
     <a href="?<?= htmlspecialchars(http_build_query(array_merge($reportQuery, ['tab' => 'visits']))) ?>" <?= $reportTab === 'visits' ? 'aria-current="page"' : '' ?>><i class="fas fa-chart-bar"></i> ئاماری سەردانەکان</a>
     <a href="?<?= htmlspecialchars(http_build_query(array_merge($reportQuery, ['tab' => 'referrals']))) ?>" <?= $reportTab === 'referrals' ? 'aria-current="page"' : '' ?>><i class="fas fa-share-alt"></i> لە پشکنینەوە بۆ ئیش</a>
+    <a href="?<?= htmlspecialchars(http_build_query(['tab' => 'compare', 'visit_type' => $visitType])) ?>" <?= $reportTab === 'compare' ? 'aria-current="page"' : '' ?>><i class="fas fa-balance-scale"></i> بەراورد</a>
 </nav>
 
+<?php if ($reportTab !== 'compare'): ?>
 <form method="GET" class="vr-month-filter">
     <input type="hidden" name="mode" value="month">
     <input type="hidden" name="visit_type" value="<?= htmlspecialchars($visitType) ?>">
@@ -233,8 +255,10 @@ $summaryPdfUrl = $pdfUrl . '&layout=summary';
     <input type="month" id="report-month" name="month" value="<?= htmlspecialchars($reportMonth) ?>" required>
     <button type="submit" class="vr-apply"><i class="fas fa-calendar-alt"></i> پیشاندانی مانگ</button>
 </form>
+<?php endif; ?>
+</div>
 
-<?php
+<?php if ($reportTab !== 'compare'):
 $chips = [
     ['today',     'ئەمڕۆ',        'fa-calendar-day'],
     ['yesterday', 'دوێنێ',        'fa-arrow-right'],
@@ -284,8 +308,11 @@ $chips = [
 
     <button type="submit" class="vr-apply"><i class="fas fa-search"></i> گەڕان</button>
 </form>
+<?php endif; ?>
 
-<?php if ($reportTab === 'referrals'): ?>
+<?php if ($reportTab === 'compare'): ?>
+<?php require __DIR__ . '/includes/visit-report-compare-view.php'; ?>
+<?php elseif ($reportTab === 'referrals'): ?>
 <form method="GET" class="vr-examiner-filter">
     <?php foreach ($reportQuery as $key => $value): if ($key === 'examiner_id') { continue; } ?>
         <input type="hidden" name="<?= htmlspecialchars($key) ?>" value="<?= htmlspecialchars((string) $value) ?>">
