@@ -328,8 +328,9 @@ $chips = [
 </form>
 <section class="vr-photo-sheet" aria-label="لە پشکنینەوە بۆ ئیش">
     <?= dh_visit_report_letterhead($db) ?>
-    <div class="vr-photo-scroll"><?= dh_visit_referral_render($referralReport, $reportPeriod, $currentUser['full_name'] ?? '') ?></div>
+    <div class="vr-photo-scroll"><?= dh_visit_referral_render($referralReport, $reportPeriod, $currentUser['full_name'] ?? '', true) ?></div>
 </section>
+<?php dh_visit_report_detail_shell(APP_URL . '/visits-report-detail.php?' . http_build_query(array_merge($reportQuery, ['examiner_id' => $examinerId]))); ?>
 <?php else: ?>
 <section class="vr-photo-sheet" aria-label="ئاماری سەردانەکان">
     <?= dh_visit_report_letterhead($db) ?>

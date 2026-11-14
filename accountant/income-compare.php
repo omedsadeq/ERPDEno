@@ -350,6 +350,8 @@ require_once __DIR__ . '/../includes/header.php';
         <button type="button" class="cmp-tool" id="cmpFull" title="پڕ بە شاشە (Esc بۆ دەرچوون)"><i class="fas fa-expand"></i> پڕ بە شاشە</button>
         <?php if ($copyReady): ?>
         <button type="button" class="cmp-tool is-edit" id="cmpEdit" title="ژمارە، ناو و ڕیزەکان لەسەر کۆپییەک بگۆڕە — ڕاپۆرتی ڕاستەقینە ناگۆڕێت"><i class="fas fa-pen-to-square"></i> <?= $copy ? 'دەستکاری' : 'دەستکاری لەسەر کۆپی' ?></button>
+        <?php else: ?>
+        <button type="button" class="cmp-tool is-edit" disabled title="خشتەی income_compare_copies لە داتابەیس دروست نەکرا — بڕوانە لۆگی هەڵەکانی PHP"><i class="fas fa-pen-to-square"></i> دەستکاری لەسەر کۆپی (ئامادە نییە)</button>
         <?php endif; ?>
     </div>
     <div class="cmp-presets">

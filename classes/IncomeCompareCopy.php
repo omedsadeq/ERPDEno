@@ -21,7 +21,22 @@ class IncomeCompareCopy
 
     public static function available(): bool
     {
-        return Database::getInstance()->tableExists('income_compare_copies');
+        $db = Database::getInstance();
+        if ($db->tableExists('income_compare_copies')) {
+            return true;
+        }
+        // A copied folder whose migrations have not reached this database yet:
+        // the table is the migration's own CREATE TABLE IF NOT EXISTS, safe to run here.
+        $sql = @file_get_contents(__DIR__ . '/../database/migrations/2026_11_14_income_compare_copies.sql');
+        if ($sql) {
+            try {
+                $db->getConnection()->exec(preg_replace('/^\s*--.*$/m', '', $sql));
+            } catch (Throwable $e) {
+                error_log('income_compare_copies: ' . $e->getMessage());
+                return false;
+            }
+        }
+        return $db->tableExists('income_compare_copies');
     }
 
     /** Every copy, newest first (without the tables). */

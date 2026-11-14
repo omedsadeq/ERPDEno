@@ -9,6 +9,8 @@ require_once __DIR__ . '/classes/Database.php';
 require_once __DIR__ . '/classes/Auth.php';
 require_once __DIR__ . '/includes/VisitReportFilters.php';
 require_once __DIR__ . '/includes/VisitReportDetail.php';
+require_once __DIR__ . '/includes/VisitReportStats.php';
+require_once __DIR__ . '/includes/VisitReferralReport.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -27,6 +29,27 @@ if ($auth->isRestrictedDoctor()) {
 }
 
 $filters = dh_visit_report_filters($_GET);
+
+// «لە پشکنینەوە بۆ ئیش»: the visits behind one number of the referral report,
+// taken from the very report the page draws (same filters, same examiner).
+if (($_GET['report'] ?? '') === 'referrals') {
+    $db = Database::getInstance();
+    $report = dh_visit_referral_report($db, $filters);
+    $refCell = dh_visit_referral_cell($report, (string) ($_GET['row'] ?? ''), (string) ($_GET['doc'] ?? ''));
+    if ($refCell === null) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'خانەکە نەناسرایەوە'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    echo json_encode([
+        'ok' => true,
+        'title' => $refCell['title'] . ' — ' . $report['examiner_name'],
+        'count' => count($refCell['ids']),
+        'html' => dh_visit_referral_detail_body($db, $refCell['ids'], $filters),
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 $cell = dh_visit_report_detail_cell((string) ($_GET['row'] ?? ''), (string) ($_GET['doc'] ?? ''));
 if ($cell === null) {
     http_response_code(400);

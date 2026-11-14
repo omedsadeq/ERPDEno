@@ -173,6 +173,8 @@ function dh_visit_report_detail_shell(string $url): void
 .vrd-tag.s-new{background:#e0f2fe;color:#0369a1}.vrd-tag.s-old{background:#fef3c7;color:#b45309}
 .vrd-empty,.vrd-loading{padding:36px;text-align:center;color:#94a3b8;font-size:13px}
 @media print{.vr-xbtn{display:none}}
+.vr-photo-note p .vr-cell{gap:5px}
+.vr-photo-note p .vr-xbtn{width:20px;height:20px;font-size:10px}
 </style>
 <div class="dialog-overlay" id="vrDetailDialog"><div class="dialog vrd-dlg" role="dialog" aria-modal="true" aria-labelledby="vrd-title">
     <div class="dialog-header"><h3 class="dialog-title" id="vrd-title"><i class="fas fa-layer-group"></i> <span></span></h3>
@@ -190,7 +192,8 @@ function dh_visit_report_detail_shell(string $url): void
         title.textContent = '';
         body.innerHTML = '<div class="vrd-loading"><i class="fas fa-spinner fa-spin"></i> چاوەڕێ بکە…</div>';
         openDialog('vrDetailDialog');
-        fetch(url + '&row=' + encodeURIComponent(btn.dataset.vrRow) + '&doc=' + encodeURIComponent(btn.dataset.vrDoc), {credentials: 'same-origin'})
+        fetch(url + '&row=' + encodeURIComponent(btn.dataset.vrRow) + '&doc=' + encodeURIComponent(btn.dataset.vrDoc)
+                + (btn.dataset.vrReport ? '&report=' + encodeURIComponent(btn.dataset.vrReport) : ''), {credentials: 'same-origin'})
             .then(function (r) { return r.json(); })
             .then(function (d) {
                 if (ask !== asked) return;
