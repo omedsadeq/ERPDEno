@@ -330,7 +330,15 @@ require_once __DIR__ . '/../includes/header.php';
 .cmp-rowtools{position:fixed;z-index:60;display:flex;gap:4px;padding:3px;border-radius:9px;background:#fff;box-shadow:0 6px 18px -6px rgba(15,23,42,.35);border:1px solid #ddd6fe}
 .cmp-rowtools[hidden]{display:none}
 .cmp-rowtools button{width:28px;height:28px;border:0;border-radius:7px;background:#f5f3ff;color:#6d28d9;cursor:pointer}
+.cmp-rowtools button:hover{background:#7c3aed;color:#fff}
 .cmp-rowtools button.is-del{background:#fff1f2;color:#be123c}
+.cmp-rowtools button.is-del:hover{background:#e11d48;color:#fff}
+.cmp-rowtools button.is-grip{cursor:grab;touch-action:none;background:#f1f5f9;color:#475569}
+.cmp-rowtools button:disabled{opacity:.35;cursor:default;background:#f5f3ff;color:#6d28d9}
+.cmp-rowtools .sep{width:1px;margin:3px 1px;background:#e9e5ff}
+.cmp-sheet.is-editing .cr tbody tr.is-row{box-shadow:inset 0 0 0 2px #a78bfa}
+.cmp-sheet.is-editing .cr tbody tr.is-dragging{opacity:.75;box-shadow:inset 0 0 0 2px #7c3aed;background:#f5f3ff}
+.cmp-sheet.is-dragging-row,.cmp-sheet.is-dragging-row *{cursor:grabbing !important;user-select:none}
 /* the sheet over the whole screen */
 .cmp-sheet:fullscreen{overflow:auto;margin:0;border-radius:0;padding:12px 18px;background:#fff}
 .cmp-sheet:fullscreen .cr{min-width:0}
@@ -406,7 +414,8 @@ require_once __DIR__ . '/../includes/header.php';
         <?php foreach (['a_from' => $aFrom, 'a_to' => $aTo, 'b_from' => $bFrom, 'b_to' => $bTo] as $k => $v): ?><input type="hidden" name="<?= $k ?>" value="<?= dsEsc($v) ?>"><?php endforeach; ?>
         <?php if ($avg): ?><input type="hidden" name="avg" value="1"><?php endif; ?>
         <i class="fas fa-pen-to-square"></i>
-        <span class="cmp-editnote">دەستکاری لەسەر کۆپی: کلیک لە هەر خانەیەک بکە و بیگۆڕە. کۆی گشتی خۆی دەژمێردرێتەوە. ڕاپۆرتی ڕاستەقینە ناگۆڕێت.</span>
+        <span class="cmp-editnote">دەستکاری لەسەر کۆپی وەک ئێکسڵ: کلیک لە هەر خانەیەک بکە و بیگۆڕە؛ ڕیزەکان بە ⠿ ڕاکێشە، یان ↑ ↓ (Alt+↑↓)، زیاد/دووبارە/ڕەش بکەوە. Enter: خانەی خوارەوە. کۆی گشتی خۆی دەژمێردرێتەوە. ڕاپۆرتی ڕاستەقینە ناگۆڕێت.</span>
+        <button type="button" class="cmp-tool" id="cmpUndo" disabled title="گەڕاندنەوەی دوا کاری ڕیز (Ctrl+Z لە دەرەوەی خانە)"><i class="fas fa-rotate-left"></i> گەڕاندنەوە</button>
         <input type="text" name="title" maxlength="150" required placeholder="ناوی کۆپی، بۆ نموونە: بەراوردی مانگی 10 بۆ کۆبوونەوە"
                value="<?= dsEsc($copy['title'] ?? '') ?>">
         <button type="submit" class="cmp-go" data-save><i class="fas fa-save"></i> پاشەکەوت</button>
@@ -414,8 +423,13 @@ require_once __DIR__ . '/../includes/header.php';
         <button type="button" class="cmp-tool" id="cmpCancel"><i class="fas fa-xmark"></i> پاشگەزبوونەوە</button>
     </form>
     <div class="cmp-rowtools" id="cmpRowTools" hidden>
+        <button type="button" data-row="grip" class="is-grip" title="ڕاکێشان بۆ گواستنەوەی ڕیزەکە"><i class="fas fa-grip-vertical"></i></button>
+        <button type="button" data-row="up" title="بۆ سەرەوە (Alt+↑)"><i class="fas fa-arrow-up"></i></button>
+        <button type="button" data-row="down" title="بۆ خوارەوە (Alt+↓)"><i class="fas fa-arrow-down"></i></button>
+        <span class="sep"></span>
         <button type="button" data-row="add" title="ڕیزێکی نوێ لە ژێر ئەمە"><i class="fas fa-plus"></i></button>
-        <button type="button" data-row="del" title="سڕینەوەی ئەم ڕیزە" class="is-del"><i class="fas fa-trash"></i></button>
+        <button type="button" data-row="dup" title="دووبارەکردنەوەی ئەم ڕیزە"><i class="fas fa-clone"></i></button>
+        <button type="button" data-row="del" title="ڕەشکردنەوەی ئەم ڕیزە" class="is-del"><i class="fas fa-trash"></i></button>
     </div>
     <?php endif; ?>
     <?php foreach ($tablesHtml as $tableHtml): ?>
@@ -482,7 +496,7 @@ require_once __DIR__ . '/../includes/header.php';
         sheet.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     document.getElementById('cmpCancel').addEventListener('click', function () {
-        if (!sheet.querySelector('.is-changed') || confirm('گۆڕانکارییەکان پاشەکەوت نەکراون. پاشگەزببیتەوە؟')) location.reload();
+        if (!(sheet.querySelector('.is-changed') || !document.getElementById('cmpUndo').disabled) || confirm('گۆڕانکارییەکان پاشەکەوت نەکراون. پاشگەزببیتەوە؟')) location.reload();
     });
 
     sheet.addEventListener('input', function (e) {
@@ -492,34 +506,154 @@ require_once __DIR__ . '/../includes/header.php';
         if (td.closest('tbody')) retotal(td.closest('table'));
     });
 
-    // + / ✕ beside the row being edited
-    sheet.addEventListener('focusin', function (e) {
-        const tr = e.target.closest('tbody tr');
-        if (!tr || !sheet.classList.contains('is-editing')) return;
-        row = tr;
-        const r = tr.getBoundingClientRect();
-        tools.style.top = (r.top + r.height / 2 - 17) + 'px';
-        tools.style.left = Math.max(4, r.left - 70) + 'px';
-        tools.hidden = false;
+    // ── rows as in Excel: drag ⠿, ↑ ↓, add, duplicate, delete — and گەڕاندنەوە ──
+    const undoBtn = document.getElementById('cmpUndo');
+    const undo = [];
+    const tables = function () { return Array.from(sheet.querySelectorAll('table.cr')); };
+    const remember = function () {   // the tables as they are, before a row changes
+        undo.push(tables().map(function (t) { return t.innerHTML; }));
+        if (undo.length > 50) undo.shift();
+        undoBtn.disabled = false;
+    };
+    undoBtn.addEventListener('click', function () {
+        const last = undo.pop();
+        if (!last) return;
+        tables().forEach(function (t, i) { t.innerHTML = last[i]; t.querySelectorAll('tr.is-row,tr.is-dragging').forEach(function (tr) { tr.classList.remove('is-row', 'is-dragging'); }); });
+        undoBtn.disabled = !undo.length;
+        pick(null);
     });
-    window.addEventListener('scroll', function () { tools.hidden = true; }, true);
+
+    const place = function () {      // the tools beside the chosen row (outside the table when there is room)
+        if (!row) { tools.hidden = true; return; }
+        tools.hidden = false;
+        const r = row.getBoundingClientRect(), w = tools.offsetWidth, h = tools.offsetHeight;
+        // a table wider than the screen scrolls sideways: only its visible part counts
+        const box = (row.closest('.cmp-scroll') || row).getBoundingClientRect();
+        const left = Math.max(r.left, box.left, 0);
+        const outside = left - w - 8 >= 4;
+        tools.style.left = (outside ? left - w - 8 : left + 4) + 'px';
+        tools.style.top = (outside ? r.top + r.height / 2 - h / 2 : r.top - h - 4) + 'px';
+        tools.querySelector('[data-row="up"]').disabled = !row.previousElementSibling;
+        tools.querySelector('[data-row="down"]').disabled = !row.nextElementSibling;
+    };
+    const pick = function (tr) {
+        if (row) row.classList.remove('is-row');
+        row = tr;
+        if (row) row.classList.add('is-row');
+        place();
+    };
+    const move = function (tr, dir) {   // −1 up, +1 down, within its own part of the table
+        const other = dir < 0 ? tr.previousElementSibling : tr.nextElementSibling;
+        if (!other) return;
+        remember();
+        dir < 0 ? other.before(tr) : other.after(tr);
+        place();
+    };
+    const blank = function (tr, label) {
+        const r = tr.cloneNode(true);
+        r.classList.remove('is-row', 'is-dragging');
+        Array.from(r.cells).forEach(function (c, i) {
+            if (label !== undefined) c.textContent = i === 0 ? label : '';
+            c.contentEditable = 'true';
+            c.classList.add('is-changed');
+        });
+        return r;
+    };
+
+    sheet.addEventListener('focusin', function (e) {
+        if (!sheet.classList.contains('is-editing')) return;
+        pick(e.target.closest('tbody tr'));
+    });
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
     tools.addEventListener('mousedown', function (e) { e.preventDefault(); });
     tools.addEventListener('click', function (e) {
         const b = e.target.closest('button');
-        if (!b || !row) return;
+        if (!b || !row || b.dataset.row === 'grip') return;
         const table = row.closest('table');
-        if (b.dataset.row === 'del') {
-            if (!confirm('ئەم ڕیزە لە کۆپییەکە بسڕدرێتەوە؟')) return;
+        const act = b.dataset.row;
+        if (act === 'up' || act === 'down') { move(row, act === 'up' ? -1 : 1); return; }
+        remember();
+        if (act === 'del') {
+            const next = row.nextElementSibling || row.previousElementSibling;
             row.remove();
+            row = null;
+            pick(next);
         } else {
-            const copy = row.cloneNode(true);
-            Array.from(copy.cells).forEach(function (c, i) { c.textContent = i === 0 ? 'ڕیزی نوێ' : ''; c.contentEditable = 'true'; c.classList.add('is-changed'); });
-            row.after(copy);
-            copy.cells[0].focus();
+            const r = blank(row, act === 'add' ? 'ڕیزی نوێ' : undefined);
+            row.after(r);
+            r.cells[0].focus();
+            if (act === 'add') document.getSelection().selectAllChildren(r.cells[0]);
         }
-        tools.hidden = true;
-        row = null;
         retotal(table);
+    });
+
+    // ⠿ held down: the row follows the pointer up and down its table
+    tools.querySelector('[data-row="grip"]').addEventListener('pointerdown', function (e) {
+        if (!row) return;
+        e.preventDefault();
+        const grip = e.currentTarget, body = row.parentNode, dragged = row;
+        let moved = false;
+        try { grip.setPointerCapture(e.pointerId); } catch (err) { /* moves still reach the grip while over it */ }
+        dragged.classList.add('is-dragging');
+        sheet.classList.add('is-dragging-row');
+        const onMove = function (ev) {
+            const el = document.elementFromPoint(ev.clientX, ev.clientY);
+            const over = el && el.closest ? el.closest('tr') : null;
+            if (!over || over === dragged || over.parentNode !== body) {
+                // past the first or last row: to that end
+                const rows = body.rows, first = rows[0], last = rows[rows.length - 1];
+                if (ev.clientY < first.getBoundingClientRect().top && first !== dragged) { if (!moved) remember(); moved = true; first.before(dragged); }
+                else if (ev.clientY > last.getBoundingClientRect().bottom && last !== dragged) { if (!moved) remember(); moved = true; last.after(dragged); }
+                place();
+                return;
+            }
+            const r = over.getBoundingClientRect();
+            const below = ev.clientY > r.top + r.height / 2;
+            if ((below && over.nextElementSibling === dragged) || (!below && over.previousElementSibling === dragged)) return;
+            if (!moved) remember();
+            moved = true;
+            below ? over.after(dragged) : over.before(dragged);
+            place();
+        };
+        const onUp = function () {
+            grip.removeEventListener('pointermove', onMove);
+            grip.removeEventListener('pointerup', onUp);
+            grip.removeEventListener('pointercancel', onUp);
+            dragged.classList.remove('is-dragging');
+            sheet.classList.remove('is-dragging-row');
+            place();
+        };
+        grip.addEventListener('pointermove', onMove);
+        grip.addEventListener('pointerup', onUp);
+        grip.addEventListener('pointercancel', onUp);
+    });
+
+    // keys as in Excel: Enter → the cell below, Alt+↑/↓ moves the row, Shift+Enter a new line in the cell
+    sheet.addEventListener('keydown', function (e) {
+        if (!sheet.classList.contains('is-editing')) return;
+        const cell = e.target.closest('td, th');
+        const tr = cell && cell.parentNode;
+        if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && tr && tr.parentNode.tagName === 'TBODY') {
+            e.preventDefault();
+            move(tr, e.key === 'ArrowUp' ? -1 : 1);
+            cell.focus();
+            return;
+        }
+        if (e.key === 'Enter' && !e.shiftKey && cell) {
+            e.preventDefault();
+            const rows = Array.from(cell.closest('table').rows);
+            const next = rows[rows.indexOf(tr) + (e.ctrlKey ? -1 : 1)];
+            const target = next && next.cells[Math.min(cell.cellIndex, next.cells.length - 1)];
+            if (target) { target.focus(); document.getSelection().selectAllChildren(target); }
+        }
+    });
+    document.addEventListener('keydown', function (e) {
+        const inCell = e.target.closest && e.target.closest('[contenteditable="true"]');
+        if (!inCell && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && sheet.classList.contains('is-editing') && undo.length) {
+            e.preventDefault();
+            undoBtn.click();
+        }
     });
 
     // the tables as plain text (titles, headings, rows of cells), for the copy
