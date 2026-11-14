@@ -1,8 +1,9 @@
 <?php
 /**
  * داهات — PDF of the daily income sheet, printed to look like the paper
- * تۆماری ڕۆژی it replaces: letterhead, the table, and the totals beside the
- * تێبینی / وەرگر boxes, with room for the cashier's stamp.
+ * تۆماری ڕۆژی it replaces: the date line, the table, and the totals beside
+ * the تێبینی / وەرگر boxes, with room for the cashier's stamp. No letterhead,
+ * and set close, so a day fits on as little paper as it can.
  *
  * Same figures as accountant/income.php (both read _income_data.php).
  */
@@ -10,8 +11,6 @@
 require_once __DIR__ . '/_income_data.php';
 require_once __DIR__ . '/../classes/IncomeSheetColumns.php';
 require_once __DIR__ . '/../services/InvoicePdfService.php';
-
-require __DIR__ . '/../includes/clinic_branding.php';
 
 $money = function (float $v): string {
     if (abs($v) < 0.5) {
@@ -46,19 +45,12 @@ $rateText = fn(?float $r) => $r === null ? '؟' : rtrim(rtrim(number_format($r, 
 $html = '
 <style>
 body { font-family: nrt; direction: rtl; font-size: 10pt; color: #0f172a; }
-.head { width: 100%; border-collapse: collapse; margin-bottom: 3mm; }
-.head td { vertical-align: middle; }
-.ku { font-size: 15pt; font-weight: bold; color: #0369a1; }
-.addr { font-size: 8.5pt; color: #475569; }
-.en { font-size: 14pt; font-weight: bold; color: #0369a1; text-align: left; direction: ltr; }
-.ph { font-size: 9pt; color: #475569; text-align: left; direction: ltr; }
-.line { border-bottom: 2px solid #0284c7; height: 1mm; margin-bottom: 3mm; }
-.datebar { width: 100%; border-collapse: collapse; margin-bottom: 3mm; }
-.datebar td.k { font-weight: bold; width: 24mm; font-size: 10pt; }
-.datebar td.v { background: #cfe6f3; padding: 1.8mm 3mm; font-weight: bold; font-size: 10pt; }
+.datebar { width: 100%; border-collapse: collapse; margin-bottom: 2mm; }
+.datebar td.k { font-weight: bold; width: 22mm; font-size: 9.5pt; }
+.datebar td.v { background: #cfe6f3; padding: 1.1mm 2.5mm; font-weight: bold; font-size: 9.5pt; }
 .tbl { width: 100%; border-collapse: collapse; }
-.tbl th { background: #cfe6f3; color: #0c4a6e; font-size: 9.5pt; padding: 2.2mm 2mm; border: 1px solid #7fb3d0; }
-.tbl td { padding: 2.4mm 1.6mm; border: 1px solid #a9c9dc; font-size: ' . $tblFont . '; }
+.tbl th { background: #cfe6f3; color: #0c4a6e; font-size: 9pt; padding: 1.3mm 1.5mm; border: 1px solid #7fb3d0; }
+.tbl td { padding: 1.3mm 1.4mm; border: 1px solid #a9c9dc; font-size: ' . $tblFont . '; }
 .tbl td.i { text-align: center; width: 7mm; color: #475569; }
 .tbl td.c { text-align: center; width: 13mm; }
 .tbl td.n { text-align: left; direction: ltr; white-space: nowrap; width: ' . $numWidth . 'mm; }
@@ -71,30 +63,18 @@ body { font-family: nrt; direction: rtl; font-size: 10pt; color: #0f172a; }
 .tbl td.doc { color: #5b21b6; }
 .tbl td.ctr { color: #0f766e; font-weight: bold; }
 .rt { font-size: 7pt; color: #6d28d9; }
-.note { margin: 0 0 3mm; padding: 2mm 3mm; border: 1px solid #fde68a; background: #fffbeb; color: #92400e; font-size: 8.5pt; }
+.note { margin: 0 0 2mm; padding: 1.3mm 2.5mm; border: 1px solid #fde68a; background: #fffbeb; color: #92400e; font-size: 8.5pt; }
 .tbl td.en { direction: ltr; text-align: center; }
 .man { direction: rtl; font-size: 7pt; color: #b45309; }
 .tbl td.lb { text-align: center; }
 .tbl tr.tot td { background: #e0f2fe; font-weight: bold; }
-.foot { width: 100%; border-collapse: collapse; margin-top: 5mm; }
+.foot { width: 100%; border-collapse: collapse; margin-top: 3mm; }
 .foot td { vertical-align: top; }
 .fbox { width: 100%; border-collapse: collapse; }
-.fbox td.k { font-weight: bold; width: 20mm; padding: 2mm 1mm; font-size: 10pt; }
-.fbox td.v { border: 1px solid #7fb3d0; padding: 2mm 3mm; height: 9mm; text-align: left; direction: ltr; font-weight: bold; font-size: 11pt; }
+.fbox td.k { font-weight: bold; width: 27mm; padding: 1mm 1mm; font-size: 9.5pt; white-space: nowrap; }
+.fbox td.v { border: 1px solid #7fb3d0; padding: 1.1mm 2.5mm; height: 6.5mm; text-align: left; direction: ltr; font-weight: bold; font-size: 10.5pt; }
+.fbox td.gap { height: 1mm; }
 </style>
-
-<table class="head"><tr>
-    <td style="width:38%;">
-        <div class="ku">' . dsEsc($clinicName) . '</div>
-        <div class="addr">' . dsEsc($clinicAddress) . '</div>
-    </td>
-    <td style="width:24%;text-align:center;">' . (is_file($logoPath) ? '<img src="' . dsEsc($logoPath) . '" style="width:20mm;">' : '') . '</td>
-    <td style="width:38%;">
-        <div class="en">' . dsEsc($clinicNameEn) . '</div>
-        <div class="ph">' . dsEsc(implode(' · ', $clinicPhones)) . '</div>
-    </td>
-</tr></table>
-<div class="line"></div>
 
 <table class="datebar"><tr>
     <td class="k">تۆماری ڕۆژی :</td>
@@ -173,15 +153,15 @@ $html .= '<tr class="tot">
     <td style="width:48%;">
         <table class="fbox">
             <tr><td class="k">کۆی گشتی :</td><td class="v">' . ($sheetTotal < 0 ? '(' . dsMoney(abs($sheetTotal)) . ')' : dsMoney($sheetTotal)) . '</td></tr>
-            <tr><td colspan="2" style="height:2mm;"></td></tr>
-            <tr><td class="k">خەرجیات :</td><td class="v">' . dsMoney($expensesAll) . '</td></tr>
-            <tr><td colspan="2" style="height:2mm;"></td></tr>
+            <tr><td colspan="2" class="gap"></td></tr>
             <tr><td class="k">ماوە :</td><td class="v">' . ($remaining < 0 ? '(' . dsMoney(abs($remaining)) . ')' : dsMoney($remaining)) . '</td></tr>
-            <tr><td colspan="2" style="height:4mm;"></td></tr>
+            <tr><td colspan="2" style="height:2mm;"></td></tr>
             <tr><td class="k">پشکی دکتۆران :</td><td class="v" style="color:#5b21b6;">' . ($money($totals['doctorShare']) ?: '0') . '</td></tr>
-            <tr><td colspan="2" style="height:2mm;"></td></tr>
+            <tr><td colspan="2" class="gap"></td></tr>
             <tr><td class="k">پشکی سەنتەر :</td><td class="v" style="color:#0f766e;">' . ($money($totals['centerShare']) ?: '0') . '</td></tr>
-            <tr><td colspan="2" style="height:2mm;"></td></tr>
+            <tr><td colspan="2" class="gap"></td></tr>
+            <tr><td class="k">خەرجیات :</td><td class="v" style="color:#c2410c;">' . dsMoney($expensesAll) . '</td></tr>
+            <tr><td colspan="2" class="gap"></td></tr>
             <tr><td class="k">سافی سەنتەر :</td><td class="v" style="color:' . ($centerAfterExpenses < 0 ? '#dc2626' : '#047857') . ';">'
                 . ($centerAfterExpenses < 0 ? '(' . dsMoney(abs($centerAfterExpenses)) . ')' : dsMoney($centerAfterExpenses)) . '</td></tr>
         </table>
@@ -191,9 +171,9 @@ $html .= '<tr class="tot">
         <!-- Table cells, not divs: mPDF drops the height of an empty div, which
              left these two write-in boxes as bare labels. -->
         <table class="fbox">
-            <tr><td class="k">تێبینی :</td><td class="v" style="height:17mm;"></td></tr>
-            <tr><td colspan="2" style="height:2mm;"></td></tr>
-            <tr><td class="k">وەرگر :</td><td class="v" style="height:17mm;"></td></tr>
+            <tr><td class="k">تێبینی :</td><td class="v" style="height:13mm;"></td></tr>
+            <tr><td colspan="2" class="gap"></td></tr>
+            <tr><td class="k">وەرگر :</td><td class="v" style="height:13mm;"></td></tr>
         </table>
     </td>
 </tr></table>';
@@ -203,10 +183,10 @@ $pdf = new InvoicePdfService([
     'format'           => 'A4',
     'show_header'      => 0,
     'show_footer'      => 0,
-    'margin_top_mm'    => 10,
-    'margin_bottom_mm' => 18,
-    'margin_left_mm'   => 12,
-    'margin_right_mm'  => 12,
+    'margin_top_mm'    => 6,
+    'margin_bottom_mm' => 12,
+    'margin_left_mm'   => 8,
+    'margin_right_mm'  => 8,
 ]);
 $pdf->setTitle('داهات — ' . $from . ($from === $to ? '' : ' / ' . $to));
 $pdf->getMpdf()->SetHTMLFooter(
