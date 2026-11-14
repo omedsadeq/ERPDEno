@@ -74,7 +74,7 @@ $tpwJson = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UN
 
 // «پلانی نوێ»: a doctor's own plan; anyone else names the doctor, offered
 // today's waiting-room doctor first, else the doctor of the patient's last folder.
-$tpwPickDoctor = !($auth->isDoctor() && !$auth->isAdmin());
+$tpwPickDoctor = !($auth->isRestrictedDoctor());
 $tpwDoctors = [];
 $tpwLead = 0;
 if ($canWritePlans && $tpwPickDoctor) {

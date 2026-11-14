@@ -85,7 +85,7 @@ $buildDueUrl = function($filter) {
 };
 
 // Get data — a doctor sees ONLY their own patients; admin/accountant see all.
-$dcDoctorId = ($isDoctor && !$isAdmin) ? (int)$currentUser['id'] : null;
+$dcDoctorId = ($auth->isRestrictedDoctor()) ? (int)$currentUser['id'] : null;
 $debtors = $debtCollection->getDebtors($search, $callFilter, $sortBy, $sortDir, $debtTypeFilter, $installmentDueFilter, $installmentDate, $selectedDueFrom, $selectedDueTo, $dcDoctorId);
 $callStatusLabels = DebtCollection::getCallStatusLabels();
 $callStatusColors = DebtCollection::getCallStatusColors();

@@ -16,7 +16,7 @@ $isAdmin = $auth->isAdmin();
 $isAccountant = $auth->isAccountant();
 $isDoctor = $auth->isDoctor();
 
-if (!($isAdmin || $isAccountant) && !($isDoctor && !$isAdmin)) {
+if (!($isAdmin || $isAccountant) && !($auth->isRestrictedDoctor())) {
     http_response_code(403);
     exit('Forbidden');
 }
@@ -28,7 +28,7 @@ if (!$patientId) {
 }
 
 $doctorScopeUserId = null;
-if ($isDoctor && !$isAdmin) {
+if ($auth->isRestrictedDoctor()) {
     AccessGuard::requirePatientGeneral($patientId);
     $doctorScopeUserId = (int)$currentUser['id'];
 }

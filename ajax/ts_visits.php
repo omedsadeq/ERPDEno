@@ -41,7 +41,7 @@ function visits_summary_zero(): array {
 // Doctor isolation: a doctor may only search their OWN visits. visits.*_doctor_id
 // point at doctors.id, so resolve the logged-in doctor's clinical record (same
 // bridge visits.php uses). An unlinked doctor account fails closed (sees nothing).
-$isRestrictedDoctor = $auth->isDoctor() && !$auth->isAdmin();
+$isRestrictedDoctor = $auth->isRestrictedDoctor();
 $enforcedDoctorId = 0;
 if ($isRestrictedDoctor) {
     $drow = Database::getInstance()->fetch(

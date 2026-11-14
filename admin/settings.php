@@ -19,7 +19,7 @@ require_once __DIR__ . '/../classes/CashboxLedger.php';
 // Check admin access
 $auth = new Auth();
 $auth->requireLogin();
-if (!$auth->isAdmin()) {
+if (!Permission::getInstance()->can('page.settings')) {
     header('Location: ' . APP_URL . '/403.php');
     exit;
 }

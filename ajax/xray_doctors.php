@@ -33,7 +33,7 @@ if (!Permission::getInstance()->can('page.xray_request')) {
     exit;
 }
 // Same rule as the form: only staff who file on someone else's behalf may pick.
-if ($auth->isDoctor() && !$auth->isAdmin()) {
+if ($auth->isRestrictedDoctor()) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Forbidden']);
     exit;

@@ -12,7 +12,7 @@ require_once __DIR__ . '/../services/InvoicePdfService.php';
 
 // Check authentication
 $auth = new Auth();
-if (!$auth->isLoggedIn() || !$auth->isAdmin()) {
+if (!$auth->isLoggedIn() || !Permission::getInstance()->can('page.expense_reports')) {
     die('Unauthorized access');
 }
 

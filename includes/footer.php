@@ -476,7 +476,7 @@
     </script>
 
     <!-- «کەیس» from any page (includes/case-button.php): a doctor goes straight in -->
-    <script>window.CASE_OPEN = { url: '<?= APP_URL ?>/cases/open.php', direct: <?= (isset($auth) && $auth->isDoctor() && !$auth->isAdmin()) ? 'true' : 'false' ?> };</script>
+    <script>window.CASE_OPEN = { url: '<?= APP_URL ?>/cases/open.php', direct: <?= (isset($auth) && $auth->isRestrictedDoctor()) ? 'true' : 'false' ?> };</script>
     <script src="<?= APP_URL ?>/assets/js/open-case.js?v=<?= @filemtime(__DIR__ . '/../assets/js/open-case.js') ?>"></script>
 
     <!-- Custom Page JavaScript -->

@@ -13,10 +13,7 @@ $db = Database::getInstance();
 $auth = new Auth();
 
 // Check admin access before any output
-if (!$auth->isLoggedIn() || !$auth->isAdmin()) {
-    header('Location: ' . APP_URL . '/403.php');
-    exit;
-}
+$auth->requirePermission('page.users');
 
 $currentUser = $auth->getCurrentUser();
 $errors = [];

@@ -10,14 +10,14 @@ $breadcrumb = [['title' => 'ڕاپۆرتەکان']];
 // Admin gate BEFORE header output, so the 403 redirect actually works
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Auth.php';
-(new Auth())->requireAdmin();
+(new Auth())->requirePermission('page.reports');
 
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/../classes/Payment.php';
 require_once __DIR__ . '/../classes/Installment.php';
 
 // Check admin access
-if (!$auth->isAdmin()) {
+if (!Permission::getInstance()->can('page.reports')) {
     header('Location: ' . APP_URL . '/403.php');
     exit;
 }

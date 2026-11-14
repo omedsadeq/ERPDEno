@@ -17,7 +17,7 @@ require_once __DIR__ . '/../classes/UnassignedCaseLog.php';
 
 $auth = new Auth();
 $auth->requireLogin();
-if (!$auth->isAdmin()) {
+if (!Permission::getInstance()->can('page.unassigned_cases')) {
     header('Location: ' . APP_URL . '/403.php');
     exit;
 }

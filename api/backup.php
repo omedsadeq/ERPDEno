@@ -36,7 +36,7 @@ if (!$auth->isLoggedIn()) {
     http_response_code(401);
     backup_json(['success' => false, 'message' => 'Unauthorized']);
 }
-if (!$auth->isAdmin()) {
+if (!Permission::getInstance()->can('page.backups')) {
     http_response_code(403);
     backup_json(['success' => false, 'message' => 'تەنها بەڕێوەبەر دەستی بەم بەشە دەگات']);
 }

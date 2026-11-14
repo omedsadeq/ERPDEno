@@ -23,10 +23,7 @@ require_once __DIR__ . '/../classes/Csrf.php';
 require_once __DIR__ . '/../classes/RxProfile.php';
 
 $auth = new Auth();
-if (!$auth->isLoggedIn() || !$auth->isAdmin()) {
-    header('Location: ' . APP_URL . '/403.php');
-    exit;
-}
+$auth->requirePermission('page.rx_templates');
 $db = Database::getInstance();
 $prescribers = RxProfile::prescribers();
 $self = APP_URL . '/admin/rx-templates.php';

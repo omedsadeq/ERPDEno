@@ -11,7 +11,7 @@ require_once __DIR__ . '/../classes/Auth.php';
 $db = Database::getInstance();
 $auth = new Auth();
 if (!$auth->isLoggedIn()) { header('Location: ' . APP_URL . '/login.php'); exit; }
-if (!$auth->isAdmin()) { header('Location: ' . APP_URL . '/403.php'); exit; }
+if (!Permission::getInstance()->can('page.xray_pricing')) { header('Location: ' . APP_URL . '/403.php'); exit; }
 
 $rows = $db->fetchAll("SELECT * FROM xray_pricing WHERE is_active = 1 ORDER BY xray_type, sort_order, pricing_mode");
 $byType = [];

@@ -23,10 +23,7 @@ require_once __DIR__ . '/../classes/Csrf.php';
 require_once __DIR__ . '/../classes/RxProfile.php';
 
 $auth = new Auth();
-if (!$auth->isLoggedIn() || !$auth->isAdmin()) {
-    header('Location: ' . APP_URL . '/403.php');
-    exit;
-}
+$auth->requirePermission('page.rx_templates');
 $db = Database::getInstance();
 $id = (int)($_GET['id'] ?? 0);
 // a doctor, or an admin who writes prescriptions (RxProfile::ROLES)

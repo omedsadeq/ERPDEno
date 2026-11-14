@@ -51,7 +51,7 @@ class AccessGuard
     public static function isRestrictedDoctor(): bool
     {
         $a = self::auth();
-        return $a->isDoctor() && !$a->isAdmin();
+        return $a->isRestrictedDoctor();
     }
 
     // ── Patient-level ────────────────────────────────────────────────

@@ -17,7 +17,7 @@ if (!$auth->isLoggedIn()) {
     exit;
 }
 
-$isAdmin = $auth->isAdmin();
+$isAdmin = Permission::getInstance()->can('page.xray_pricing');   // who may change the prices
 
 $input  = json_decode(file_get_contents('php://input'), true) ?: [];
 $action = $input['action'] ?? $_POST['action'] ?? $_GET['action'] ?? 'list';

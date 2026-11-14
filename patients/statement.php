@@ -38,7 +38,7 @@ $isAccountant = $auth->isAccountant();
 $isDoctor = $auth->isDoctor();
 
 $canAct = $isAdmin || $isAccountant;
-if (!$canAct && !($isDoctor && !$isAdmin)) {
+if (!$canAct && !($auth->isRestrictedDoctor())) {
     header('Location: ' . APP_URL . '/403.php');
     exit;
 }
@@ -50,7 +50,7 @@ if (!$patientId) {
 }
 
 $doctorScopeUserId = null;
-if ($isDoctor && !$isAdmin) {
+if ($auth->isRestrictedDoctor()) {
     // GENERAL access: any doctor may look up any patient's demographics; the
     // actual case/financial scoping happens below via $doctorScopeUserId.
     AccessGuard::requirePatientGeneral($patientId);

@@ -36,7 +36,7 @@ if (isset($financeGroups['approvals'])) {
 if ($permission->can('page.debt_collection') && ($isAccountant || $isAdmin || $isDoctor)) {
     $fuWhere = "cl.next_follow_up IS NOT NULL AND cl.next_follow_up <= CURDATE()";
     $fuParams = [];
-    if ($isDoctor && !$isAdmin) {
+    if ($auth->isRestrictedDoctor()) {
         $fuWhere .= " AND EXISTS (SELECT 1 FROM patient_folders pf_fu WHERE pf_fu.patient_id = cl.patient_id AND pf_fu.doctor_id = :fu_doc)";
         $fuParams['fu_doc'] = (int)($currentUser['id'] ?? 0);
     }
@@ -62,7 +62,7 @@ try {
 // Get counts for badges (only if user has permission to see them).
 // Doctors see only their own patients; other roles see clinic-wide totals.
 // waiting_room.doctor_id, appointments.doctor_id, xray_requests.requested_by all reference users.id.
-$badgeDoctorUid = ($isDoctor && !$isAdmin) ? (int)($currentUser['id'] ?? 0) : 0;
+$badgeDoctorUid = ($auth->isRestrictedDoctor()) ? (int)($currentUser['id'] ?? 0) : 0;
 
 $todayAppointments = 0;
 if ($permission->can('page.appointments')) {
@@ -113,7 +113,7 @@ if ($permission->can('treatment_plan.view')) {
     try {
         require_once __DIR__ . '/../classes/TreatmentPlan.php';
         $planRoutingCounter = new TreatmentPlan();
-        if ($isDoctor && !$isAdmin) {
+        if ($auth->isRestrictedDoctor()) {
             $planRoutingBadge = $planRoutingCounter->countDirectedUnbooked((int)($currentUser['id'] ?? 0));
         } elseif ($permission->can('treatment_plan.assign')) {
             $planRoutingBadge = $planRoutingCounter->countAwaitingReception();
@@ -156,7 +156,7 @@ if (in_array($currentPage, ['appointments', 'reception-call-lists', 'doctor-sche
     $activeSection = 'letters';
 } elseif ($currentDir === 'hr') {
     $activeSection = 'hr';
-} elseif ($currentDir === 'admin' && in_array($currentPage, ['users', 'treatments', 'inventory', 'reports', 'settings', 'pdf_settings', 'cancellation-reasons', 'xray-external-doctors', 'role-permissions', 'doctor-permissions'])) {
+} elseif ($currentDir === 'admin' && in_array($currentPage, ['users', 'treatments', 'inventory', 'reports', 'settings', 'pdf_settings', 'cancellation-reasons', 'xray-external-doctors', 'role-permissions', 'doctor-permissions', 'doctor-ledger'])) {
     $activeSection = 'admin';
 }
 ?>
@@ -353,7 +353,7 @@ if (in_array($currentPage, ['appointments', 'reception-call-lists', 'doctor-sche
                 <?php endif; ?>
 
                 <?php if ($permission->can('page.doctor_profile')): ?>
-                <a href="<?= APP_URL ?>/doctors/profile.php<?= $isDoctor && !$isAdmin ? '?id=' . $currentUser['id'] : '' ?>" class="nav-item <?= ($currentDir === 'doctors' && $currentPage === 'profile') ? 'active' : '' ?>">
+                <a href="<?= APP_URL ?>/doctors/profile.php<?= $auth->isRestrictedDoctor() ? '?id=' . $currentUser['id'] : '' ?>" class="nav-item <?= ($currentDir === 'doctors' && $currentPage === 'profile') ? 'active' : '' ?>">
                     <span class="nav-item-icon icon-doctor-profile"><i class="fas fa-id-card"></i></span>
                     <span class="nav-item-text"><?= $isAdmin ? 'پرۆفایلی دکتۆر' : 'پرۆفایلم' ?></span>
                 </a>
@@ -592,7 +592,8 @@ if (in_array($currentPage, ['appointments', 'reception-call-lists', 'doctor-sche
         <?php endif; ?>
 
         <!-- Admin Section - Collapsible -->
-        <?php if ($isAdmin): ?>
+        <?php // each page by its own permission (admin/role-permissions.php); the group when any is allowed ?>
+        <?php if (array_filter(['page.users', 'page.rx_templates', 'page.settings', 'page.inventory', 'page.reports', 'page.pdf_settings', 'page.cancellation_reasons', 'page.xray_external_doctors', 'page.permissions', 'page.doctor_permissions', 'page.doctor_ledger', 'page.backups'], fn($k) => $permission->can($k))): ?>
         <div class="nav-group <?= $activeSection === 'admin' ? 'open' : '' ?>">
             <div class="nav-group-header" onclick="toggleNavGroup(this)">
                 <span class="nav-item-icon icon-settings"><i class="fas fa-cogs"></i></span>
@@ -600,65 +601,96 @@ if (in_array($currentPage, ['appointments', 'reception-call-lists', 'doctor-sche
                 <span class="nav-group-arrow"><i class="fas fa-chevron-left"></i></span>
             </div>
             <div class="nav-group-items">
+                <?php if ($permission->can('page.users')): ?>
                 <a href="<?= APP_URL ?>/admin/users.php" class="nav-item <?= ($currentDir === 'admin' && $currentPage === 'users') ? 'active' : '' ?>">
                     <span class="nav-item-icon icon-users"><i class="fas fa-users-cog"></i></span>
                     <span class="nav-item-text">بەکارهێنەران</span>
                 </a>
+                <?php endif; ?>
 
+                <?php if ($permission->can('page.rx_templates')): ?>
                 <a href="<?= APP_URL ?>/admin/rx-templates.php" class="nav-item <?= ($currentDir === 'admin' && in_array($currentPage, ['rx-templates', 'doctor-rx'], true)) ? 'active' : '' ?>">
                     <span class="nav-item-icon icon-pdf"><i class="fas fa-prescription"></i></span>
                     <span class="nav-item-text">قاڵبی ڕەچەتە</span>
                 </a>
+                <?php endif; ?>
 
+                <?php if ($permission->can('page.settings')): ?>
                 <a href="<?= APP_URL ?>/admin/treatments.php" class="nav-item <?= ($currentDir === 'admin' && $currentPage === 'treatments') ? 'active' : '' ?>">
                     <span class="nav-item-icon icon-treatments"><i class="fas fa-tooth"></i></span>
                     <span class="nav-item-text">چارەسەرەکان</span>
                 </a>
+                <?php endif; ?>
 
+                <?php if ($permission->can('page.inventory')): ?>
                 <a href="<?= APP_URL ?>/admin/inventory.php" class="nav-item <?= ($currentDir === 'admin' && $currentPage === 'inventory') ? 'active' : '' ?>">
                     <span class="nav-item-icon icon-inventory"><i class="fas fa-boxes"></i></span>
                     <span class="nav-item-text">کۆگا</span>
                 </a>
+                <?php endif; ?>
 
+                <?php if ($permission->can('page.reports')): ?>
                 <a href="<?= APP_URL ?>/admin/reports.php" class="nav-item <?= ($currentDir === 'admin' && $currentPage === 'reports') ? 'active' : '' ?>">
                     <span class="nav-item-icon icon-reports"><i class="fas fa-chart-bar"></i></span>
                     <span class="nav-item-text">ڕاپۆرتەکان</span>
                 </a>
+                <?php endif; ?>
 
+                <?php if ($permission->can('page.settings')): ?>
                 <a href="<?= APP_URL ?>/admin/settings.php" class="nav-item <?= ($currentDir === 'admin' && $currentPage === 'settings') ? 'active' : '' ?>">
                     <span class="nav-item-icon icon-settings"><i class="fas fa-cog"></i></span>
                     <span class="nav-item-text">ڕێکخستنەکان</span>
                 </a>
+                <?php endif; ?>
 
+                <?php if ($permission->can('page.pdf_settings')): ?>
                 <a href="<?= APP_URL ?>/admin/pdf_settings.php" class="nav-item <?= ($currentDir === 'admin' && $currentPage === 'pdf_settings') ? 'active' : '' ?>">
                     <span class="nav-item-icon icon-pdf"><i class="fas fa-file-pdf"></i></span>
                     <span class="nav-item-text">ڕێکخستنی PDF</span>
                 </a>
+                <?php endif; ?>
 
+                <?php if ($permission->can('page.cancellation_reasons')): ?>
                 <a href="<?= APP_URL ?>/admin/cancellation-reasons.php" class="nav-item <?= ($currentDir === 'admin' && $currentPage === 'cancellation-reasons') ? 'active' : '' ?>">
                     <span class="nav-item-icon icon-cancel"><i class="fas fa-calendar-times"></i></span>
                     <span class="nav-item-text">هۆکاری هەڵوەشاندنەوە</span>
                 </a>
+                <?php endif; ?>
 
+                <?php if ($permission->can('page.xray_external_doctors')): ?>
                 <a href="<?= APP_URL ?>/admin/xray-external-doctors.php" class="nav-item <?= ($currentDir === 'admin' && $currentPage === 'xray-external-doctors') ? 'active' : '' ?>">
                     <span class="nav-item-icon icon-doctors"><i class="fas fa-user-md"></i></span>
                     <span class="nav-item-text">دکتۆرانی دەرەوە</span>
                 </a>
+                <?php endif; ?>
 
+                <?php if ($permission->can('page.permissions')): ?>
                 <a href="<?= APP_URL ?>/admin/role-permissions.php" class="nav-item <?= ($currentDir === 'admin' && $currentPage === 'role-permissions') ? 'active' : '' ?>">
                     <span class="nav-item-icon icon-permissions"><i class="fas fa-shield-alt"></i></span>
                     <span class="nav-item-text">مۆڵەتی ڕۆڵەکان</span>
                 </a>
+                <?php endif; ?>
 
+                <?php if ($permission->can('page.doctor_permissions')): ?>
                 <a href="<?= APP_URL ?>/admin/doctor-permissions.php" class="nav-item <?= ($currentDir === 'admin' && $currentPage === 'doctor-permissions') ? 'active' : '' ?>">
                     <span class="nav-item-icon icon-doctor-perms"><i class="fas fa-user-shield"></i></span>
                     <span class="nav-item-text">مۆڵەتەکانی دکتۆر</span>
                 </a>
+                <?php endif; ?>
 
+                <?php if ($permission->can('page.doctor_ledger')): ?>
+                <a href="<?= APP_URL ?>/admin/doctor-ledger.php" class="nav-item <?= ($currentDir === 'admin' && $currentPage === 'doctor-ledger') ? 'active' : '' ?>">
+                    <span class="nav-item-icon icon-reports"><i class="fas fa-file-invoice-dollar"></i></span>
+                    <span class="nav-item-text">حساباتی مانگانەی دکتۆر</span>
+                </a>
+                <?php endif; ?>
+
+                <?php if ($permission->can('page.backups')): ?>
                 <a href="<?= APP_URL ?>/admin/backups.php" class="nav-item <?= ($currentDir === 'admin' && $currentPage === 'backups') ? 'active' : '' ?>">
                     <span class="nav-item-icon icon-backup"><i class="fas fa-database"></i></span>
                     <span class="nav-item-text">باکئەپی داتابەیس</span>
                 </a>
+                <?php endif; ?>
             </div>
         </div>
         <?php endif; ?>

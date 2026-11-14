@@ -20,7 +20,7 @@ if (!$auth->isLoggedIn()) {
     exit;
 }
 // As on visits-report.php: a doctor must not see other doctors' visits.
-if ($auth->isDoctor() && !$auth->isAdmin()) {
+if ($auth->isRestrictedDoctor()) {
     http_response_code(403);
     echo json_encode(['ok' => false, 'error' => 'دەستگەیشتن نییە'], JSON_UNESCAPED_UNICODE);
     exit;

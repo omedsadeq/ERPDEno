@@ -544,7 +544,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         // A doctor queues THEIR OWN patient onto THEIR OWN name: the posted
         // doctor_id is ignored for them, so the box can never be aimed at a
         // colleague or at the x-ray account, whatever the form says.
-        $doctorId = ($isDoctorRole && !$isAdmin) ? $actorId : intval($_POST['doctor_id'] ?? 0);
+        $doctorId = ($auth->isRestrictedDoctor()) ? $actorId : intval($_POST['doctor_id'] ?? 0);
         // The row is inserted straight from this id, so it has to be a real,
         // undeleted patient before anything else happens. This runs BEFORE the
         // access check so a blank/stale box gets the banner, not a bare 403.
@@ -557,7 +557,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         // ...and only for a patient they are allowed to see at all (owns /
         // reception-referred / registered themselves — same rule as everywhere).
-        if ($isDoctorRole && !$isAdmin) {
+        if ($auth->isRestrictedDoctor()) {
             AccessGuard::requirePatientGeneral($patientId);
         }
         $workTypeId = !empty($_POST['work_type_id']) ? intval($_POST['work_type_id']) : null;
@@ -3857,7 +3857,7 @@ $waitingTreatmentCount = count($waitingPatients) - $waitingCheckupCount;
 
                     <div class="wr-form-field">
                         <label class="wr-form-label"><span class="wr-required">*</span> دکتۆر</label>
-                        <?php if ($isDoctorRole && !$isAdmin): // their own queue, their own name — nothing to choose ?>
+                        <?php if ($auth->isRestrictedDoctor()): // their own queue, their own name — nothing to choose ?>
                         <select name="doctor_id" class="wr-form-control" required>
                             <option value="<?= (int)$currentUser['id'] ?>"><?= htmlspecialchars($currentUser['full_name']) ?></option>
                         </select>
@@ -4528,7 +4528,7 @@ function buildActionButtons(data) {
         <i class="fas fa-user"></i> پڕۆفایلی نەخۆش
     </a>`;
 
-    <?php if ($auth->isDoctor() && !$isAdmin): ?>
+    <?php if ($auth->isRestrictedDoctor()): ?>
     // Doctor: open the patient profile straight on the "new case" dialog so the
     // doctor can set up a case for a patient reception routed to them.
     html += `<a href="<?= APP_URL ?>/patients/view.php?id=${data.patientId}&new_case=1" class="wr-detail-btn wr-detail-btn-complete">

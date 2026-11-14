@@ -12,7 +12,7 @@ $currentPage = 'role-permissions';
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Auth.php';
 $auth = new Auth();
-$auth->requireAdmin();
+$auth->requirePermission('page.permissions');
 
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/../classes/Permission.php';

@@ -5200,7 +5200,7 @@ body.has-bulk-bar .page-content { padding-bottom: 76px; }
                         require_once __DIR__ . '/../classes/PatientLedger.php';
                         $miniStatement = (new PatientLedger())->statement(
                             (int)$case['patient_id'],
-                            ($isDoctor && !$isAdmin) ? (int)$currentUser['id'] : null
+                            ($auth->isRestrictedDoctor()) ? (int)$currentUser['id'] : null
                         );
                     }
                     ?>

@@ -86,7 +86,7 @@ require_once __DIR__ . '/includes/case-button.php';
 // «پلانی چارەسەر» on a checkup row (ajax/treatment_plan.php quick_plan): a doctor's
 // own plan; the admin and reception name the doctor, the visit's offered first.
 $vvCanPlan = Permission::getInstance()->can('treatment_plan.write');
-$vvPlanPickDoctor = !($isDoctor && !$isAdmin);
+$vvPlanPickDoctor = !($auth->isRestrictedDoctor());
 $vvPlanDoctors = [];
 if ($vvCanPlan && $vvPlanPickDoctor) {
     foreach ($auth->getDoctors() as $d) {

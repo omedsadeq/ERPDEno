@@ -231,7 +231,7 @@ $isDoctor = $auth->isDoctor();
             <?php endif; ?>
 
             <?php if ($permission->can('page.doctor_profile')): ?>
-            <a href="<?= APP_URL ?>/doctors/profile.php<?= $isDoctor && !$isAdmin ? '?id=' . $currentUser['id'] : '' ?>" class="quick-action-card" style="--card-color: #009688;">
+            <a href="<?= APP_URL ?>/doctors/profile.php<?= $auth->isRestrictedDoctor() ? '?id=' . $currentUser['id'] : '' ?>" class="quick-action-card" style="--card-color: #009688;">
                 <div class="quick-action-icon"><i class="fas fa-id-card"></i></div>
                 <div class="quick-action-content">
                     <div class="quick-action-title"><?= $isAdmin ? 'پرۆفایلی دکتۆر' : 'پرۆفایلم' ?></div>

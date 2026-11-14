@@ -56,7 +56,7 @@ if (!$patient) {
 // Doctor isolation: a doctor may only queue a patient they already own or that
 // reception referred to them, and only onto their OWN queue. This stops a doctor
 // from self-assigning an arbitrary patient to gain access to their info.
-if ($auth->isDoctor() && !$auth->isAdmin()) {
+if ($auth->isRestrictedDoctor()) {
     AccessGuard::requirePatientGeneral($patient_id, true);
     $doctor_id = (int)($_SESSION['user_id'] ?? 0); // ignore any posted doctor
 }

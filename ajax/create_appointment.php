@@ -29,7 +29,7 @@ if ($doctorId <= 0 && ($currentUser['role'] ?? '') === 'doctor') {
 // Doctor isolation: a doctor may only book on THEIR OWN calendar, and only for a
 // patient they already own or that reception referred to them (prevents a doctor
 // self-referring an arbitrary patient to gain access to their info).
-if ($auth->isDoctor() && !$auth->isAdmin()) {
+if ($auth->isRestrictedDoctor()) {
     $doctorId = (int)$currentUser['id'];
     AccessGuard::requirePatientGeneral((int)($_POST['patient_id'] ?? 0), true);
 }

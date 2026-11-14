@@ -63,7 +63,7 @@ $accessLevel = 'full'; // full | profile_xray | xray_only | denied
 $canViewProfile = true;
 $canViewXray = true;
 
-if ($isDoctor && !$isAdmin) {
+if ($auth->isRestrictedDoctor()) {
     $isOwner = $patientManager->isPatientOwnedByDoctor($patientId, $doctorId);
     // Check if patient has folders from other doctors (not current doctor)
     $hasOtherDoctorFolders = $patientManager->patientHasOtherDoctorFolders($patientId, $doctorId);
@@ -93,7 +93,7 @@ if (!$patient) {
 }
 
 // Get doctor's own folders (even if they have none yet)
-if ($isDoctor && !$isAdmin) {
+if ($auth->isRestrictedDoctor()) {
     // Doctor sees only their own folders for this patient
     $folders = $patientManager->getFoldersForDoctor($patientId, $doctorId);
     $statistics = $patientManager->getStatisticsForDoctor($patientId, $doctorId);
@@ -107,9 +107,9 @@ if ($isDoctor && !$isAdmin) {
 
 // Auto-Folder UI: the page lists the patient's CASES directly.
 // Folders remain only as a hidden technical layer for financial aggregation.
-$casesScopeSql = ($isDoctor && !$isAdmin) ? " AND pf.doctor_id = :doctor_id" : "";
+$casesScopeSql = ($auth->isRestrictedDoctor()) ? " AND pf.doctor_id = :doctor_id" : "";
 $casesParams = ['patient_id' => $patientId];
-if ($isDoctor && !$isAdmin) {
+if ($auth->isRestrictedDoctor()) {
     $casesParams['doctor_id'] = $doctorId;
 }
 // Task 15: ledger_balance/ledger_paid_amount/ledger_approved come from
@@ -139,7 +139,7 @@ $familyMembers = $isRestrictedView ? [] : $patientManager->getFamilyMembers($pat
 // would expose a colleague's imaging and its debt on this profile.
 // Admin/reception keep the complete picture.
 $xrayManager = new XrayManager();
-if ($isDoctor && !$isAdmin) {
+if ($auth->isRestrictedDoctor()) {
     $xrayDebt     = $xrayManager->getPatientXrayDebtForDoctor($patientId, $doctorId);
     $xrayPaid     = $xrayManager->getPatientXrayPaidForDoctor($patientId, $doctorId);
     $patientXrays = $xrayManager->getByPatientForDoctor($patientId, $doctorId);
@@ -163,7 +163,7 @@ $planPermission   = Permission::getInstance();
 $canViewPlans     = $planPermission->can('treatment_plan.view');
 $canWritePlans    = $planPermission->can('treatment_plan.write');
 $canTransferPlans = $planPermission->can('treatment_plan.transfer');
-$planScopeDoctor  = ($isDoctor && !$isAdmin) ? $doctorId : null;
+$planScopeDoctor  = ($auth->isRestrictedDoctor()) ? $doctorId : null;
 $treatmentPlans   = $canViewPlans
     ? $treatmentPlanManager->getByPatient($patientId, $planScopeDoctor)
     : [];
@@ -180,7 +180,7 @@ $statistics['xray_paid'] = $xrayPaid;
 $statistics['total_debt'] = ($statistics['total_debt'] ?? 0) + $xrayDebt;
 $statistics['total_paid'] = ($statistics['total_paid'] ?? 0) + $xrayPaid;
 // Money given back under a پسوولەی گەڕاندنەوە is not paid any more.
-$statistics['refunded'] = IncomeColumn::refundedToPatient(Database::getInstance(), (int)$patientId, $isDoctor && !$isAdmin ? (int)$doctorId : null);
+$statistics['refunded'] = IncomeColumn::refundedToPatient(Database::getInstance(), (int)$patientId, $auth->isRestrictedDoctor() ? (int)$doctorId : null);
 $statistics['total_paid'] -= $statistics['refunded'];
 
 // Log access for audit
@@ -2167,7 +2167,7 @@ require_once __DIR__ . '/../includes/case-button.php';
         <!-- Tabs -->
         <div class="panel">
             <div class="tabs-container">
-                <?php if ($isDoctor && !$isAdmin): ?>
+                <?php if ($auth->isRestrictedDoctor()): ?>
                 <!-- Doctor view: Always show cases tab (their own cases only) -->
                 <button class="tab active" onclick="showTab('folders')">
                     <i class="fas fa-briefcase-medical"></i> کەیسەکانم (<?= count($patientCases) ?>)
@@ -3532,7 +3532,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<?php if ($isDoctor && !$isAdmin && isset($_GET['new_case'])): ?>
+<?php if ($auth->isRestrictedDoctor() && isset($_GET['new_case'])): ?>
 <!-- Opened from the waiting room "کەیس دانان" button: jump straight to the new-case dialog -->
 <script>
 document.addEventListener('DOMContentLoaded', function () {

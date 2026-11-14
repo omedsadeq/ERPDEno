@@ -88,7 +88,7 @@ if ($canSeeAccounting) {
 
 // Doctors see only their own patients in the badges; other roles see clinic-wide totals.
 // waiting_room.doctor_id, appointments.doctor_id, xray_requests.requested_by all reference users.id.
-$badgeDoctorUid = ($isDoctor && !$isAdmin) ? (int)($currentUser['id'] ?? 0) : 0;
+$badgeDoctorUid = ($auth->isRestrictedDoctor()) ? (int)($currentUser['id'] ?? 0) : 0;
 
 $waitingCount = $badgeDoctorUid
     ? $db->count('waiting_room', "status = 'waiting' AND doctor_id = :uid", ['uid' => $badgeDoctorUid])

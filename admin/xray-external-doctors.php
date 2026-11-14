@@ -15,7 +15,7 @@ $breadcrumb = [['title' => 'دکتۆرانی دەرەوە']];
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Auth.php';
 $authGate = new Auth();
-$authGate->requireAdmin();
+$authGate->requirePermission('page.xray_external_doctors');
 
 require_once __DIR__ . '/../includes/header.php';
 

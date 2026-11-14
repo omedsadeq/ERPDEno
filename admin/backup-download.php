@@ -13,7 +13,7 @@ require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/BackupManager.php';
 
 $auth = new Auth();
-$auth->requireAdmin();
+$auth->requirePermission('page.backups');
 
 $id  = (int)($_GET['id'] ?? 0);
 $backupManager = new BackupManager();

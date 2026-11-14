@@ -19,7 +19,7 @@ if (!$permission->can(ErpMaterialRequest::CREATE_PERMISSION)) {
 }
 
 // A doctor asks in their own name; the admin chooses whose request it is.
-$mrpOwn = $auth->isDoctor() && !$auth->isAdmin();
+$mrpOwn = $auth->isRestrictedDoctor();
 $mrpDoctors = $mrpOwn ? [] : $db->fetchAll(
     "SELECT id, full_name FROM users WHERE role = 'doctor' AND is_active = 1 ORDER BY full_name"
 );

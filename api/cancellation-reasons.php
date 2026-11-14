@@ -20,7 +20,7 @@ if (!$auth->isLoggedIn()) {
 }
 
 // Only admin can add reasons
-if (!$auth->isAdmin()) {
+if (!Permission::getInstance()->can('page.cancellation_reasons')) {
     echo json_encode(['success' => false, 'message' => 'Access denied']);
     exit;
 }

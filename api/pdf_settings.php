@@ -55,7 +55,7 @@ try {
 
         case 'update':
             // Admin only
-            if (!$auth->isAdmin()) {
+            if (!Permission::getInstance()->can('page.pdf_settings')) {
                 http_response_code(403);
                 $response = ['success' => false, 'message' => 'مۆڵەتی ئەم کردارەت نییە'];
                 break;
@@ -86,7 +86,7 @@ try {
 
         case 'upload_header':
             // Admin only
-            if (!$auth->isAdmin()) {
+            if (!Permission::getInstance()->can('page.pdf_settings')) {
                 http_response_code(403);
                 $response = ['success' => false, 'message' => 'مۆڵەتی ئەم کردارەت نییە'];
                 break;
@@ -117,7 +117,7 @@ try {
 
         case 'upload_footer':
             // Admin only
-            if (!$auth->isAdmin()) {
+            if (!Permission::getInstance()->can('page.pdf_settings')) {
                 http_response_code(403);
                 $response = ['success' => false, 'message' => 'مۆڵەتی ئەم کردارەت نییە'];
                 break;
@@ -148,7 +148,7 @@ try {
 
         case 'delete_header_image':
             // Admin only
-            if (!$auth->isAdmin()) {
+            if (!Permission::getInstance()->can('page.pdf_settings')) {
                 http_response_code(403);
                 $response = ['success' => false, 'message' => 'مۆڵەتی ئەم کردارەت نییە'];
                 break;
@@ -165,7 +165,7 @@ try {
 
         case 'delete_footer_image':
             // Admin only
-            if (!$auth->isAdmin()) {
+            if (!Permission::getInstance()->can('page.pdf_settings')) {
                 http_response_code(403);
                 $response = ['success' => false, 'message' => 'مۆڵەتی ئەم کردارەت نییە'];
                 break;
@@ -189,7 +189,7 @@ try {
 
         case 'reset_to_defaults':
             // Admin only
-            if (!$auth->isAdmin()) {
+            if (!Permission::getInstance()->can('page.pdf_settings')) {
                 http_response_code(403);
                 $response = ['success' => false, 'message' => 'مۆڵەتی ئەم کردارەت نییە'];
                 break;

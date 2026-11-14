@@ -88,7 +88,7 @@ if ($profileDoctorId > 0) {
         exit;
     }
 
-    if ($isDoctor && !$isAdmin && $profileDoctorId !== intval($currentUser['id'])) {
+    if ($auth->isRestrictedDoctor() && $profileDoctorId !== intval($currentUser['id'])) {
         header('Location: ' . APP_URL . '/403.php');
         exit;
     }
@@ -101,7 +101,7 @@ if ($isDoctorPatientFilter) {
     $patients = $patientManager->getDoctorPatients($profileDoctorId, $page, ITEMS_PER_PAGE, $search);
     $totalPatients = $patientManager->countDoctorPatients($profileDoctorId, $search);
     $doctorStats = $patientManager->getDoctorPatientsStats($profileDoctorId);
-} elseif ($isDoctor && !$isAdmin) {
+} elseif ($auth->isRestrictedDoctor()) {
     // Doctor view - default to own patients
     if ($viewMode === 'own') {
         $patients = $patientManager->getDoctorPatients($doctorId, $page, ITEMS_PER_PAGE, $search);
@@ -131,7 +131,7 @@ $planSummaries = plan_button_summaries($auth, array_column($patients, 'id'));
 
 // Get statistics (admin/staff or doctor's own stats)
 if (!$search) {
-    if ($isDoctorPatientFilter || ($isDoctor && !$isAdmin)) {
+    if ($isDoctorPatientFilter || ($auth->isRestrictedDoctor())) {
         // Doctor-specific stats
         $activeFoldersCount = $doctorStats['active_folders'] ?? 0;
         $closedFoldersCount = $doctorStats['closed_folders'] ?? 0;
@@ -749,7 +749,7 @@ if (isset($_GET['updated'])) {
 </div>
 <?php endif; ?>
 
-<?php if ($isDoctor && !$isAdmin && $viewMode === 'all'): ?>
+<?php if ($auth->isRestrictedDoctor() && $viewMode === 'all'): ?>
 <div class="pt-note pt-note--warn">
     <i class="fas fa-lock"></i>
     <span>بینینی سنوورمەند — تەنها زانیاری بنەڕەتی و ئێکسڕەی دەبینیت، نەک کاری پزیشکانی تر</span>
@@ -758,7 +758,7 @@ if (isset($_GET['updated'])) {
 
 <!-- Toolbar: view mode + search + filters + add, all in one row -->
 <div class="pt-toolbar">
-    <?php if ($isDoctor && !$isAdmin && !$isDoctorPatientFilter): ?>
+    <?php if ($auth->isRestrictedDoctor() && !$isDoctorPatientFilter): ?>
     <div class="pt-seg" role="tablist" aria-label="بینینی نەخۆشەکان">
         <button type="button" class="view-mode-btn <?= $viewMode === 'own' ? 'active' : '' ?>" data-mode="own"
                 role="tab" aria-selected="<?= $viewMode === 'own' ? 'true' : 'false' ?>">
@@ -775,7 +775,7 @@ if (isset($_GET['updated'])) {
 
     <div class="pt-search">
         <input type="text" id="searchInput"
-               placeholder="<?= ($isDoctor && !$isAdmin && $viewMode === 'all') ? 'گەڕان لە نەخۆشەکانی تری کلینیک...' : 'ناو، مۆبایل یان کۆدی نەخۆش بنووسە...' ?>"
+               placeholder="<?= ($auth->isRestrictedDoctor() && $viewMode === 'all') ? 'گەڕان لە نەخۆشەکانی تری کلینیک...' : 'ناو، مۆبایل یان کۆدی نەخۆش بنووسە...' ?>"
                value="<?= htmlspecialchars($search) ?>" autocomplete="off" aria-label="گەڕان" aria-describedby="searchMeta">
         <div class="pt-progress" aria-hidden="true"></div>
         <i class="fas fa-search"></i>
@@ -921,7 +921,7 @@ if (isset($_GET['updated'])) {
         <?php
         // The clinic-wide directory loads nothing until the doctor types — show
         // the search prompt rather than a misleading "no patients found".
-        $directoryNeedsSearch = $isDoctor && !$isAdmin && !$isDoctorPatientFilter
+        $directoryNeedsSearch = $auth->isRestrictedDoctor() && !$isDoctorPatientFilter
             && $viewMode === 'all' && mb_strlen($search) < DIRECTORY_SEARCH_MIN_CHARS;
         ?>
         <?php if ($directoryNeedsSearch): ?>
@@ -945,7 +945,7 @@ if (isset($_GET['updated'])) {
         </div>
         <?php else: ?>
             <?= patients_list_table($patients, [
-                'restricted' => $isDoctor && !$isAdmin && !$isDoctorPatientFilter && $viewMode === 'all',
+                'restricted' => $auth->isRestrictedDoctor() && !$isDoctorPatientFilter && $viewMode === 'all',
                 'start'      => ($page - 1) * ITEMS_PER_PAGE + 1,
                 'auth'       => $auth,
                 'plans'      => $planSummaries,
@@ -1044,12 +1044,12 @@ let searchCache = new Map(); // Result cache for performance
 const CACHE_DURATION = 60000; // Cache results for 60 seconds
 let currentViewMode = <?= json_encode($viewMode, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>; // Doctor view mode
 const profileDoctorId = <?= $profileDoctorId ?>;
-const isDoctor = <?= ($isDoctor && !$isAdmin) ? 'true' : 'false' ?>;
+const isDoctor = <?= ($auth->isRestrictedDoctor()) ? 'true' : 'false' ?>;
 // The clinic-wide figures the strip opened with (none when it opened on a search)
 const initialStats = <?= $search ? 'null' : 'Object.fromEntries(Array.from(document.querySelectorAll(\'#statsContainer b[id]\')).map(b => [b.id, b.textContent]))' ?>;
 
 // View mode toggle for doctors
-<?php if ($isDoctor && !$isAdmin && !$isDoctorPatientFilter): ?>
+<?php if ($auth->isRestrictedDoctor() && !$isDoctorPatientFilter): ?>
 document.querySelectorAll('.view-mode-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         const mode = this.getAttribute('data-mode');

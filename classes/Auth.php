@@ -6,6 +6,8 @@
 
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/Database.php';
+// Every page that loads Auth may ask Permission::getInstance()->can(...)
+require_once __DIR__ . '/Permission.php';
 
 class Auth {
     private $db;
@@ -254,6 +256,27 @@ class Auth {
     public function requireAdmin() {
         $this->requireLogin();
         if (!$this->isAdmin()) {
+            header('Location: ' . APP_URL . '/403.php');
+            exit;
+        }
+    }
+
+    /**
+     * A doctor who works on his own patients and data only — every doctor,
+     * unless the admin gives his role «data.all_doctors» on
+     * admin/role-permissions.php; then he works across all doctors as the admin does.
+     */
+    public function isRestrictedDoctor() {
+        return $this->isDoctor() && !Permission::getInstance()->can('data.all_doctors');
+    }
+
+    /**
+     * Require a permission the admin sets per role on admin/role-permissions.php
+     * (the admin always has every one). For pages that used to be admin-only.
+     */
+    public function requirePermission(string $permissionKey) {
+        $this->requireLogin();
+        if (!Permission::getInstance()->can($permissionKey)) {
             header('Location: ' . APP_URL . '/403.php');
             exit;
         }

@@ -29,7 +29,7 @@ if ($patient_id <= 0) {
 
 // Doctor isolation: only reveal waiting-room presence for patients a doctor
 // owns or was referred (prevents probing other doctors' patients by id).
-if ($auth->isDoctor() && !$auth->isAdmin()) {
+if ($auth->isRestrictedDoctor()) {
     AccessGuard::requirePatientGeneral($patient_id, true);
 }
 

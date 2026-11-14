@@ -24,7 +24,7 @@ if (!$auth->isLoggedIn()) {
 // Doctor isolation: this report aggregates every doctor's visit activity
 // (a per-doctor matrix). A doctor must not see other doctors' work — deny.
 // Doctors see their own visits, already scoped, on visits.php.
-if ($auth->isDoctor() && !$auth->isAdmin()) {
+if ($auth->isRestrictedDoctor()) {
     header('Location: ' . APP_URL . '/403.php');
     exit;
 }

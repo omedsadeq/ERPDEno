@@ -19,7 +19,7 @@ if (!$auth->isLoggedIn()) {
     header('Location: ' . APP_URL . '/login.php');
     exit;
 }
-if (!$auth->isAdmin()) {
+if (!Permission::getInstance()->can('page.expense_reports')) {
     header('Location: ' . APP_URL . '/403.php');
     exit;
 }

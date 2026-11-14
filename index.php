@@ -50,7 +50,7 @@ $stats = [];
 // Stats for all users with relevant permissions.
 // Doctors see only their own patients; other roles see clinic-wide totals.
 // waiting_room.doctor_id and appointments.doctor_id reference users.id.
-if ($isDoctor && !$isAdmin) {
+if ($auth->isRestrictedDoctor()) {
     $uid = (int)($currentUser['id'] ?? 0);
     $stats['today_appointments'] = $db->count('appointments', "appointment_date = CURDATE() AND doctor_id = :uid", ['uid' => $uid]);
     $stats['waiting'] = $db->count('waiting_room', "status = 'waiting' AND doctor_id = :uid", ['uid' => $uid]);
@@ -154,7 +154,7 @@ if ($isAdmin) {
 // Waiting room patients — doctors see only their own queue
 $waitingWhere = "wr.status = 'waiting'";
 $waitingParams = [];
-if ($isDoctor && !$isAdmin) {
+if ($auth->isRestrictedDoctor()) {
     $waitingWhere .= " AND wr.doctor_id = :wp_uid";
     $waitingParams['wp_uid'] = (int)($currentUser['id'] ?? 0);
 }
@@ -1295,7 +1295,7 @@ if ($isAdmin) {
             <span class="dx-card-ico" style="--k: #ea580c"><i class="fas fa-couch"></i></span>
             <div>
                 <h3 class="dx-card-title">ژووری چاوەڕوانی</h3>
-                <span class="dx-card-sub"><?= ($isDoctor && !$isAdmin) ? 'ڕیزی نەخۆشەکانی خۆت' : 'هەموو دکتۆرەکان' ?></span>
+                <span class="dx-card-sub"><?= ($auth->isRestrictedDoctor()) ? 'ڕیزی نەخۆشەکانی خۆت' : 'هەموو دکتۆرەکان' ?></span>
             </div>
             <?php if (!empty($waitingPatients)): ?><span class="dx-count" style="--k: #ea580c"><?= count($waitingPatients) ?></span><?php endif; ?>
             <a href="<?= APP_URL ?>/waiting-room.php" class="dx-more">هەموو</a>

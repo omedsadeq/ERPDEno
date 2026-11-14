@@ -30,7 +30,7 @@ if ($patientId <= 0) {
 // patient they OWN — being referred (general access) is not enough — and only
 // sees the debt from THEIR OWN folders, never other doctors' work.
 $restrictDoctorId = 0;
-if ($auth->isDoctor() && !$auth->isAdmin()) {
+if ($auth->isRestrictedDoctor()) {
     $restrictDoctorId = (int)($_SESSION['user_id'] ?? 0);
     AccessGuard::requirePatientWork($patientId, true);
 }

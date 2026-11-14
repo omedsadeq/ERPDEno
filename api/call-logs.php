@@ -25,7 +25,7 @@ if (!$auth->isAdmin() && !$auth->isAccountant() && !$auth->isDoctor()) {
     echo json_encode(['success' => false, 'message' => 'دەستگەیشتنت نییە']);
     exit;
 }
-$isDoctorScoped = $auth->isDoctor() && !$auth->isAdmin();
+$isDoctorScoped = $auth->isRestrictedDoctor();
 
 $debtCollection = new DebtCollection();
 $currentUser = $auth->getCurrentUser();

@@ -60,7 +60,7 @@ function finance_nav_definitions(): array
                 ['page' => 'admin/expenses-inventory', 'url' => 'admin/expenses-inventory.php', 'label' => 'خەرجی کۆگا', 'icon' => 'fa-warehouse', 'can' => 'page.expenses_inventory'],
                 ['page' => 'admin/expenses-lab', 'url' => 'admin/expenses-lab.php', 'label' => 'خەرجی تاقیگە', 'icon' => 'fa-flask', 'can' => 'page.expenses_lab'],
                 ['page' => 'admin/expenses-general', 'url' => 'admin/expenses-general.php', 'label' => 'خەرجی گشتی', 'icon' => 'fa-coins', 'can' => 'page.expenses_general'],
-                ['page' => 'admin/expense-reports', 'url' => 'admin/expense-reports.php', 'label' => 'ڕاپۆرتی خەرجی', 'icon' => 'fa-chart-pie', 'can' => 'page.expenses', 'roles' => ['admin']],
+                ['page' => 'admin/expense-reports', 'url' => 'admin/expense-reports.php', 'label' => 'ڕاپۆرتی خەرجی', 'icon' => 'fa-chart-pie', 'can' => 'page.expense_reports'],
                 ['page' => 'admin/expense-groups', 'url' => 'admin/expense-groups.php', 'label' => 'ڕێکخستنی گرووپی خەرجی', 'icon' => 'fa-sliders', 'can' => 'page.expense_groups'],
             ],
         ],

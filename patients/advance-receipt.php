@@ -43,7 +43,7 @@ if (!$advance) {
 // An advance is money, so it is the money roles' document. A doctor may see it
 // only for a patient whose folders they own — the same isolation
 // api/debt_payment.php applies to every patient-keyed financial read.
-if ($auth->isDoctor() && !$auth->isAdmin()) {
+if ($auth->isRestrictedDoctor()) {
     AccessGuard::requirePatientWork((int)$advance['patient_id'], true);
 }
 

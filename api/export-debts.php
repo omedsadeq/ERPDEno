@@ -19,7 +19,7 @@ if (!$auth->isLoggedIn()) {
 // Doctor isolation: this is a clinic-wide debtor export (an accounting function).
 // A doctor must never see other doctors' patients' finances — deny outright.
 // Doctors still see their own patients' debt in the patient/case views.
-if ($auth->isDoctor() && !$auth->isAdmin()) {
+if ($auth->isRestrictedDoctor()) {
     header('Location: ' . APP_URL . '/403.php');
     exit;
 }

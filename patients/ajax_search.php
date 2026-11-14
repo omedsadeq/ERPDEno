@@ -58,7 +58,7 @@ try {
     // Keep doctor-profile searches scoped to the requested doctor's own patients.
     // A doctor can never use this endpoint to inspect another doctor's patient list.
     if ($profileDoctorId > 0) {
-        if ($isDoctor && !$isAdmin && $profileDoctorId !== intval($currentUser['id'])) {
+        if ($auth->isRestrictedDoctor() && $profileDoctorId !== intval($currentUser['id'])) {
             http_response_code(403);
             echo json_encode(['error' => 'Forbidden']);
             exit;
@@ -103,7 +103,7 @@ try {
     if ($profileDoctorId > 0) {
         $patients = $patientManager->getDoctorPatients($profileDoctorId, $page, ITEMS_PER_PAGE, $search, $filters);
         $totalPatients = $patientManager->countDoctorPatients($profileDoctorId, $search, $filters);
-    } elseif ($isDoctor && !$isAdmin) {
+    } elseif ($auth->isRestrictedDoctor()) {
         $doctorId = $currentUser['id'];
         if ($viewMode === 'own') {
             // Get only doctor's own patients

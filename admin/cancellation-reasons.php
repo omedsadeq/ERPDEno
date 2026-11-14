@@ -11,7 +11,7 @@ $breadcrumb = [['title' => 'هۆکارەکانی هەڵوەشاندنەوە']];
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../classes/Auth.php';
 $authGate = new Auth();
-$authGate->requireAdmin();
+$authGate->requirePermission('page.cancellation_reasons');
 
 require_once __DIR__ . '/../includes/header.php';
 

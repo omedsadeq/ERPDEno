@@ -21,7 +21,7 @@ $type = $_GET['type'] ?? 'all';
 
 // Doctor isolation: a doctor may only find patients/cases they own or that
 // reception referred to them. 0 = no restriction (admin/receptionist/etc.).
-$restrictDoctorId = ($auth->isDoctor() && !$auth->isAdmin()) ? (int)($_SESSION['user_id'] ?? 0) : 0;
+$restrictDoctorId = ($auth->isRestrictedDoctor()) ? (int)($_SESSION['user_id'] ?? 0) : 0;
 
 // patient_cases doesn't require a search query
 if ($type !== 'patient_cases' && strlen($query) < 2) {

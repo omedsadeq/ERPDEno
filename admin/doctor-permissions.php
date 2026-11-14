@@ -17,7 +17,7 @@ $auth = new Auth();
 $auth->requireLogin();
 
 // Admin only
-if (!$auth->isAdmin()) {
+if (!Permission::getInstance()->can('page.doctor_permissions')) {
     header('Location: ' . APP_URL . '/403.php');
     exit;
 }

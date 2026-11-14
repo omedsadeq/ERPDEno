@@ -24,7 +24,7 @@ $currentUser = $auth->getCurrentUser();
 
 // Doctor filter: Doctors only see their own installments, Admins see all
 $doctorFilter = null;
-if (!$isAdmin && $isDoctor) {
+if ($auth->isRestrictedDoctor()) {
     $doctorFilter = $currentUser['id'];
 }
 

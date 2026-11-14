@@ -21,7 +21,7 @@ $db = Database::getInstance();
 
 // Doctor isolation: a doctor viewing the monitor sees ONLY their own queue,
 // never other doctors' patients. Admin/reception see the full board.
-$monitorDoctorId = ($auth->isDoctor() && !$auth->isAdmin()) ? (int)($_SESSION['user_id'] ?? 0) : 0;
+$monitorDoctorId = ($auth->isRestrictedDoctor()) ? (int)($_SESSION['user_id'] ?? 0) : 0;
 $doctorScope   = $monitorDoctorId ? " AND id = " . $monitorDoctorId : "";
 $entryScope    = $monitorDoctorId ? " AND wr.doctor_id = " . $monitorDoctorId : "";
 

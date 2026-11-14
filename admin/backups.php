@@ -14,7 +14,7 @@ require_once __DIR__ . '/../classes/BackupManager.php';
 require_once __DIR__ . '/../classes/RestoreManager.php';
 
 $auth = new Auth();
-$auth->requireAdmin();
+$auth->requirePermission('page.backups');
 
 $backupManager = new BackupManager();
 $capabilities  = $backupManager->capabilities();

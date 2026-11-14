@@ -11,7 +11,7 @@ require_once __DIR__ . '/../classes/Auth.php';
 
 // Check authentication
 $auth = new Auth();
-if (!$auth->isLoggedIn() || !$auth->isAdmin()) {
+if (!$auth->isLoggedIn() || !Permission::getInstance()->can('page.invoices')) {
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
     exit;
 }

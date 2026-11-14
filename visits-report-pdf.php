@@ -15,7 +15,7 @@ require_once __DIR__ . '/includes/VisitReportLetterhead.php';
 $db = Database::getInstance();
 $auth = new Auth();
 $auth->requireLogin();
-if ($auth->isDoctor() && !$auth->isAdmin()) {
+if ($auth->isRestrictedDoctor()) {
     header('Location: ' . APP_URL . '/403.php');
     exit;
 }

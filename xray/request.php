@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Doctor isolation: a doctor may only request an X-ray for a patient they own
     // or were referred, and only against one of their OWN cases. Never trust the
     // posted patient_id / case_id to belong to this doctor.
-    if ($auth->isDoctor() && !$auth->isAdmin() && $patientId > 0) {
+    if ($auth->isRestrictedDoctor() && $patientId > 0) {
         AccessGuard::requirePatientGeneral($patientId, false);
         if ($caseId) {
             AccessGuard::requireCaseWork($caseId, false);

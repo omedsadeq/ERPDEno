@@ -27,7 +27,7 @@ $action = $_REQUEST['action'] ?? '';
 // Doctor isolation: every action here is keyed on patient_id and exposes
 // financial data. A doctor may only touch debt/credit/history for a patient
 // whose folders they own (financial data is never shared cross-doctor).
-if ($auth->isDoctor() && !$auth->isAdmin()) {
+if ($auth->isRestrictedDoctor()) {
     $guardPatientId = intval($_REQUEST['patient_id'] ?? 0);
     AccessGuard::requirePatientWork($guardPatientId, true);
 }

@@ -29,7 +29,7 @@ $isDoctor = $auth->isDoctor();
 // Doctors may use this page, but scoped to THEIR OWN patients only (patients
 // they own a folder for, or whose X-ray debt they requested). Admin/accountant/
 // reception see every patient. $debtorWhere / $debtorParams drive the main query.
-$doctorFilter = ($isDoctor && !$isAdmin) ? (int)$currentUser['id'] : null;
+$doctorFilter = ($auth->isRestrictedDoctor()) ? (int)$currentUser['id'] : null;
 if ($doctorFilter) {
     $debtorWhere = "(EXISTS (SELECT 1 FROM patient_folders pfo WHERE pfo.patient_id = p.id AND pfo.doctor_id = :df)
                   OR EXISTS (SELECT 1 FROM xray_requests xro WHERE xro.patient_id = p.id AND xro.requested_by = :df2 AND xro.status = 'completed' AND xro.payment_status IN (" . XrayManager::debtStatusSqlList() . ")))";

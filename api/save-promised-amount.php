@@ -30,7 +30,7 @@ if ($appointmentId <= 0) {
 }
 
 // Doctor isolation: a doctor may only edit their OWN appointments.
-if ($auth->isDoctor() && !$auth->isAdmin()) {
+if ($auth->isRestrictedDoctor()) {
     $appt = $db->fetch("SELECT doctor_id FROM appointments WHERE id = ?", [$appointmentId]);
     if (!$appt || (int)$appt['doctor_id'] !== (int)($_SESSION['user_id'] ?? 0)) {
         http_response_code(403);
