@@ -34,6 +34,39 @@ if (!Permission::getInstance()->can('page.accountant_financial')) {
     exit;
 }
 
+// ── کۆپیی دەستکاریکراو: the tables edited by hand, saved apart ───────
+// The live report below is never changed by them (classes/IncomeCompareCopy.php).
+require_once __DIR__ . '/../classes/IncomeCompareCopy.php';
+$copyReady = IncomeCompareCopy::available();
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $copyReady) {
+    Csrf::require();
+    $me = (int)($auth->getCurrentUser()['id'] ?? 0);
+    $back = APP_URL . '/accountant/income-compare.php';
+    if (($_POST['copy_action'] ?? '') === 'delete') {
+        $gone = IncomeCompareCopy::find((int)($_POST['copy_id'] ?? 0));
+        if ($gone) {
+            IncomeCompareCopy::delete((int)$gone['id']);
+            AuditLog::log('income_compare_copy_delete', 'income_compare_copies', (int)$gone['id'], ['title' => $gone['title']], null, $me);
+        }
+        header('Location: ' . $back . '?copy_done=deleted');
+        exit;
+    }
+    if (($_POST['copy_action'] ?? '') === 'save') {
+        try {
+            $asNew = !empty($_POST['as_new']);
+            $id = IncomeCompareCopy::save($asNew ? null : ((int)($_POST['copy_id'] ?? 0) ?: null), (string)($_POST['title'] ?? ''),
+                (string)($_POST['doc'] ?? ''), $_POST, $me);
+            AuditLog::log('income_compare_copy_save', 'income_compare_copies', $id, null, ['title' => (string)($_POST['title'] ?? '')], $me);
+            header('Location: ' . $back . '?copy=' . $id . '&copy_done=saved');
+        } catch (InvalidArgumentException $ex) {
+            header('Location: ' . $back . '?copy_error=' . rawurlencode($ex->getMessage()));
+        }
+        exit;
+    }
+}
+$copy = ($copyReady && !empty($_GET['copy'])) ? IncomeCompareCopy::find((int)$_GET['copy']) : null;
+$copies = $copyReady ? IncomeCompareCopy::all() : [];
+
 /** The income sheet of one period: its rows and its totals. */
 function income_compare_period(string $from, string $to): array
 {
@@ -153,19 +186,30 @@ $bTo   = $valid($_GET['b_to'] ?? null) ? $_GET['b_to'] : $ymd($presets['month_pr
 if ($aFrom > $aTo) { [$aFrom, $aTo] = [$aTo, $aFrom]; }
 if ($bFrom > $bTo) { [$bFrom, $bTo] = [$bTo, $bFrom]; }
 $avg = !empty($_GET['avg']);
-
-$A = income_compare_period($aFrom, $aTo);
-$B = income_compare_period($bFrom, $bTo);
-// A monthly average: a period's figure scaled to an average month's length.
-$scale = fn(array $p) => !$avg ? 1.0 : (!empty($p['months']) ? 1 / $p['months'] : 30.4375 / max(1, $p['days']));
+if ($copy) {
+    // a copy shows its own periods in the form, and its own tables below
+    $aFrom = $copy['a_from'] ?? $aFrom; $aTo = $copy['a_to'] ?? $aTo;
+    $bFrom = $copy['b_from'] ?? $bFrom; $bTo = $copy['b_to'] ?? $bTo;
+    $avg = (bool)$copy['avg'];
+}
 $qs = fn(array $over) => '?' . http_build_query(array_merge(
     ['a_from' => $aFrom, 'a_to' => $aTo, 'b_from' => $bFrom, 'b_to' => $bTo] + ($avg ? ['avg' => 1] : []), $over));
 
-$periodTitle = fn(string $which, array $p) => $which . ': ' . ($p['from'] === $p['to'] ? $p['from'] : $p['from'] . ' بۆ ' . $p['to'])
-    . ' · ' . $p['days'] . ' ڕۆژ' . ($avg ? ' — تێکڕای مانگانە' : '')
-    . (!empty($p['archived']) ? ' — داتای پێشوو (' . implode('، ', $p['archived']) . ')' : '');
-$reportB = income_compare_report($B, $A, $periodTitle('ماوەی دووەم', $B), $scale($B), $scale($A));
-$reportA = income_compare_report($A, null, $periodTitle('ماوەی یەکەم', $A), $scale($A));
+if ($copy) {
+    $tablesHtml = array_map([IncomeCompareCopy::class, 'tableHtml'], $copy['doc']['tables']);
+} else {
+    $A = income_compare_period($aFrom, $aTo);
+    $B = income_compare_period($bFrom, $bTo);
+    // A monthly average: a period's figure scaled to an average month's length.
+    $scale = fn(array $p) => !$avg ? 1.0 : (!empty($p['months']) ? 1 / $p['months'] : 30.4375 / max(1, $p['days']));
+    $periodTitle = fn(string $which, array $p) => $which . ': ' . ($p['from'] === $p['to'] ? $p['from'] : $p['from'] . ' بۆ ' . $p['to'])
+        . ' · ' . $p['days'] . ' ڕۆژ' . ($avg ? ' — تێکڕای مانگانە' : '')
+        . (!empty($p['archived']) ? ' — داتای پێشوو (' . implode('، ', $p['archived']) . ')' : '');
+    $tablesHtml = [
+        income_compare_report($B, $A, $periodTitle('ماوەی دووەم', $B), $scale($B), $scale($A)),
+        income_compare_report($A, null, $periodTitle('ماوەی یەکەم', $A), $scale($A)),
+    ];
+}
 
 // ── The same two tables as a PDF, A4 across ─────────────────────────
 if (!empty($_GET['pdf'])) {
@@ -202,16 +246,17 @@ body { font-family: nrt; direction: rtl; color: #0f172a; }
             'orientation' => 'L', 'format' => 'A4', 'show_header' => 0, 'show_footer' => 0,
             'margin_top_mm' => 6, 'margin_bottom_mm' => 9, 'margin_left_mm' => 6, 'margin_right_mm' => 6,
         ]);
-        $pdf->setTitle('بەراورد — ' . $bFrom . ' / ' . $aFrom);
+        $pdf->setTitle($copy ? $copy['title'] : 'بەراورد — ' . $bFrom . ' / ' . $aFrom);
         $mpdf = $pdf->getMpdf();
+        // a copy says so, small, in the footer: its figures were changed by hand
         $mpdf->SetHTMLFooter(
             '<table width="100%" style="font-family:nrt;font-size:6.5pt;color:#94a3b8;"><tr>'
-            . '<td style="text-align:right;">' . dsEsc($viewer['full_name'] ?? '') . '</td>'
+            . '<td style="text-align:right;">' . dsEsc($viewer['full_name'] ?? '') . ($copy ? ' — کۆپی: ' . dsEsc($copy['title']) : '') . '</td>'
             . '<td style="text-align:left;direction:ltr;">' . date('Y-m-d H:i') . '</td></tr></table>'
         );
-        $mpdf->WriteHTML($css($f) . $reportB . $reportA);
+        $mpdf->WriteHTML($css($f) . implode('', $tablesHtml));
         if ($mpdf->page <= 1 || $n === count($sizes) - 1) {
-            $mpdf->Output('compare-' . $bFrom . '_' . $bTo . '-vs-' . $aFrom . '_' . $aTo . '.pdf', 'I');
+            $mpdf->Output(($copy ? 'compare-copy-' . (int)$copy['id'] : 'compare-' . $bFrom . '_' . $bTo . '-vs-' . $aFrom . '_' . $aTo) . '.pdf', 'I');
             exit;
         }
     }
@@ -259,6 +304,37 @@ require_once __DIR__ . '/../includes/header.php';
 .cr tr.end td{font-weight:800}
 .cr tr.end.y td{background:#fef3c7}
 .cr tr.end td.ch{font-size:11.5px}
+/* پڕ بە شاشە، کۆپییەکان و دەستکاری */
+.cmp-tool{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 14px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;color:#334155;font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none}
+.cmp-tool:hover{background:#f1f5f9;color:#0f172a}
+.cmp-tool.is-edit{border-color:#c4b5fd;background:#f5f3ff;color:#6d28d9}
+.cmp-tool.is-edit:hover{background:#6d28d9;color:#fff}
+.cmp-tool.is-danger{border-color:#fecaca;background:#fff1f2;color:#be123c}
+.cmp-copies{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:#6d28d9}
+.cmp-copies a{padding:4px 11px;border-radius:999px;border:1px solid #ddd6fe;background:#faf5ff;color:#6d28d9;text-decoration:none}
+.cmp-copies a:hover,.cmp-copies a.on{background:#6d28d9;color:#fff}
+.cmp-copybar{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:12px;padding:10px 14px;border-radius:14px;background:#faf5ff;border:1.5px dashed #a78bfa;color:#4c1d95}
+.cmp-copybar>i{font-size:20px}
+.cmp-copybar div{flex:1;min-width:200px}
+.cmp-copybar small{display:block;color:#6d28d9;font-size:12px}
+.cmp-copybar form{margin:0}
+.cmp-sheet.is-copy{outline:2px dashed #c4b5fd;outline-offset:-2px}
+.cmp-editbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:8px 0;padding:10px 12px;border-radius:12px;background:#f5f3ff;border:1px solid #ddd6fe;color:#5b21b6}
+.cmp-editbar[hidden]{display:none}
+.cmp-editnote{flex:1 1 260px;font-size:12px}
+.cmp-editbar input[type=text]{flex:1 1 220px;height:40px;border:1px solid #c4b5fd;border-radius:10px;padding:0 10px;font:inherit;font-size:13px;background:#fff}
+.cmp-sheet.is-editing [contenteditable]{cursor:text}
+.cmp-sheet.is-editing .cr td:hover,.cmp-sheet.is-editing .cr th:hover{box-shadow:inset 0 0 0 1px #a78bfa}
+.cmp-sheet.is-editing .cr td:focus,.cmp-sheet.is-editing .cr th:focus,.cmp-sheet.is-editing .cr-title:focus{outline:2px solid #7c3aed;outline-offset:-2px;background:#fff}
+.cmp-sheet.is-editing .cr td.is-changed{background:#ede9fe !important}
+.cmp-rowtools{position:fixed;z-index:60;display:flex;gap:4px;padding:3px;border-radius:9px;background:#fff;box-shadow:0 6px 18px -6px rgba(15,23,42,.35);border:1px solid #ddd6fe}
+.cmp-rowtools[hidden]{display:none}
+.cmp-rowtools button{width:28px;height:28px;border:0;border-radius:7px;background:#f5f3ff;color:#6d28d9;cursor:pointer}
+.cmp-rowtools button.is-del{background:#fff1f2;color:#be123c}
+/* the sheet over the whole screen */
+.cmp-sheet:fullscreen{overflow:auto;margin:0;border-radius:0;padding:12px 18px;background:#fff}
+.cmp-sheet:fullscreen .cr{min-width:0}
+.cmp-sheet:fullscreen .cmp-scroll{overflow-x:auto}
 </style>
 
 <form method="get" class="cmp-bar">
@@ -270,7 +346,11 @@ require_once __DIR__ . '/../includes/header.php';
         <label class="cmp-avg" title="هەر ژمارەیەک دەکاتە تێکڕای مانگێک، بۆ بەراوردی ماوەی جیاواز (وەک ساڵێک لەگەڵ مانگێک)">
             <input type="checkbox" name="avg" value="1" <?= $avg ? 'checked' : '' ?>> تێکڕای مانگانە</label>
         <button type="submit" class="cmp-go"><i class="fas fa-scale-balanced"></i> بەراوردکردن</button>
-        <a class="cmp-pdf" href="<?= dsEsc($qs(['pdf' => 1])) ?>" target="_blank"><i class="fas fa-file-pdf"></i> PDF</a>
+        <a class="cmp-pdf" href="<?= dsEsc($copy ? '?copy=' . (int)$copy['id'] . '&pdf=1' : $qs(['pdf' => 1])) ?>" target="_blank"><i class="fas fa-file-pdf"></i> PDF</a>
+        <button type="button" class="cmp-tool" id="cmpFull" title="پڕ بە شاشە (Esc بۆ دەرچوون)"><i class="fas fa-expand"></i> پڕ بە شاشە</button>
+        <?php if ($copyReady): ?>
+        <button type="button" class="cmp-tool is-edit" id="cmpEdit" title="ژمارە، ناو و ڕیزەکان لەسەر کۆپییەک بگۆڕە — ڕاپۆرتی ڕاستەقینە ناگۆڕێت"><i class="fas fa-pen-to-square"></i> <?= $copy ? 'دەستکاری' : 'دەستکاری لەسەر کۆپی' ?></button>
+        <?php endif; ?>
     </div>
     <div class="cmp-presets">
         <?php foreach ($presets as [$name, $af, $at, $bf, $bt]): ?>
@@ -284,11 +364,183 @@ require_once __DIR__ . '/../includes/header.php';
         <?php endforeach; ?>
         <a class="kept" href="<?= APP_URL ?>/accountant/income-archive.php"><i class="fas fa-box-archive"></i> داتای پێشوو</a>
     </div>
+    <?php if ($copies): ?>
+    <div class="cmp-copies">
+        <span><i class="fas fa-copy"></i> کۆپییەکان:</span>
+        <?php foreach ($copies as $c): ?>
+        <a href="?copy=<?= (int)$c['id'] ?>" class="<?= $copy && (int)$copy['id'] === (int)$c['id'] ? 'on' : '' ?>" title="<?= dsEsc(($c['created_by_name'] ?? '') . ' — ' . $c['updated_at']) ?>"><?= dsEsc($c['title']) ?></a>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
 </form>
 
-<div class="cmp-sheet">
-    <div class="cmp-scroll"><?= $reportB ?></div>
-    <div class="cmp-scroll"><?= $reportA ?></div>
+<?php if (isset($_GET['copy_done'])): ?>
+<div class="alert alert-success" data-auto-hide><i class="fas fa-check-circle alert-icon"></i> <?= $_GET['copy_done'] === 'deleted' ? 'کۆپییەکە سڕایەوە.' : 'کۆپییەکە پاشەکەوت کرا — ڕاپۆرتی ڕاستەقینە وەک خۆی ماوە.' ?></div>
+<?php elseif (isset($_GET['copy_error'])): ?>
+<div class="alert alert-danger"><i class="fas fa-exclamation-circle alert-icon"></i> <?= dsEsc((string)$_GET['copy_error']) ?></div>
+<?php endif; ?>
+
+<?php if ($copy): ?>
+<div class="cmp-copybar">
+    <i class="fas fa-copy"></i>
+    <div><b>کۆپی: <?= dsEsc($copy['title']) ?></b><small>دەستکاری کراوە — ئەمە ڕاپۆرتی ڕاستەقینە نییە. ژمارە ڕاستەقینەکان لە داهات و سیستەمدا وەک خۆیانن.</small></div>
+    <a href="<?= dsEsc($qs([])) ?>" class="cmp-tool"><i class="fas fa-rotate-left"></i> ڕاپۆرتی ڕاستەقینە</a>
+    <form method="post" onsubmit="return confirm('ئەم کۆپییە بسڕدرێتەوە؟ ڕاپۆرتی ڕاستەقینە ناگۆڕێت.');">
+        <?= Csrf::field() ?>
+        <input type="hidden" name="copy_action" value="delete"><input type="hidden" name="copy_id" value="<?= (int)$copy['id'] ?>">
+        <button type="submit" class="cmp-tool is-danger"><i class="fas fa-trash"></i> سڕینەوەی کۆپی</button>
+    </form>
 </div>
+<?php endif; ?>
+
+<div class="cmp-sheet<?= $copy ? ' is-copy' : '' ?>" id="cmpSheet">
+    <?php if ($copyReady): ?>
+    <?php // shown while editing: the copy's name and its save buttons ?>
+    <form method="post" class="cmp-editbar" id="cmpEditBar" hidden>
+        <?= Csrf::field() ?>
+        <input type="hidden" name="copy_action" value="save">
+        <input type="hidden" name="copy_id" value="<?= $copy ? (int)$copy['id'] : '' ?>">
+        <input type="hidden" name="doc" id="cmpDoc">
+        <?php foreach (['a_from' => $aFrom, 'a_to' => $aTo, 'b_from' => $bFrom, 'b_to' => $bTo] as $k => $v): ?><input type="hidden" name="<?= $k ?>" value="<?= dsEsc($v) ?>"><?php endforeach; ?>
+        <?php if ($avg): ?><input type="hidden" name="avg" value="1"><?php endif; ?>
+        <i class="fas fa-pen-to-square"></i>
+        <span class="cmp-editnote">دەستکاری لەسەر کۆپی: کلیک لە هەر خانەیەک بکە و بیگۆڕە. کۆی گشتی خۆی دەژمێردرێتەوە. ڕاپۆرتی ڕاستەقینە ناگۆڕێت.</span>
+        <input type="text" name="title" maxlength="150" required placeholder="ناوی کۆپی، بۆ نموونە: بەراوردی مانگی 10 بۆ کۆبوونەوە"
+               value="<?= dsEsc($copy['title'] ?? '') ?>">
+        <button type="submit" class="cmp-go" data-save><i class="fas fa-save"></i> پاشەکەوت</button>
+        <?php if ($copy): ?><button type="submit" class="cmp-tool" data-save name="as_new" value="1"><i class="fas fa-clone"></i> وەک کۆپیی نوێ</button><?php endif; ?>
+        <button type="button" class="cmp-tool" id="cmpCancel"><i class="fas fa-xmark"></i> پاشگەزبوونەوە</button>
+    </form>
+    <div class="cmp-rowtools" id="cmpRowTools" hidden>
+        <button type="button" data-row="add" title="ڕیزێکی نوێ لە ژێر ئەمە"><i class="fas fa-plus"></i></button>
+        <button type="button" data-row="del" title="سڕینەوەی ئەم ڕیزە" class="is-del"><i class="fas fa-trash"></i></button>
+    </div>
+    <?php endif; ?>
+    <?php foreach ($tablesHtml as $tableHtml): ?>
+    <div class="cmp-scroll"><?= $tableHtml ?></div>
+    <?php endforeach; ?>
+</div>
+
+<script>
+(function () {
+    const sheet = document.getElementById('cmpSheet');
+    // پڕ بە شاشە: the two tables alone over the whole screen (Esc leaves it)
+    const fullBtn = document.getElementById('cmpFull');
+    fullBtn.addEventListener('click', function () {
+        if (document.fullscreenElement) { document.exitFullscreen(); return; }
+        if (sheet.requestFullscreen) sheet.requestFullscreen();
+    });
+    document.addEventListener('fullscreenchange', function () {
+        fullBtn.innerHTML = document.fullscreenElement
+            ? '<i class="fas fa-compress"></i> دەرچوون لە شاشەی پڕ' : '<i class="fas fa-expand"></i> پڕ بە شاشە';
+    });
+
+    // ── دەستکاری لەسەر کۆپی: every cell editable; saving makes a copy ──
+    const editBtn = document.getElementById('cmpEdit');
+    const bar = document.getElementById('cmpEditBar');
+    const tools = document.getElementById('cmpRowTools');
+    if (!editBtn || !bar) return;
+    let row = null;
+
+    // a cell's number: «1,925,000», «−12», «نیە» (none) → 0; anything else is not a number
+    const num = function (t) {
+        t = t.replace(/[,\s‎‏]/g, '').replace('−', '-');
+        if (t === '' || t === 'نیە' || t === 'نەبوو') return 0;
+        return /^-?\d+(\.\d+)?$/.test(t) ? parseFloat(t) : null;
+    };
+    const fmt = function (v, decimals) {
+        if (decimals) return (Math.round(v * 10) / 10).toString();
+        const s = Math.abs(Math.round(v)).toLocaleString('en-US');
+        return v < 0 ? '−' + s : s;
+    };
+    // کۆی گشتی again from the rows above it, column by column (money and counts only)
+    const retotal = function (table) {
+        const tot = table.querySelector('tfoot tr.tot');
+        if (!tot) return;
+        Array.from(tot.cells).forEach(function (cell, i) {
+            const money = cell.classList.contains('n'), count = cell.classList.contains('c');
+            if (!money && !count) return;
+            let sum = 0, ok = false;
+            table.querySelectorAll('tbody tr').forEach(function (tr) {
+                const td = tr.cells[i];
+                if (!td) return;
+                const v = num(td.innerText);
+                if (v !== null) { sum += v; ok = true; }
+            });
+            if (ok) cell.textContent = fmt(sum, count);
+        });
+    };
+
+    editBtn.addEventListener('click', function () {
+        sheet.classList.add('is-editing');
+        bar.hidden = false;
+        editBtn.disabled = true;
+        sheet.querySelectorAll('.cr th, .cr td, .cr-title').forEach(function (c) { c.contentEditable = 'true'; });
+        bar.querySelector('input[name="title"]').focus();
+        sheet.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    document.getElementById('cmpCancel').addEventListener('click', function () {
+        if (!sheet.querySelector('.is-changed') || confirm('گۆڕانکارییەکان پاشەکەوت نەکراون. پاشگەزببیتەوە؟')) location.reload();
+    });
+
+    sheet.addEventListener('input', function (e) {
+        const td = e.target.closest('td');
+        if (!td) return;
+        td.classList.add('is-changed');
+        if (td.closest('tbody')) retotal(td.closest('table'));
+    });
+
+    // + / ✕ beside the row being edited
+    sheet.addEventListener('focusin', function (e) {
+        const tr = e.target.closest('tbody tr');
+        if (!tr || !sheet.classList.contains('is-editing')) return;
+        row = tr;
+        const r = tr.getBoundingClientRect();
+        tools.style.top = (r.top + r.height / 2 - 17) + 'px';
+        tools.style.left = Math.max(4, r.left - 70) + 'px';
+        tools.hidden = false;
+    });
+    window.addEventListener('scroll', function () { tools.hidden = true; }, true);
+    tools.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    tools.addEventListener('click', function (e) {
+        const b = e.target.closest('button');
+        if (!b || !row) return;
+        const table = row.closest('table');
+        if (b.dataset.row === 'del') {
+            if (!confirm('ئەم ڕیزە لە کۆپییەکە بسڕدرێتەوە؟')) return;
+            row.remove();
+        } else {
+            const copy = row.cloneNode(true);
+            Array.from(copy.cells).forEach(function (c, i) { c.textContent = i === 0 ? 'ڕیزی نوێ' : ''; c.contentEditable = 'true'; c.classList.add('is-changed'); });
+            row.after(copy);
+            copy.cells[0].focus();
+        }
+        tools.hidden = true;
+        row = null;
+        retotal(table);
+    });
+
+    // the tables as plain text (titles, headings, rows of cells), for the copy
+    bar.addEventListener('submit', function () {
+        const rows = function (list) {
+            return Array.from(list).map(function (tr) {
+                return { c: tr.className.replace('is-changed', '').trim(), cells: Array.from(tr.cells).map(function (td) {
+                    return { t: td.innerText.trim(), c: td.className.replace('is-changed', '').trim() };
+                }) };
+            });
+        };
+        const tables = Array.from(sheet.querySelectorAll('table.cr')).map(function (t) {
+            const title = t.previousElementSibling && t.previousElementSibling.classList.contains('cr-title') ? t.previousElementSibling.innerText.trim() : '';
+            return {
+                title: title,
+                cols: Array.from(t.querySelectorAll('thead th')).map(function (th) { return { t: th.innerText.trim(), w: parseFloat(th.getAttribute('width')) || 4 }; }),
+                body: rows(t.querySelectorAll('tbody tr')),
+                foot: rows(t.querySelectorAll('tfoot tr')),
+            };
+        });
+        document.getElementById('cmpDoc').value = JSON.stringify({ tables: tables });
+    });
+})();
+</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

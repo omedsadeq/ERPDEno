@@ -1478,6 +1478,17 @@ a:hover {
     margin-bottom: var(--space-1);
 }
 
+/* A page's own buttons ($pageActions), now that no page has a title bar:
+   one row at the top of its content, at the end of the line. */
+.page-actions-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
 .page-title {
     font-size: var(--font-size-subtitle);
     font-weight: 600;

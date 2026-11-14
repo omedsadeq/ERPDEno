@@ -57,17 +57,25 @@ if (!function_exists('module_nav_render')) {
 .mnav-brand-text { display: flex; flex-direction: column; line-height: 1.25; }
 .mnav-brand-text b { font-size: 14.5px; font-weight: 800; }
 .mnav-brand-text small { font-size: 11.5px; color: var(--mn-quiet); }
-.mnav-groups { display: flex; gap: 4px; padding: 4px; margin-inline-start: 6px; background: #f3f6f9; border-radius: 11px;
-    overflow-x: auto; scrollbar-width: none; min-width: 0; }
+.mnav-groups { display: flex; gap: 4px; padding: 4px; margin-inline-start: 6px; background: #f3f6f9; border-radius: 12px;
+    overflow-x: auto; scrollbar-width: none; min-width: 0; scroll-behavior: smooth; }
+/* more tabs than room: the cut edge fades instead of slicing a tab in half */
+/* RTL: the row starts on the right, so tabs still to come hide on the left (end) */
+.mnav-groups.has-more-end { -webkit-mask-image: linear-gradient(to right, transparent 0, #000 36px); mask-image: linear-gradient(to right, transparent 0, #000 36px); }
+.mnav-groups.has-more-start { -webkit-mask-image: linear-gradient(to left, transparent 0, #000 36px); mask-image: linear-gradient(to left, transparent 0, #000 36px); }
+.mnav-groups.has-more-start.has-more-end { -webkit-mask-image: linear-gradient(to right, transparent 0, #000 36px, #000 calc(100% - 36px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 36px, #000 calc(100% - 36px), transparent 100%); }
 .mnav-groups::-webkit-scrollbar { display: none; }
-.mnav-group { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; padding: 7px 13px; border-radius: 8px;
-    color: var(--mn-quiet); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap;
+/* Each group in its own colour: the icon on a small tile of it, the chosen one filled */
+.mnav-group { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; padding: 5px 0; padding-inline: 6px 12px; border-radius: 9px;
+    color: #475569; font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap;
     transition: background .15s ease, color .15s ease, box-shadow .15s ease; }
-.mnav-group i { font-size: 13px; color: #94a3b8; transition: color .15s ease; }
-.mnav-group:hover { color: var(--mn-ink); background: #fff; text-decoration: none; }
-.mnav-group:hover i { color: var(--g); }
-.mnav-group.is-active { color: var(--g); background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, .08), inset 0 -2px 0 var(--g); }
-.mnav-group.is-active i { color: var(--g); }
+.mnav-group i { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0; font-size: 12px;
+    color: var(--g); background: #fff; background: color-mix(in srgb, var(--g) 13%, #fff); transition: background .15s ease, color .15s ease; }
+.mnav-group:hover { color: var(--mn-ink); background: #fff; text-decoration: none; box-shadow: 0 1px 2px rgba(15, 23, 42, .06); }
+.mnav-group.is-active { color: var(--g); background: #fff; background: color-mix(in srgb, var(--g) 9%, #fff);
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--g) 32%, transparent), 0 2px 6px -3px color-mix(in srgb, var(--g) 60%, transparent); }
+.mnav-group.is-active i { color: #fff; background: var(--g); }
 .mnav-group.is-home .mnav-group-label { display: none; }
 .mnav-group.is-home { padding-inline: 11px; }
 .mnav-quick { margin-inline-start: auto; flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px;
@@ -84,11 +92,12 @@ if (!function_exists('module_nav_render')) {
 .mnav-subitem::after { content: ""; position: absolute; inset: auto 10px 0 10px; height: 2.5px; border-radius: 3px 3px 0 0;
     background: var(--mn-accent); transform: scaleX(0); transition: transform .18s ease; }
 .mnav-subitem:hover::after { transform: scaleX(.4); }
-.mnav-subitem.is-active { color: var(--mn-ink); font-weight: 700; }
+.mnav-subitem.is-active { color: var(--mn-accent); font-weight: 800; }
 .mnav-subitem.is-active i { color: var(--mn-accent); }
 .mnav-subitem.is-active::after { transform: scaleX(1); }
 .mnav-badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; display: inline-grid; place-items: center;
-    background: #e11d48; color: #fff; font-size: 10.5px; font-weight: 700; line-height: 1; direction: ltr; }
+    background: #e11d48; color: #fff; font-size: 10.5px; font-weight: 700; line-height: 1; direction: ltr;
+    box-shadow: 0 0 0 2px #fff; }
 .mnav-subitem:focus-visible, .mnav-group:focus-visible, .mnav-quick:focus-visible, .mnav-brand:focus-visible {
     outline: 2px solid var(--mn-accent); outline-offset: 2px; border-radius: 8px; }
 .mhub { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; margin-bottom: 22px; }
@@ -185,6 +194,26 @@ if (!function_exists('module_nav_render')) {
     </div>
     <?php endif; ?>
 </nav>
+<?php static $mnavScript = false; if (!$mnavScript): $mnavScript = true; ?>
+<script>
+// The tabs row: the active tab in view, and a soft fade on the side(s) that hide more tabs.
+(function () {
+    document.querySelectorAll('.mnav-groups').forEach(function (row) {
+        var active = row.querySelector('.mnav-group.is-active');
+        if (active) row.scrollLeft += active.getBoundingClientRect().left - row.getBoundingClientRect().left - (row.clientWidth - active.offsetWidth) / 2;
+        function edges() {
+            var max = row.scrollWidth - row.clientWidth, x = Math.abs(row.scrollLeft);
+            // RTL: the row starts on the right, so what is still hidden lies to the left
+            row.classList.toggle('has-more-end', max > 1 && x < max - 1);
+            row.classList.toggle('has-more-start', max > 1 && x > 1);
+        }
+        row.addEventListener('scroll', edges, { passive: true });
+        window.addEventListener('resize', edges);
+        edges();
+    });
+})();
+</script>
+<?php endif; ?>
         <?php
     }
 

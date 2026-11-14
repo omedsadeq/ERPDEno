@@ -403,32 +403,8 @@ $realtimeNotifCount = $notificationObj->getUnseenCount(
                 <!-- Mobile Navigation Overlay -->
                 <div class="mobile-nav-overlay" id="mobileNavOverlay" onclick="toggleMobileNav()"></div>
 
-                <!-- Page Header (a page with its own header sets $hidePageHeader) -->
-                <?php if (empty($hidePageHeader)): ?>
-                <div class="page-header">
-                    <div class="page-header-top">
-                        <h1 class="page-title"><?= $pageTitle ?></h1>
-                        <?php if (isset($pageActions)): ?>
-                        <div class="page-actions d-flex gap-2">
-                            <?= $pageActions ?>
-                        </div>
-                        <?php endif; ?>
-                    </div>
-                    <?php if (isset($breadcrumb) && !empty($breadcrumb) && empty($pageModuleNav)): ?>
-                    <nav class="page-breadcrumb">
-                        <a href="<?= APP_URL ?>/index.php">سەرەتا</a>
-                        <?php foreach ($breadcrumb as $item): ?>
-                        <span class="page-breadcrumb-separator">/</span>
-                        <?php if (isset($item['url'])): ?>
-                        <a href="<?= $item['url'] ?>"><?= $item['title'] ?></a>
-                        <?php else: ?>
-                        <span><?= $item['title'] ?></span>
-                        <?php endif; ?>
-                        <?php endforeach; ?>
-                    </nav>
-                    <?php endif; ?>
-                </div>
-                <?php endif; ?>
+                <?php // No page title bar on any page (the sidebar and the page itself name it);
+                      // a page's own buttons ($pageActions) sit at the top of its content instead. ?>
 
                 <!-- Page Content -->
                 <div class="page-content">
@@ -440,3 +416,6 @@ $realtimeNotifCount = $notificationObj->getUnseenCount(
                     include $pageModuleNav;
                 }
                 ?>
+                <?php if (!empty($pageActions)): ?>
+                <div class="page-actions page-actions-bar"><?= $pageActions ?></div>
+                <?php endif; ?>
