@@ -5,8 +5,12 @@
  * the first below. This month against the same month last year, two months
  * against two months, a year against a year, any dates. Each period's figures
  * are the income sheet's own (accountant/_income_data.php, run once per
- * period), so this page can never disagree with the sheet; the expense kinds
- * switched on there count here too.
+ * period, with all three expense kinds on — تاقیگە, کۆگا, گشتی — as the paper
+ * has them), so this page can never disagree with the sheet. The examination
+ * columns are the visits report's (visits-report.php, its «پشکنین» matrix):
+ * the doctors' through ds_compute_range, which applies the same rules, the
+ * X-ray department's and any column that report has without a doctor account
+ * straight from dh_visit_report_stats, so the totals are that report's totals.
  *
  *   ?a_from=&a_to=   the first period (the one compared against)
  *   ?b_from=&b_to=   the second period
@@ -19,7 +23,7 @@ require_once __DIR__ . '/../classes/Auth.php';
 require_once __DIR__ . '/../classes/Permission.php';
 require_once __DIR__ . '/../doctors/_daily_summary_lib.php';
 require_once __DIR__ . '/_income_compare_report.php';
-require_once __DIR__ . '/../includes/VisitReportMatrix.php';
+require_once __DIR__ . '/../includes/VisitReportStats.php';
 require_once __DIR__ . '/../includes/VisitReferralReport.php';
 require_once __DIR__ . '/../classes/IncomeArchive.php';
 
@@ -38,20 +42,68 @@ function income_compare_period(string $from, string $to): array
     if ($kept !== null) {
         return $kept;
     }
-    $saved = $_GET;
+    // The sheet with every expense kind on, whatever the income page's own
+    // switch (its inc_x cookie) was last set to: this page has fixed columns
+    // for the lab and the store, and its ماوە is always the sheet's «کۆی ماوە
+    // دوای خەرجی» with the general expense taken off too. No xs= is passed, so
+    // the sheet sets no cookie and the income page keeps its own choice.
+    $saved = [$_GET, $_COOKIE['inc_x'] ?? null];
     $_GET = ['from' => $from, 'to' => $to];
+    unset($_COOKIE['inc_x']);
     try {
         include __DIR__ . '/_income_data.php';
     } finally {
-        $_GET = $saved;
+        [$_GET, $savedCookie] = $saved;
+        if ($savedCookie !== null) {
+            $_COOKIE['inc_x'] = $savedCookie;
+        }
     }
     $byKey = [];
     foreach ($rows as $r) {
         $byKey[$r['kind'] === 'doctor' ? 'd' . $r['id'] : $r['kind']] = $r;
     }
+    $db = Database::getInstance();
+    // پشکنینەکان: the visits report's own «پشکنین» matrix (visits-report.php,
+    // dh_visit_report_stats — by visit date, each visit once, for the doctor
+    // who saw it). The doctors' rows already carry it from ds_compute_range,
+    // which applies the same rules; here the columns that report has without
+    // a doctor account: the X-ray department's goes on the x.ray row, any
+    // other («دکتۆر دیاری نەکراوە», the «لێزان» placeholder) becomes a row of
+    // examinations only. So each column's total here is that report's total.
+    $visits = dh_visit_report_stats($db, $from, $to, 'visit_date', 'checkup');
+    $checkups = fn(array $s) => ['given' => (int)$s['reception'], 'pending' => (int)$s['requested'], 'other' => (int)$s['other'],
+                                 'new_exam' => (int)$s['new'], 'old_exam' => (int)$s['old']];
+    $examOnly = fn(array $c) => ['storeByKind' => [], 'storeOnDoctorByKind' => [], 'minutes' => null, 'days' => null, 'checkups' => $c];
+    $doctorRows = [];
+    foreach ($db->fetchAll("SELECT d.id, d.name, d.user_id, u.role FROM doctors d LEFT JOIN users u ON u.id = d.user_id") as $d) {
+        $doctorRows[(int)$d['id']] = $d;
+    }
+    $xrayChecks = ['given' => 0, 'pending' => 0, 'other' => 0, 'new_exam' => 0, 'old_exam' => 0];
+    foreach ($visits['doctor_stats'] as $id => $s) {
+        $id = (int)$id;
+        $d = $doctorRows[$id] ?? null;
+        if ($d && $d['user_id'] !== null && isset($byKey['d' . $d['user_id']])) {
+            continue;   // a doctor of the sheet: his row has it already
+        }
+        if ((int)$s['assigned'] === 0) {
+            continue;
+        }
+        // the visits report's own rule for the X-ray column (VisitReferralReport.php)
+        if ($d && (($d['role'] ?? '') === 'xray_department' || strtolower(trim((string)$d['name'])) === 'x.ray')) {
+            foreach ($checkups($s) as $k => $v) {
+                $xrayChecks[$k] += $v;
+            }
+            continue;
+        }
+        $byKey['v' . $id] = ['kind' => 'visits', 'id' => $id, 'label' => (string)($visits['doctors'][$id] ?? $s['name']),
+                             'amount' => 0.0, 'lab' => 0.0, 'store' => 0.0, 'general' => 0.0, 'net' => 0.0, 'pool' => 0.0,
+                             'rate' => null, 'doctorShare' => 0.0, 'centerShare' => 0.0, 'report' => $examOnly($checkups($s))];
+    }
+    if (isset($byKey['xray']) && array_sum($xrayChecks) > 0) {
+        $byKey['xray']['report'] = $examOnly($xrayChecks);
+    }
     // کەیسی پێدراو: patients another examiner, reception or the patient sent to
     // this doctor for work — the visits report's «ناردن بۆ ئیش» tab, its column total.
-    $db = Database::getInstance();
     $referrals = dh_visit_referral_report($db, ['from' => $from, 'to' => $to, 'date_filter' => 'visit_date', 'examiner_id' => 0]);
     foreach ($db->fetchAll('SELECT id, user_id FROM doctors WHERE user_id IS NOT NULL') as $d) {
         if (isset($byKey['d' . $d['user_id']])) {

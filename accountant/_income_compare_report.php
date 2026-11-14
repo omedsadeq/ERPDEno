@@ -110,7 +110,8 @@ function income_compare_report(array $P, ?array $base, string $title, float $sca
         $html .= '<th width="' . ($widths[$k] ?? 4) . '%">' . $e($label) . '</th>';
     }
     $html .= '</tr></thead><tbody>';
-    // The departments as the paper names them
+    // The departments as the paper names them; a `visits` row (examinations the
+    // visits report counts under no doctor account) keeps that report's name.
     $deptNames = ['pharmacy' => 'صیدلیە', 'xray' => 'x.ray', 'exam' => 'exam', 'other' => 'other'];
     $i = 0;
     foreach ($P['rows'] as $key => $r) {
