@@ -28,6 +28,18 @@ $isLocal = DIRECTORY_SEPARATOR === '\\'
     || substr($serverHost, -6) === '.local'
     || substr($serverHost, -5) === '.test';
 define('IS_LOCAL', $isLocal);
+// A request from the internet: it came through Cloudflare (the tunnel from
+// this PC, server/start-lezan.cmd) or over HTTPS through a proxy, or names a
+// host that is not this machine. IS_LOCAL stays true on Windows, but such a
+// request is never shown PHP's errors, and its session cookie is HTTPS-only.
+$hostOnly = preg_replace('/:\d+$/', '', trim($serverHost, '[]'));
+define('IS_PUBLIC_REQUEST', PHP_SAPI !== 'cli' && (
+    !empty($_SERVER['HTTP_CF_RAY'])
+    || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https'
+    || ($hostOnly !== '' && !in_array($hostOnly, ['localhost', '127.0.0.1', '::1'], true)
+        && !preg_match('/^(10|192\.168|172\.(1[6-9]|2\d|3[01]))\./', $hostOnly)
+        && substr($hostOnly, -6) !== '.local' && substr($hostOnly, -5) !== '.test')
+));
 
 // Database Configuration
 $dbDefaults = $isLocal
@@ -222,7 +234,7 @@ $TOOTH_SURFACES = [
 // PDF and file downloads, and leaks file paths, SQL and patient data to
 // whoever triggered it. They are logged instead.
 error_reporting(E_ALL);
-if (IS_LOCAL) {
+if (IS_LOCAL && !IS_PUBLIC_REQUEST) {
     ini_set('display_errors', '1');
 } else {
     ini_set('display_errors', '0');
@@ -242,7 +254,8 @@ if (session_status() === PHP_SESSION_NONE) {
         'path'     => '/',
         'httponly' => true,
         'samesite' => 'Lax',
-        'secure'   => (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off'),
+        'secure'   => (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+                      || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https',
     ]);
     session_start();
 }
