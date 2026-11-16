@@ -282,8 +282,15 @@ class CaseInvoice {
      * old money settles the debt without appearing as income today.
      *
      * Only a case opened as کۆن (cases.is_historical) may carry it.
+     *
+     * $allowLocked (admin/settings.php «دراوی پێشوو لە وەسڵی نێردراو و
+     * پەسەندکراو», Settings::priorPaidOnLockedInvoices): the receipt may also
+     * be sent or approved. Then every other figure that settles it counts —
+     * receipts allocated to it (approved or still waiting) and their discounts
+     * — a receipt with an instalment plan keeps its money, and the payment
+     * intent follows what is left, as on any other change.
      */
-    public function setPriorPaid($caseId, $invoiceId, $amount, $actorId = null) {
+    public function setPriorPaid($caseId, $invoiceId, $amount, $actorId = null, bool $allowLocked = false) {
         $amount = round(max(0, (float)$amount), 2);
         $this->db->beginTransaction();
         try {
@@ -291,29 +298,78 @@ class CaseInvoice {
             if (empty($case['is_historical'])) {
                 throw new RuntimeException('دراوی پێشوو تەنها بۆ کەیسی کۆن تۆمار دەکرێت');
             }
+            $statuses = $allowLocked ? ['draft', 'returned', 'sent', 'approved'] : ['draft', 'returned'];
             $invoice = $this->db->fetch(
                 "SELECT * FROM case_invoices
-                 WHERE id=:id AND case_id=:case_id AND accounting_status IN ('draft','returned')
+                 WHERE id=:id AND case_id=:case_id
+                   AND accounting_status IN ('" . implode("','", $statuses) . "')
                  FOR UPDATE",
                 ['id' => (int)$invoiceId, 'case_id' => (int)$caseId]
             );
             if (!$invoice) {
-                throw new RuntimeException('دراوی پێشوو تەنها لەسەر وەسڵی نەنێردراو دەگۆڕدرێت');
+                throw new RuntimeException($allowLocked
+                    ? 'وەسڵ نەدۆزرایەوە یان هەڵوەشاوەتەوە'
+                    : 'دراوی پێشوو تەنها لەسەر وەسڵی نەنێردراو دەگۆڕدرێت');
+            }
+            $locked = in_array($invoice['accounting_status'], ['sent', 'approved'], true);
+            $before = (float)($invoice['prior_paid_amount'] ?? 0);
+            if (abs($amount - $before) < 0.009) {
+                $this->db->commit();
+                return ['success' => true, 'invoice' => $this->getById((int)$invoiceId)];
             }
             $net = max(0, (float)$invoice['total_amount'] - (float)$invoice['discount_amount']);
             $received = max(0, (float)($invoice['draft_received_amount'] ?? 0));
             $advance = max(0, (float)($invoice['advance_paid_amount'] ?? 0));
-            if ($amount > $net - $received - $advance + 0.009) {
-                throw new InvalidArgumentException('دراوی پێشوو لەگەڵ وەرگیراو و ئامانەت پێکەوە لە دوای داشکاندنی وەسڵ زیاترن');
+            $allocated = 0.0;
+            if ($locked) {
+                // an instalment plan is built on what is left: change it there
+                if ($this->db->fetch(
+                    "SELECT id FROM installment_plans WHERE invoice_id = :invoice
+                       AND status IN ('pending','active','completed') LIMIT 1",
+                    ['invoice' => (int)$invoiceId]
+                )) {
+                    throw new RuntimeException('ئەم وەسڵە پلانی قیستی هەیە؛ دراوی پێشوو لێرە ناگۆڕدرێت');
+                }
+                // receipts put on it (approved or waiting) and their discounts
+                $allocated = (float)($this->db->fetch(
+                    "SELECT COALESCE(SUM(pa.allocated_amount), 0) AS amount
+                     FROM payment_allocations pa JOIN payments p ON p.id = pa.payment_id
+                     WHERE pa.invoice_id = :invoice AND p.status IN ('approved','pending')",
+                    ['invoice' => (int)$invoiceId]
+                )['amount'] ?? 0)
+                + (float)($this->db->fetch(
+                    "SELECT COALESCE(SUM(da.amount), 0) AS amount FROM payment_discount_allocations da
+                     JOIN payments p ON p.id = da.payment_id WHERE da.invoice_id = :invoice AND p.status = 'pending'",
+                    ['invoice' => (int)$invoiceId]
+                )['amount'] ?? 0);
             }
-            $before = (float)($invoice['prior_paid_amount'] ?? 0);
-            $this->db->update('case_invoices', [
+            if ($amount > $net - $received - $advance - $allocated + 0.009) {
+                throw new InvalidArgumentException($locked
+                    ? 'دراوی پێشوو لەگەڵ وەرگیراو، ئامانەت و قەبزەکانی ئەم وەسڵە پێکەوە لە دوای داشکاندنی وەسڵ زیاترن'
+                    : 'دراوی پێشوو لەگەڵ وەرگیراو و ئامانەت پێکەوە لە دوای داشکاندنی وەسڵ زیاترن');
+            }
+            $set = [
                 'prior_paid_amount' => $amount,
                 'updated_at' => date('Y-m-d H:i:s'),
-            ], 'id=:id', ['id' => (int)$invoiceId]);
-            AuditLog::log('invoice_prior_paid_changed', 'case_invoices', (int)$invoiceId,
-                ['prior_paid_amount' => $before],
-                ['prior_paid_amount' => $amount],
+            ];
+            if ($locked) {
+                // cash / debt follows what is left now
+                $approvedAlloc = (float)($this->db->fetch(
+                    "SELECT COALESCE(SUM(pa.allocated_amount), 0) AS amount
+                     FROM payment_allocations pa JOIN payments p ON p.id = pa.payment_id
+                     WHERE pa.invoice_id = :invoice AND p.status = 'approved'",
+                    ['invoice' => (int)$invoiceId]
+                )['amount'] ?? 0);
+                $set['payment_intent'] = self::intentForRemaining(
+                    max(0, $net - $received - $amount - $advance - $approvedAlloc),
+                    $invoice['payment_intent'] ?? null
+                );
+            }
+            $this->db->update('case_invoices', $set, 'id=:id', ['id' => (int)$invoiceId]);
+            AuditLog::log($locked ? 'invoice_prior_paid_changed_after_' . $invoice['accounting_status'] : 'invoice_prior_paid_changed',
+                'case_invoices', (int)$invoiceId,
+                ['prior_paid_amount' => $before, 'payment_intent' => $invoice['payment_intent'] ?? null],
+                ['prior_paid_amount' => $amount, 'payment_intent' => $set['payment_intent'] ?? ($invoice['payment_intent'] ?? null)],
                 $actorId ? (int)$actorId : null
             );
             $this->db->commit();

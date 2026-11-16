@@ -48,6 +48,15 @@ class Settings
     const DOCTOR_RECEIVED_LOCKED = 'doctor_received_locked';
 
     /**
+     * دراوی پێشوو on a SENT or an APPROVED receipt of a historical case: OFF
+     * (default) — it is typed only while the receipt is a draft. ON — the doctor
+     * (and the admin) may still correct it after sending and after approval
+     * (CaseInvoice::setPriorPaid). It is money from before the system, so no
+     * cash report reads it; only the debt changes.
+     */
+    const PRIOR_PAID_ON_LOCKED_INVOICES = 'prior_paid_on_locked_invoices';
+
+    /**
      * Waiting room «بانگکردن»: OFF (default) — every doctor may call their own
      * patients in. ON — only the doctors listed in WAITING_CALL_DOCTOR_IDS may;
      * for the rest reception/admin calls the patient.
@@ -180,6 +189,12 @@ class Settings
     public static function allowEditApprovedInvoice(): bool
     {
         return self::getBool(self::ALLOW_EDIT_APPROVED_INVOICE, false);
+    }
+
+    /** Whether دراوی پێشوو may still change on a sent or an approved receipt. Default OFF. */
+    public static function priorPaidOnLockedInvoices(): bool
+    {
+        return self::getBool(self::PRIOR_PAID_ON_LOCKED_INVOICES, false);
     }
 
     /** Whether a doctor is kept from writing «وەرگیراو» on a receipt. Default ON. */

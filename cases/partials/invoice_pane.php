@@ -445,10 +445,12 @@ $paneHidden = !empty($paneAlwaysVisible) ? false : ($tid !== $activeInvoiceId);
         ? max(0, min($invNet, $invPaid) - $invCovered)
         : min(max(0, $invNet - $invCovered), max($invPaid, $invDraftReceived));
     $invRemaining = max(0, $invNet - $invEntered - $invCovered);
-    // The doctor types دراوی پێشوو on their own draft of a historical case.
-    // Not on the accountant screen: that page has no handler for it.
+    // The doctor types دراوی پێشوو on their own draft of a historical case —
+    // and, when admin/settings.php allows it, still after sending and after
+    // approval. Not on the accountant screen: that page has no handler for it.
     $canSetPrior = $invIsHistorical && empty($showInvoiceActions)
-        && $case['status'] === 'open' && $isDraft;
+        && $case['status'] === 'open'
+        && ($isDraft || (in_array($accountingStatus, ['sent', 'approved'], true) && Settings::priorPaidOnLockedInvoices()));
     // ئامانەت is not limited to historical cases — the patient paid at this
     // counter either way, and the doctor decides which receipt it settles.
     $canUseAdvance = in_array($currentUser['role'] ?? '', ['admin','accountant'], true)

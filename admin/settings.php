@@ -78,6 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             Settings::ALLOW_EDIT_SENT_INVOICE,
             Settings::ALLOW_EDIT_APPROVED_INVOICE,
             Settings::DOCTOR_RECEIVED_LOCKED,
+            Settings::PRIOR_PAID_ON_LOCKED_INVOICES,
             AutoApproval::ENABLED,
             CashboxLedger::SPLIT_SETTING,
             Settings::WAITING_CALL_RESTRICTED,
@@ -119,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         // Unlocking a sent or an approved receipt is a financial-control change
         // — always logged, one entry per switch that actually moved.
-        foreach ([Settings::ALLOW_EDIT_SENT_INVOICE, Settings::ALLOW_EDIT_APPROVED_INVOICE, Settings::DOCTOR_RECEIVED_LOCKED] as $invLockKey) {
+        foreach ([Settings::ALLOW_EDIT_SENT_INVOICE, Settings::ALLOW_EDIT_APPROVED_INVOICE, Settings::DOCTOR_RECEIVED_LOCKED, Settings::PRIOR_PAID_ON_LOCKED_INVOICES] as $invLockKey) {
             if (!isset($_POST['settings'][$invLockKey])) {
                 continue;
             }
@@ -896,6 +897,40 @@ require_once __DIR__ . '/../includes/header.php';
                                <?= Settings::doctorReceivedLocked() ? 'checked' : '' ?>>
                         <span class="toggle-slider"></span>
                     </div>
+                </div>
+            </div>
+
+            <h4 class="mb-3" style="margin-top:26px;">دراوی پێشوو لە کەیسی کۆن</h4>
+
+            <div class="access-card">
+                <div class="access-card-main">
+                    <div class="access-card-text">
+                        <div class="access-card-title">
+                            <i class="fas fa-history"></i>
+                            دکتۆر دەتوانێت «دراوی پێشوو» لە وەسڵی <b>نێردراو و پەسەندکراو</b>یش دەستکاری بکات
+                        </div>
+                        <div class="access-card-desc">
+                            کاتێک <b>ناچالاک</b> بێت (بنەڕەت)، دراوی پێشووی کەیسی کۆن تەنها لە وەسڵی ڕەشنووس
+                            (نەنێردراو یان گەڕاوە) دەنووسرێت.
+                            <br>
+                            کاتێک <b>چالاک</b> بێت، دکتۆر (و بەڕێوەبەر) دەتوانن لە ناو کەیسەکەدا دراوی پێشوو لە
+                            وەسڵێکی <b>نێردراو</b> یان <b>پەسەندکراو</b>یش بگۆڕن. وەسڵەکە لە دۆخی خۆی دەمێنێتەوە.
+                            دراوی پێشوو پارەی پێش سیستەمە و ناچێتە ناو هیچ ڕاپۆرتێکی سندوق؛ تەنها <b>ماوە (قەرز)</b>ی
+                            نەخۆشەکە دەگۆڕێت. سیستەم ڕێگە نادات لەگەڵ پارەی دراو لە کۆی وەسڵ تێپەڕێت، و وەسڵی خاوەن
+                            پلانی قیست ناگۆڕدرێت.
+                        </div>
+                    </div>
+                    <div class="toggle-switch">
+                        <input type="hidden" name="settings[prior_paid_on_locked_invoices]" value="0">
+                        <input type="checkbox" id="priorPaidOnLockedInvoices"
+                               name="settings[prior_paid_on_locked_invoices]" value="1"
+                               <?= Settings::priorPaidOnLockedInvoices() ? 'checked' : '' ?>>
+                        <span class="toggle-slider"></span>
+                    </div>
+                </div>
+                <div class="access-note">
+                    <i class="fas fa-shield-alt"></i>
+                    <span>هەر گۆڕینێکی ئەم ئۆپشنە، و هەر گۆڕینێکی دراوی پێشوو لە وەسڵی نێردراو یان پەسەندکراو، لە تۆماری چالاکییەکاندا هەڵدەگیرێت.</span>
                 </div>
             </div>
 

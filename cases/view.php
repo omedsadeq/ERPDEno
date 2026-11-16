@@ -1656,7 +1656,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         $caseInvoice->recomputeTotal($invoiceId);
         $amount = max(0, (float)normalize_localized_digits($_POST['prior_paid_amount'] ?? 0));
-        $saved = $caseInvoice->setPriorPaid($caseId, $invoiceId, $amount, (int)$currentUser['id']);
+        // admin/settings.php may let it change on a sent / approved receipt too
+        $saved = $caseInvoice->setPriorPaid($caseId, $invoiceId, $amount, (int)$currentUser['id'],
+            Settings::priorPaidOnLockedInvoices());
         if (empty($saved['success'])) {
             case_view_fail($caseId, $saved['message'] ?? 'خەزنکردنی دراوی پێشوو سەرنەکەوت');
         }
