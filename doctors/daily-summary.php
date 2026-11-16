@@ -7,6 +7,18 @@
  */
 
 require_once __DIR__ . '/_daily_summary_data.php';
+require_once __DIR__ . '/../classes/Settings.php';
+
+// The look: «کلاسیک» (the tables) or «مۆدێرن» (cards). Each user picks
+// their own with the switch on the page, and it stays until they change it.
+$dsStyleKey = 'daily_summary_style_u' . $viewerUserId;
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['ds_style'])) {
+    Csrf::require();
+    Settings::set($dsStyleKey, $_POST['ds_style'] === 'modern' ? 'modern' : 'classic', 'text', 'پوختەی ڕۆژانە: شێوازی پیشاندان (هی یەک بەکارهێنەر)');
+    header('Location: ' . $dsLockSelf);
+    exit;
+}
+$dsModern = Settings::get($dsStyleKey, 'classic') === 'modern';
 
 $pageTitle = 'پوختەی ڕۆژانەم';
 $breadcrumb = [
@@ -31,6 +43,65 @@ function dsRows(array $rows)
             . '</tr>';
     }
 }
+
+/** «هاتنەژوورەوە / چوونەدەرەوە» — only on today's own sheet. */
+$dsAttendance = function () use ($isToday, $docUserId, $viewerUserId, $isAdminView, $attendance) {
+    if (!($isToday && ($docUserId === $viewerUserId || $isAdminView))) {
+        return;
+    }
+    ?>
+
+            <div class="ds-att" id="ds-att" data-doctor-id="<?= (int)$docUserId ?>">
+                <?php if (empty($attendance['check_in_time'])): ?>
+                    <span>هێشتا نەهاتوویتە ژوورەوە</span>
+                    <button type="button" class="in" data-action="check_in"><i class="fas fa-door-open"></i> هاتنەژوورەوە</button>
+                <?php elseif (empty($attendance['check_out_time'])): ?>
+                    <span>هاتن: <?= dsEsc(date('H:i', strtotime($attendance['check_in_time']))) ?></span>
+                    <button type="button" class="out" data-action="check_out"><i class="fas fa-door-closed"></i> چوونەدەرەوە</button>
+                <?php else: ?>
+                    <span><?= dsEsc(date('H:i', strtotime($attendance['check_in_time']))) ?> → <?= dsEsc(date('H:i', strtotime($attendance['check_out_time']))) ?></span>
+                <?php endif; ?>
+            </div>
+    <?php
+};
+
+/** The patients' table, the same in both looks. */
+$dsPatients = function () use ($patientRows, $patientTotals) {
+    ?>
+            <div class="ds-scroll">
+                <table class="ds-tbl">
+                    <thead><tr>
+                        <th class="i">#</th><th>نەخۆش</th><th>بەروار</th><th>کات</th><th>ئیش</th>
+                        <th>حسابکراو</th><th>وەرگیراو</th><th>ماوە</th>
+                    </tr></thead>
+                    <tbody>
+                    <?php if (!$patientRows): ?>
+                        <tr><td colspan="8" class="empty">هیچ نەخۆشێک نییە</td></tr>
+                    <?php else: foreach ($patientRows as $i => $r): ?>
+                        <?php $atTs = !empty($r['last_at']) ? strtotime($r['last_at']) : null; ?>
+                        <tr>
+                            <td class="i"><?= $i + 1 ?></td>
+                            <td><a href="<?= APP_URL ?>/cases/view.php?id=<?= (int)$r['case_id'] ?>"><?= dsEsc($r['full_name']) ?></a></td>
+                            <td class="n"><?= $atTs ? dsEsc(date('Y-m-d', $atTs)) : '' ?></td>
+                            <td class="n"><?= $atTs ? dsEsc(date('H:i', $atTs)) : '' ?></td>
+                            <td class="n"><?= dsMoney($r['treatments']) ?></td>
+                            <td class="n"><?= dsMoney($r['billed']) ?></td>
+                            <td class="n pos"><?= dsMoney($r['received']) ?></td>
+                            <td class="n <?= $r['left'] > 0 ? 'neg' : '' ?>"><?= dsMoney($r['left']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                        <tr class="is-total">
+                            <td></td><td colspan="4">کۆ</td>
+                            <td class="n"><?= dsMoney($patientTotals['billed']) ?></td>
+                            <td class="n pos"><?= dsMoney($patientTotals['paid']) ?></td>
+                            <td class="n neg"><?= dsMoney($patientTotals['left']) ?></td>
+                        </tr>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+    <?php
+};
 ?>
 
 <style>
@@ -81,13 +152,46 @@ function dsRows(array $rows)
 .ds-att .in{background:#087b35}.ds-att .out{background:#a25c00}
 
 @media(max-width:1100px){.ds-grid.g3,.ds-grid.g2{grid-template-columns:1fr}.ds-days{margin-inline-start:0}}
+
+/* the switch between the two looks */
+.ds-style{margin:0;display:inline-flex;border:1px solid #9fbbd0;border-radius:999px;overflow:hidden}
+.ds-style button{background:transparent;color:#fff;border:0;padding:5px 12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.ds-style button.on{background:#fff;color:#244b68}
+.ds-style button:not(.on):hover{background:rgba(255,255,255,.15)}
+
+/* «مۆدێرن»: the header in the system's own blue running into a medical teal */
+.ds.is-modern .ds-bar{background:linear-gradient(120deg,var(--win-accent,#0078d4),#0e9f9a);border-radius:16px 16px 0 0;padding:14px 16px;gap:14px}
+.ds.is-modern .ds-bar .ds-who{width:50px;height:50px;border:2px solid rgba(255,255,255,.8);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;flex:none}
+.ds.is-modern .ds-bar h1{font-size:21px;font-weight:800}
+.ds.is-modern .ds-bar .day{color:#dff4f7;font-size:13.5px;display:block;margin-top:2px}
+.ds.is-modern .ds-bar .ds-pdf{border-radius:999px;color:var(--win-accent-dark,#005a9e)}
+.ds.is-modern .ds-lockform button,.ds.is-modern .ds-style{border-color:rgba(255,255,255,.6);border-radius:999px}
+.ds.is-modern .ds-style button.on{color:var(--win-accent-dark,#005a9e)}
+.ds.is-modern .ds-filter{border-radius:0 0 16px 16px;border-color:#e2e8f0;background:#f5fafd}
+.ds.is-modern .ds-filter input,.ds.is-modern .ds-filter select,.ds.is-modern .ds-filter button,.ds.is-modern .ds-days a{border-radius:8px}
+.ds.is-modern .ds-filter button{background:var(--win-accent,#0078d4);border-color:var(--win-accent,#0078d4)}
+.ds.is-modern .ds-days a.on{background:#e0f0fb;border-color:var(--win-accent,#0078d4);color:var(--win-accent-dark,#005a9e)}
+@media(max-width:640px){.ds.is-modern .ds-bar h1{font-size:18px}.ds.is-modern .ds-bar .ds-who{width:42px;height:42px;font-size:20px}}
 </style>
 
-<div class="ds">
+<div class="ds<?= $dsModern ? ' is-modern' : '' ?>">
 
     <div class="ds-bar">
+        <?php if ($dsModern): ?>
+        <span class="ds-who"><i class="fas fa-user-md"></i></span>
+        <div>
+            <h1>پوختەی دکتۆر · <?= dsEsc($docName) ?></h1>
+            <span class="day"><i class="far fa-calendar-alt"></i> بەروار: <bdi><?= dsEsc($rangeLabel) ?></bdi><?= $isToday ? ' · ئەمڕۆ' : '' ?></span>
+        </div>
+        <?php else: ?>
         <h1><?= dsEsc($docName) ?></h1>
         <span class="day"><bdi><?= dsEsc($rangeLabel) ?></bdi><?= $isToday ? ' · ئەمڕۆ' : '' ?></span>
+        <?php endif; ?>
+        <form method="post" class="ds-style" title="شێوازی پیشاندان — هەڵبژاردنەکەت دەمێنێتەوە">
+            <?= Csrf::field() ?>
+            <button type="submit" name="ds_style" value="classic" class="<?= $dsModern ? '' : 'on' ?>"><i class="fas fa-table"></i> کلاسیک</button>
+            <button type="submit" name="ds_style" value="modern" class="<?= $dsModern ? 'on' : '' ?>"><i class="fas fa-th-large"></i> مۆدێرن</button>
+        </form>
         <a class="ds-pdf" href="<?= dsEsc($pdfUrl) ?>" target="_blank">
             <i class="fas fa-file-pdf"></i> ڕاپۆرتی PDF
         </a>
@@ -126,6 +230,7 @@ function dsRows(array $rows)
     </div>
     <?php endif; ?>
 
+    <?php if ($dsModern): require __DIR__ . '/_daily_summary_modern.php'; else: ?>
     <div class="ds-grid g3">
         <div class="ds-card">
             <h2><span><i class="fas fa-coins"></i> پارە</span></h2>
@@ -147,19 +252,7 @@ function dsRows(array $rows)
         <div class="ds-card">
             <h2><span><i class="fas fa-stopwatch"></i> کات</span></h2>
             <table class="ds-kv"><?php dsRows($dsTimeRows); ?></table>
-            <?php if ($isToday && ($docUserId === $viewerUserId || $isAdminView)): ?>
-            <div class="ds-att" id="ds-att" data-doctor-id="<?= (int)$docUserId ?>">
-                <?php if (empty($attendance['check_in_time'])): ?>
-                    <span>هێشتا نەهاتوویتە ژوورەوە</span>
-                    <button type="button" class="in" data-action="check_in"><i class="fas fa-door-open"></i> هاتنەژوورەوە</button>
-                <?php elseif (empty($attendance['check_out_time'])): ?>
-                    <span>هاتن: <?= dsEsc(date('H:i', strtotime($attendance['check_in_time']))) ?></span>
-                    <button type="button" class="out" data-action="check_out"><i class="fas fa-door-closed"></i> چوونەدەرەوە</button>
-                <?php else: ?>
-                    <span><?= dsEsc(date('H:i', strtotime($attendance['check_in_time']))) ?> → <?= dsEsc(date('H:i', strtotime($attendance['check_out_time']))) ?></span>
-                <?php endif; ?>
-            </div>
-            <?php endif; ?>
+            <?php $dsAttendance(); ?>
         </div>
     </div>
 
@@ -193,40 +286,10 @@ function dsRows(array $rows)
 
         <div class="ds-card">
             <h2><span><i class="fas fa-list-alt"></i> نەخۆشەکان</span><small><?= dsMoney(count($patientRows)) ?> کەیس</small></h2>
-            <div class="ds-scroll">
-                <table class="ds-tbl">
-                    <thead><tr>
-                        <th class="i">#</th><th>نەخۆش</th><th>بەروار</th><th>کات</th><th>ئیش</th>
-                        <th>حسابکراو</th><th>وەرگیراو</th><th>ماوە</th>
-                    </tr></thead>
-                    <tbody>
-                    <?php if (!$patientRows): ?>
-                        <tr><td colspan="8" class="empty">هیچ نەخۆشێک نییە</td></tr>
-                    <?php else: foreach ($patientRows as $i => $r): ?>
-                        <?php $atTs = !empty($r['last_at']) ? strtotime($r['last_at']) : null; ?>
-                        <tr>
-                            <td class="i"><?= $i + 1 ?></td>
-                            <td><a href="<?= APP_URL ?>/cases/view.php?id=<?= (int)$r['case_id'] ?>"><?= dsEsc($r['full_name']) ?></a></td>
-                            <td class="n"><?= $atTs ? dsEsc(date('Y-m-d', $atTs)) : '' ?></td>
-                            <td class="n"><?= $atTs ? dsEsc(date('H:i', $atTs)) : '' ?></td>
-                            <td class="n"><?= dsMoney($r['treatments']) ?></td>
-                            <td class="n"><?= dsMoney($r['billed']) ?></td>
-                            <td class="n pos"><?= dsMoney($r['received']) ?></td>
-                            <td class="n <?= $r['left'] > 0 ? 'neg' : '' ?>"><?= dsMoney($r['left']) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                        <tr class="is-total">
-                            <td></td><td colspan="4">کۆ</td>
-                            <td class="n"><?= dsMoney($patientTotals['billed']) ?></td>
-                            <td class="n pos"><?= dsMoney($patientTotals['paid']) ?></td>
-                            <td class="n neg"><?= dsMoney($patientTotals['left']) ?></td>
-                        </tr>
-                    <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
+            <?php $dsPatients(); ?>
         </div>
     </div>
+    <?php endif; ?>
 
 </div>
 
