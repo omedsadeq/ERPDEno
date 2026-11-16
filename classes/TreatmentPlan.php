@@ -153,10 +153,14 @@ class TreatmentPlan
     }
 
     /**
-     * «پلانی چارەسەر» in one click: the doctor's plan for this patient begun
-     * today and still open, or a new one — no dialog. A plan is only its day
-     * to begin with; the complaint and the rest are written on the plan page,
-     * and every plan holds tooth and whole-arch work alike, as a case does.
+     * «پلانی نوێ» in one click: a new plan of its own — no dialog. Every plan
+     * stands alone (its work, its doctor, its appointment), so a plan that
+     * already holds anything is never opened again in its place. Only one
+     * made today for the same doctor and still untouched — no work, nobody
+     * chosen to treat, no appointment, nothing written — is reused, so a
+     * second click does not leave empty plans behind. The complaint and the
+     * rest are written on the plan page; every plan holds tooth and
+     * whole-arch work alike, as a case does.
      *
      * @return int|null the plan id, or null when it could not be made
      */
@@ -166,10 +170,13 @@ class TreatmentPlan
             return null;
         }
         $today = $this->db->fetch(
-            "SELECT id FROM treatment_plans
-             WHERE patient_id = :p AND doctor_id = :d AND DATE(created_at) = CURDATE()
-               AND status IN ('" . implode("', '", self::EDITABLE_STATUSES) . "')
-             ORDER BY id DESC LIMIT 1",
+            "SELECT tp.id FROM treatment_plans tp
+             WHERE tp.patient_id = :p AND tp.doctor_id = :d AND DATE(tp.created_at) = CURDATE()
+               AND tp.status IN ('" . implode("', '", self::EDITABLE_STATUSES) . "')
+               AND NOT EXISTS (SELECT 1 FROM treatment_plan_items i WHERE i.plan_id = tp.id)
+               AND tp.treating_mode IS NULL AND tp.treating_doctor_id IS NULL AND tp.appointment_id IS NULL
+               AND COALESCE(tp.chief_complaint, '') = '' AND COALESCE(tp.notes, '') = '' AND COALESCE(tp.duration_text, '') = ''
+             ORDER BY tp.id DESC LIMIT 1",
             ['p' => $patientId, 'd' => $doctorId]
         );
         if ($today) {
@@ -702,6 +709,77 @@ class TreatmentPlan
      * The whole move is one transaction. A half-transferred plan would either
      * bill work twice or lose it.
      */
+    /**
+     * The case name a one-click transfer opens the case under: from the
+     * admin's list (case_name_presets) of the plan's scope, the one that best
+     * fits the work being moved — by the treatment's kind (a root canal →
+     * «R.C.T», an extraction → «Exo» …) or a name one contains of the other,
+     * weighed by price — else the list's first name. Null when the list is empty.
+     */
+    public function suggestCaseName(int $planId, array $itemIds): ?string
+    {
+        require_once __DIR__ . '/CaseNamePreset.php';
+        $plan = $this->getById($planId);
+        $scope = ($plan['scope_type'] ?? 'tooth') === 'arch' ? 'arch' : 'tooth';
+        $names = [];
+        foreach ((new CaseNamePreset())->all() as $n) {
+            if (CaseNamePreset::scope($n['scope_type'] ?? '') === $scope) {
+                $names[] = (string)$n['name'];
+            }
+        }
+        if (!$names) {
+            return null;
+        }
+        $ids = array_values(array_filter(array_map('intval', $itemIds)));
+        $items = $ids ? $this->db->fetchAll(
+            "SELECT i.treatment_name, i.final_price, t.category, t.treatment_name_en
+             FROM treatment_plan_items i LEFT JOIN treatments t ON t.id = i.treatment_id
+             WHERE i.plan_id = ? AND i.id IN (" . implode(',', array_fill(0, count($ids), '?')) . ")",
+            array_merge([$planId], $ids)
+        ) : [];
+        $norm = fn($s) => preg_replace('/[\s.+\-_]+/u', '', mb_strtolower((string)$s));
+        // a treatment's kind → words a case name of that kind holds
+        $kinds = [
+            'root_canal' => ['rct', 'endo'], 'filling' => ['filling'], 'extraction' => ['exo'],
+            'surgery' => ['sxp', 'exo'], 'crown' => ['crown'], 'bridge' => ['crown'], 'implant' => ['implant'],
+            'orthodontic' => ['ortho'], 'whitening' => ['laser', 'smile'], 'cosmetic' => ['smile', 'denture'],
+        ];
+        $best = null;
+        $bestScore = 0.0;
+        foreach ($names as $name) {
+            $n = $norm($name);
+            $score = 0.0;
+            foreach ($items as $it) {
+                $weight = max(1.0, (float)$it['final_price']);
+                $words = array_filter([$norm($it['treatment_name']), $norm($it['treatment_name_en'])], fn($w) => mb_strlen($w) >= 3);
+                $hit = false;
+                foreach ($words as $w) {
+                    if (mb_strlen($n) >= 3 && (mb_strpos($w, $n) !== false || mb_strpos($n, $w) !== false)) {
+                        $hit = true;
+                    }
+                    // English names of one family: «pulpectomy» → «Pulpotic»
+                    if (preg_match('/^[a-z]{4}/', $w) && strncmp($w, $n, 4) === 0) {
+                        $hit = true;
+                    }
+                }
+                foreach ($kinds[$it['category'] ?? ''] ?? [] as $k) {
+                    if (mb_strpos($n, $k) !== false) {
+                        $hit = true;
+                    }
+                }
+                if ($hit) {
+                    $score += $weight;
+                }
+            }
+            // a tie goes to the plainer name: work that is only a filling is «Filling», not «R.C.T + Screw + Filling»
+            if ($score > $bestScore || ($score > 0 && $score === $bestScore && mb_strlen($n) < mb_strlen($norm($best)))) {
+                $bestScore = $score;
+                $best = $name;
+            }
+        }
+        return $best ?? $names[0];
+    }
+
     public function transferItems(int $planId, array $itemIds, array $target, int $userId): array
     {
         $plan = $this->getById($planId);

@@ -17,6 +17,7 @@ require_once __DIR__ . '/../classes/TreatmentPlan.php';
 require_once __DIR__ . '/../classes/DentalChart.php';
 require_once __DIR__ . '/../classes/Treatment.php';
 require_once __DIR__ . '/../classes/CaseNamePreset.php';
+require_once __DIR__ . '/../includes/work-tray.php';
 
 $auth = new Auth();
 $auth->requireLogin();
@@ -396,6 +397,9 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
                 </div>
                 <?php endforeach; ?>
                 <div class="chart-legend" id="smartChartLegend"></div>
+                <?php if ($isEditable): // every treatment under the chart, as on a case: teeth, then one or several works ?>
+                <?= work_tray_html() ?>
+                <?php endif; ?>
             </div>
         </div>
     </div><!-- /cw-chart -->
@@ -510,6 +514,7 @@ $ownAppt = $liveAppointment && $canBook && (int)$liveAppointment['doctor_id'] ==
 .pd-note { margin: 10px 0 0; font-size: 12px; color: #64748b; line-height: 1.6; }
 </style>
 <?php require __DIR__ . '/_view_script.php'; ?>
+<?php work_tray_assets(); // the tray under the chart (includes/work-tray.php) ?>
 <?php require __DIR__ . '/_view_routing.php'; ?>
 <script>
 // ⤢ beside the treatments, and the chart kept in view, as on a case (cases/view.php)

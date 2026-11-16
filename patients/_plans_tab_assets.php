@@ -275,7 +275,7 @@ if ($canWritePlans && $tpwPickDoctor) {
             .catch(() => ({ success: false, error: 'هەڵە لە پەیوەندی' }));
     }
 
-    // «پلانی نوێ» in one click: made (or today's reopened) and opened on its
+    // «پلانی نوێ» in one click: a new plan of its own (TreatmentPlan::quickOpen), opened on its
     // own page, ready for the chart. Only whose plan it is may be asked.
     window.tpNewPlan = function (btn) {
         const go = doctorId => {

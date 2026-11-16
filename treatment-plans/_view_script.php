@@ -562,10 +562,76 @@ function renderTotals() {
         <small class="tp-estimate-note"><i class="fas fa-info-circle"></i> کۆی خەمڵاندن تەنها بۆ چارەسەرە چاوەڕوانەکانە.</small>
     </div><div class="vt-foot-totals">
         <div class="vt-total-row"><span class="vt-total-label">کۆی گشتی :</span><span class="vt-total-box">${numberFormat(planData.total_estimated)}</span></div>
-        <div class="vt-total-row"><span class="vt-total-label">داشکاندن :</span><span class="vt-total-box is-cut">${numberFormat(planData.total_discount)}</span></div>
-        <div class="vt-total-row"><span class="vt-total-label">دوای داشکاندن :</span><span class="vt-total-box tp-quote-final">${numberFormat(planData.total_final)}</span></div>
+        ${pvDiscRowHtml()}
+        <div class="vt-total-row"><span class="vt-total-label">دوای داشکاندن :</span><span class="vt-total-box tp-quote-final" id="pvFinalBox">${numberFormat(planData.total_final)}</span></div>
     </div>`;
 }
+
+// ── داشکاندن typed straight into the box, as on a case's receipt ──
+// The small button flips between an amount and a percentage of the plan;
+// «دوای داشکاندن» follows while typing, and blur/Enter saves (set_discount).
+function pvDiscRowHtml() {
+    const percent = planData.discount_mode === 'percent' && Number(planData.discount_value) > 0;
+    if (!isEditable()) {
+        return `<div class="vt-total-row"><span class="vt-total-label">داشکاندن${percent ? ' (' + Number(planData.discount_value) + '%)' : ''} :</span>`
+            + `<span class="vt-total-box is-cut">${numberFormat(planData.total_discount)}</span></div>`;
+    }
+    const shown = percent ? Number(planData.discount_value) : Number(planData.total_discount || 0);
+    return `<div class="vt-total-row"><span class="vt-total-label">داشکاندن :</span>`
+        + `<span class="vt-total-box vt-disc-box${percent ? ' is-percent' : ''}" id="pvDiscBox" data-mode="${percent ? 'percent' : 'amount'}">`
+        + `<input type="number" class="vt-disc-input" id="pvDiscInput" min="0" step="0.01" value="${shown > 0 ? shown : ''}" placeholder="0"`
+        + ` oninput="pvDiscPreview()" onchange="pvDiscSave()" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">`
+        + `<button type="button" class="vt-disc-mode" onclick="pvDiscToggleMode()" title="گۆڕین بۆ ڕێژە / پارە">${percent ? '%' : 'IQD'}</button></span>`
+        + `<span class="vt-disc-eq" id="pvDiscEq"${percent && Number(planData.total_discount) > 0 ? '' : ' hidden'}>= <span id="pvDiscEqVal">${numberFormat(planData.total_discount)}</span></span></div>`;
+}
+/** The discount in money, whatever mode the box is in. */
+function pvDiscAmount() {
+    const box = document.getElementById('pvDiscBox');
+    if (!box) return 0;
+    const v = Math.max(0, parseFloat(document.getElementById('pvDiscInput').value) || 0);
+    return box.dataset.mode === 'percent' ? pdBaseTotal() * Math.min(100, v) / 100 : v;
+}
+window.pvDiscPreview = function () {
+    const base = pdBaseTotal(), raw = pvDiscAmount(), cut = Math.min(raw, base);
+    const fin = document.getElementById('pvFinalBox');
+    if (fin) fin.textContent = numberFormat(base - cut);
+    document.getElementById('pvDiscInput').style.color = raw > base ? '#c62026' : '';
+    const eq = document.getElementById('pvDiscEq');
+    const show = document.getElementById('pvDiscBox').dataset.mode === 'percent' && cut > 0;
+    eq.hidden = !show;
+    if (show) document.getElementById('pvDiscEqVal').textContent = numberFormat(Math.round(cut));
+};
+window.pvDiscToggleMode = function () {
+    const box = document.getElementById('pvDiscBox'), input = document.getElementById('pvDiscInput');
+    const base = pdBaseTotal(), amount = pvDiscAmount();
+    const toPercent = box.dataset.mode !== 'percent';
+    box.dataset.mode = toPercent ? 'percent' : 'amount';
+    box.classList.toggle('is-percent', toPercent);
+    box.querySelector('.vt-disc-mode').textContent = toPercent ? '%' : 'IQD';
+    // the figure stays equivalent across the switch
+    input.value = !amount ? '' : (toPercent ? (base > 0 ? Math.round(amount / base * 10000) / 100 : '') : Math.round(amount));
+    input.focus();
+    input.select();
+    pvDiscPreview();
+};
+let pvDiscBusy = false;
+window.pvDiscSave = function () {
+    const box = document.getElementById('pvDiscBox');
+    if (!box || pvDiscBusy) return;
+    if (pvDiscAmount() > pdBaseTotal() + 0.009) {
+        toast('error', 'داشکاندن ناتوانێت لە کۆی پلانەکە زیاتر بێت');
+        return;
+    }
+    pvDiscBusy = true;
+    box.classList.add('is-saving');
+    const value = Math.max(0, parseFloat(document.getElementById('pvDiscInput').value) || 0);
+    post('set_discount', { plan_id: PLAN_ID, discount_mode: box.dataset.mode, discount_value: value }).then(res => {
+        if (!res || !res.success) { toast('error', (res && (res.error || res.message)) || 'داشکاندن سەرنەکەوت'); renderTotals(); return; }
+        applyResponse(res);
+        toast('success', value > 0 ? 'داشکاندن جێبەجێکرا' : 'داشکاندن لابرا');
+    }).catch(() => { toast('error', 'هەڵە لە پەیوەندی'); renderTotals(); })
+      .finally(() => { pvDiscBusy = false; });
+};
 
 // ── Tooth detail panel ──────────────────────────────────────────────
 let currentSelectedTooth = null;
@@ -799,6 +865,7 @@ function tpToggleFavorite(id) {
     if (!t) return;
     t.fav = !t.fav;
     renderTreatmentPicker();
+    if (typeof renderWorkTray === 'function') renderWorkTray();
     fetch('<?= APP_URL ?>/api/treatments.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN },
@@ -937,6 +1004,7 @@ async function quickAddTreatments(ids) {
         document.getElementById('tpList')?.classList.remove('is-busy');
         tpPaintSelection();
     }
+    return done;   // the works that went in (the work tray, includes/work-tray.php)
 }
 window.openQuickToothHistory = function () {
     const num = tpQuickTeeth && tpQuickTeeth.length === 1 ? tpQuickTeeth[0] : null;
@@ -1050,6 +1118,7 @@ function renderBulkSelection() {
     bulkSelected.forEach(num => {
         document.querySelectorAll('.smart-dental-chart .tooth[data-tooth="' + num + '"]').forEach(el => el.classList.add('bulk-selected'));
     });
+    if (typeof renderWorkTrayState === 'function') renderWorkTrayState();   // the tray under the chart lights up
     const bar = document.getElementById('bulkActionBar');
     if (!bar) return;
     if (!bulkSelected.length) { bar.style.display = 'none'; return; }
@@ -1293,52 +1362,28 @@ window.pvCancelPlan = function () {
 <?php endif; ?>
 
 <?php if ($canTransfer): ?>
-// ── گواستنەوە ──────────────────────────────────────────────────────
+// ── گواستنەوە: one click — every waiting item into a new case, which opens ──
+// The case is named from the admin's list after the work it holds
+// (TreatmentPlan::suggestCaseName); nothing to fill in, no dialog.
+let pvTransferBusy = false;
 window.pvOpenTransfer = function () {
+    if (pvTransferBusy) return;
     const pending = planItems.filter(i => i.status === 'planned');
     if (!pending.length) { toast('info', 'هیچ ئایتمی چاوەڕوان نییە'); return; }
-    setMsg('tpTrMsg', '');
-    document.getElementById('tpTrItems').innerHTML = pending.map(it => `
-        <label class="tp-tr-item">
-            <input type="checkbox" class="tp-tr-cb" value="${it.id}" checked data-price="${Number(it.final_price)}" onchange="tpTrSum()">
-            <span>${it.tooth_number ? 'ددان ' + it.tooth_number + ' — ' : (it.arch_type && it.arch_type !== 'none' ? (it.arch_type === 'upper' ? 'ئەرکی سەرەوە' : 'ئەرکی خوارەوە') + ' — ' : '')}${escapeHtml(it.treatment_name)}</span>
-            <span class="tp-tr-price">${numberFormat(it.final_price)}</span>
-        </label>`).join('');
-    tpTrTargetChanged();
-    tpTrSum();
-    openDialog('tpTransferDialog');
-};
-window.tpTrSum = function () {
-    const boxes = Array.from(document.querySelectorAll('.tp-tr-cb:checked'));
-    const total = boxes.reduce((s, b) => s + Number(b.dataset.price || 0), 0);
-    document.getElementById('tpTrSummary').innerHTML = `${boxes.length} ئایتم — کۆی گشتی <b style="direction:ltr;display:inline-block;">${numberFormat(total)}</b> دەچێتە ناو کەیس`;
-};
-window.tpTrTargetChanged = function () {
-    const mode = (document.querySelector('input[name="tpTrTarget"]:checked') || {}).value;
-    document.getElementById('tpTrNewCaseBox').hidden = mode !== 'new';
-    document.getElementById('tpTrExistingCaseBox').hidden = mode !== 'existing';
-};
-window.tpDoTransfer = function () {
-    const btn = document.getElementById('tpTrSave');
-    const ids = Array.from(document.querySelectorAll('.tp-tr-cb:checked')).map(b => b.value);
-    if (!ids.length) { setMsg('tpTrMsg', 'هیچ ئایتمێک هەڵنەبژێردراوە', 'is-error'); return; }
-    const mode = (document.querySelector('input[name="tpTrTarget"]:checked') || {}).value;
-    const payload = { plan_id: PLAN_ID, item_ids: ids };
-    if (mode === 'existing') {
-        payload.case_id = document.getElementById('tpTrCaseId').value;
-        if (!payload.case_id) { setMsg('tpTrMsg', 'تکایە کەیس هەڵبژێرە', 'is-error'); return; }
-    } else {
-        payload.case_name = document.getElementById('tpTrCaseName').value;
-        if (!payload.case_name) { setMsg('tpTrMsg', 'تکایە ناوی کەیس هەڵبژێرە', 'is-error'); return; }
-    }
-    btn.disabled = true;
-    setMsg('tpTrMsg', 'دەگوازرێتەوە...');
-    post('transfer', payload).then(res => {
-        btn.disabled = false;
-        if (!res || !res.success) { setMsg('tpTrMsg', (res && res.error) || 'هەڵە لە گواستنەوە', 'is-error'); return; }
-        setMsg('tpTrMsg', res.moved + ' ئایتم گوازرایەوە', 'is-ok');
+    pvTransferBusy = true;
+    const btn = document.getElementById('pvTransferBtn');
+    const label = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> کەیس دروست دەکرێت…'; }
+    const fail = msg => {
+        pvTransferBusy = false;
+        if (btn) { btn.disabled = false; btn.innerHTML = label; }
+        toast('error', msg);
+    };
+    post('transfer', { plan_id: PLAN_ID, direct: 1 }).then(res => {
+        if (!res || !res.success) { fail((res && (res.error || res.message)) || 'هەڵە لە گواستنەوە'); return; }
+        toast('success', res.moved + ' ئایتم گوازرایەوە بۆ کەیس');
         location.href = '<?= APP_URL ?>/cases/view.php?id=' + res.case_id;
-    }).catch(() => { btn.disabled = false; setMsg('tpTrMsg', 'هەڵە لە پەیوەندی', 'is-error'); });
+    }).catch(() => fail('هەڵە لە پەیوەندی'));
 };
 <?php endif; ?>
 
@@ -1346,7 +1391,12 @@ document.addEventListener('DOMContentLoaded', function () {
     renderAll();
     const qs = new URLSearchParams(location.search);
     if (qs.get('tab') === 'items' || location.hash === '#items') showTab('items', document.getElementById('pvTab-items'));
-    // «گواستنەوە بۆ کەیس» on the patient's plans tab lands here with the dialog open.
-    if (qs.get('transfer') === '1' && typeof window.pvOpenTransfer === 'function') window.pvOpenTransfer();
+    // «گواستنەوە بۆ کەیس» on the patient's plans tab lands here and moves the work at once
+    // (the address loses ?transfer=1 first, so going back here does not repeat it).
+    if (qs.get('transfer') === '1' && typeof window.pvOpenTransfer === 'function') {
+        qs.delete('transfer');
+        history.replaceState(null, '', location.pathname + (qs.toString() ? '?' + qs : '') + location.hash);
+        window.pvOpenTransfer();
+    }
 });
 </script>

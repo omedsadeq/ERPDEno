@@ -489,12 +489,24 @@ if ($action === 'transfer') {
     if (is_string($itemIds)) {
         $itemIds = array_filter(explode(',', $itemIds), 'strlen');
     }
+    // One click («direct»): every item still waiting, into a new case named
+    // from the admin's list after the work it holds (suggestCaseName).
+    $direct = !empty($_POST['direct']);
+    if ($direct) {
+        $itemIds = array_column(array_filter($plans->getItems($planId), fn($i) => ($i['status'] ?? '') === 'planned'), 'id');
+    }
     if (!is_array($itemIds) || !$itemIds) {
-        tp_fail('هیچ ئایتمێک هەڵنەبژێردراوە');
+        tp_fail('هیچ ئایتمێکی چاوەڕوان نییە بۆ گواستنەوە');
     }
 
     $target = [];
-    if (!empty($_POST['case_id'])) {
+    if ($direct) {
+        $caseName = $plans->suggestCaseName($planId, $itemIds);
+        if ($caseName === null) {
+            tp_fail('هیچ ناوێکی کەیس لە لیستی ناوەکان نییە — سەرەتا ناوێک زیاد بکە');
+        }
+        $target['case_name'] = $caseName;
+    } elseif (!empty($_POST['case_id'])) {
         $target['case_id'] = (int)$_POST['case_id'];
     } else {
         // A new case's name must come from the admin-managed list, exactly as

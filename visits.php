@@ -2057,8 +2057,8 @@ document.getElementById('syncPatientModal').addEventListener('click', function(e
         else if (act === 'plan') newPlan(v, btn);
     }
 
-    // «پلانی چارەسەر» in one click, as on the patient's plans tab: made (or
-    // today's reopened) and opened on its own page. Only whose plan it is may be asked.
+    // «پلانی چارەسەر» in one click, as on the patient's plans tab: a new plan of its own (never
+    // an earlier one with work in it), opened on its own page. Only whose plan it is may be asked.
     function newPlan(v, btn) {
         const go = doctorId => {
             btn.disabled = true;
