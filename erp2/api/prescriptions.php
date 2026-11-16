@@ -101,6 +101,78 @@ function erp2_rx_layout_save(Database $db, string $kind, int $id, array $row, in
     ]);
 }
 
+/**
+ * The lines of a prescription as sent by the sheet, checked: a دەرمانی دەرەوە
+ * by name, or an active product (its own name). Empty when nothing is usable.
+ */
+function erp2_presc_clean_items(Database $db, array $itemsRaw): array
+{
+    $wh = erp2_default_warehouse_id();
+    $clean = [];
+    foreach ($itemsRaw as $row) {
+        $pid = (int)($row['product_id'] ?? 0);
+        $qty = round((float)($row['quantity'] ?? 0), 3);
+        // دەرمانی دەرەوە: not in the system at all — written by name for
+        // the patient to buy outside, so there is no product to check.
+        if (!empty($row['outside'])) {
+            $name = mb_substr(trim((string)($row['name'] ?? '')), 0, 200);
+            if ($name === '' || $qty <= 0) {
+                continue;
+            }
+            $clean[] = [
+                'product_id'   => null,
+                'is_outside'   => 1,
+                'product_name' => $name,
+                'quantity'     => $qty,
+                'dosage'       => trim((string)($row['dosage'] ?? '')) ?: null,
+                'notes'        => null,
+            ];
+            continue;
+        }
+        if ($pid <= 0 || $qty <= 0) {
+            continue;
+        }
+        $prod = $db->fetch(
+            "SELECT p.id, p.name, COALESCE(s.quantity,0) AS stock
+             FROM erp2_products p
+             LEFT JOIN erp2_warehouse_product_stock s
+                    ON s.product_id = p.id AND s.warehouse_id = :w
+             WHERE p.id = :id AND p.is_active = 1",
+            ['id' => $pid, 'w' => $wh]
+        );
+        if (!$prod) {
+            continue;
+        }
+        $clean[] = [
+            'product_id'   => $pid,
+            'product_name' => $prod['name'],
+            'quantity'     => $qty,
+            'dosage'       => trim((string)($row['dosage'] ?? '')) ?: null,
+            'notes'        => trim((string)($row['notes'] ?? '')) ?: null,
+        ];
+    }
+    return $clean;
+}
+
+/**
+ * A prescription the user may still change, or null: not yet sold or
+ * withdrawn (the counter / the accountant has not taken it), and theirs —
+ * written by them or in their name — unless they may delete prescriptions
+ * (erp2.delete, the admin). The same rule as deleting one (erp2/api/delete.php).
+ */
+function erp2_presc_editable(Database $db, int $id, int $actor): ?array
+{
+    $pr = $db->fetch('SELECT * FROM erp2_prescriptions WHERE id = :id', ['id' => $id]);
+    if (!$pr || !in_array($pr['status'], ['pending', 'outside'], true)) {
+        return null;
+    }
+    if (erp2_can('erp2.delete')) {
+        return $pr;
+    }
+    $mine = (int)$pr['created_by'] === $actor || (int)$pr['doctor_id'] === $actor;
+    return ($mine && erp2_can('erp2.prescriptions.create')) ? $pr : null;
+}
+
 function erp2_rx_layout_row(Database $db, string $kind, int $id): array
 {
     $r = $db->fetch(
@@ -119,7 +191,8 @@ $db     = Database::getInstance();
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 $actor  = (int)($_SESSION['user_id'] ?? 0);
 
-$writeActions = ['save', 'cancel', 'mark_sold', 'outside', 'reopen', 'sheet_set', 'sheet_order', 'sheet_reset', 'sheet_delete'];
+$writeActions = ['save', 'update', 'cancel', 'mark_sold', 'outside', 'reopen', 'sheet_set', 'sheet_order', 'sheet_reset', 'sheet_delete',
+                 'package_save', 'package_delete', 'package_use'];
 if (in_array($action, $writeActions, true)) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         erp2_presc_json(['ok' => false, 'error' => 'POST required'], 405);
@@ -523,50 +596,7 @@ try {
                 erp2_presc_json(['ok' => false, 'error' => 'نەخۆش نەدۆزرایەوە'], 404);
             }
 
-            $wh = erp2_default_warehouse_id();
-            $clean = [];
-            foreach ($itemsRaw as $row) {
-                $pid = (int)($row['product_id'] ?? 0);
-                $qty = round((float)($row['quantity'] ?? 0), 3);
-                // دەرمانی دەرەوە: not in the system at all — written by name for
-                // the patient to buy outside, so there is no product to check.
-                if (!empty($row['outside'])) {
-                    $name = mb_substr(trim((string)($row['name'] ?? '')), 0, 200);
-                    if ($name === '' || $qty <= 0) {
-                        continue;
-                    }
-                    $clean[] = [
-                        'product_id'   => null,
-                        'is_outside'   => 1,
-                        'product_name' => $name,
-                        'quantity'     => $qty,
-                        'dosage'       => trim((string)($row['dosage'] ?? '')) ?: null,
-                        'notes'        => null,
-                    ];
-                    continue;
-                }
-                if ($pid <= 0 || $qty <= 0) {
-                    continue;
-                }
-                $prod = $db->fetch(
-                    "SELECT p.id, p.name, COALESCE(s.quantity,0) AS stock
-                     FROM erp2_products p
-                     LEFT JOIN erp2_warehouse_product_stock s
-                            ON s.product_id = p.id AND s.warehouse_id = :w
-                     WHERE p.id = :id AND p.is_active = 1",
-                    ['id' => $pid, 'w' => $wh]
-                );
-                if (!$prod) {
-                    continue;
-                }
-                $clean[] = [
-                    'product_id'   => $pid,
-                    'product_name' => $prod['name'],
-                    'quantity'     => $qty,
-                    'dosage'       => trim((string)($row['dosage'] ?? '')) ?: null,
-                    'notes'        => trim((string)($row['notes'] ?? '')) ?: null,
-                ];
-            }
+            $clean = erp2_presc_clean_items($db, $itemsRaw);
             if (!$clean) {
                 erp2_presc_json(['ok' => false, 'error' => 'هیچ دەرمانێکی دروست نەدۆزرایەوە'], 422);
             }
@@ -641,6 +671,152 @@ try {
                 'patient_id' => $patientId, 'case_id' => $caseId, 'items' => count($clean),
             ]);
             erp2_presc_json(['ok' => true, 'id' => $prescId, 'items' => count($clean), 'outside' => $allOutside]);
+        }
+
+        /* ---------- پاکێجی دەرمان: medicines that go together, one click on the sheet ----------
+         * Shared by every prescriber, most used first. Saved with the same name
+         * again = changed; deleted by whoever made it, or the admin (erp2.delete). */
+        case 'packages': {
+            if (!erp2_can('erp2.prescriptions.create')) {
+                erp2_presc_json(['ok' => false, 'error' => 'Forbidden'], 403);
+            }
+            if (!$db->tableExists('erp2_rx_packages')) {
+                erp2_presc_json(['ok' => true, 'packages' => []]);
+            }
+            $rows = $db->fetchAll(
+                'SELECT k.id, k.name, k.items, k.use_count, k.created_by, u.full_name AS created_by_name
+                 FROM erp2_rx_packages k LEFT JOIN users u ON u.id = k.created_by
+                 ORDER BY k.use_count DESC, k.name'
+            );
+            $mayDelete = erp2_can('erp2.delete');
+            foreach ($rows as &$r) {
+                $r['items'] = json_decode((string)$r['items'], true) ?: [];
+                $r['id'] = (int)$r['id'];
+                $r['can_delete'] = $mayDelete || (int)$r['created_by'] === $actor;
+                unset($r['created_by']);
+            }
+            unset($r);
+            erp2_presc_json(['ok' => true, 'packages' => $rows]);
+        }
+        case 'package_save': {
+            if (!erp2_can('erp2.prescriptions.create')) {
+                erp2_presc_json(['ok' => false, 'error' => 'Forbidden'], 403);
+            }
+            $name = mb_substr(trim(preg_replace('/\s+/u', ' ', (string)($_POST['name'] ?? ''))), 0, 120);
+            $raw = json_decode((string)($_POST['items'] ?? '[]'), true);
+            if ($name === '') {
+                erp2_presc_json(['ok' => false, 'error' => 'ناوی پاکێج بنووسە'], 422);
+            }
+            $items = [];
+            foreach (is_array($raw) ? array_slice($raw, 0, 40) : [] as $it) {
+                $outside = !empty($it['outside']);
+                $pid = isset($it['product_id']) && $it['product_id'] !== null ? (int)$it['product_id'] : null;
+                $itemName = mb_substr(trim((string)($it['name'] ?? '')), 0, 200);
+                $qty = round((float)($it['quantity'] ?? 1), 3);
+                if (($pid === null || $pid === 0) && $itemName === '') {
+                    continue;
+                }
+                $items[] = [
+                    'product_id' => $pid ?: null,
+                    'outside'    => $outside,
+                    'name'       => $itemName,
+                    'quantity'   => $qty > 0 ? $qty : 1,
+                    'dosage'     => mb_substr(trim((string)($it['dosage'] ?? '')), 0, 255),
+                    'note'       => mb_substr(trim((string)($it['note'] ?? '')), 0, 255),
+                ];
+            }
+            if (!$items) {
+                erp2_presc_json(['ok' => false, 'error' => 'هیچ دەرمانێک لە پاکێجەکەدا نییە'], 422);
+            }
+            $json = json_encode($items, JSON_UNESCAPED_UNICODE);
+            $old = $db->fetch('SELECT id FROM erp2_rx_packages WHERE name = :n', ['n' => $name]);
+            if ($old) {
+                $db->update('erp2_rx_packages', ['items' => $json, 'updated_by' => $actor ?: null], 'id = :id', ['id' => (int)$old['id']]);
+                $id = (int)$old['id'];
+            } else {
+                $id = (int)$db->insert('erp2_rx_packages', ['name' => $name, 'items' => $json, 'created_by' => $actor ?: null]);
+            }
+            Erp2Audit::log($old ? 'rx_package_updated' : 'rx_package_created', 'RX_PACKAGE', $id, $name, null, ['items' => count($items)]);
+            erp2_presc_json(['ok' => true, 'id' => $id, 'updated' => (bool)$old]);
+        }
+        case 'package_delete': {
+            $id = (int)($_POST['id'] ?? 0);
+            $row = $db->fetch('SELECT id, name, created_by FROM erp2_rx_packages WHERE id = :id', ['id' => $id]);
+            if (!$row) {
+                erp2_presc_json(['ok' => false, 'error' => 'پاکێج نەدۆزرایەوە'], 404);
+            }
+            if (!erp2_can('erp2.delete') && !(erp2_can('erp2.prescriptions.create') && (int)$row['created_by'] === $actor)) {
+                erp2_presc_json(['ok' => false, 'error' => 'تەنها دروستکەرەکەی یان بەڕێوەبەر دەتوانێت بیسڕێتەوە'], 403);
+            }
+            $db->delete('erp2_rx_packages', 'id = :id', ['id' => $id]);
+            Erp2Audit::log('rx_package_deleted', 'RX_PACKAGE', $id, (string)$row['name'], null, null);
+            erp2_presc_json(['ok' => true]);
+        }
+        case 'package_use': {
+            // most used first on the sheet
+            if (erp2_can('erp2.prescriptions.create')) {
+                $db->query('UPDATE erp2_rx_packages SET use_count = use_count + 1 WHERE id = :id', ['id' => (int)($_POST['id'] ?? 0)]);
+            }
+            erp2_presc_json(['ok' => true]);
+        }
+
+        /** A prescription opened again on the sheet, to be changed (erp2_presc_editable). */
+        case 'load': {
+            $id = (int)($_GET['id'] ?? 0);
+            $pr = erp2_presc_editable($db, $id, $actor);
+            if (!$pr) {
+                erp2_presc_json(['ok' => false, 'error' => 'ئەم ڕەچەتەیە ناگۆڕدرێت — پەسەند کراوە یان هی تۆ نییە'], 403);
+            }
+            $items = $db->fetchAll(
+                'SELECT product_id, is_outside, product_name, quantity, dosage, notes
+                 FROM erp2_prescription_items WHERE prescription_id = :id ORDER BY id',
+                ['id' => $id]
+            );
+            erp2_presc_json(['ok' => true, 'id' => $id, 'status' => $pr['status'], 'notes' => (string)($pr['notes'] ?? ''), 'items' => $items]);
+        }
+
+        /**
+         * The doctor changes a prescription before the counter / the accountant
+         * takes it: the same number, its lines replaced, still waiting (or
+         * «دەرەوەی کلینیک» when every line is now bought outside).
+         */
+        case 'update': {
+            $id = (int)($_POST['id'] ?? 0);
+            $pr = erp2_presc_editable($db, $id, $actor);
+            if (!$pr) {
+                erp2_presc_json(['ok' => false, 'error' => 'ئەم ڕەچەتەیە ناگۆڕدرێت — پەسەند کراوە یان هی تۆ نییە'], 403);
+            }
+            if (class_exists('AccessGuard') && AccessGuard::isRestrictedDoctor()
+                && !AccessGuard::doctorCanViewPatient((int)$pr['patient_id'])) {
+                erp2_presc_json(['ok' => false, 'error' => 'Forbidden'], 403);
+            }
+            $itemsRaw = json_decode((string)($_POST['items'] ?? '[]'), true);
+            $clean = is_array($itemsRaw) ? erp2_presc_clean_items($db, $itemsRaw) : [];
+            if (!$clean) {
+                erp2_presc_json(['ok' => false, 'error' => 'هیچ دەرمانێکی دروست نەدۆزرایەوە'], 422);
+            }
+            $allOutside = !array_filter($clean, fn($it) => empty($it['is_outside']));
+            $before = $db->fetchAll('SELECT product_name, quantity, dosage FROM erp2_prescription_items WHERE prescription_id = :id ORDER BY id', ['id' => $id]);
+            $db->beginTransaction();
+            try {
+                $db->delete('erp2_prescription_items', 'prescription_id = :id', ['id' => $id]);
+                foreach ($clean as $it) {
+                    $it['prescription_id'] = $id;
+                    $db->insert('erp2_prescription_items', $it);
+                }
+                $db->update('erp2_prescriptions', [
+                    'status'     => $allOutside ? 'outside' : 'pending',
+                    'outside_at' => $allOutside ? ($pr['outside_at'] ?: date('Y-m-d H:i:s')) : null,
+                    'notes'      => trim((string)($_POST['notes'] ?? '')) ?: null,
+                ], 'id = :id', ['id' => $id]);
+                $db->commit();
+            } catch (Throwable $e) {
+                $db->rollback();
+                throw $e;
+            }
+            Erp2Audit::log('prescription_updated', 'PRESCRIPTION', $id, (string)$id,
+                ['items' => $before], ['items' => array_map(fn($it) => ['product_name' => $it['product_name'], 'quantity' => $it['quantity'], 'dosage' => $it['dosage']], $clean)]);
+            erp2_presc_json(['ok' => true, 'id' => $id, 'items' => count($clean), 'outside' => $allOutside, 'updated' => true]);
         }
 
         /** Queue for the counter: one row per pending prescription. */

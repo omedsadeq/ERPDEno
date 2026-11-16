@@ -324,6 +324,64 @@ if (!$rxCanPrescribe && !$rxCanSee) {
 .rx-card-print { width:28px; height:28px; border:1px solid #cfe3ef; border-radius:7px; background:#fff; color:#0369a1; display:inline-grid; place-items:center; font-size:12px; text-decoration:none; }
 .rx-card-print:hover { background:#e0f2fe; }
 button.rx-card-print { cursor:pointer; padding:0; }
+/* a sent prescription opened again to be changed */
+/* پاکێجی دەرمان — the strip over the sheet */
+.rxk { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:8px 0 10px; padding:8px 10px; border-radius:12px;
+    background:linear-gradient(135deg,#f5f3ff,#fdf4ff); border:1px solid #e9d5ff; direction:rtl; }
+.rxk-label { font-size:13px; font-weight:800; color:#6b21a8; display:inline-flex; align-items:center; gap:6px; }
+.rxk-list { flex:1; display:flex; flex-wrap:wrap; gap:6px; min-width:0; }
+.rxk-none { font-size:12.5px; color:#7c3aed; opacity:.8; }
+.rxk-chip { display:inline-flex; align-items:stretch; border:1px solid #d8b4fe; border-radius:999px; background:#fff; overflow:hidden;
+    box-shadow:0 1px 2px rgba(107,33,168,.08); transition:background-color .15s ease, border-color .15s ease; }
+.rxk-chip:hover { border-color:#a855f7; }
+.rxk-use { border:0; background:transparent; padding:5px 12px; cursor:pointer; font:inherit; font-size:12.5px; font-weight:700; color:#581c87;
+    display:inline-flex; align-items:center; gap:6px; }
+.rxk-use i { font-size:11px; color:#a855f7; }
+.rxk-use em { font-style:normal; font-size:11px; background:#f3e8ff; color:#6b21a8; border-radius:999px; padding:0 6px; }
+.rxk-chip.on { background:#16a34a; border-color:#16a34a; }
+.rxk-chip.on .rxk-use, .rxk-chip.on .rxk-use i { color:#fff; }
+.rxk-chip.on .rxk-use em { background:rgba(255,255,255,.25); color:#fff; }
+.rxk-del { border:0; border-inline-start:1px solid #f3e8ff; background:transparent; color:#a78bfa; cursor:pointer; padding:0 8px; font-size:11px; }
+.rxk-del:hover { background:#fee2e2; color:#dc2626; }
+.rxk-chip.on .rxk-del { color:#dcfce7; border-color:rgba(255,255,255,.3); }
+.rxk-save { border:1px dashed #a855f7; background:#fff; color:#7e22ce; border-radius:999px; padding:5px 12px; cursor:pointer;
+    font:inherit; font-size:12.5px; font-weight:700; }
+.rxk-save:hover:not(:disabled) { background:#faf5ff; }
+.rxk-save:disabled { opacity:.45; cursor:not-allowed; }
+.rx-editing { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; padding:9px 12px; border-radius:10px;
+    background:#fff7ed; border:1px solid #fdba74; color:#9a3412; font-size:13px; }
+.rx-editing[hidden] { display:none; }
+.rx-editing > span { flex:1; min-width:200px; }
+.rx-editing-x { border:1px solid #fdba74; background:#fff; color:#9a3412; border-radius:8px; padding:5px 10px; cursor:pointer; font:inherit; font-size:12.5px; font-weight:700; }
+.rx-editing-x:hover { background:#ffedd5; }
+/* ڕەچەتەکانی ئەم کەیسە — the card under a case's chart */
+.crx { margin: 0 12px 12px; padding: 10px 12px; border-radius: 14px; background: #fff; border: 1px solid #e2e8f0; }
+.crx[hidden] { display: none; }
+.crx-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 13.5px; font-weight: 800; color: #9d174d; }
+.crx-head i { color: #db2777; }
+.crx-head em { font-style: normal; font-size: 11.5px; background: #fce7f3; color: #9d174d; border-radius: 999px; padding: 1px 8px; margin-inline-start: 4px; }
+.crx-new { border: 1px solid #fbcfe8; background: #fdf2f8; color: #9d174d; border-radius: 9px; padding: 5px 10px; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; }
+.crx-new:hover { background: #fce7f3; }
+.crx-card { border: 1px solid #eef2f6; border-inline-start: 3px solid #f59e0b; border-radius: 10px; padding: 8px 10px; margin-top: 7px; background: #fffdf7; }
+.crx-card.is-sold { border-inline-start-color: #16a34a; background: #f7fdf9; }
+.crx-card.is-outside { border-inline-start-color: #6366f1; background: #f8f8ff; }
+.crx-card.is-cancelled { border-inline-start-color: #94a3b8; background: #f8fafc; opacity: .75; }
+.crx-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.crx-badge { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; }
+.is-sold .crx-badge { background: #dcfce7; color: #166534; }
+.is-outside .crx-badge { background: #e0e7ff; color: #3730a3; }
+.is-cancelled .crx-badge { background: #e2e8f0; color: #475569; }
+.crx-meta { flex: 1; font-size: 12px; color: #64748b; }
+.crx-acts { display: inline-flex; gap: 5px; }
+.crx-edit, .crx-print { border: 1px solid #e2e8f0; background: #fff; color: #334155; border-radius: 8px; height: 28px; padding: 0 9px; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; }
+.crx-edit { border-color: #fdba74; color: #c2410c; }
+.crx-edit:hover { background: #fff7ed; }
+.crx-print:hover { background: #f1f5f9; }
+.crx-meds { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.crx-med { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 9px; border-radius: 9px; background: #fff; border: 1px solid #e2e8f0; font-size: 12.5px; color: #0f172a; }
+.crx-med i { color: #db2777; font-size: 11px; }
+.crx-med small { color: #64748b; font-size: 11.5px; }
+.crx-med.is-out { border-style: dashed; }
 .rx-msg-print { margin-inline-start:10px; padding:4px 12px; border:1px solid #9cc4e0; border-radius:8px; background:#fff; color:#0369a1; font:inherit; font-size:12.5px !important; font-weight:700; cursor:pointer; }
 .rx-msg-print:hover { background:#e0f2fe; }
 .rx-card-del { width:28px; height:28px; border:1px solid #f1c4c4; border-radius:7px; background:#fff; color:#c62828; cursor:pointer; font-size:12px; }
@@ -377,6 +435,15 @@ button.rx-card-print { cursor:pointer; padding:0; }
                             </button>
                             <?php endif; ?>
                         </div>
+                        <?php // پاکێجی دەرمان: medicines that go together, ticked in one click ?>
+                        <div class="rxk" id="rxPackages">
+                            <span class="rxk-label"><i class="fas fa-box-open"></i> پاکێجەکان</span>
+                            <div class="rxk-list" id="rxPkgList"></div>
+                            <button type="button" class="rxk-save" id="rxPkgSave" disabled
+                                    title="ئەو دەرمانانەی ئێستا هەڵبژێردراون، بە بڕ و دۆزەوە، وەک پاکێجێک هەڵبگرە">
+                                <i class="fas fa-plus"></i> پاشەکەوت وەک پاکێج
+                            </button>
+                        </div>
                         <?php if ($rxCanArrange): ?>
                         <div class="rxs-editbar" id="rxEditBar" hidden>
                             <i class="fas fa-pen-ruler"></i>
@@ -400,6 +467,12 @@ button.rx-card-print { cursor:pointer; padding:0; }
                     </div>
 
                     <div class="rx-pane" data-rx-pane="send" hidden>
+                    <?php // a sent prescription opened again to be changed (before the counter takes it) ?>
+                    <div class="rx-editing" id="rxEditing" hidden>
+                        <i class="fas fa-pen-to-square"></i>
+                        <span>دەستکاریکردنی ڕەچەتەی <b id="rxEditingNo"></b> — گۆڕانکارییەکان لەسەر هەمان ڕەچەتە پاشەکەوت دەبن</span>
+                        <button type="button" class="rx-editing-x" onclick="rxCancelEdit()"><i class="fas fa-xmark"></i> پاشگەزبوونەوە</button>
+                    </div>
                     <div class="rx-table-wrap">
                         <table class="rx-table" id="rxTable">
                             <thead>
@@ -471,6 +544,7 @@ button.rx-card-print { cursor:pointer; padding:0; }
     const RX_CAN_DELETE = <?= Permission::getInstance()->can('erp2.delete') ? 'true' : 'false' ?>;
     const RX_ME      = <?= (int)($_SESSION['user_id'] ?? 0) ?>;
     let rxEdit = false;    // «ڕێکخستنی پەڕە» on (the admin arranging the sheet)
+    let rxEditingId = 0;   // a sent prescription opened again to be changed (0 = a new one)
 
     let lines = [];        // [{product_id, group_id, name, type_name, quantity, dosage, stock, unit}]
                            // or a medicine bought outside: {outside: true, product_id: null, name, quantity, dosage}
@@ -495,7 +569,7 @@ button.rx-card-print { cursor:pointer; padding:0; }
         return g ? (g.types.find(t => t.id === groupForm[gid]) || null) : null;
     }
     /** What a line is sent as: its own form, else the group's circled one. */
-    function lineForm(l) { return l.outside ? '' : (l.type_name || (formOf(l.group_id) || {}).name || ''); }
+    function lineForm(l) { return l.outside ? '' : (l.type_name || (formOf(l.group_id) || {}).name || l.note || ''); }
 
     /* ---------- the sheet ---------- */
     async function loadSheet() {
@@ -630,21 +704,142 @@ button.rx-card-print { cursor:pointer; padding:0; }
             if (!hit) return;
             // the admin's default dose (erp2/dosages.php) fills the line; the
             // other saved doses stay a pick away in the line's dropdown
-            const doses = hit.p.doses || [];
-            lines.push(hit.p.outside
-                // a دەرمانی دەرەوە: goes as an outside line, by name — the
-                // negative id only ties it to its tick on the sheet
-                ? { outside: true, sheet: true, product_id: pid, group_id: hit.g.id, name: hit.p.name, type_name: '',
-                    quantity: 1, dosage: doses.length ? doses[0].text : '', doses: doses, stock: 0, unit: '' }
-                : {
-                product_id: pid, group_id: hit.g.id, name: hit.p.name, type_name: hit.p.type_name || '',
-                quantity: 1, dosage: doses.length ? doses[0].text : '', doses: doses,
-                stock: Number(hit.p.stock) || 0, unit: hit.p.unit_name || ''
-            });
+            lines.push(sheetLine(hit));
         }
         renderSheet();
         render();
     }
+
+    /** A line for a medicine of the sheet: the admin's default dose (erp2/dosages.php)
+     *  fills it, the other saved doses stay a pick away in the line's dropdown. */
+    function sheetLine(hit) {
+        const pid = hit.p.id, doses = hit.p.doses || [];
+        return hit.p.outside
+            // a دەرمانی دەرەوە: goes as an outside line, by name — the
+            // negative id only ties it to its tick on the sheet
+            ? { outside: true, sheet: true, product_id: pid, group_id: hit.g.id, name: hit.p.name, type_name: '',
+                quantity: 1, dosage: doses.length ? doses[0].text : '', doses: doses, stock: 0, unit: '' }
+            : {
+            product_id: pid, group_id: hit.g.id, name: hit.p.name, type_name: hit.p.type_name || '',
+            quantity: 1, dosage: doses.length ? doses[0].text : '', doses: doses,
+            stock: Number(hit.p.stock) || 0, unit: hit.p.unit_name || ''
+        };
+    }
+
+    /* ---------- پاکێجی دەرمان ----------
+     * Medicines that go together again and again, saved under a name. One
+     * click ticks them all (with the package's quantity and dose) and the chip
+     * turns green; a second click takes them off again. The doctor adds or
+     * removes as usual — the package itself does not change. «پاشەکەوت وەک
+     * پاکێج» keeps what is ticked now; the same name again changes it. */
+    let packages = [];
+    const pkgKey = it => it.product_id ? 'p' + it.product_id : 'o' + String(it.name || '').trim().toLowerCase();
+    const pkgOn = k => {
+        const have = new Set(lines.map(pkgKey));
+        return k.items.length > 0 && k.items.every(it => have.has(pkgKey(it)));
+    };
+    async function loadPackages() {
+        if (!$('rxPkgList')) return;
+        try {
+            const res = await fetch(RX_API + '?action=packages');
+            const data = await res.json();
+            packages = (data && data.ok && data.packages) || [];
+        } catch (e) { packages = []; }
+        renderPackages();
+    }
+    function renderPackages() {
+        const list = $('rxPkgList');
+        if (!list) return;
+        list.innerHTML = packages.length ? packages.map(k => {
+            const on = pkgOn(k);
+            const what = k.items.map(it => it.name + (Number(it.quantity) !== 1 ? ' ×' + nf(it.quantity) : '') + (it.dosage ? ' — ' + it.dosage : '')).join('\n');
+            return '<span class="rxk-chip' + (on ? ' on' : '') + '">'
+                + '<button type="button" class="rxk-use" data-pkg="' + k.id + '" aria-pressed="' + on + '" title="' + esc(what) + '">'
+                + '<i class="fas ' + (on ? 'fa-check' : 'fa-box') + '"></i>' + esc(k.name) + ' <em>' + k.items.length + '</em></button>'
+                + (k.can_delete ? '<button type="button" class="rxk-del" data-pkg-del="' + k.id + '" title="سڕینەوەی پاکێج" aria-label="سڕینەوەی ' + esc(k.name) + '"><i class="fas fa-xmark"></i></button>' : '')
+                + '</span>';
+        }).join('') : '<span class="rxk-none">هێشتا پاکێج نییە — دەرمانەکان هەڵبژێرە، پاشان «پاشەکەوت وەک پاکێج»</span>';
+        const save = $('rxPkgSave');
+        if (save) save.disabled = !lines.length;
+    }
+    function usePackage(id) {
+        const k = packages.find(x => x.id === id);
+        if (!k) return;
+        if (pkgOn(k)) {
+            // on → off: its medicines come off the sheet again
+            const keys = new Set(k.items.map(pkgKey));
+            lines = lines.filter(l => !keys.has(pkgKey(l)));
+            renderSheet();
+            render();
+            return;
+        }
+        const have = new Set(lines.map(pkgKey));
+        const missing = [];
+        k.items.forEach(it => {
+            if (have.has(pkgKey(it))) return;           // already ticked: the doctor's own stays
+            const hit = it.product_id ? findItem(Number(it.product_id)) : null;
+            if (hit) {
+                const line = sheetLine(hit);
+                line.quantity = Number(it.quantity) || 1;
+                if (it.dosage) line.dosage = it.dosage;
+                // the form circled then: the column's round choice again, else kept as written
+                if (!line.outside && !line.type_name && it.note) {
+                    const t = hit.g.types.find(x => x.name === it.note);
+                    if (t) groupForm[hit.g.id] = t.id; else line.note = it.note;
+                }
+                lines.push(line);
+            } else if (it.outside && it.name) {
+                lines.push({ outside: true, product_id: null, name: it.name, type_name: '', quantity: Number(it.quantity) || 1, dosage: it.dosage || '', stock: 0, unit: '' });
+            } else {
+                missing.push(it.name || '#' + it.product_id);
+            }
+        });
+        renderSheet();
+        render();
+        msg(missing.length ? 'ئەمانە لە پەڕەکەدا نەماون و دانەنران: ' + missing.join('، ') : '', missing.length ? 'warn' : '');
+        const fd = new FormData();
+        fd.append('action', 'package_use');
+        fd.append('id', id);
+        fetch(RX_API, { method: 'POST', body: fd }).catch(() => {});
+    }
+    async function savePackage() {
+        if (!lines.length) return;
+        const name = (prompt('ناوی پاکێج (نموونە: دوای کێشانی ددان):', '') || '').trim();
+        if (!name) return;
+        if (packages.some(k => k.name === name) && !confirm('پاکێجی «' + name + '» هەیە. بەم دەرمانانە بیگۆڕم؟')) return;
+        const fd = new FormData();
+        fd.append('action', 'package_save');
+        fd.append('name', name);
+        fd.append('items', JSON.stringify(lines.map(l => ({
+            product_id: l.product_id || null, outside: !!l.outside, name: String(l.name || '').trim(),
+            quantity: l.quantity, dosage: l.dosage || '', note: l.outside || l.type_name ? '' : lineForm(l)
+        }))));
+        try {
+            const res = await fetch(RX_API, { method: 'POST', body: fd });
+            const data = await res.json();
+            if (!data || !data.ok) { msg((data && data.error) || 'پاکێج هەڵنەگیرا', 'err'); return; }
+            msg('پاکێجی «' + name + '» ' + (data.updated ? 'نوێ کرایەوە' : 'هەڵگیرا') + ' ✓', 'ok');
+            loadPackages();
+        } catch (e) { msg('هەڵەی تەکنیکی ڕوویدا', 'err'); }
+    }
+    document.addEventListener('click', async e => {
+        const use = e.target.closest('#rxPkgList [data-pkg]');
+        if (use) { usePackage(Number(use.dataset.pkg)); return; }
+        const del = e.target.closest('#rxPkgList [data-pkg-del]');
+        if (del) {
+            const k = packages.find(x => x.id === Number(del.dataset.pkgDel));
+            if (!k || !confirm('پاکێجی «' + k.name + '» بسڕدرێتەوە؟ (ڕەچەتەکان ناگۆڕێن)')) return;
+            const fd = new FormData();
+            fd.append('action', 'package_delete');
+            fd.append('id', k.id);
+            try {
+                const d = await (await fetch(RX_API, { method: 'POST', body: fd })).json();
+                if (d && d.ok) loadPackages(); else msg((d && d.error) || 'نەسڕایەوە', 'err');
+            } catch (err) { msg('هەڵەی تەکنیکی ڕوویدا', 'err'); }
+            return;
+        }
+        if (e.target.closest('#rxPkgSave')) savePackage();
+    });
 
     /* ---------- the dose panel of a ticked item ----------
      * Opened by the small button beside the name. A saved dose is one click;
@@ -809,6 +1004,7 @@ button.rx-card-print { cursor:pointer; padding:0; }
         if ($('rxNextCount')) $('rxNextCount').textContent = lines.length;
         if ($('rxNext')) $('rxNext').hidden = !lines.length;
         stockWarning();
+        renderPackages();   // a package's chip is green while all of it is ticked
     }
 
     /* ---------- the two steps: هەڵبژاردن / ناردن ---------- */
@@ -859,7 +1055,9 @@ button.rx-card-print { cursor:pointer; padding:0; }
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ناردن…';
         try {
             const fd = new FormData();
-            fd.append('action', 'save');
+            const editing = rxEditingId;
+            fd.append('action', editing ? 'update' : 'save');
+            if (editing) fd.append('id', editing);
             fd.append('patient_id', RX_PATIENT);
             fd.append('case_id', RX_CASE_ID);
             // no case (the doctor's room, a plan): whose prescription it is when
@@ -876,10 +1074,12 @@ button.rx-card-print { cursor:pointer; padding:0; }
                 lines = [];
                 Object.keys(groupForm).forEach(k => delete groupForm[k]);
                 if ($('rxNotes')) $('rxNotes').value = '';
+                setEditing(0);
                 renderSheet();
                 render();
                 // all of it bought outside: nothing for the counter, the paper is the point
-                msg(data.outside ? 'ڕەچەتەکە پاشەکەوت کرا — هەمووی لە دەرەوە دەکڕدرێت، چاپی بکە بۆ نەخۆش ✓' : 'نێردرا بۆ دەرمانخانە ✓', 'ok');
+                msg(editing ? 'گۆڕانکارییەکانی ڕەچەتەی #' + editing + ' پاشەکەوت کران ✓'
+                    : (data.outside ? 'ڕەچەتەکە پاشەکەوت کرا — هەمووی لە دەرەوە دەکڕدرێت، چاپی بکە بۆ نەخۆش ✓' : 'نێردرا بۆ دەرمانخانە ✓'), 'ok');
                 // the doctor can hand the patient the printed sheet right away
                 if (data.id && window.RxPrint) {
                     const pb = document.createElement('button');
@@ -896,9 +1096,74 @@ button.rx-card-print { cursor:pointer; padding:0; }
         } catch (e) {
             msg('هەڵەی تەکنیکی ڕوویدا', 'err');
         }
-        btn.innerHTML = original;
+        btn.innerHTML = rxEditingId ? '<i class="fas fa-save"></i> پاشەکەوتکردنی گۆڕانکاری' : '<i class="fas fa-paper-plane"></i> ناردن بۆ دەرمانخانە';
         btn.disabled = !lines.length;
     };
+
+    /* ---------- changing a sent prescription ----------
+     * ✏️ on a prescription still waiting (the case's card, or the list below):
+     * its lines come back on the sheet, «پاشەکەوتکردنی گۆڕانکاری» puts them
+     * over the same prescription (?action=update). Once the counter / the
+     * accountant has taken it, the server refuses. */
+    function setEditing(id) {
+        rxEditingId = id || 0;
+        const bar = $('rxEditing');
+        if (bar) bar.hidden = !rxEditingId;
+        if ($('rxEditingNo')) $('rxEditingNo').textContent = '#' + rxEditingId;
+        const btn = $('rxSendBtn');
+        if (btn) btn.innerHTML = rxEditingId ? '<i class="fas fa-save"></i> پاشەکەوتکردنی گۆڕانکاری' : '<i class="fas fa-paper-plane"></i> ناردن بۆ دەرمانخانە';
+    }
+    window.rxCancelEdit = function () {
+        lines = [];
+        Object.keys(groupForm).forEach(k => delete groupForm[k]);
+        if ($('rxNotes')) $('rxNotes').value = '';
+        setEditing(0);
+        msg('');
+        renderSheet();
+        render();
+    };
+    window.rxEditPrescription = async function (id) {
+        if (!CAN_WRITE) return;
+        try {
+            if (!groups.length) await loadSheet();
+            const res = await fetch(RX_API + '?action=load&id=' + encodeURIComponent(id));
+            const data = await res.json();
+            if (!data || !data.ok) { if (window.toast) toast('error', (data && data.error) || 'نەتوانرا بکرێتەوە'); else alert((data && data.error) || 'نەتوانرا بکرێتەوە'); return; }
+            Object.keys(groupForm).forEach(k => delete groupForm[k]);
+            lines = (data.items || []).map(it => {
+                const qty = Number(it.quantity) || 1, dose = it.dosage || '';
+                if (Number(it.is_outside) === 1 || !it.product_id) {
+                    return { outside: true, product_id: null, name: it.product_name, type_name: '', quantity: qty, dosage: dose, stock: 0, unit: '' };
+                }
+                const hit = findItem(Number(it.product_id));
+                const p = hit ? hit.p : null, g = hit ? hit.g : null;
+                const line = {
+                    product_id: Number(it.product_id), group_id: g ? g.id : 0, name: p ? p.name : it.product_name,
+                    type_name: p ? (p.type_name || '') : '', quantity: qty, dosage: dose, doses: p ? (p.doses || []) : [],
+                    stock: p ? (Number(p.stock) || 0) : 0, unit: p ? (p.unit_name || '') : '', note: ''
+                };
+                // the form circled for it then: the column's round choice again, else kept as written
+                if (!line.type_name && it.notes) {
+                    const t = g && g.types.find(x => x.name === it.notes);
+                    if (t) groupForm[g.id] = t.id; else line.note = it.notes;
+                }
+                return line;
+            });
+            if ($('rxNotes')) $('rxNotes').value = data.notes || '';
+            setEditing(Number(data.id));
+            msg('');
+            renderSheet();
+            render();
+            if (!document.getElementById('medicineDialog').classList.contains('open')) openDialog('medicineDialog');
+            showRxTab('send');
+        } catch (e) {
+            if (window.toast) toast('error', 'هەڵەی تەکنیکی ڕوویدا'); else alert('هەڵەی تەکنیکی ڕوویدا');
+        }
+    };
+    document.addEventListener('click', e => {
+        const b = e.target.closest('[data-rxedit]');
+        if (b) { e.preventDefault(); window.rxEditPrescription(Number(b.dataset.rxedit)); }
+    });
 
     /* ---------- history ---------- */
     async function loadHistory() {
@@ -916,6 +1181,10 @@ button.rx-card-print { cursor:pointer; padding:0; }
             const pending = rows.filter(r => r.status === 'pending').length;
             const count = $('rxTabCount');
             if (count) count.textContent = pending;
+            // changed until the counter / the accountant takes it — the server checks the same
+            const mayEdit = r => CAN_WRITE && (r.status === 'pending' || r.status === 'outside') &&
+                (RX_CAN_DELETE || Number(r.created_by) === RX_ME || Number(r.doctor_id) === RX_ME);
+            if (RX_CASE_ID) renderCaseStrip(rows, labels, mayEdit);
             if (!rows.length) {
                 box.innerHTML = '<div class="rx-empty">هیچ داواکارییەکی دەرمان بۆ ئەم ' + (RX_CASE_ID ? 'کەیسە' : 'نەخۆشە') + ' نییە.</div>';
                 return;
@@ -930,6 +1199,7 @@ button.rx-card-print { cursor:pointer; padding:0; }
                         ' · ' + esc(r.doctor_name || '—') + '</span>' +
                     '<span style="display:flex;align-items:center;gap:6px">' +
                     '<span class="rx-badge ' + esc(r.status) + '">' + esc(labels[r.status] || r.status) + '</span>' +
+                    (mayEdit(r) ? '<button type="button" class="rx-card-print" data-rxedit="' + r.id + '" title="دەستکاری — پێش ئەوەی پەسەند بکرێت"><i class="fas fa-pen"></i></button>' : '') +
                     '<button type="button" class="rx-card-print" data-rxprint="' + r.id + '"' + (r.status === 'sold' ? ' data-sold="1"' : '') + ' title="پێشبینین و چاپی ڕەچەتە"><i class="fas fa-print"></i></button>' +
                     (mayDelete(r) ? '<button type="button" class="rx-card-del" data-rxdel="' + r.id + '" title="سڕینەوە"><i class="fas fa-trash-can"></i></button>' : '') +
                     '</span>' +
@@ -939,6 +1209,37 @@ button.rx-card-print { cursor:pointer; padding:0; }
             box.innerHTML = '<div class="rx-empty">نەتوانرا بارببرێت</div>';
         }
     }
+
+    /* ---------- the case's own card: what the doctor prescribed ----------
+     * On a case page (#rxCaseStrip under the chart): every prescription of
+     * the case — when, who, where it stands, each medicine with its quantity
+     * and dose — without opening anything; ✏️ while it waits, 🖨 always. */
+    function renderCaseStrip(rows, labels, mayEdit) {
+        const box = $('rxCaseStrip');
+        if (!box) return;
+        box.hidden = !rows.length;
+        if (!rows.length) { box.innerHTML = ''; return; }
+        const meds = s => String(s || '').split(' | ').filter(Boolean).map(part => {
+            const at = part.indexOf(' — ');
+            const name = at >= 0 ? part.slice(0, at) : part, dose = at >= 0 ? part.slice(at + 3) : '';
+            return '<span class="crx-med' + (name.indexOf('[دەرەوە]') >= 0 ? ' is-out' : '') + '"><i class="fas fa-capsules"></i><b dir="auto">'
+                + esc(name.replace(' [دەرەوە]', '')) + '</b>' + (dose ? '<small dir="auto">' + esc(dose) + '</small>' : '') + '</span>';
+        }).join('');
+        box.innerHTML = '<div class="crx-head"><span><i class="fas fa-prescription"></i> ڕەچەتەکانی ئەم کەیسە <em>' + rows.length + '</em></span>'
+            + (CAN_WRITE ? '<button type="button" class="crx-new" onclick="openMedicineDialog()"><i class="fas fa-plus"></i> ڕەچەتەی نوێ</button>' : '') + '</div>'
+            + rows.map(r => '<div class="crx-card is-' + esc(r.status) + '">'
+                + '<div class="crx-top"><span class="crx-badge">' + esc(labels[r.status] || r.status) + '</span>'
+                + '<span class="crx-meta">#' + r.id + ' · ' + esc((r.created_at || '').substring(0, 16)) + ' · ' + esc(r.doctor_name || '—') + '</span>'
+                + '<span class="crx-acts">'
+                + (mayEdit(r) ? '<button type="button" class="crx-edit" data-rxedit="' + r.id + '" title="دەستکاری — پێش ئەوەی پەسەند بکرێت"><i class="fas fa-pen"></i> دەستکاری</button>' : '')
+                + '<button type="button" class="crx-print" data-rxprint="' + r.id + '"' + (r.status === 'sold' ? ' data-sold="1"' : '') + ' title="پێشبینین و چاپی ڕەچەتە"><i class="fas fa-print"></i></button>'
+                + '</span></div><div class="crx-meds">' + meds(r.items_summary) + '</div></div>').join('');
+    }
+    // print from the case's card, as from the list in the dialog
+    document.addEventListener('click', e => {
+        const p = e.target.closest('#rxCaseStrip [data-rxprint]');
+        if (p && window.RxPrint) window.RxPrint.open(Number(p.dataset.rxprint), { sold: p.dataset.sold === '1' });
+    });
 
     /* ---------- arranging the sheet (admin) ----------
      * «ڕێکخستنی پەڕە»: the admin drags the columns, the round choices and the
@@ -1428,6 +1729,7 @@ button.rx-card-print { cursor:pointer; padding:0; }
             });
             wireArranging();
             loadSheet();
+            loadPackages();
         }
         const body = $('rxRows');
         if (body) {
