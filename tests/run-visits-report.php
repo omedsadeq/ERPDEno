@@ -69,7 +69,7 @@ $checkBalance($edge);
 $rendered = dh_visit_report_render_matrix($edge, '<month>', 'Checkup');
 $t->assertTrue(strpos($rendered, '<script>') === false && strpos($rendered, '&lt;script&gt;') !== false, 'Names are HTML escaped');
 $t->assertTrue(strpos($rendered, '&lt;month&gt;') !== false, 'Period is HTML escaped');
-$t->assertTrue(strpos($rendered, '<td>0</td>') !== false, 'Zero cells remain explicit');
+$t->assertTrue(preg_match('#<td( data-vr-col="[^"]*")?>0</td>#', $rendered) === 1, 'Zero cells remain explicit');
 $t->assertTrue(strpos($rendered, 'گواستنەوەی پێشوازی') !== false, 'Reception row uses established transfer label');
 $checkBalance(dh_visit_report_build_matrix([], $doctors, []));
 

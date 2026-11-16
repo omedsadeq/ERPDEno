@@ -183,10 +183,15 @@ function dh_visit_referral_render(array $report, string $period, string $prepare
     $html .= '<table class="vr-photo-table vr-referral-table vr-referral-overview" data-report-table="summary" aria-label="پوختەی ناردن بۆ دکتۆرەکان" dir="rtl">';
     $html .= '<colgroup><col span="' . $doctorColumns . '" style="width:' . $doctorWidth . '%"><col style="width:48%"></colgroup>';
     $html .= '<thead><tr><th colspan="' . ($doctorColumns + 1) . '" class="vr-photo-title">' . $escape($title) . '<br><span class="vr-referral-period" dir="ltr">&#8206;' . $escape($period) . '&#8206;</span></th></tr></thead><tbody><tr>';
-    foreach ($report['doctors'] as $name) { $html .= '<th scope="col">' . $escape($name) . '</th>'; }
+    // on the page a doctor column can be dragged to another place (visits-report.php)
+    $head = static function ($id, $name) use ($details, $escape): string {
+        return '<th scope="col" data-vr-col="' . $escape((string) $id) . '"'
+            . ($details ? ' draggable="true" title="بۆ گۆڕینی شوێن، ڕایبکێشە"' : '') . '>' . $escape($name) . '</th>';
+    };
+    foreach ($report['doctors'] as $id => $name) { $html .= $head($id, $name); }
     if (empty($report['doctors'])) { $html .= '<th scope="col">دکتۆری وەرگر</th>'; }
     $html .= '<td rowspan="2" class="vr-photo-total vr-referral-big-total"><span class="vr-referral-total-label">کۆی گشتی</span>' . $num($report['total'], 'all', 'all') . '</td></tr><tr class="vr-referral-summary">';
-    foreach ($report['doctors'] as $id => $_name) { $html .= '<td>' . $num($report['column_totals'][$id], 'all', $id) . '</td>'; }
+    foreach ($report['doctors'] as $id => $_name) { $html .= '<td data-vr-col="' . $escape((string) $id) . '">' . $num($report['column_totals'][$id], 'all', $id) . '</td>'; }
     if (empty($report['doctors'])) { $html .= '<td>0</td>'; }
     $html .= '</tr></tbody></table>';
 
@@ -195,15 +200,15 @@ function dh_visit_referral_render(array $report, string $period, string $prepare
     if (!empty($report['doctors'])) { $html .= '<col span="' . count($report['doctors']) . '" style="width:' . $doctorWidth . '%">'; }
     $html .= '<col style="width:32%"></colgroup>';
     $html .= '<thead><tr><th scope="col">دیاریکەر / ناردەر</th>';
-    foreach ($report['doctors'] as $name) { $html .= '<th scope="col">' . $escape($name) . '</th>'; }
+    foreach ($report['doctors'] as $id => $name) { $html .= $head($id, $name); }
     $html .= '<th scope="col" class="vr-photo-total">کۆی گشتی</th></tr></thead><tbody>';
     foreach ($report['rows'] as $key => $row) {
         $html .= '<tr><th scope="row">' . $escape($row['name']) . '</th>';
-        foreach ($report['doctors'] as $id => $_name) { $html .= '<td>' . $num($row['doctors'][$id] ?? 0, (string) $key, $id) . '</td>'; }
+        foreach ($report['doctors'] as $id => $_name) { $html .= '<td data-vr-col="' . $escape((string) $id) . '">' . $num($row['doctors'][$id] ?? 0, (string) $key, $id) . '</td>'; }
         $html .= '<td class="vr-photo-total">' . $num($row['total'], (string) $key, 'all') . '</td></tr>';
     }
     $html .= '<tr class="vr-photo-grand"><th scope="row">کۆی گشتی</th>';
-    foreach ($report['doctors'] as $id => $_name) { $html .= '<td>' . $num($report['column_totals'][$id], 'all', $id) . '</td>'; }
+    foreach ($report['doctors'] as $id => $_name) { $html .= '<td data-vr-col="' . $escape((string) $id) . '">' . $num($report['column_totals'][$id], 'all', $id) . '</td>'; }
     $html .= '<td class="vr-photo-total">' . $num($report['total'], 'all', 'all') . '</td></tr></tbody></table></div>';
     $html .= '<div class="vr-photo-note"><div>' . implode(' + ', array_map('number_format', array_values($report['column_totals']))) . (empty($report['doctors']) ? '0' : '') . ' = ' . number_format($report['total']) . '</div><p>ئامار بە پێی تۆماری ناردن بۆ ئیشە. هەر سەردانێک تەنها جارێک بۆ دکتۆری وەرگر و دیاریکەر هەژمار دەکرێت.</p>';
     $html .= '<p>0 لە ستوونی دکتۆر واتە لەم ماوەیەدا هیچ ناردنێک بۆ ئەو دکتۆرە تۆمار نەکراوە. ناوی دکتۆر لە ڕیزدا واتە ئەو دکتۆرە وەرگری دیاری کردووە.</p>';
@@ -267,7 +272,7 @@ function dh_visit_referral_detail_body(Database $db, array $ids, array $filters)
     $marks = implode(',', array_fill(0, count($ids), '?'));
     $visits = $db->fetchAll(
         "SELECT v.id, v.visit_date, v.appointment_date, v.arrival_time, v.patient_id, COALESCE(NULLIF(p.full_name, ''), v.patient_name) AS patient,
-                v.mobile_number, v.referring_doctor_id, v.referring_doctor_designation, v.referring_doctor_choice_id,
+                v.mobile_number, v.price, v.referring_doctor_id, v.referring_doctor_designation, v.referring_doctor_choice_id,
                 v.appointment_added_by, v.appointment_doctor_id, v.procedure_treatment, v.referral_source
          FROM visits v LEFT JOIN patients p ON p.id = v.patient_id
          WHERE v.id IN ($marks)
@@ -280,7 +285,7 @@ function dh_visit_referral_detail_body(Database $db, array $ids, array $filters)
     foreach ($db->fetchAll('SELECT id, full_name FROM users') as $u) { $users[(int) $u['id']] = $u['full_name']; }
     $app = APP_URL;
     $html .= '<input type="search" class="vrd-search" placeholder="گەڕان: ناو، مۆبایل، دکتۆر، کارمەند…" aria-label="گەڕان لە سەردانەکان">'
-        . '<div class="vrd-scroll"><table class="vrd-tbl"><thead><tr><th>#</th><th>' . ($byAppointment ? 'بەرواری مەوعید' : 'بەرواری سەردان') . '</th><th>کات</th><th>نەخۆش</th><th>مۆبایل</th>'
+        . '<div class="vrd-scroll"><table class="vrd-tbl"><thead><tr><th>#</th><th>' . ($byAppointment ? 'بەرواری مەوعید' : 'بەرواری سەردان') . '</th><th>کات</th><th>نەخۆش</th><th>مۆبایل</th><th>نرخ</th>'
         . '<th>دکتۆری پشکنەر</th><th>دیاریکەر / ناردەر</th><th>دکتۆری وەرگر</th><th>ئیش / سەرچاوە</th><th></th></tr></thead><tbody>';
     foreach ($visits as $i => $v) {
         $examiner = (int) $v['referring_doctor_id'];
@@ -304,9 +309,10 @@ function dh_visit_referral_detail_body(Database $db, array $ids, array $filters)
         $html .= '<tr><td class="n">' . ($i + 1) . '</td><td class="d">' . $e($byAppointment ? $v['appointment_date'] : $v['visit_date']) . '</td>'
             . '<td class="d">' . $e($v['arrival_time'] ? substr((string) $v['arrival_time'], 0, 5) : '') . '</td>'
             . '<td class="p">' . $e($v['patient'] ?: '—') . '</td><td class="d">' . $e($v['mobile_number'] ?? '') . '</td>'
+            . dh_visit_report_price_cell($v['price'] ?? 0)
             . '<td>' . $e($doctors[$examiner] ?? '—') . '</td><td>' . $chooser . '</td>'
             . '<td>' . $e($destination > 0 ? ($doctors[$destination] ?? '—') : 'دیاری نەکراوە') . '</td>'
             . '<td class="w">' . $e(mb_strimwidth($note, 0, 80, '…')) . '</td><td class="l">' . $links . '</td></tr>';
     }
-    return $html . '</tbody></table></div>';
+    return $html . '</tbody>' . dh_visit_report_price_foot($visits, 5, 5) . '</table></div>';
 }

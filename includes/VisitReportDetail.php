@@ -11,7 +11,8 @@
  * A cell is a row and a doctor column:
  *   row  requested | reception | other | unassigned | assigned (all) |
  *        new | old | unknown | r:<staff id> (one receptionist's transfers) |
- *        patients (ئیش و پشکنین: every visit of both types)
+ *        patients (ئیش و پشکنین: every visit of both types) |
+ *        patients_treatment / patients_checkup (only that type's visits)
  * With both types chosen, every row but patients is the checkups'.
  *   doc  a doctors.id, or 'all' for the کۆی گشتی column
  */
@@ -21,6 +22,7 @@ const VISIT_REPORT_DETAIL_ROWS = [
     'requested' => 'داواکراو', 'reception' => 'گواستنەوەی پێشوازی', 'other' => 'دیاریکردنی تر',
     'unassigned' => 'دکتۆر دیاری نەکراوە', 'assigned' => 'کۆی گشتی', 'new' => 'نوێ', 'old' => 'کۆن',
     'unknown' => 'دۆخی نەخۆش نادیارە', 'patients' => 'نەخۆشەکان',
+    'patients_treatment' => 'کۆی ئیش', 'patients_checkup' => 'کۆی پشکنین',
 ];
 
 /** The cell asked for, checked: ['row' => key, 'staff' => id|0, 'doc' => id|null] or null. */
@@ -51,6 +53,10 @@ function dh_visit_report_cell_visits(Database $db, string $from, string $to, str
         usort($all, static fn($a, $b) => [$a['visit_date'], (string) $a['arrival_time'], (int) $a['id']] <=> [$b['visit_date'], (string) $b['arrival_time'], (int) $b['id']]);
         return $all;
     }
+    if ($cell['row'] === 'patients_treatment' || $cell['row'] === 'patients_checkup') {
+        // one type's visits, each for that type's doctor
+        return dh_visit_report_cell_visits($db, $from, $to, $cell['row'] === 'patients_treatment' ? 'treatment' : 'checkup', ['row' => 'assigned'] + $cell);
+    }
     $visitType = $visitType === 'treatment' ? 'treatment' : 'checkup';
     $doctorSql = dh_visit_report_doctor_sql($visitType);
     $params = ['from' => $from, 'to' => $to, 'visit_type' => $visitType];
@@ -62,7 +68,7 @@ function dh_visit_report_cell_visits(Database $db, string $from, string $to, str
     $out = [];
     foreach ($db->fetchAll(
         "SELECT v.id, v.visit_type, v.visit_date, v.arrival_time, v.patient_id, COALESCE(NULLIF(p.full_name, ''), v.patient_name) AS patient,
-                v.mobile_number, {$doctorSql} AS doctor_id, v.requested_doctor_id, v.assigned_doctor_id,
+                v.mobile_number, v.price, {$doctorSql} AS doctor_id, v.requested_doctor_id, v.assigned_doctor_id,
                 v.doctor_assignment_source, v.patient_status, v.receptionist_id, v.procedure_treatment, v.referral_source,
                 dr.name AS requested_name, dd.name AS doctor_name, u.full_name AS receptionist_name
          FROM visits v
@@ -100,13 +106,27 @@ function dh_visit_report_detail_title(Database $db, array $cell): string
     } elseif ($cell['row'] === 'assigned') {
         $row = 'هەموو سەردانەکان';
     } elseif ($cell['row'] === 'patients') {
-        $row = 'نەخۆشەکان (ئیش و پشکنین)';
+        $row = 'کۆی سەردانیکەران (ئیش و پشکنین)';
     }
     if ($cell['doc'] === null) {
         return $row . ' — هەموو دکتۆرەکان';
     }
     $doctor = $cell['doc'] > 0 ? ($db->fetch('SELECT name FROM doctors WHERE id = ?', [$cell['doc']])['name'] ?? ('دکتۆر #' . $cell['doc'])) : 'دکتۆر دیاری نەکراوە';
     return $row . ' — ' . $doctor;
+}
+
+/** A visit's price cell (the visit fee), its number kept for the dialog's total. */
+function dh_visit_report_price_cell($price): string
+{
+    $p = (float) $price;
+    return '<td class="pr" data-price="' . $p . '">' . ($p > 0 ? number_format($p) : '<span class="z">0</span>') . '</td>';
+}
+
+/** The dialog's last row: the prices added up (the dialog's script recounts it while searching). */
+function dh_visit_report_price_foot(array $visits, int $before, int $after): string
+{
+    $total = array_sum(array_map(static fn($v) => (float) ($v['price'] ?? 0), $visits));
+    return '<tfoot><tr class="vrd-foot"><td colspan="' . $before . '">کۆی گشتی</td><td class="pr vrd-total">' . number_format($total) . '</td><td colspan="' . $after . '"></td></tr></tfoot>';
 }
 
 /** The dialog's body: a count, a search box and the visits. */
@@ -121,7 +141,7 @@ function dh_visit_report_detail_body(array $visits, string $from, string $to): s
         return $html . '<div class="vrd-empty">هیچ سەردانێک نییە</div>';
     }
     $html .= '<input type="search" class="vrd-search" placeholder="گەڕان: ناو، مۆبایل، دکتۆر، کارمەند…" aria-label="گەڕان لە سەردانەکان">'
-        . '<div class="vrd-scroll"><table class="vrd-tbl"><thead><tr><th>#</th><th>بەروار</th><th>کات</th><th>جۆر</th><th>نەخۆش</th><th>مۆبایل</th>'
+        . '<div class="vrd-scroll"><table class="vrd-tbl"><thead><tr><th>#</th><th>بەروار</th><th>کات</th><th>جۆر</th><th>نەخۆش</th><th>مۆبایل</th><th>نرخ</th>'
         . '<th>دکتۆری داواکراو</th><th>دکتۆری بینراو</th><th>دابەشکردن</th><th>کارمەندی پێشوازی</th><th>نوێ/کۆن</th><th>ئیش / سەرچاوە</th><th></th></tr></thead><tbody>';
     foreach ($visits as $i => $v) {
         [$stLabel, $stClass] = $status[$v['status']];
@@ -134,13 +154,14 @@ function dh_visit_report_detail_body(array $visits, string $from, string $to): s
             . '<td class="d">' . $e($v['arrival_time'] ? substr((string) $v['arrival_time'], 0, 5) : '') . '</td>'
             . '<td><span class="vrd-tag t-' . $e($v['visit_type']) . '">' . ($v['visit_type'] === 'treatment' ? 'ئیش' : 'پشکنین') . '</span></td>'
             . '<td class="p">' . $e($v['patient'] ?: '—') . '</td><td class="d">' . $e($v['mobile_number'] ?? '') . '</td>'
+            . dh_visit_report_price_cell($v['price'] ?? 0)
             . '<td>' . $e($v['requested_name'] ?? '—') . '</td><td>' . $e($v['doctor_name'] ?? '—') . '</td>'
             . '<td><span class="vrd-tag a-' . $e($v['allocation']) . '">' . $e($allocation[$v['allocation']]) . '</span></td>'
             . '<td>' . $e($v['receptionist_name'] ?? '—') . '</td>'
             . '<td><span class="vrd-tag s-' . $stClass . '">' . $stLabel . '</span></td>'
             . '<td class="w">' . $e(mb_strimwidth($note, 0, 80, '…')) . '</td><td class="l">' . $links . '</td></tr>';
     }
-    return $html . '</tbody></table></div>';
+    return $html . '</tbody>' . dh_visit_report_price_foot($visits, 6, 7) . '</table></div>';
 }
 
 /** The dialog and its script; once on the page. $url is the endpoint with the page's filters. */
@@ -171,6 +192,9 @@ function dh_visit_report_detail_shell(string $url): void
 .vrd-tag.a-other{background:#fefce8;color:#a16207}.vrd-tag.a-unassigned{background:#fef2f2;color:#b91c1c}
 .vrd-tag.t-treatment{background:#dcfce7;color:#15803d}.vrd-tag.t-checkup{background:#e0f2fe;color:#0369a1}
 .vrd-tag.s-new{background:#e0f2fe;color:#0369a1}.vrd-tag.s-old{background:#fef3c7;color:#b45309}
+.vrd-tbl .pr{direction:ltr;text-align:right;font-weight:700;color:#0f766e}.vrd-tbl .pr .z{color:#cbd5e1;font-weight:400}
+.vrd-tbl tfoot td{position:sticky;bottom:0;background:#ecfdf5;border-top:2px solid #0f766e;font-weight:800;color:#0f172a;padding:9px 8px}
+.vrd-tbl tfoot .vrd-total{color:#0f766e;font-size:14px}
 .vrd-empty,.vrd-loading{padding:36px;text-align:center;color:#94a3b8;font-size:13px}
 @media print{.vr-xbtn{display:none}}
 .vr-photo-note p .vr-cell{gap:5px}
@@ -206,9 +230,16 @@ function dh_visit_report_detail_shell(string $url): void
     body.addEventListener('input', function (ev) {
         if (!ev.target.classList.contains('vrd-search')) return;
         var q = ev.target.value.trim().toLowerCase();
+        var sum = 0;
         body.querySelectorAll('.vrd-tbl tbody tr').forEach(function (tr) {
-            tr.style.display = !q || tr.textContent.toLowerCase().indexOf(q) !== -1 ? '' : 'none';
+            var show = !q || tr.textContent.toLowerCase().indexOf(q) !== -1;
+            tr.style.display = show ? '' : 'none';
+            var pr = tr.querySelector('[data-price]');
+            if (show && pr) sum += parseFloat(pr.getAttribute('data-price')) || 0;
         });
+        // the total follows the search: only the rows shown
+        var total = body.querySelector('.vrd-total');
+        if (total) total.textContent = Math.round(sum).toLocaleString('en-US');
     });
 })();
 </script>

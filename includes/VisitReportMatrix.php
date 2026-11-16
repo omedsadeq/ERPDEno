@@ -76,12 +76,77 @@ function dh_visit_report_build_matrix(array $groups, array $doctors, array $user
     ];
 }
 
-/** Hide the clinic placeholder from report columns without changing totals. */
+require_once __DIR__ . '/../classes/Settings.php';
+
+/** The setting that holds the doctor columns' order, as dragged on visits-report.php. */
+const DH_VISIT_REPORT_COLUMN_ORDER = 'visits_report_column_order';
+
+/**
+ * Hide the clinic placeholder from report columns without changing totals, and
+ * put the columns in the order the clinic set by dragging them on the report
+ * (the screen, the PDF and the referral report all follow it). A column not in
+ * that order yet (a new doctor) comes after the ordered ones, as before.
+ */
 function dh_visit_report_visible_doctors(array $doctors): array
 {
-    return array_filter($doctors, static function ($name): bool {
+    $visible = array_filter($doctors, static function ($name): bool {
         return trim((string) $name) !== 'لێزان';
     });
+    $order = dh_visit_report_column_order();
+    if (!$order) {
+        return $visible;
+    }
+    $rank = array_flip($order);
+    $pos = array_flip(array_map('strval', array_keys($visible)));
+    uksort($visible, static function ($a, $b) use ($rank, $pos): int {
+        $ra = $rank[(string) $a] ?? PHP_INT_MAX;
+        $rb = $rank[(string) $b] ?? PHP_INT_MAX;
+        return $ra === $rb ? $pos[(string) $a] <=> $pos[(string) $b] : $ra <=> $rb;
+    });
+    return $visible;
+}
+
+/** The saved column order: doctor column ids as strings, first to last. */
+function dh_visit_report_column_order(): array
+{
+    if (!defined('DB_HOST')) {
+        return [];   // no database configured (a bare script): the natural order
+    }
+    try {
+        $raw = (string) Settings::get(DH_VISIT_REPORT_COLUMN_ORDER, '');
+    } catch (Throwable $e) {
+        return [];
+    }
+    return array_values(array_filter(explode(',', $raw), static fn($id): bool => preg_match('/^-?\d+$/', $id) === 1));
+}
+
+/** Save the order the columns were dragged into (ids, first to last). */
+function dh_visit_report_save_column_order(array $ids): void
+{
+    $clean = [];
+    foreach ($ids as $id) {
+        $id = trim((string) $id);
+        if (preg_match('/^-?\d{1,10}$/', $id) && !in_array($id, $clean, true)) {
+            $clean[] = $id;
+        }
+    }
+    // A table may show only some of the columns (the referral report): those
+    // take the places they held in the saved order, in their new order; the
+    // others stay where they were.
+    $full = dh_visit_report_column_order();
+    foreach ($clean as $id) {
+        if (!in_array($id, $full, true)) {
+            $full[] = $id;
+        }
+    }
+    $moved = $clean;
+    foreach ($full as $i => $id) {
+        if (in_array($id, $clean, true)) {
+            $full[$i] = array_shift($moved);
+        }
+    }
+    Settings::set(DH_VISIT_REPORT_COLUMN_ORDER, implode(',', array_slice($full, 0, 200)), 'text',
+        'ڕاپۆرتی سەردان: ڕیزبەندی ستوونی دکتۆرەکان');
 }
 
 /**
@@ -103,25 +168,29 @@ function dh_visit_report_render_matrix(array $stats, string $period, string $vis
     };
     $html = '<table class="vr-photo-table" dir="rtl"><thead><tr><th class="vr-photo-title" colspan="' . (count($doctors) + 2) . '">ئاماری سەردانەکان — <span dir="ltr">&#8206;' . $escape($period) . '&#8206;</span> (' . $escape($visitTypeLabel) . ')</th></tr>';
     $heading = '<tr><th scope="col">جۆری سەردان</th>';
-    foreach ($doctors as $name) {
-        $heading .= '<th scope="col">' . $escape($name) . '</th>';
+    foreach ($doctors as $id => $name) {
+        // on the page a doctor column can be dragged to another place (visits-report.php)
+        $heading .= '<th scope="col" data-vr-col="' . $escape((string) $id) . '"'
+            . ($details ? ' draggable="true" title="بۆ گۆڕینی شوێن، ڕایبکێشە"' : '') . '>' . $escape($name) . '</th>';
     }
     $heading .= '<th scope="col" class="vr-photo-total">کۆی گشتی</th></tr>';
     $html .= $heading . '</thead><tbody>';
-    // ئیش و پشکنین: first every patient each doctor saw, then the checkups split below
+    // ئیش و پشکنین: first every patient each doctor saw, in three rows — all of
+    // them, the ئیش, the پشکنین — then the checkups split below
     $both = isset($stats['patients']);
     if ($both) {
-        $split = static function (array $p): string {
-            // two lines, its own size: the PDF wraps a mixed one badly and gives it the total's big type
-            return '<div class="vr-pt-split" style="font-size:11px;font-weight:600;color:#475569;">ئیش ' . number_format($p['treatment'])
-                . '<br>پشکنین ' . number_format($p['checkup']) . '</div>';
-        };
-        $html .= '<tr class="vr-photo-patients"><th scope="row">نەخۆشەکان<div class="vr-pt-split">ئیش + پشکنین</div></th>';
-        foreach ($doctors as $id => $_name) {
-            $p = $stats['patients'][$id] ?? ['treatment' => 0, 'checkup' => 0, 'total' => 0];
-            $html .= '<td>' . $cell($p['total'], 'patients', $id) . $split($p) . '</td>';
+        $patientRows = [
+            ['total', 'patients', 'کۆی سەردانیکەران', 'vr-photo-patients vr-pt-first'],
+            ['treatment', 'patients_treatment', 'کۆی ئیش', 'vr-photo-patients vr-pt-part'],
+            ['checkup', 'patients_checkup', 'کۆی پشکنین', 'vr-photo-patients vr-pt-part vr-pt-end'],
+        ];
+        foreach ($patientRows as [$part, $rowKey, $label, $class]) {
+            $html .= '<tr class="' . $class . '"><th scope="row">' . $label . '</th>';
+            foreach ($doctors as $id => $_name) {
+                $html .= '<td data-vr-col="' . $escape((string) $id) . '">' . $cell($stats['patients'][$id][$part] ?? 0, $rowKey, $id) . '</td>';
+            }
+            $html .= '<td class="vr-photo-total">' . $cell($stats['patients_total'][$part], $rowKey, 'all') . '</td></tr>';
         }
-        $html .= '<td class="vr-photo-total">' . $cell($stats['patients_total']['total'], 'patients', 'all') . $split($stats['patients_total']) . '</td></tr>';
     }
     $rows = ['requested' => 'داواکراو', 'reception' => 'گواستنەوەی پێشوازی'];
     if ($stats['doctor_totals']['other'] > 0) {
@@ -130,14 +199,15 @@ function dh_visit_report_render_matrix(array $stats, string $period, string $vis
     if ($stats['doctor_totals']['unassigned'] > 0) {
         $rows['unassigned'] = 'دکتۆر دیاری نەکراوە';
     }
-    $rows += ['assigned' => $both ? 'کۆی پشکنین' : 'کۆی گشتی', 'new' => 'نوێ', 'old' => 'کۆن'];
+    // with both types the checkups' total is already the «کۆی پشکنین» row at the top
+    $rows += ($both ? [] : ['assigned' => 'کۆی گشتی']) + ['new' => 'نوێ', 'old' => 'کۆن'];
     if ($stats['doctor_totals']['unknown'] > 0) {
         $rows['unknown'] = 'دۆخی نەخۆش نادیارە';
     }
     foreach ($rows as $key => $label) {
         $html .= '<tr' . ($key === 'assigned' ? ' class="vr-photo-grand"' : '') . '><th scope="row">' . $label . '</th>';
         foreach ($doctors as $id => $_name) {
-            $html .= '<td>' . $cell($stats['doctor_stats'][$id][$key] ?? 0, $key, $id) . '</td>';
+            $html .= '<td data-vr-col="' . $escape((string) $id) . '">' . $cell($stats['doctor_stats'][$id][$key] ?? 0, $key, $id) . '</td>';
         }
         $html .= '<td class="vr-photo-total">' . $cell($stats['doctor_totals'][$key], $key, 'all') . '</td></tr>';
     }
@@ -146,7 +216,7 @@ function dh_visit_report_render_matrix(array $stats, string $period, string $vis
     foreach ($stats['receptionist_redirections'] as $staffId => $row) {
         $html .= '<tr><th scope="row">' . $escape($row['name']) . '</th>';
         foreach ($doctors as $id => $_name) {
-            $html .= '<td>' . $cell($row['doctors'][$id] ?? 0, 'r:' . $staffId, $id) . '</td>';
+            $html .= '<td data-vr-col="' . $escape((string) $id) . '">' . $cell($row['doctors'][$id] ?? 0, 'r:' . $staffId, $id) . '</td>';
         }
         $html .= '<td class="vr-photo-total">' . $cell($row['total'], 'r:' . $staffId, 'all') . '</td></tr>';
     }
@@ -155,7 +225,7 @@ function dh_visit_report_render_matrix(array $stats, string $period, string $vis
     }
     $html .= '<tr class="vr-photo-grand"><th scope="row">کۆی گواستنەوەی پێشوازی</th>';
     foreach ($doctors as $id => $_name) {
-        $html .= '<td>' . $cell($stats['receptionist_redirection_column_totals'][$id] ?? 0, 'reception', $id) . '</td>';
+        $html .= '<td data-vr-col="' . $escape((string) $id) . '">' . $cell($stats['receptionist_redirection_column_totals'][$id] ?? 0, 'reception', $id) . '</td>';
     }
     return $html . '<td class="vr-photo-total">' . $cell($stats['receptionist_redirection_total'], 'reception', 'all') . '</td></tr></tbody></table>';
 }

@@ -29,6 +29,15 @@ if ($auth->isRestrictedDoctor()) {
     exit;
 }
 
+// The doctor columns were dragged into a new order: save it for everyone.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'column_order') {
+    Csrf::require();
+    header('Content-Type: application/json; charset=utf-8');
+    dh_visit_report_save_column_order(explode(',', (string) ($_POST['order'] ?? '')));
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
 $currentUser = $auth->getCurrentUser();
 $filters = dh_visit_report_filters($_GET);
 $mode = $filters['mode'];
@@ -129,7 +138,7 @@ $hidePageHeader = true;
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<link rel="stylesheet" href="<?= APP_URL ?>/assets/css/visit-report.css?v=20261112a">
+<link rel="stylesheet" href="<?= APP_URL ?>/assets/css/visit-report.css?v=20261116a">
 <style>
 html { overflow-y: scroll; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: #cbd5e1 #f1f5f9; }
 html::-webkit-scrollbar { width: 10px; }
@@ -326,12 +335,16 @@ $chips = [
     <button type="submit" class="vr-apply">پیشاندانی ڕاپۆرت</button>
     <span class="vr-small-note"><?= htmlspecialchars($dateFilterLabel) ?></span>
 </form>
+<?php $vrTip = '<div class="vr-tip" id="vrTip" role="note"><i class="fas fa-lightbulb" aria-hidden="true"></i><span><b>زانیاری:</b> بۆ گۆڕینی شوێنی ستوونی دکتۆرێک، ناوەکەی <i class="fas fa-grip-vertical" aria-hidden="true"></i> بگرە و بە ماوس ڕایبکێشە بۆ شوێنی دڵخواز — بۆ هەمووان و بۆ PDF ـیش پاشەکەوت دەبێت. کرتە لە <i class="fas fa-layer-group" aria-hidden="true"></i> ی تەنیشت هەر ژمارەیەک بکە بۆ بینینی ئەو سەردانانەی پشتی.</span><button type="button" class="vr-tip-x" title="داخستن" aria-label="داخستن">&times;</button></div>'; ?>
+<?= $vrTip ?>
 <section class="vr-photo-sheet" aria-label="لە پشکنینەوە بۆ ئیش">
     <?= dh_visit_report_letterhead($db) ?>
     <div class="vr-photo-scroll"><?= dh_visit_referral_render($referralReport, $reportPeriod, $currentUser['full_name'] ?? '', true) ?></div>
 </section>
 <?php dh_visit_report_detail_shell(APP_URL . '/visits-report-detail.php?' . http_build_query(array_merge($reportQuery, ['examiner_id' => $examinerId]))); ?>
 <?php else: ?>
+<?php $vrTip = '<div class="vr-tip" id="vrTip" role="note"><i class="fas fa-lightbulb" aria-hidden="true"></i><span><b>زانیاری:</b> بۆ گۆڕینی شوێنی ستوونی دکتۆرێک، ناوەکەی <i class="fas fa-grip-vertical" aria-hidden="true"></i> بگرە و بە ماوس ڕایبکێشە بۆ شوێنی دڵخواز — بۆ هەمووان و بۆ PDF ـیش پاشەکەوت دەبێت. کرتە لە <i class="fas fa-layer-group" aria-hidden="true"></i> ی تەنیشت هەر ژمارەیەک بکە بۆ بینینی ئەو سەردانانەی پشتی.</span><button type="button" class="vr-tip-x" title="داخستن" aria-label="داخستن">&times;</button></div>'; ?>
+<?= $vrTip ?>
 <section class="vr-photo-sheet" aria-label="ئاماری سەردانەکان">
     <?= dh_visit_report_letterhead($db) ?>
     <div class="vr-photo-scroll">
@@ -490,4 +503,105 @@ $chips = [
 </div>
 
 <?php endif; ?>
+<style>
+.vr-photo-table th[draggable="true"] { cursor: grab; user-select: none; position: relative; }
+.vr-photo-table th[draggable="true"]::before { content: "\f58e"; font-family: "Font Awesome 6 Free"; font-weight: 900; position: absolute; top: 4px; left: 5px; font-size: 10px; color: #94a3b8; opacity: .55; }
+.vr-photo-table th[draggable="true"]:hover::before { opacity: 1; color: #2563eb; }
+.vr-tip { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 12px; padding: 10px 14px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; color: #1e3a8a; font-size: 13px; line-height: 1.8; }
+.vr-tip > .fa-lightbulb { color: #f59e0b; font-size: 16px; margin-top: 4px; }
+.vr-tip span { flex: 1; }
+.vr-tip span i { color: #2563eb; margin: 0 2px; }
+.vr-tip-x { background: none; border: 0; font-size: 20px; line-height: 1; color: #64748b; cursor: pointer; padding: 0 4px; }
+.vr-tip-x:hover { color: #0f172a; }
+.vr-tip.is-hidden { display: none; }
+@media print { .vr-tip { display: none; } }
+.vr-photo-table th[draggable="true"]:hover { background: #dbeafe; }
+.vr-photo-table th.vr-col-dragging { opacity: .45; }
+.vr-photo-table th.vr-col-drop-before { box-shadow: inset -4px 0 0 #2563eb; }
+.vr-photo-table th.vr-col-drop-after { box-shadow: inset 4px 0 0 #2563eb; }
+</style>
+<script>
+// Drag a doctor's column header to move the whole column; the order is saved
+// for everyone (screen, PDF, referral report) and every table here follows it.
+(function () {
+    var dragged = null;
+    // the tip: hidden for good once closed (this browser only)
+    document.querySelectorAll('.vr-tip').forEach(function (tip) {
+        try { if (localStorage.getItem('vrTipClosed') === '1') tip.classList.add('is-hidden'); } catch (x) {}
+        var x = tip.querySelector('.vr-tip-x');
+        if (x) x.addEventListener('click', function () {
+            tip.classList.add('is-hidden');
+            try { localStorage.setItem('vrTipClosed', '1'); } catch (e) {}
+        });
+    });
+    function order(table) {
+        var head = table.querySelector('th[data-vr-col]');
+        return head ? Array.prototype.map.call(head.parentNode.querySelectorAll('th[data-vr-col]'), function (th) { return th.getAttribute('data-vr-col'); }) : [];
+    }
+    // The table's columns that are in next take their places in next's order;
+    // a column next does not have stays where it is.
+    function slots(cur, next) {
+        var moved = next.filter(function (id) { return cur.indexOf(id) !== -1; });
+        return cur.map(function (id) { return next.indexOf(id) !== -1 ? moved.shift() : id; });
+    }
+    function apply(table, next) {
+        var cur = order(table);
+        if (!cur.length) return;
+        var want = slots(cur, next);
+        Array.prototype.forEach.call(table.rows, function (row) {
+            var cells = Array.prototype.filter.call(row.cells, function (c) { return c.hasAttribute('data-vr-col'); });
+            if (cells.length < 2) return;
+            var byId = {};
+            cells.forEach(function (c) { byId[c.getAttribute('data-vr-col')] = c; });
+            var anchor = cells[cells.length - 1].nextSibling;
+            want.forEach(function (id) { if (byId[id]) row.insertBefore(byId[id], anchor); });
+        });
+    }
+    function clear() {
+        document.querySelectorAll('.vr-col-drop-before, .vr-col-drop-after').forEach(function (el) { el.classList.remove('vr-col-drop-before', 'vr-col-drop-after'); });
+    }
+    function before(th, e) {
+        var r = th.getBoundingClientRect();
+        // right to left: the first half from the right is "before"
+        return e.clientX > r.left + r.width / 2;
+    }
+    document.addEventListener('dragstart', function (e) {
+        var th = e.target.closest && e.target.closest('.vr-photo-table th[data-vr-col][draggable]');
+        if (!th) return;
+        dragged = th;
+        th.classList.add('vr-col-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', th.getAttribute('data-vr-col')); } catch (x) {}
+    });
+    document.addEventListener('dragover', function (e) {
+        if (!dragged) return;
+        var th = e.target.closest && e.target.closest('.vr-photo-table th[data-vr-col]');
+        if (!th || th === dragged || th.closest('table') !== dragged.closest('table')) return;
+        e.preventDefault();
+        clear();
+        th.classList.add(before(th, e) ? 'vr-col-drop-before' : 'vr-col-drop-after');
+    });
+    document.addEventListener('drop', function (e) {
+        if (!dragged) return;
+        var th = e.target.closest && e.target.closest('.vr-photo-table th[data-vr-col]');
+        if (!th || th === dragged || th.closest('table') !== dragged.closest('table')) return;
+        e.preventDefault();
+        var ids = order(dragged.closest('table')), from = dragged.getAttribute('data-vr-col'), to = th.getAttribute('data-vr-col');
+        var putBefore = before(th, e);
+        ids.splice(ids.indexOf(from), 1);
+        ids.splice(ids.indexOf(to) + (putBefore ? 0 : 1), 0, from);
+        document.querySelectorAll('.vr-photo-table').forEach(function (t) { apply(t, ids); });
+        var body = new URLSearchParams({ action: 'column_order', order: ids.join(',') });
+        fetch(location.pathname, { method: 'POST', body: body, credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) { if (!j || !j.ok) throw new Error(); })
+            .catch(function () { alert('ڕیزبەندی ستوونەکان پاشەکەوت نەکرا'); });
+    });
+    document.addEventListener('dragend', function () {
+        if (dragged) dragged.classList.remove('vr-col-dragging');
+        dragged = null;
+        clear();
+    });
+})();
+</script>
 <?php require_once __DIR__ . '/includes/footer.php'; ?>
