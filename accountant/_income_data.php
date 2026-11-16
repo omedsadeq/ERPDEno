@@ -238,11 +238,20 @@ foreach ([
     'exam'     => ['Examinations', (int)($exam['n'] ?? 0), (float)($exam['amt'] ?? 0)],
 ] as $kind => [$label, $sysCount, $sysAmount]) {
     $m = $manualTotals[$kind];
+    // a general expense written on the pharmacy (admin/expenses-general.php,
+    // dept = 'pharmacy') comes off this row, as the X-ray's does off its own
+    $rowGeneral = $kind !== 'pharmacy' ? 0.0 : (float)($db->fetch(
+        "SELECT COALESCE(SUM(amount), 0) AS t FROM expenses_general WHERE dept = 'pharmacy' AND expense_date BETWEEN :f AND :t",
+        ['f' => $from, 't' => $to]
+    )['t'] ?? 0);
+    if (in_array('general', $expSel, true) && $rowGeneral > 0 && !in_array('general', $colSel, true)) {
+        array_unshift($colSel, 'general');
+    }
     // کۆڵۆمی تایبەت on the pharmacy row (none on the examinations)
     $rowCols = IncomeColumn::forRow($db, $kind, $from, $to);
     $deptRows[] = ['kind' => $kind, 'label' => $label, 'cols' => $rowCols['cols'], 'colTotal' => $rowCols['total'],
                    'count' => $sysCount + $m['qty'], 'amount' => $sysAmount + $m['amount'],
-                   'lab' => 0.0, 'store' => 0.0, 'general' => 0.0,
+                   'lab' => 0.0, 'store' => 0.0, 'general' => $rowGeneral,
                    'sysAmount' => $sysAmount, 'sysCount' => $sysCount,
                    'manualAmount' => $m['amount'], 'manualQty' => $m['qty'], 'manualEntries' => $m['entries']];
 }

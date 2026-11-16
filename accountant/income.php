@@ -320,8 +320,8 @@ body.inc-full-open{overflow:hidden}
                         <?php if ($k === 'store' && !isset($storeParts['storeTotal'])): ?>
                         <?php elseif ($r['kind'] === 'doctor' && abs($r[$k]) >= 0.5): ?>
                         <td class="n exp"><div class="xi-amt"><?= income_detail_button($k, (int)$r['id']) ?><span><?= incCell($r[$k]) ?></span></div></td>
-                        <?php elseif ($r['kind'] === 'xray' && $k === 'general' && abs($r[$k]) >= 0.5): ?>
-                        <td class="n exp"><div class="xi-amt"><?= income_detail_button('general', INCOME_DETAIL_XRAY_DEPT) ?><span><?= incCell($r[$k]) ?></span></div></td>
+                        <?php elseif (($r['kind'] === 'xray' || $r['kind'] === 'pharmacy') && $k === 'general' && abs($r[$k]) >= 0.5): ?>
+                        <td class="n exp"><div class="xi-amt"><?= income_detail_button('general', $r['kind'] === 'xray' ? INCOME_DETAIL_XRAY_DEPT : INCOME_DETAIL_PHARMACY_DEPT) ?><span><?= incCell($r[$k]) ?></span></div></td>
                         <?php else: ?>
                         <td class="n exp"><?= incCell($r[$k]) ?></td>
                         <?php endif; ?>

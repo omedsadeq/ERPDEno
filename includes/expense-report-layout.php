@@ -110,7 +110,7 @@ function exp_report_who(array $exp): string
     if (!empty($exp['doctor_name'])) {
         return (string)$exp['doctor_name'];
     }
-    return ($exp['dept'] ?? null) === 'xray' ? 'X-ray' : 'خەرجی سەنتەر';
+    return ['xray' => 'X-ray', 'pharmacy' => 'Pharmacy'][$exp['dept'] ?? ''] ?? 'خەرجی سەنتەر';
 }
 
 /** One cell's plain value (for sorting and for the PDF). */

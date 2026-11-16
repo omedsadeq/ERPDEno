@@ -115,7 +115,7 @@ $erJson = fn($v) => json_encode($v, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON
         $('erCatSel').value = e.cat ? String(e.cat) : ($('erCatSel').options[0] ? $('erCatSel').options[0].value : '');
         fillSubs(e.kind, $('erCatSel').value, e.sub);
         $('erDocSel').innerHTML = '<option value="">سەنتەر (بێ دکتۆر)</option>'
-            + (e.kind === 'general' ? '<option value="xray">X-ray (بەشی ئێکسڕەی)</option>' : '')
+            + (e.kind === 'general' ? '<option value="xray">X-ray (بەشی ئێکسڕەی)</option><option value="pharmacy">Pharmacy (دەرمانخانە)</option>' : '')
             + DOCS.map(function (d) { return '<option value="' + d.id + '">' + esc(d.name) + '</option>'; }).join('');
         $('erDocSel').value = e.doctor;
         f.vendor.value = e.vendor; f.receipt.value = e.receipt; f.notes.value = e.notes;

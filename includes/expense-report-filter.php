@@ -48,7 +48,7 @@ function exp_report_filters(array $in): array
         $f['type'] = $f['cat_kind'];
     }
     $doc = (string)($in['doctor'] ?? '');
-    $f['doctor'] = $doc === 'none' || $doc === 'xray' || ctype_digit($doc) ? $doc : '';
+    $f['doctor'] = in_array($doc, ['none', 'xray', 'pharmacy'], true) || ctype_digit($doc) ? $doc : '';
     $sort = (string)($in['sort'] ?? '');
     $f['sort'] = isset(EXP_REPORT_COLUMNS[$sort]) && EXP_REPORT_COLUMNS[$sort][2] ? $sort : '';
     $f['dir'] = ($in['dir'] ?? '') === 'asc' ? 'asc' : 'desc';
@@ -80,9 +80,9 @@ function exp_report_where(string $kind, array $f, bool $withType = true): ?array
     }
     if ($f['doctor'] === 'none') {
         $w .= ' AND e.doctor_id IS NULL' . ($kind === 'general' ? ' AND e.dept IS NULL' : '');
-    } elseif ($f['doctor'] === 'xray') {
-        // only a general expense can be the department's
-        $w .= $kind === 'general' ? " AND e.dept = 'xray'" : ' AND 0';
+    } elseif ($f['doctor'] === 'xray' || $f['doctor'] === 'pharmacy') {
+        // only a general expense can be a department's
+        $w .= $kind === 'general' ? " AND e.dept = '" . $f['doctor'] . "'" : ' AND 0';
     } elseif ($f['doctor'] !== '') {
         $w .= ' AND e.doctor_id = :doc';
         $p['doc'] = (int)$f['doctor'];
@@ -183,6 +183,8 @@ function exp_report_labels(array $f): array
         $doctor = 'خەرجی سەنتەر (بێ دکتۆر)';
     } elseif ($f['doctor'] === 'xray') {
         $doctor = 'X-ray (بەشی ئێکسڕەی)';
+    } elseif ($f['doctor'] === 'pharmacy') {
+        $doctor = 'Pharmacy (دەرمانخانە)';
     } elseif ($f['doctor'] !== '') {
         $doctor = (string)($db->fetch('SELECT full_name FROM users WHERE id = ?', [(int)$f['doctor']])['full_name'] ?? '—');
     }

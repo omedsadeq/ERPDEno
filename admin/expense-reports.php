@@ -357,6 +357,7 @@ a.er-chip:hover { border-color: var(--c); }
             <option value="">هەموو دکتۆرەکان</option>
             <option value="none" <?= $doctorId === 'none' ? 'selected' : '' ?>>خەرجی سەنتەر (بێ دکتۆر)</option>
             <option value="xray" <?= $doctorId === 'xray' ? 'selected' : '' ?>>X-ray (بەشی ئێکسڕەی)</option>
+            <option value="pharmacy" <?= $doctorId === 'pharmacy' ? 'selected' : '' ?>>Pharmacy (دەرمانخانە)</option>
             <?php foreach ($doctors as $doc): ?>
             <option value="<?= $doc['id'] ?>" <?= $doctorId === (string)$doc['id'] ? 'selected' : '' ?>><?= htmlspecialchars($doc['full_name']) ?></option>
             <?php endforeach; ?>
@@ -410,7 +411,7 @@ a.er-chip:hover { border-color: var(--c); }
                         $lock = income_detail_expense_lock($exp['source_type'] ?? null);
                         $ref = ['kind' => $kind, 'id' => (int)$exp['id'], 'type' => $exp['type_label'], 'date' => $exp['expense_date'], 'amount' => (float)$exp['amount'],
                                 'desc' => (string)($exp['description'] ?? ''), 'cat' => (int)($exp['category_id'] ?? 0), 'sub' => (int)($exp['subgroup_id'] ?? 0),
-                                'doctor' => !empty($exp['doctor_id']) ? (string)(int)$exp['doctor_id'] : (($exp['dept'] ?? null) === 'xray' ? 'xray' : ''),
+                                'doctor' => !empty($exp['doctor_id']) ? (string)(int)$exp['doctor_id'] : (in_array($exp['dept'] ?? null, ['xray', 'pharmacy'], true) ? $exp['dept'] : ''),
                                 'vendor' => exp_report_value('vendor', $exp), 'receipt' => exp_report_value('receipt', $exp), 'notes' => (string)($exp['notes'] ?? ''),
                                 'method' => (string)($exp['payment_method'] ?? ''), 'xkind' => (string)($exp['expense_kind'] ?? '')];
                     ?>
@@ -421,7 +422,7 @@ a.er-chip:hover { border-color: var(--c); }
                         <?php elseif ($k === 'type'): ?><td><span class="type-badge <?= $kind ?>"><?= $exp['type_label'] ?></span></td>
                         <?php elseif ($k === 'group'): ?><td><?= htmlspecialchars(in_array('sub', $shownKeys, true) ? ($exp['category_name'] ?? '-') : expense_group_label($exp)) ?></td>
                         <?php elseif ($k === 'desc'): ?><td style="text-align: right; max-width: 240px;"><?= htmlspecialchars($exp['description']) ?></td>
-                        <?php elseif ($k === 'doctor'): ?><td><?php if (!empty($exp['doctor_name'])): ?><?= htmlspecialchars($exp['doctor_name']) ?><?php elseif (($exp['dept'] ?? null) === 'xray'): ?><span style="color:#0369a1;font-weight:600">X-ray</span><?php else: ?><span style="color:#0f766e;font-weight:600">خەرجی سەنتەر</span><?php endif; ?></td>
+                        <?php elseif ($k === 'doctor'): ?><td><?php if (!empty($exp['doctor_name'])): ?><?= htmlspecialchars($exp['doctor_name']) ?><?php elseif (($exp['dept'] ?? null) === 'xray'): ?><span style="color:#0369a1;font-weight:600">X-ray</span><?php elseif (($exp['dept'] ?? null) === 'pharmacy'): ?><span style="color:#166534;font-weight:600">Pharmacy</span><?php else: ?><span style="color:#0f766e;font-weight:600">خەرجی سەنتەر</span><?php endif; ?></td>
                         <?php elseif ($k === 'amount'): ?><td><strong style="color: #c62828;"><?= number_format($exp['amount']) ?></strong></td>
                         <?php elseif ($k === 'notes'): ?><td style="text-align: right; max-width: 200px; white-space: pre-line;"><?= htmlspecialchars(exp_report_value($k, $exp)) ?></td>
                         <?php else: ?><td><?= htmlspecialchars((string)exp_report_value($k, $exp)) ?></td>

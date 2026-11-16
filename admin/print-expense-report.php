@@ -120,7 +120,7 @@ $accent = Branding::primaryColor();
             <?php if ($k === 'num'): ?><td class="num"><?= $i ?></td>
             <?php elseif ($k === 'type'): ?><td><span class="tag" style="--c:<?= $kindColor[$kind] ?>;--s:<?= $kindSoft[$kind] ?>"><?= $e($x['type_label']) ?></span></td>
             <?php elseif ($k === 'group'): ?><td><?= $e(in_array('sub', $keys, true) ? ($x['category_name'] ?? '-') : expense_group_label($x)) ?></td>
-            <?php elseif ($k === 'doctor'): ?><td><?php if (!empty($x['doctor_name'])): ?><?= $e($x['doctor_name']) ?><?php elseif (($x['dept'] ?? null) === 'xray'): ?><span class="who-x">X-ray</span><?php else: ?><span class="who-c">خەرجی سەنتەر</span><?php endif; ?></td>
+            <?php elseif ($k === 'doctor'): ?><td><?php if (!empty($x['doctor_name'])): ?><?= $e($x['doctor_name']) ?><?php elseif (($x['dept'] ?? null) === 'xray'): ?><span class="who-x">X-ray</span><?php elseif (($x['dept'] ?? null) === 'pharmacy'): ?><span class="who-x">Pharmacy</span><?php else: ?><span class="who-c">خەرجی سەنتەر</span><?php endif; ?></td>
             <?php elseif ($k === 'amount'): ?><td class="n amount"><?= number_format((float)$x['amount']) ?></td>
             <?php else: ?><td class="<?= $e($k) ?>"><?= $e((string)exp_report_value($k, $x)) ?></td>
             <?php endif; ?>
