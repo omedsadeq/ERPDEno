@@ -100,11 +100,10 @@ function lt_list_html(string $heading, $text): string
     return $html . '</div>';
 }
 
-/** The design a letter is drawn in: its own, else the default from the settings. */
+/** The design a letter is drawn in: the modern one — the classic sheet was taken away. */
 function lt_design(array $L, array $cfg): string
 {
-    $design = (string)($L['design'] ?? '');
-    return in_array($design, ['classic', 'modern'], true) ? $design : $cfg['letter_default_design'];
+    return 'modern';
 }
 
 /** 'rtl' when the text has any Arabic-script letter (Kurdish, Arabic), else 'ltr'. */

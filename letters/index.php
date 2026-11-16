@@ -19,6 +19,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string)($_POST['action'] ?? '');
     $lid = (int)($_POST['letter_id'] ?? 0);
     $back = APP_URL . '/letters/index.php' . (!empty($_POST['return']) && $_POST['return'][0] === '?' ? $_POST['return'] : '');
+    if ($lid > 0 && ($target = $letters->find($lid))) {
+        letters_require_own($target);   // a doctor acts only on their own letters
+    }
     if ($lid > 0 && $canEdit && $action === 'cancel') {
         $letters->cancel($lid, (string)($_POST['reason'] ?? ''), $letterUserId);
         $back .= (strpos($back, '?') === false ? '?' : '&') . 'cancelled=1';
@@ -39,16 +42,19 @@ $filters = [
     'from'   => (string)($_GET['from'] ?? ''),
     'to'     => (string)($_GET['to'] ?? ''),
     'status' => (string)($_GET['status'] ?? ''),
+    'signer' => ctype_digit((string)($_GET['signer'] ?? '')) ? (string)$_GET['signer'] : '',
 ];
+$ownScope = letters_own_scope();
+$signerDoctors = $ownScope ? [] : $letters->signers();
 $perPage = 25;
 $page = max(1, (int)($_GET['page'] ?? 1));
-[$rows, $total] = $letters->search($filters, $page, $perPage);
+[$rows, $total] = $letters->search($filters + $ownScope, $page, $perPage);
 $pages = max(1, (int)ceil($total / $perPage));
 $stats = $letters->stats();
 $years = $letters->years();
 $cfg = $letters->settings();
 $digits = $cfg['letter_digits'];
-$filtered = $filters['q'] !== '' || $filters['year'] || $filters['from'] !== '' || $filters['to'] !== '' || $filters['status'] !== '';
+$filtered = $filters['q'] !== '' || $filters['year'] || $filters['from'] !== '' || $filters['to'] !== '' || $filters['status'] !== '' || $filters['signer'] !== '';
 
 $h = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
 $qs = function (array $over) use ($filters, $page) {
@@ -104,6 +110,15 @@ require_once __DIR__ . '/../includes/header.php';
             <option value="active" <?= $filters['status'] === 'active' ? 'selected' : '' ?>>چالاک</option>
             <option value="cancelled" <?= $filters['status'] === 'cancelled' ? 'selected' : '' ?>>هەڵوەشێنراوە</option>
         </select>
+        <?php if ($signerDoctors): ?>
+        <select name="signer" class="form-control" aria-label="واژۆکەر">
+            <option value="">هەموو واژۆکەرەکان</option>
+            <option value="0" <?= $filters['signer'] === '0' ? 'selected' : '' ?>>سەنتەر (واژۆکەری بنەڕەت)</option>
+            <?php foreach ($signerDoctors as $sd): ?>
+            <option value="<?= $sd['doctor_id'] ?>" <?= $filters['signer'] === (string)$sd['doctor_id'] ? 'selected' : '' ?>><?= $h($sd['doctor_name']) ?></option>
+            <?php endforeach; ?>
+        </select>
+        <?php endif; ?>
         <button type="submit" class="btn btn-secondary"><i class="fas fa-search"></i> گەڕان</button>
         <?php if ($filtered): ?><a href="<?= APP_URL ?>/letters/index.php" class="btn btn-subtle">پاککردنەوە</a><?php endif; ?>
     </form>

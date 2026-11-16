@@ -6,6 +6,8 @@
  *   POST letter fields          → that letter with the saved letterhead
  *   POST sample=1 + cfg[...]    → a sample letter with the unsaved letterhead
  *                                 (cfg is honoured only for letters.settings)
+ *        + sample_doctor=ID     → signed with that doctor's block as typed in
+ *                                 doc[ID][name|title] and their saved signature
  */
 
 require_once __DIR__ . '/_bootstrap.php';
@@ -33,8 +35,8 @@ $field = function (string $key, string $placeholder = '') {
     return $v !== '' ? $v : $placeholder;
 };
 
-if (!empty($_POST['sample']) && $cfg['letter_default_design'] === 'modern') {
-    // The kind of letter the modern sheet was designed for.
+if (!empty($_POST['sample'])) {
+    // The kind of letter the sheet was designed for.
     $date = date('Y-m-d');
     $L = [
         'design'         => 'modern',
@@ -49,30 +51,23 @@ if (!empty($_POST['sample']) && $cfg['letter_default_design'] === 'modern') {
         'show_signature' => 1,
         'show_seal'      => 1,
     ];
-} elseif (!empty($_POST['sample'])) {
-    $date = date('Y-m-d');
-    $L = [
-        'design'         => 'classic',
-        'letter_number'  => OfficialLetter::formatNumber($cfg['letter_number_format'], 12, $date),
-        'letter_date'    => $date,
-        'recipient'      => 'بەڕێوەبەرایەتی باجی دەرامەت',
-        'subject'        => 'داواکاری لێخۆشبوون لە غەرامە',
-        'greeting'       => $cfg['letter_default_greeting'],
-        'body'           => "بەڕێزتان ئاگادار دەکەینەوە کە سەنتەرەکەمان بەهۆی دواکەوتنی ناردنی بەڵگەنامەکان نەیتوانیوە لە کاتی دیاریکراودا باجی ساڵانە جێبەجێ بکات، بۆیە داواکارین بە چاوی ڕەزامەندییەوە سەیری داواکارییەکەمان بکەن و لە غەرامەی دواکەوتن لێمان خۆش بن.\n\nهیوادارین داواکارییەکەمان جێگەی ڕەزامەندی بەڕێزتان بێت.",
-        'closing'        => $cfg['letter_default_closing'],
-        'signer_name'    => $cfg['letter_default_signer_name'] !== '' ? $cfg['letter_default_signer_name'] : 'ناوی واژۆکەر',
-        'signer_title'   => $cfg['letter_default_signer_title'] !== '' ? $cfg['letter_default_signer_title'] : 'ناونیشانی وەزیفی',
-        'cc_list'        => "بەشی یاسایی / بۆ ئاگاداری\nدۆسیەی تایبەت",
-        'show_signature' => 1,
-        'show_seal'      => 1,
-    ];
+    // The doctor whose block is being written in the settings.
+    $sampleDoctor = (int)($_POST['sample_doctor'] ?? 0);
+    if ($sampleDoctor > 0 && $perm->can('letters.settings')) {
+        $typed = is_array($_POST['doc'][$sampleDoctor] ?? null) ? $_POST['doc'][$sampleDoctor] : [];
+        $name = trim((string)($typed['name'] ?? ''));
+        $L['signer_doctor_id'] = $sampleDoctor;
+        $L['signer_name'] = $name !== '' ? $name : (string)($typed['doctor'] ?? 'Doctor Name');
+        $L['signer_title'] = trim(str_replace(["\r\n", "\r"], "\n", (string)($typed['title'] ?? '')));
+    }
 } else {
     $date = OfficialLetter::normalizeDigits($field('letter_date', date('Y-m-d')));
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !strtotime($date)) {
         $date = date('Y-m-d');
     }
     $L = [
-        'design'         => OfficialLetter::design($_POST['design'] ?? null) ?? $cfg['letter_default_design'],
+        'design'         => 'modern',
+        'signer_doctor_id' => (int)($_POST['signer_doctor_id'] ?? 0),
         'letter_number'  => $field('letter_number'),
         'letter_date'    => $date,
         'recipient'      => $field('recipient', '..........'),
@@ -92,7 +87,7 @@ if (!empty($_POST['sample']) && $cfg['letter_default_design'] === 'modern') {
 $L['status'] = 'active';
 
 header('Content-Type: text/html; charset=utf-8');
-echo lt_document($L, $cfg, OfficialLetter::assetUrls($cfg), [
+echo lt_document($L, $cfg, $letters->letterImages($L, $cfg, false), [
     'title'    => 'پێشبینین',
     'preview'  => true,
     'font_css' => asset_url('assets/css/fonts.css'),

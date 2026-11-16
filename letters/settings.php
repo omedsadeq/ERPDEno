@@ -1,34 +1,36 @@
 <?php
 /**
- * سەردێڕ و واژۆ — the letterhead every letter is printed on.
+ * سەردێڕ و واژۆ — the letterhead every letter is printed on (the modern
+ * sheet; the classic one was taken away).
  *
- * Header: logo + text on both sides (Kurdish right, English left, a line
- * under the logo), or one designed letterhead image. Footer: text lines, an
- * image, or nothing. Plus the signature and seal images, how letters are
- * numbered, the default greeting/closing/signer, the colour and text size.
+ * The header (Kurdish right, English left, the logo between), the colour, the
+ * faded logo, the wave footer with address, QR and phones; the centre's
+ * signer, signature and seal; and «واژۆی دکتۆرەکان»: every doctor's own
+ * block — the name, the lines under it (specialty, degree, post) and their
+ * own signature image — for the letters written in that doctor's name.
  *
- * Everything is stored in `settings` (letter_* keys); images go to
- * uploads/letters/ and are served only through letters/asset.php. The sheet
- * on the side redraws a sample letter with the unsaved values as you edit.
+ * Settings live in `settings` (letter_* keys), the doctors' blocks in
+ * official_letter_signers; images go to uploads/letters/ and are served only
+ * through letters/asset.php. The sheet on the side redraws a sample letter
+ * with the unsaved values as you edit (a doctor's block while it is open).
  */
 
 require_once __DIR__ . '/_bootstrap.php';
 letters_require('letters.settings');
 
 $cfg = $letters->settings();
+$signers = $letters->signers();
 $error = '';
 
 $textKeys = [
-    'letter_header_right', 'letter_header_center', 'letter_header_left', 'letter_footer_text',
     'letter_number_format', 'letter_default_greeting', 'letter_default_closing',
     'letter_default_signer_name', 'letter_default_signer_title',
     'letter_modern_header_right', 'letter_modern_header_left', 'letter_modern_contacts', 'letter_modern_address',
 ];
-$choiceKeys = [
-    'letter_header_mode', 'letter_footer_mode', 'letter_digits', 'letter_signature_side',
-    'letter_accent_color', 'letter_font_size', 'letter_default_design', 'letter_modern_color',
-];
-$flagKeys = ['letter_show_logo', 'letter_header_line', 'letter_number_yearly', 'letter_kurdish_year', 'letter_modern_watermark'];
+$choiceKeys = ['letter_font_size', 'letter_modern_color'];
+$flagKeys = ['letter_number_yearly', 'letter_modern_watermark'];
+// The images this page offers (the classic header/footer images are no longer used).
+$assetKinds = ['logo', 'qr', 'signature', 'seal'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     Csrf::require();
@@ -51,7 +53,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stored = [];
     $replaced = [];
     try {
-        foreach (OfficialLetter::ASSETS as $kind => $key) {
+        foreach ($assetKinds as $kind) {
+            $key = OfficialLetter::ASSETS[$kind];
             $file = $_FILES['file_' . $kind] ?? null;
             if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
                 $next[$key] = $stored[] = $letters->storeAsset($kind, $file);
@@ -62,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         $save = [];
-        foreach (array_merge($textKeys, $choiceKeys, $flagKeys, array_values(OfficialLetter::ASSETS)) as $k) {
+        foreach (array_merge($textKeys, $choiceKeys, $flagKeys, array_values(OfficialLetter::ASSETS), ['letter_default_design']) as $k) {
             $save[$k] = $next[$k];
         }
         $letters->saveSettings($save);
@@ -72,6 +75,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (class_exists('AuditLog')) {
             AuditLog::log('letter_settings_update', 'settings', null);
         }
+
+        // Every doctor's own block.
+        $docs = is_array($_POST['doc'] ?? null) ? $_POST['doc'] : [];
+        $removeSig = is_array($_POST['docsig_remove'] ?? null) ? $_POST['docsig_remove'] : [];
+        foreach ($signers as $s) {
+            $id = $s['doctor_id'];
+            if (!isset($docs[$id]) || !is_array($docs[$id])) {
+                continue;
+            }
+            $letters->saveSigner($id, (string)($docs[$id]['name'] ?? ''), (string)($docs[$id]['title'] ?? ''),
+                $_FILES['docsig_' . $id] ?? null, !empty($removeSig[$id]), $letterUserId);
+        }
         header('Location: ' . APP_URL . '/letters/settings.php?saved=1');
         exit;
     } catch (InvalidArgumentException | RuntimeException $ex) {
@@ -80,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $error = $ex->getMessage();
         $cfg = array_merge($cfg, array_diff_key($next, array_flip(OfficialLetter::ASSETS)));
+        $signers = $letters->signers();
     }
 }
 
@@ -91,29 +107,31 @@ foreach (array_keys(OfficialLetter::ASSETS) as $kind) {
 $h = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
 $checked = function ($key) use ($cfg) { return $cfg[$key] === '1' ? 'checked' : ''; };
 $selected = function ($key, $value) use ($cfg) { return $cfg[$key] === $value ? 'selected' : ''; };
-$radio = function ($key, $value) use ($cfg) { return $cfg[$key] === $value ? 'checked' : ''; };
 
 /** One image slot: current thumbnail, file picker, remove box. */
-$imageSlot = function (string $kind, string $label, string $hint) use ($urls, $has, $h) {
+$imageSlot = function (string $field, ?string $url, bool $hasFile, string $removeName, string $label, string $hint) use ($h) {
     ?>
     <div class="lts-img">
         <div class="lts-img-thumb">
-            <?php if ($urls[$kind]): ?>
-            <img src="<?= $h($urls[$kind]) ?>" alt="">
+            <?php if ($url): ?>
+            <img src="<?= $h($url) ?>" alt="">
             <?php else: ?>
             <span><i class="fas fa-image"></i></span>
             <?php endif; ?>
         </div>
         <div class="lts-img-body">
             <b><?= $h($label) ?></b>
-            <input type="file" name="file_<?= $kind ?>" accept="image/png,image/jpeg" class="form-control">
+            <input type="file" name="<?= $h($field) ?>" accept="image/png,image/jpeg" class="form-control">
             <div class="form-hint"><?= $h($hint) ?></div>
-            <?php if ($has[$kind]): ?>
-            <label class="lts-remove"><input type="checkbox" name="remove_<?= $kind ?>" value="1"> لابردنی ئەم وێنەیە</label>
+            <?php if ($hasFile): ?>
+            <label class="lts-remove"><input type="checkbox" name="<?= $h($removeName) ?>" value="1"> لابردنی ئەم وێنەیە</label>
             <?php endif; ?>
         </div>
     </div>
     <?php
+};
+$slot = function (string $kind, string $label, string $hint) use ($imageSlot, $urls, $has) {
+    $imageSlot('file_' . $kind, $urls[$kind], $has[$kind], 'remove_' . $kind, $label, $hint);
 };
 
 $pageTitle = 'سەردێڕ و واژۆی نوسراو';
@@ -130,37 +148,10 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="lts-layout">
     <form method="POST" enctype="multipart/form-data" id="ltsForm" autocomplete="off">
         <?= Csrf::field() ?>
+        <input type="hidden" name="sample_doctor" id="ltsSampleDoctor" value="">
 
         <div class="panel">
-            <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-swatchbook"></i> تێمپلیت</h3></div>
-            <div class="panel-body">
-                <div class="lts-designs">
-                    <label class="lts-design">
-                        <input type="radio" name="cfg[letter_default_design]" value="classic" <?= $radio('letter_default_design', 'classic') ?>>
-                        <span class="lts-thumb lts-thumb-classic" aria-hidden="true"><i></i><b></b><b></b><b></b><s></s></span>
-                        <span class="lts-design-name">کلاسیک</span>
-                        <span class="lts-design-note">ژمارە، ڕێکەوت، «بۆ / بابەت» بە کوردی</span>
-                    </label>
-                    <label class="lts-design">
-                        <input type="radio" name="cfg[letter_default_design]" value="modern" <?= $radio('letter_default_design', 'modern') ?>>
-                        <span class="lts-thumb lts-thumb-modern" aria-hidden="true"><i></i><b></b><b></b><b></b><s></s></span>
-                        <span class="lts-design-name">مۆدێرن</span>
-                        <span class="lts-design-note">Number / Date / Subject، لۆگۆی کاڵ و ژێرپەڕەی ڕەنگاوڕەنگ</span>
-                    </label>
-                </div>
-                <div class="form-hint">ئەوەی هەڵیدەبژێریت بۆ نوسراوی نوێ بەکاردێت؛ لە هەر نوسراوێکدا دەتوانرێت بگۆڕدرێت. ڕێکخستنەکانی خوارەوە و پێشبینینەکە بۆ ئەم تێمپلیتەن.</div>
-            </div>
-        </div>
-
-        <div class="panel">
-            <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-image"></i> لۆگۆ</h3></div>
-            <div class="panel-body">
-                <?php $imageSlot('logo', 'لۆگۆ', $has['logo'] ? 'لۆگۆی تایبەتی نوسراو. لابردنی دەیگەڕێنێتەوە بۆ لۆگۆی سیستەم.' : 'ئێستا لۆگۆی سیستەم بەکاردێت. بۆ تێمپلیتی مۆدێرن لۆگۆیەکی PNG بە باکگراوندی ڕوون باشترە، چونکە لە پشتی نووسینەکەش کاڵ دەکرێتەوە.'); ?>
-            </div>
-        </div>
-
-        <div class="panel lts-when" data-when="letter_default_design=modern">
-            <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-palette"></i> تێمپلیتی مۆدێرن</h3></div>
+            <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-heading"></i> سەردێڕ و لۆگۆ</h3></div>
             <div class="panel-body">
                 <div class="form-row">
                     <div class="form-group">
@@ -173,6 +164,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
                 </div>
                 <div class="form-hint" style="margin-top:-6px;">دێڕی یەکەم گەورە، دێڕی دووەم بچووکتر.</div>
+                <?php $slot('logo', 'لۆگۆ', $has['logo'] ? 'لۆگۆی تایبەتی نوسراو. لابردنی دەیگەڕێنێتەوە بۆ لۆگۆی سیستەم.' : 'ئێستا لۆگۆی سیستەم بەکاردێت. لۆگۆیەکی PNG بە باکگراوندی ڕوون باشترە، چونکە لە پشتی نووسینەکەش کاڵ دەکرێتەوە.'); ?>
                 <div class="form-row" style="margin-top:12px;">
                     <div class="form-group">
                         <label>ڕەنگ</label>
@@ -183,112 +175,98 @@ require_once __DIR__ . '/../includes/header.php';
                         <label><input type="hidden" name="cfg[letter_modern_watermark]" value="0"><input type="checkbox" name="cfg[letter_modern_watermark]" value="1" <?= $checked('letter_modern_watermark') ?>> لۆگۆ بە کاڵی لە پشتی نووسینەکە</label>
                     </div>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>ژێرپەڕە — ناونیشان (لای ڕاست)</label>
-                        <textarea name="cfg[letter_modern_address]" class="form-control" rows="2"><?= $h($cfg['letter_modern_address']) ?></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>ژێرپەڕە — ژمارەی تەلەفۆن (لای چەپ)</label>
-                        <textarea name="cfg[letter_modern_contacts]" class="form-control" rows="2" dir="ltr" style="text-align:left;"><?= $h($cfg['letter_modern_contacts']) ?></textarea>
-                    </div>
-                </div>
-                <?php $imageSlot('qr', 'QR کۆد (ناوەڕاستی ژێرپەڕە)', 'وێنەی QR کۆدەکەت (PNG یان JPG). بێ ئەوە، ژێرپەڕەکە بێ QR دەردەکەوێت.'); ?>
-            </div>
-        </div>
-
-        <div class="panel lts-when" data-when="letter_default_design=classic">
-            <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-heading"></i> سەردێڕ (سەرەوەی پەڕە)</h3></div>
-            <div class="panel-body">
-                <div class="lts-modes">
-                    <label><input type="radio" name="cfg[letter_header_mode]" value="text" <?= $radio('letter_header_mode', 'text') ?>> لۆگۆ و نووسین</label>
-                    <label><input type="radio" name="cfg[letter_header_mode]" value="image" <?= $radio('letter_header_mode', 'image') ?>> وێنەی ئامادەکراوی سەردێڕ</label>
-                </div>
-                <div class="lts-when" data-when="letter_header_mode=text">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>لای ڕاست (کوردی/عەرەبی)</label>
-                            <textarea name="cfg[letter_header_right]" class="form-control" rows="4"><?= $h($cfg['letter_header_right']) ?></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label>لای چەپ (ئینگلیزی)</label>
-                            <textarea name="cfg[letter_header_left]" class="form-control" rows="4" dir="ltr" style="text-align:left;"><?= $h($cfg['letter_header_left']) ?></textarea>
-                        </div>
-                    </div>
-                    <div class="form-hint" style="margin-top:-6px;">هەر دێڕێک لە دێڕێکی جیادا. دێڕی یەکەم گەورەتر و تۆختر دەنووسرێت.</div>
-                    <div class="form-group" style="margin-top:12px;">
-                        <label>ژێر لۆگۆ (ئارەزوومەندانە)</label>
-                        <input type="text" name="cfg[letter_header_center]" class="form-control" value="<?= $h($cfg['letter_header_center']) ?>">
-                    </div>
-                    <div class="lts-checks">
-                        <label><input type="hidden" name="cfg[letter_show_logo]" value="0"><input type="checkbox" name="cfg[letter_show_logo]" value="1" <?= $checked('letter_show_logo') ?>> لۆگۆ پیشان بدە</label>
-                        <label><input type="hidden" name="cfg[letter_header_line]" value="0"><input type="checkbox" name="cfg[letter_header_line]" value="1" <?= $checked('letter_header_line') ?>> هێڵ لەژێر سەردێڕ</label>
-                    </div>
-                </div>
-                <div class="lts-when" data-when="letter_header_mode=image">
-                    <?php $imageSlot('header', 'وێنەی سەردێڕ', 'وێنەیەکی پان (نموونە ٢٠٠٠×٣٠٠ پیکسڵ) بە هەموو پانی پەڕەکە دادەنرێت.'); ?>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel lts-when" data-when="letter_default_design=classic">
-            <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-shoe-prints"></i> ژێرپەڕە (خوارەوەی پەڕە)</h3></div>
-            <div class="panel-body">
-                <div class="lts-modes">
-                    <label><input type="radio" name="cfg[letter_footer_mode]" value="text" <?= $radio('letter_footer_mode', 'text') ?>> نووسین</label>
-                    <label><input type="radio" name="cfg[letter_footer_mode]" value="image" <?= $radio('letter_footer_mode', 'image') ?>> وێنە</label>
-                    <label><input type="radio" name="cfg[letter_footer_mode]" value="none" <?= $radio('letter_footer_mode', 'none') ?>> هیچ</label>
-                </div>
-                <div class="lts-when" data-when="letter_footer_mode=text">
-                    <div class="form-group">
-                        <textarea name="cfg[letter_footer_text]" class="form-control" rows="3"
-                                  placeholder="ناونیشان، ژمارەی تەلەفۆن، ئیمەیڵ..."><?= $h($cfg['letter_footer_text']) ?></textarea>
-                        <div class="form-hint">لە خوارەوەی هەموو پەڕەکان دەردەکەوێت.</div>
-                    </div>
-                </div>
-                <div class="lts-when" data-when="letter_footer_mode=image">
-                    <?php $imageSlot('footer', 'وێنەی ژێرپەڕە', 'وێنەیەکی پان؛ بەرزییەکەی تا ٣ سانتیمەتر دەبێت.'); ?>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel" id="ltsSign">
-            <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-signature"></i> واژۆ و مۆر</h3></div>
-            <div class="panel-body">
-                <div class="lts-note"><i class="fas fa-lock"></i> ئەم وێنانە تەنها لە ناو سیستەمەکەدا پیشان دەدرێن و لینکی گشتییان نییە. لە هەر نوسراوێکدا بە جیا هەڵدەبژێردرێن.</div>
-                <?php $imageSlot('signature', 'واژۆ', 'PNG بە باکگراوندی ڕوون باشترە.'); ?>
-                <?php $imageSlot('seal', 'مۆر', 'PNG بە باکگراوندی ڕوون باشترە؛ کەمێک دەکەوێتە سەر واژۆکە.'); ?>
-                <div class="form-group lts-when" data-when="letter_default_design=classic" style="margin-top:12px;">
-                    <label>شوێنی واژۆ لە پەڕەکەدا</label>
-                    <select name="cfg[letter_signature_side]" class="form-control">
-                        <option value="left" <?= $selected('letter_signature_side', 'left') ?>>لای چەپ</option>
-                        <option value="center" <?= $selected('letter_signature_side', 'center') ?>>ناوەڕاست</option>
-                        <option value="right" <?= $selected('letter_signature_side', 'right') ?>>لای ڕاست</option>
-                    </select>
-                </div>
             </div>
         </div>
 
         <div class="panel">
-            <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-hashtag"></i> ژمارە و ڕێکەوت</h3></div>
+            <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-shoe-prints"></i> ژێرپەڕە</h3></div>
             <div class="panel-body">
                 <div class="form-row">
                     <div class="form-group">
-                        <label>شێوەی ژمارە</label>
-                        <input type="text" name="cfg[letter_number_format]" id="ltsFormat" class="form-control" maxlength="40" value="<?= $h($cfg['letter_number_format']) ?>">
-                        <div class="form-hint">{n} = ژمارەی زنجیرە، {y} = ساڵ، {m} = مانگ. نموونە: <code>{n}</code> یان <code>ل/{n}/{y}</code><br>نوسراوی داهاتوو: <b id="ltsFormatOut"></b></div>
+                        <label>ناونیشان (لای ڕاست)</label>
+                        <textarea name="cfg[letter_modern_address]" class="form-control" rows="2"><?= $h($cfg['letter_modern_address']) ?></textarea>
                     </div>
-                    <div class="form-group lts-when" data-when="letter_default_design=classic">
-                        <label>ژمارەکان</label>
-                        <select name="cfg[letter_digits]" class="form-control">
-                            <option value="ku" <?= $selected('letter_digits', 'ku') ?>>کوردی (١٢٣)</option>
-                            <option value="latin" <?= $selected('letter_digits', 'latin') ?>>ئینگلیزی (123)</option>
-                        </select>
+                    <div class="form-group">
+                        <label>ژمارەی تەلەفۆن (لای چەپ)</label>
+                        <textarea name="cfg[letter_modern_contacts]" class="form-control" rows="2" dir="ltr" style="text-align:left;"><?= $h($cfg['letter_modern_contacts']) ?></textarea>
                     </div>
+                </div>
+                <?php $slot('qr', 'QR کۆد (ناوەڕاستی ژێرپەڕە)', 'وێنەی QR کۆدەکەت (PNG یان JPG). بێ ئەوە، ژێرپەڕەکە بێ QR دەردەکەوێت.'); ?>
+            </div>
+        </div>
+
+        <div class="panel" id="ltsSign">
+            <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-signature"></i> واژۆ و مۆری سەنتەر</h3></div>
+            <div class="panel-body">
+                <div class="lts-note"><i class="fas fa-lock"></i> ئەم وێنانە تەنها لە ناو سیستەمەکەدا پیشان دەدرێن و لینکی گشتییان نییە. لە هەر نوسراوێکدا بە جیا هەڵدەبژێردرێن.</div>
+                <div class="form-row" style="margin-top:12px;">
+                    <div class="form-group">
+                        <label>ناوی واژۆکەری بنەڕەت</label>
+                        <input type="text" name="cfg[letter_default_signer_name]" class="form-control" maxlength="150" value="<?= $h($cfg['letter_default_signer_name']) ?>"
+                               placeholder="نموونە: Signer Name">
+                    </div>
+                    <div class="form-group">
+                        <label>دێڕەکانی ژێر ناو</label>
+                        <textarea name="cfg[letter_default_signer_title]" class="form-control" rows="3" maxlength="255"
+                                  placeholder="Owner and Authorized Representative&#10;Lezan Dental Clinics"><?= $h($cfg['letter_default_signer_title']) ?></textarea>
+                    </div>
+                </div>
+                <div class="form-hint" style="margin-top:-6px;">بۆ ئەو نوسراوانەی بە ناوی سەنتەرەوە دەنووسرێن. نوسراوی دکتۆرێک واژۆی خۆی دەبات (خوارەوە).</div>
+                <?php $slot('signature', 'واژۆی سەنتەر', 'PNG بە باکگراوندی ڕوون باشترە.'); ?>
+                <?php $slot('seal', 'مۆر', 'PNG بە باکگراوندی ڕوون باشترە؛ کەمێک دەکەوێتە سەر واژۆکە. هەموو نوسراوەکان هەمان مۆر دەبەن.'); ?>
+            </div>
+        </div>
+
+        <div class="panel" id="ltsDoctors">
+            <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-user-doctor"></i> واژۆی دکتۆرەکان</h3></div>
+            <div class="panel-body">
+                <div class="lts-note"><i class="fas fa-circle-info"></i> هەر دکتۆرێک بەشی واژۆی خۆی: ناو، و ئەو دێڕانەی لە ژێریدا دەنووسرێن (پسپۆڕی، بڕوانامە، پۆست)، و وێنەی واژۆکەی. لە نووسینی نوسراودا «بە ناوی کێ» هەڵدەبژێردرێت و ئەمانە خۆیان دادەنرێن. دکتۆرێک کە بچێتە ژوورەوە، نوسراوی نوێی بە ناوی خۆیەوە دەبێت.</div>
+                <?php if (!$signers): ?>
+                <p class="form-hint" style="margin-top:10px;">هیچ دکتۆرێکی چالاک نییە.</p>
+                <?php endif; ?>
+                <?php foreach ($signers as $s):
+                    $id = $s['doctor_id'];
+                    $written = $s['signer_name'] || $s['signer_title'];
+                    $sigUrl = $s['has_signature'] ? APP_URL . '/letters/asset.php?k=signature&d=' . $id . '&v=' . (int)@filemtime(OfficialLetter::signerSignaturePath($s['signature_file'])) : null;
+                ?>
+                <details class="lts-doc" data-doctor="<?= $id ?>">
+                    <summary>
+                        <span class="lts-doc-name"><?= $h($s['doctor_name']) ?><?= (int)$s['is_active'] === 1 ? '' : ' <small>(ناچالاک)</small>' ?></span>
+                        <span class="lts-doc-chips">
+                            <span class="lts-chip <?= $written ? 'is-ok' : '' ?>"><?= $written ? 'نووسراوە' : 'هێشتا نەنووسراوە' ?></span>
+                            <?php if ($s['has_signature']): ?><span class="lts-chip is-ok"><i class="fas fa-signature"></i> واژۆ</span><?php endif; ?>
+                        </span>
+                    </summary>
+                    <div class="lts-doc-body">
+                        <input type="hidden" name="doc[<?= $id ?>][doctor]" value="<?= $h($s['doctor_name']) ?>">
+                        <div class="form-group">
+                            <label>ناو لە نوسراودا</label>
+                            <input type="text" name="doc[<?= $id ?>][name]" class="form-control" maxlength="150" value="<?= $h($s['signer_name']) ?>"
+                                   placeholder="<?= $h($s['doctor_name']) ?>">
+                            <div class="form-hint">بەتاڵ = ناوی دکتۆرەکە وەک لە سیستەمدایە. بۆ نوسراوی ئینگلیزی/عەرەبی ناوەکە بەو زمانە بنووسە.</div>
+                        </div>
+                        <div class="form-group">
+                            <label>دێڕەکانی ژێر ناو <small>(هەر دێڕێک لە دێڕێکدا)</small></label>
+                            <textarea name="doc[<?= $id ?>][title]" class="form-control" rows="3" maxlength="255"
+                                      placeholder="Specialist Orthodontist&#10;BDS, MSc in Orthodontics&#10;Lezan Dental Clinics"><?= $h($s['signer_title']) ?></textarea>
+                        </div>
+                        <?php $imageSlot('docsig_' . $id, $sigUrl, $s['has_signature'], 'docsig_remove[' . $id . ']', 'واژۆی ' . $s['doctor_name'], 'PNG بە باکگراوندی ڕوون باشترە. تەنها لەسەر نوسراوەکانی ئەم دکتۆرە دادەنرێت.'); ?>
+                    </div>
+                </details>
+                <?php endforeach; ?>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-hashtag"></i> ژمارەی نوسراو</h3></div>
+            <div class="panel-body">
+                <div class="form-group">
+                    <label>شێوەی ژمارە</label>
+                    <input type="text" name="cfg[letter_number_format]" id="ltsFormat" class="form-control" maxlength="40" value="<?= $h($cfg['letter_number_format']) ?>">
+                    <div class="form-hint">{n} = ژمارەی زنجیرە، {y} = ساڵ، {m} = مانگ. نموونە: <code>{n}</code> یان <code>ل/{n}/{y}</code><br>نوسراوی داهاتوو: <b id="ltsFormatOut"></b></div>
                 </div>
                 <div class="lts-checks">
                     <label><input type="hidden" name="cfg[letter_number_yearly]" value="0"><input type="checkbox" name="cfg[letter_number_yearly]" value="1" <?= $checked('letter_number_yearly') ?>> ژمارەکان هەموو ساڵێک لە ١ەوە دەست پێبکەنەوە</label>
-                    <label class="lts-when" data-when="letter_default_design=classic"><input type="hidden" name="cfg[letter_kurdish_year]" value="0"><input type="checkbox" name="cfg[letter_kurdish_year]" value="1" <?= $checked('letter_kurdish_year') ?>> ساڵی کوردیش بنووسە (نموونە ٢٧٢٦ی کوردی)</label>
                 </div>
                 <div class="form-hint">بۆ دەستپێکردن لە ژمارەیەکی دیاریکراو (نموونە ١٥٠)، لە نوسراوی داهاتوودا ژمارەکە بە دەست بنووسە؛ دواتر خۆکار لەوێوە بەردەوام دەبێت.</div>
             </div>
@@ -307,35 +285,13 @@ require_once __DIR__ . '/../includes/header.php';
                         <input type="text" name="cfg[letter_default_closing]" class="form-control" maxlength="255" value="<?= $h($cfg['letter_default_closing']) ?>">
                     </div>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>ناوی واژۆکەر</label>
-                        <input type="text" name="cfg[letter_default_signer_name]" class="form-control" maxlength="150" value="<?= $h($cfg['letter_default_signer_name']) ?>">
-                    </div>
-                    <div class="form-group">
-                        <label>ناونیشانی وەزیفی</label>
-                        <textarea name="cfg[letter_default_signer_title]" class="form-control" rows="2" maxlength="255"><?= $h($cfg['letter_default_signer_title']) ?></textarea>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel">
-            <div class="panel-header"><h3 class="panel-title" style="margin:0;"><i class="fas fa-palette"></i> ڕووکار</h3></div>
-            <div class="panel-body">
-                <div class="form-row">
-                    <div class="form-group lts-when" data-when="letter_default_design=classic">
-                        <label>ڕەنگی سەرەکی</label>
-                        <input type="color" name="cfg[letter_accent_color]" class="form-control lts-color" value="<?= $h($cfg['letter_accent_color']) ?>">
-                    </div>
-                    <div class="form-group">
-                        <label>قەبارەی نووسین</label>
-                        <select name="cfg[letter_font_size]" class="form-control">
-                            <?php foreach ([14 => 'بچووک', 15 => '', 16 => 'ئاسایی', 17 => '', 18 => 'گەورە', 19 => ''] as $size => $label): ?>
-                            <option value="<?= $size ?>" <?= $selected('letter_font_size', (string)$size) ?>><?= $size ?><?= $label ? ' — ' . $label : '' ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
+                <div class="form-group">
+                    <label>قەبارەی نووسین</label>
+                    <select name="cfg[letter_font_size]" class="form-control">
+                        <?php foreach ([14 => 'بچووک', 15 => '', 16 => 'ئاسایی', 17 => '', 18 => 'گەورە', 19 => ''] as $size => $label): ?>
+                        <option value="<?= $size ?>" <?= $selected('letter_font_size', (string)$size) ?>><?= $size ?><?= $label ? ' — ' . $label : '' ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
             </div>
         </div>
@@ -357,9 +313,6 @@ require_once __DIR__ . '/../includes/header.php';
 <style>
 .lts-layout { display: grid; grid-template-columns: minmax(400px, 540px) minmax(0, 1fr); gap: 18px; align-items: start; }
 .lts-layout .panel { margin-bottom: 16px; }
-.lts-modes { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-.lts-modes label { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; font-size: 13px; }
-.lts-modes label:has(input:checked) { border-color: #1f3b63; background: #eef3fa; color: #1f3b63; font-weight: 600; }
 .lts-checks { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 12px; font-size: 13px; }
 .lts-checks label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 .lts-img { display: flex; gap: 12px; align-items: flex-start; padding: 12px; margin-top: 10px; border: 1px dashed #d1d5db; border-radius: 10px; background: #fafbfc; }
@@ -371,43 +324,28 @@ require_once __DIR__ . '/../includes/header.php';
 .lts-img-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .lts-img-body b { font-size: 13.5px; }
 .lts-remove { font-size: 12.5px; color: #b91c1c; display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
-.lts-note { font-size: 12.5px; color: #475569; background: #f1f5f9; border-radius: 8px; padding: 8px 10px; }
+.lts-note { font-size: 12.5px; color: #475569; background: #f1f5f9; border-radius: 8px; padding: 8px 10px; line-height: 1.7; }
 .lts-color { height: 40px; padding: 4px; max-width: 120px; }
 .lts-save { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; position: sticky; bottom: 0; padding: 12px 0; background: linear-gradient(to top, var(--bg-primary, #f3f4f6) 70%, transparent); z-index: 2; }
-.lts-when[hidden] { display: none !important; }
-.lts-designs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px; }
-.lts-design { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 10px; border: 2px solid #e5e7eb; border-radius: 10px; cursor: pointer; text-align: center; }
-.lts-design:has(input:checked) { border-color: #1f3b63; background: #eef3fa; }
-.lts-design input { position: absolute; opacity: 0; pointer-events: none; }
-.lts-design-name { font-weight: 700; font-size: 14px; color: #1f2937; }
-.lts-design-note { font-size: 11.5px; color: #6b7280; line-height: 1.5; }
-/* Little paper sketches of each design. */
-.lts-thumb { position: relative; width: 78px; height: 104px; background: #fff; border: 1px solid #d1d5db; border-radius: 3px; box-shadow: 0 1px 3px rgba(15, 23, 42, .12); overflow: hidden; }
-.lts-thumb i { position: absolute; top: 8px; left: 31px; width: 16px; height: 13px; border-radius: 3px; background: #cbd5e1; }
-.lts-thumb b { position: absolute; right: 9px; left: 9px; height: 3px; border-radius: 2px; background: #e2e8f0; }
-.lts-thumb b:nth-of-type(1) { top: 40px; }
-.lts-thumb b:nth-of-type(2) { top: 48px; }
-.lts-thumb b:nth-of-type(3) { top: 56px; left: 24px; }
-.lts-thumb s { position: absolute; left: 9px; right: 9px; }
-.lts-thumb-classic s { top: 25px; border-top: 1.5px solid #1f3b63; }
-.lts-thumb-classic::after { content: ''; position: absolute; bottom: 6px; left: 14px; right: 14px; border-top: 1px solid #1f3b63; }
-.lts-thumb-modern s { top: 25px; border-top: 2.5px solid #2f5f7f; }
-.lts-thumb-modern::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 16px; background: #2f5f7f; border-radius: 60% 40% 0 0 / 7px 4px 0 0; }
+/* «واژۆی دکتۆرەکان»: one card per doctor */
+.lts-doc { margin-top: 10px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
+.lts-doc[open] { border-color: #93c5fd; box-shadow: 0 0 0 3px #eff6ff; }
+.lts-doc summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; cursor: pointer; list-style: none; }
+.lts-doc summary::-webkit-details-marker { display: none; }
+.lts-doc summary::before { content: '\f053'; font-family: 'Font Awesome 6 Free', 'Font Awesome 5 Free'; font-weight: 900; font-size: 11px; color: #94a3b8; transition: transform .15s; }
+.lts-doc[open] summary::before { transform: rotate(-90deg); }
+.lts-doc-name { flex: 1; font-weight: 700; font-size: 13.5px; color: #1f2937; }
+.lts-doc-name small { font-weight: 400; color: #94a3b8; }
+.lts-doc-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.lts-chip { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: #fef3c7; color: #92400e; }
+.lts-chip.is-ok { background: #dcfce7; color: #166534; }
+.lts-doc-body { padding: 4px 12px 12px; border-top: 1px solid #f1f5f9; }
 @media (max-width: 1100px) { .lts-layout { grid-template-columns: 1fr; } }
 </style>
 
 <script>
 (function () {
     var form = document.getElementById('ltsForm');
-
-    // Show only the fields of the chosen header/footer mode.
-    function syncModes() {
-        form.querySelectorAll('.lts-when').forEach(function (box) {
-            var parts = box.dataset.when.split('=');
-            var picked = form.querySelector('input[name="cfg[' + parts[0] + ']"]:checked');
-            box.hidden = !picked || picked.value !== parts[1];
-        });
-    }
 
     // «نوسراوی داهاتوو» example under the number pattern.
     var format = document.getElementById('ltsFormat');
@@ -418,11 +356,31 @@ require_once __DIR__ . '/../includes/header.php';
         var d = new Date();
         out.textContent = f.split('{n}').join('12').split('{y}').join(String(d.getFullYear())).split('{m}').join(String(d.getMonth() + 1));
     }
-
-    form.addEventListener('change', syncModes);
     format.addEventListener('input', syncFormat);
-    syncModes();
     syncFormat();
+
+    // The sample letter is signed by the doctor whose card is open (else by the centre).
+    var sample = document.getElementById('ltsSampleDoctor');
+    function showDoctor(id) {
+        if (sample.value === id) return;
+        sample.value = id;
+        if (window.ltpRefresh) window.ltpRefresh();
+    }
+    form.querySelectorAll('.lts-doc').forEach(function (card) {
+        card.addEventListener('toggle', function () {
+            if (card.open) {
+                form.querySelectorAll('.lts-doc[open]').forEach(function (other) { if (other !== card) other.open = false; });
+                showDoctor(card.dataset.doctor);
+            } else if (sample.value === card.dataset.doctor) {
+                showDoctor('');
+            }
+        });
+        card.addEventListener('focusin', function () { showDoctor(card.dataset.doctor); });
+    });
+    // Opened from a letter's «نووسینی واژۆی دکتۆرەکان» link.
+    if (location.hash === '#ltsDoctors') {
+        document.getElementById('ltsDoctors').scrollIntoView({ block: 'start' });
+    }
 })();
 </script>
 

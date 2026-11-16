@@ -28,6 +28,12 @@ if ($id > 0 && !$existing) {
     header('Location: ' . APP_URL . '/letters/index.php?missing=1');
     exit;
 }
+if ($existing) {
+    letters_require_own($existing);
+}
+// Who signs: the centre's own signer (settings), or a doctor with their own block.
+$signers = $letters->signers();
+$myDoctorId = $letters->doctorIdOfUser($letterUserId);
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -57,8 +63,16 @@ $blank = [
     'closing' => $cfg['letter_default_closing'], 'signer_name' => $cfg['letter_default_signer_name'],
     'signer_title' => $cfg['letter_default_signer_title'], 'cc_list' => '', 'attachments' => '',
     'show_signature' => 0, 'show_seal' => 0, 'template_id' => null,
-    'design' => $cfg['letter_default_design'],
+    'design' => 'modern', 'signer_doctor_id' => '',
 ];
+// A doctor writing a letter signs with their own block.
+foreach ($signers as $s) {
+    if ($s['doctor_id'] === $myDoctorId) {
+        $blank['signer_doctor_id'] = (string)$s['doctor_id'];
+        $blank['signer_name'] = $s['signer_name'] ?: $s['doctor_name'];
+        $blank['signer_title'] = (string)$s['signer_title'];
+    }
+}
 $source = '';
 if ($existing) {
     $form = array_intersect_key($existing, $blank) + $blank;
@@ -73,16 +87,19 @@ if ($existing) {
             }
         }
         $form['template_id'] = $tplId;
-        $form['design'] = OfficialLetter::design($tpl['design'] ?? null) ?? $form['design'];
+        if (!empty($tpl['signer_doctor_id'])) {
+            $form['signer_doctor_id'] = (string)$tpl['signer_doctor_id'];
+        }
         $source = 'لە قاڵبی «' . $tpl['name'] . '»';
     } elseif ($copyId > 0 && ($copy = $letters->find($copyId))) {
+        letters_require_own($copy);
         foreach (array_keys(OfficialLetter::TEXT_FIELDS) as $f) {
             $form[$f] = (string)($copy[$f] ?? '');
         }
         $form['show_signature'] = (int)$copy['show_signature'];
         $form['show_seal'] = (int)$copy['show_seal'];
         $form['template_id'] = $copy['template_id'];
-        $form['design'] = OfficialLetter::design($copy['design'] ?? null) ?? $form['design'];
+        $form['signer_doctor_id'] = (string)($copy['signer_doctor_id'] ?? '');
         $source = 'کۆپی لە نوسراوی ژمارە ' . $copy['letter_number'];
     }
 }
@@ -99,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 foreach (array_keys(OfficialLetter::TEXT_FIELDS) as $f) {
     $form[$f] = (string)($form[$f] ?? '');
 }
-$form['design'] = OfficialLetter::design($form['design'] ?? null) ?? $cfg['letter_default_design'];
+$form['signer_doctor_id'] = (int)($form['signer_doctor_id'] ?? 0) > 0 ? (string)(int)$form['signer_doctor_id'] : '';
 // After a failed save keep the original suggestion: if the number field still
 // shows it, the save after this one must still treat it as automatic.
 $suggestion = $existing ? '' : (string)($_POST['auto_number'] ?? $letters->suggestNumber(date('Y-m-d'), $cfg));
@@ -110,7 +127,13 @@ if (!$existing && trim((string)$form['letter_number']) === '') {
 $templates = $existing ? [] : $letters->templates();
 $recipientOptions = $letters->suggestions('recipient');
 $signerOptions = $letters->suggestions('signer_name', 50);
-$hasSignature = OfficialLetter::hasUpload('signature', $cfg);
+$hasCentreSignature = OfficialLetter::hasUpload('signature', $cfg);
+$hasSignature = $hasCentreSignature;
+foreach ($signers as $s) {
+    if ((string)$s['doctor_id'] === $form['signer_doctor_id']) {
+        $hasSignature = $s['has_signature'];
+    }
+}
 $hasSeal = OfficialLetter::hasUpload('seal', $cfg);
 $canSettings = $perm->can('letters.settings');
 $h = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
@@ -156,12 +179,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <input type="hidden" name="template_id" value="<?= (int)$form['template_id'] ?: '' ?>">
                 <input type="hidden" name="after" id="ltfAfterField" value="view">
 
-                <div class="ltf-design">
-                    <span><i class="fas fa-swatchbook"></i> تێمپلیت</span>
-                    <?php foreach (OfficialLetter::DESIGNS as $key => $label): ?>
-                    <label><input type="radio" name="design" value="<?= $h($key) ?>" <?= $form['design'] === $key ? 'checked' : '' ?>> <?= $h($label) ?></label>
-                    <?php endforeach; ?>
-                </div>
+                <input type="hidden" name="design" value="modern">
 
                 <div class="ltf-step"><span>١</span> ژمارە و ڕێکەوت</div>
                 <div class="form-row">
@@ -186,7 +204,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <datalist id="ltfRecipients">
                         <?php foreach ($recipientOptions as $r): ?><option value="<?= $h($r) ?>"><?php endforeach; ?>
                     </datalist>
-                    <div class="form-hint">کلاسیک: «بۆ / ...» دەنووسرێت. مۆدێرن: وەک خۆی دەنووسرێت، نموونە «إلى بنك ... فرع اربيل».</div>
+                    <div class="form-hint">وەک خۆی دەنووسرێت، نموونە «إلى بنك ... فرع اربيل».</div>
                 </div>
 
                 <div class="ltf-step"><span>٣</span> بابەت</div>
@@ -203,6 +221,17 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
 
                 <div class="ltf-step"><span>٥</span> واژۆکەر</div>
+                <div class="form-group ltf-signer">
+                    <label for="ltfSignerPick"><i class="fas fa-user-doctor"></i> بە ناوی کێ دەنووسرێت؟</label>
+                    <select id="ltfSignerPick" name="signer_doctor_id" class="form-control">
+                        <option value="" data-name="<?= $h($cfg['letter_default_signer_name']) ?>" data-title="<?= $h($cfg['letter_default_signer_title']) ?>" data-sig="<?= $hasCentreSignature ? 1 : 0 ?>">سەنتەر — واژۆکەری بنەڕەت</option>
+                        <?php foreach ($signers as $s): ?>
+                        <option value="<?= $s['doctor_id'] ?>" data-name="<?= $h($s['signer_name'] ?: $s['doctor_name']) ?>" data-title="<?= $h($s['signer_title']) ?>" data-sig="<?= $s['has_signature'] ? 1 : 0 ?>"
+                            <?= $form['signer_doctor_id'] === (string)$s['doctor_id'] ? 'selected' : '' ?>><?= $h($s['doctor_name']) ?><?= ($s['signer_name'] || $s['signer_title']) ? '' : ' (هێشتا واژۆی بۆ نەنووسراوە)' ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="form-hint">ناو و دێڕەکانی خوارەوەی دکتۆرەکە خۆیان پڕ دەبنەوە، و واژۆی خۆی بەکاردێت.<?php if ($canSettings): ?> <a href="<?= APP_URL ?>/letters/settings.php#ltsDoctors">نووسینی واژۆی دکتۆرەکان</a><?php endif; ?></div>
+                </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label for="ltfSigner">ناوی سیانی</label>
@@ -213,21 +242,21 @@ require_once __DIR__ . '/../includes/header.php';
                         </datalist>
                     </div>
                     <div class="form-group">
-                        <label for="ltfTitle">ناونیشانی وەزیفی</label>
-                        <textarea id="ltfTitle" name="signer_title" class="form-control" rows="2" maxlength="255"
-                                  placeholder="نموونە: بەڕێوەبەری گشتی"><?= $h($form['signer_title']) ?></textarea>
+                        <label for="ltfTitle">دێڕەکانی ژێر ناو <small>(پسپۆڕی، بڕوانامە، پۆست)</small></label>
+                        <textarea id="ltfTitle" name="signer_title" class="form-control" rows="3" maxlength="255"
+                                  placeholder="نموونە: Specialist Orthodontist&#10;BDS, MSc&#10;Lezan Dental Clinics"><?= $h($form['signer_title']) ?></textarea>
                     </div>
                 </div>
                 <div class="ltf-checks">
-                    <label class="<?= $hasSignature ? '' : 'is-off' ?>">
-                        <input type="checkbox" name="show_signature" value="1" <?= $form['show_signature'] ? 'checked' : '' ?> <?= $hasSignature ? '' : 'disabled' ?>>
+                    <label class="<?= $hasSignature ? '' : 'is-off' ?>" id="ltfSigLabel">
+                        <input type="checkbox" name="show_signature" id="ltfSig" value="1" <?= $form['show_signature'] ? 'checked' : '' ?> <?= $hasSignature ? '' : 'disabled' ?>>
                         <i class="fas fa-signature"></i> واژۆی ئەلیکترۆنی دابنێ
                     </label>
                     <label class="<?= $hasSeal ? '' : 'is-off' ?>">
                         <input type="checkbox" name="show_seal" value="1" <?= $form['show_seal'] ? 'checked' : '' ?> <?= $hasSeal ? '' : 'disabled' ?>>
                         <i class="fas fa-stamp"></i> مۆر دابنێ
                     </label>
-                    <?php if ((!$hasSignature || !$hasSeal) && $canSettings): ?>
+                    <?php if ((!$hasCentreSignature || !$hasSeal) && $canSettings): ?>
                     <a href="<?= APP_URL ?>/letters/settings.php#ltsSign" class="ltf-link">بارکردنی واژۆ و مۆر</a>
                     <?php endif; ?>
                 </div>
@@ -293,10 +322,8 @@ require_once __DIR__ . '/../includes/header.php';
 .ltf-tpl label { display: block; font-size: 13px; font-weight: 600; color: #5b21b6; margin-bottom: 6px; }
 .ltf-tpl-row { display: flex; gap: 8px; }
 .ltf-tpl-row select { flex: 1; min-width: 0; }
-.ltf-design { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; }
-.ltf-design > span { font-weight: 700; color: #1f3b63; margin-inline-end: 4px; }
-.ltf-design label { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; }
-.ltf-design label:has(input:checked) { border-color: #1f3b63; background: #eef3fa; color: #1f3b63; font-weight: 600; }
+.ltf-signer { padding: 10px 12px; border-radius: 10px; background: #eef6fb; border: 1px solid #d3e6f2; }
+.ltf-signer label { font-weight: 600; color: #2f5f7f; }
 .ltf-step { display: flex; align-items: center; gap: 8px; margin: 16px 0 8px; font-weight: 700; font-size: 14px; color: #1f3b63; }
 .ltf-step:first-of-type { margin-top: 4px; }
 .ltf-step span { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #1f3b63; color: #fff; font-size: 12px; flex-shrink: 0; }
@@ -339,6 +366,19 @@ require_once __DIR__ . '/../includes/header.php';
     });
 
     window.ltfAfter = function (mode) { document.getElementById('ltfAfterField').value = mode; };
+
+    // Choosing who signs fills their name and lines; only their own signature may go on.
+    var pick = document.getElementById('ltfSignerPick');
+    pick.addEventListener('change', function () {
+        var o = pick.options[pick.selectedIndex];
+        form.elements['signer_name'].value = o.dataset.name || '';
+        form.elements['signer_title'].value = o.dataset.title || '';
+        var sig = document.getElementById('ltfSig'), has = o.dataset.sig === '1';
+        sig.disabled = !has;
+        if (!has) sig.checked = false;
+        document.getElementById('ltfSigLabel').classList.toggle('is-off', !has);
+        dirty = true;
+    });
 
     window.ltfUseTemplate = function () {
         var id = document.getElementById('ltfTpl').value;

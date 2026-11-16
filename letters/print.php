@@ -14,6 +14,7 @@ if (!$L) {
     header('Location: ' . APP_URL . '/letters/index.php?missing=1');
     exit;
 }
+letters_require_own($L);
 $cfg = $letters->settings();
 $canEdit = $perm->can('letters.create');
 $digits = $cfg['letter_digits'];
@@ -41,7 +42,7 @@ if ($L['status'] === 'cancelled') {
     $notice = '<div class="lt-notice is-ok">نوسراوەکە پاشەکەوت کرا بە ژمارەی <b><bdi>' . $e(lt_digits($L['letter_number'], $digits)) . '</bdi></b></div>';
 }
 
-echo lt_document($L, $cfg, OfficialLetter::assetUrls($cfg), [
+echo lt_document($L, $cfg, $letters->letterImages($L, $cfg, false), [
     'title'     => 'نوسراوی ژمارە ' . $L['letter_number'] . ' — ' . $L['subject'],
     'toolbar'   => $toolbar,
     'notice'    => $notice,

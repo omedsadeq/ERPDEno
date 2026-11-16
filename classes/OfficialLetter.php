@@ -31,9 +31,9 @@ class OfficialLetter
         'qr'        => 'letter_qr_image',
     ];
 
-    /** The two sheet designs (letters/_render.php), stored per letter. */
+    /** The sheet design (letters/_render.php). The classic one was taken away;
+     *  every letter, old ones too, is drawn in the modern design. */
     const DESIGNS = [
-        'classic' => 'کلاسیک',
         'modern'  => 'مۆدێرن',
     ];
 
@@ -102,7 +102,7 @@ class OfficialLetter
             'letter_signature_side'       => 'left',   // left | center | right
             'letter_accent_color'         => '#1f3b63',
             'letter_font_size'            => '16',
-            'letter_default_design'       => 'classic', // classic | modern — for new letters
+            'letter_default_design'       => 'modern',  // the only design left
             // The modern design: its own colour, the faded logo behind the
             // text, and the wave footer (phones on the left, address on the right).
             'letter_modern_header_right'  => $modernRight,
@@ -146,7 +146,7 @@ class OfficialLetter
         $cfg['letter_footer_mode']    = $pick($cfg['letter_footer_mode'] ?? '', ['text', 'image', 'none'], 'text');
         $cfg['letter_digits']         = $pick($cfg['letter_digits'] ?? '', ['ku', 'latin'], 'ku');
         $cfg['letter_signature_side'] = $pick($cfg['letter_signature_side'] ?? '', ['left', 'center', 'right'], 'left');
-        $cfg['letter_default_design'] = self::design($cfg['letter_default_design'] ?? '') ?? 'classic';
+        $cfg['letter_default_design'] = 'modern';
         foreach (['letter_show_logo', 'letter_header_line', 'letter_number_yearly', 'letter_kurdish_year', 'letter_modern_watermark'] as $flag) {
             $cfg[$flag] = !empty($cfg[$flag]) && $cfg[$flag] !== '0' ? '1' : '0';
         }
@@ -285,10 +285,12 @@ class OfficialLetter
             if ($out['name'] === '') {
                 throw new InvalidArgumentException('ناوی قاڵب پێویستە');
             }
-            $out['design'] = self::design($in['design'] ?? null);
+            $out['design'] = null;
+            $out['signer_doctor_id'] = self::signerDoctorId($in['signer_doctor_id'] ?? null);
             return $out;
         }
-        $out['design'] = self::design($in['design'] ?? null) ?? 'classic';
+        $out['design'] = 'modern';
+        $out['signer_doctor_id'] = self::signerDoctorId($in['signer_doctor_id'] ?? null);
 
         $date = trim(self::normalizeDigits((string)($in['letter_date'] ?? '')));
         $d = DateTime::createFromFormat('!Y-m-d', $date);
@@ -506,12 +508,27 @@ class OfficialLetter
             $where[] = "l.status = :status";
             $params['status'] = $f['status'];
         }
+        // one signer's letters: a doctor's id, or 0 = the centre's own signer
+        if (isset($f['signer']) && $f['signer'] !== '' && ctype_digit((string)$f['signer'])) {
+            if ((int)$f['signer'] === 0) {
+                $where[] = "l.signer_doctor_id IS NULL";
+            } else {
+                $where[] = "l.signer_doctor_id = :sd";
+                $params['sd'] = (int)$f['signer'];
+            }
+        }
+        // a doctor who sees only their own: signed by them or written by them
+        if (!empty($f['own_doctor']) || !empty($f['own_user'])) {
+            $where[] = "(l.signer_doctor_id = :od OR l.created_by = :ou)";
+            $params['od'] = (int)($f['own_doctor'] ?? 0);
+            $params['ou'] = (int)($f['own_user'] ?? 0);
+        }
         $whereSql = implode(' AND ', $where);
 
         $total = (int)($this->db->fetch("SELECT COUNT(*) AS c FROM official_letters l WHERE {$whereSql}", $params)['c'] ?? 0);
         $offset = max(0, ($page - 1) * $perPage);
         $rows = $this->db->fetchAll(
-            "SELECT l.id, l.letter_number, l.letter_date, l.recipient, l.subject, l.signer_name,
+            "SELECT l.id, l.letter_number, l.letter_date, l.recipient, l.subject, l.signer_name, l.signer_doctor_id,
                     l.status, l.cancel_reason, l.created_at, cu.full_name AS created_by_name
              FROM official_letters l
              LEFT JOIN users cu ON cu.id = l.created_by
@@ -577,7 +594,7 @@ class OfficialLetter
 
     public function saveTemplate(array $data, int $userId, int $id = 0): int
     {
-        $row = ['name' => $data['name'], 'design' => self::design($data['design'] ?? null)];
+        $row = ['name' => $data['name'], 'design' => null, 'signer_doctor_id' => $data['signer_doctor_id'] ?? null];
         foreach (array_keys(self::TEXT_FIELDS) as $f) {
             $row[$f] = ($data[$f] ?? '') === '' ? null : $data[$f];
         }
@@ -594,6 +611,147 @@ class OfficialLetter
     public function deleteTemplate(int $id): void
     {
         $this->db->delete('official_letter_templates', 'id = :id', ['id' => $id]);
+    }
+
+    // ── Doctors' signature blocks ─────────────────────────────────────
+    // Each doctor signs with their own name, lines (specialty, degree, post)
+    // and signature image; a letter keeps whose block it carries.
+
+    /** A doctor id a letter may be signed by, or null (the centre's own signer). */
+    public static function signerDoctorId($value): ?int
+    {
+        $id = (int)$value;
+        if ($id <= 0) {
+            return null;
+        }
+        return Database::getInstance()->fetch("SELECT id FROM doctors WHERE id = :id", ['id' => $id]) ? $id : null;
+    }
+
+    public static function signersReady(): bool
+    {
+        return Database::getInstance()->tableExists('official_letter_signers');
+    }
+
+    /**
+     * Every doctor who may sign: the active ones (not the X-ray department),
+     * and any other doctor that already has a block. Each row: doctor_id,
+     * doctor_name, signer_name, signer_title, signature_file, has_signature.
+     */
+    public function signers(): array
+    {
+        if (!self::signersReady()) {
+            return [];
+        }
+        $rows = $this->db->fetchAll(
+            "SELECT d.id AS doctor_id, d.name AS doctor_name, d.is_active,
+                    s.signer_name, s.signer_title, s.signature_file
+             FROM doctors d
+             LEFT JOIN users u ON u.id = d.user_id
+             LEFT JOIN official_letter_signers s ON s.doctor_id = d.id
+             WHERE (d.is_active = 1 AND COALESCE(u.role, '') <> 'xray_department' AND LOWER(TRIM(d.name)) <> 'x.ray')
+                OR s.doctor_id IS NOT NULL
+             ORDER BY d.is_active DESC, d.name"
+        );
+        foreach ($rows as &$r) {
+            $r['doctor_id'] = (int)$r['doctor_id'];
+            $r['has_signature'] = self::signerSignaturePath($r['signature_file']) !== null;
+        }
+        unset($r);
+        return $rows;
+    }
+
+    /** The doctor row of a logged-in user, or 0. */
+    public function doctorIdOfUser(int $userId): int
+    {
+        if ($userId <= 0) {
+            return 0;
+        }
+        return (int)($this->db->fetch("SELECT id FROM doctors WHERE user_id = :u ORDER BY is_active DESC, id LIMIT 1", ['u' => $userId])['id'] ?? 0);
+    }
+
+    /**
+     * Save one doctor's block. $upload is an uploaded signature image (or
+     * null); $removeSignature drops the stored one. The old image file is
+     * deleted only once the new name is saved.
+     */
+    public function saveSigner(int $doctorId, string $name, string $title, ?array $upload, bool $removeSignature, int $userId): void
+    {
+        $old = $this->db->fetch("SELECT * FROM official_letter_signers WHERE doctor_id = :d", ['d' => $doctorId]) ?: null;
+        $name = mb_substr(trim(preg_replace('/\s*\n\s*/', ' ', str_replace(["\r\n", "\r"], "\n", $name))), 0, 150);
+        $title = mb_substr(trim(str_replace(["\r\n", "\r"], "\n", $title)), 0, 255);
+        $file = $old['signature_file'] ?? null;
+        $newFile = null;
+        if ($upload && ($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            $newFile = $file = $this->storeAsset('signature', $upload);
+        } elseif ($removeSignature) {
+            $file = null;
+        }
+        $row = [
+            'signer_name'    => $name === '' ? null : $name,
+            'signer_title'   => $title === '' ? null : $title,
+            'signature_file' => $file,
+            'updated_by'     => $userId ?: null,
+        ];
+        $same = $old && $old['signer_name'] === $row['signer_name'] && $old['signer_title'] === $row['signer_title']
+            && $old['signature_file'] === $row['signature_file'];
+        $empty = !$old && $row['signer_name'] === null && $row['signer_title'] === null && $file === null;
+        if ($same || $empty) {
+            return;
+        }
+        try {
+            if ($old) {
+                $this->db->update('official_letter_signers', $row, 'doctor_id = :d', ['d' => $doctorId]);
+            } else {
+                $this->db->insert('official_letter_signers', $row + ['doctor_id' => $doctorId]);
+            }
+        } catch (Throwable $e) {
+            if ($newFile) {
+                @unlink(self::assetDir() . '/' . $newFile);
+            }
+            throw $e;
+        }
+        $oldFile = basename((string)($old['signature_file'] ?? ''));
+        if ($oldFile !== '' && $oldFile !== $file && is_file(self::assetDir() . '/' . $oldFile)) {
+            @unlink(self::assetDir() . '/' . $oldFile);
+        }
+        if (class_exists('AuditLog')) {
+            AuditLog::log('letter_signer_update', 'official_letter_signers', $doctorId);
+        }
+    }
+
+    /** Absolute path of a doctor's signature image (its file name), or null. */
+    public static function signerSignaturePath($file): ?string
+    {
+        $file = basename((string)$file);
+        $path = APP_ROOT . '/' . self::ASSET_DIR . '/' . $file;
+        return $file !== '' && is_file($path) ? $path : null;
+    }
+
+    /** A doctor's signature image, by doctor id, or null. */
+    public function doctorSignaturePath(int $doctorId): ?string
+    {
+        if ($doctorId <= 0 || !self::signersReady()) {
+            return null;
+        }
+        $row = $this->db->fetch("SELECT signature_file FROM official_letter_signers WHERE doctor_id = :d", ['d' => $doctorId]);
+        return self::signerSignaturePath($row['signature_file'] ?? null);
+    }
+
+    /**
+     * The images a letter is drawn with: the letterhead's, with the signature
+     * of the doctor who signs it when it is a doctor's letter (none when that
+     * doctor has no signature image — never someone else's).
+     */
+    public function letterImages(array $L, array $cfg, bool $paths): array
+    {
+        $img = $paths ? self::assetPaths($cfg) : self::assetUrls($cfg);
+        $doctorId = (int)($L['signer_doctor_id'] ?? 0);
+        if ($doctorId > 0) {
+            $path = $this->doctorSignaturePath($doctorId);
+            $img['signature'] = $path === null ? null
+                : ($paths ? $path : APP_URL . '/letters/asset.php?k=signature&d=' . $doctorId . '&v=' . (int)@filemtime($path));
+        }
+        return $img;
     }
 
     // ── Letterhead images ─────────────────────────────────────────────

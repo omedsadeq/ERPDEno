@@ -13,10 +13,11 @@ if (!$L) {
     http_response_code(404);
     exit('نوسراو نەدۆزرایەوە');
 }
+letters_require_own($L);
 $cfg = $letters->settings();
 
 require_once APP_ROOT . '/vendor/autoload.php';
-$mpdf = lt_pdf($L, $cfg, OfficialLetter::assetPaths($cfg), [
+$mpdf = lt_pdf($L, $cfg, $letters->letterImages($L, $cfg, true), [
     'font_dir' => APP_ROOT . '/fonts/NRT Font',
 ] + letters_render_opts($cfg));
 

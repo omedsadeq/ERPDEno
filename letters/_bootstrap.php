@@ -37,6 +37,34 @@ function letters_require(string ...$keys): void
     exit;
 }
 
+/**
+ * A doctor who may not see other doctors' work (no data.all_doctors) sees and
+ * edits only their own letters: signed by them or written by them.
+ * Returns ['own_doctor' => id, 'own_user' => id] for OfficialLetter::search, or [].
+ */
+function letters_own_scope(): array
+{
+    global $auth, $letters, $letterUserId;
+    if (!$auth->isRestrictedDoctor()) {
+        return [];
+    }
+    return ['own_doctor' => $letters->doctorIdOfUser($letterUserId) ?: -1, 'own_user' => $letterUserId ?: -1];
+}
+
+/** Stop here when the user may not open letter $L (see letters_own_scope). */
+function letters_require_own(array $L): void
+{
+    $scope = letters_own_scope();
+    if (!$scope) {
+        return;
+    }
+    if ((int)($L['signer_doctor_id'] ?? 0) === $scope['own_doctor'] || (int)($L['created_by'] ?? 0) === $scope['own_user']) {
+        return;
+    }
+    header('Location: ' . APP_URL . '/403.php');
+    exit;
+}
+
 /** What the renderer needs besides the settings: the footer image's shape. */
 function letters_render_opts(array $cfg): array
 {

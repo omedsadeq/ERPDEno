@@ -30,7 +30,16 @@ if (!isset(OfficialLetter::ASSETS[$kind])) {
     http_response_code(404);
     exit('Not found');
 }
-$path = OfficialLetter::assetPath($kind, (new OfficialLetter())->settings());
+// ?d=<doctor id>: that doctor's own signature (letters/settings.php «واژۆی دکتۆرەکان»)
+$doctorId = (int)($_GET['d'] ?? 0);
+if ($doctorId > 0 && $auth->isRestrictedDoctor()
+    && $doctorId !== (new OfficialLetter())->doctorIdOfUser((int)$auth->getCurrentUserId())) {
+    http_response_code(403);
+    exit('Access denied');   // a doctor sees only their own signature
+}
+$path =$kind === 'signature' && $doctorId > 0
+    ? (new OfficialLetter())->doctorSignaturePath($doctorId)
+    : OfficialLetter::assetPath($kind, (new OfficialLetter())->settings());
 $info = $path ? @getimagesize($path) : false;
 if (!$info) {
     http_response_code(404);

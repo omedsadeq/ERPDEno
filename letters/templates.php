@@ -51,7 +51,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $templates = $letters->templates();
 $cfg = $letters->settings();
 $editing = $editId > 0 ? $letters->findTemplate($editId) : null;
-$form = ['name' => '', 'design' => ''];
+$form = ['name' => '', 'signer_doctor_id' => ''];
+$signers = $letters->signers();
 foreach (array_keys(OfficialLetter::TEXT_FIELDS) as $f) {
     $form[$f] = '';
 }
@@ -133,15 +134,17 @@ require_once __DIR__ . '/../includes/header.php';
                     <input type="text" name="name" class="form-control" required maxlength="150" value="<?= $h($form['name']) ?>"
                            placeholder="نموونە: پشتگیری کارکردن">
                 </div>
+                <?php if ($signers): ?>
                 <div class="form-group">
-                    <label>تێمپلیت</label>
-                    <select name="design" class="form-control">
-                        <option value="">بنەڕەت (<?= $h(OfficialLetter::DESIGNS[$cfg['letter_default_design']]) ?>)</option>
-                        <?php foreach (OfficialLetter::DESIGNS as $key => $label): ?>
-                        <option value="<?= $h($key) ?>" <?= $form['design'] === $key ? 'selected' : '' ?>><?= $h($label) ?></option>
+                    <label>واژۆکەر</label>
+                    <select name="signer_doctor_id" class="form-control">
+                        <option value="">سەنتەر / ئەوەی لە نوسراوەکەدا هەڵدەبژێردرێت</option>
+                        <?php foreach ($signers as $s): ?>
+                        <option value="<?= $s['doctor_id'] ?>" <?= $form['signer_doctor_id'] === (string)$s['doctor_id'] ? 'selected' : '' ?>><?= $h($s['doctor_name']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
+                <?php endif; ?>
                 <div class="form-group">
                     <label>بۆ (لایەنی پەیوەندیدار)</label>
                     <input type="text" name="recipient" class="form-control" maxlength="255" value="<?= $h($form['recipient']) ?>">
