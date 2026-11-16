@@ -187,6 +187,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $returnTab = preg_replace('/[^a-z_]/', '', $_POST['return_tab'] ?? 'general') ?: 'general';
         header('Location: ' . APP_URL . '/admin/settings.php?tab=' . urlencode($returnTab) . '&saved=1');
         exit;
+    } elseif ($action === 'save_doctor_view_pct') {
+        // «داهاتی دکتۆر» — how much of their money each doctor is shown on
+        // their own daily summary (doctors/_daily_summary_lib.php). Display
+        // only; the same settings the daily summary's own control writes.
+        if (!$auth->isAdmin()) {
+            header('Location: ' . APP_URL . '/403.php');
+            exit;
+        }
+        require_once __DIR__ . '/../doctors/_daily_summary_lib.php';
+        $pctOf = static function ($v, int $max): ?string {
+            $v = trim((string)$v);
+            if ($v === '' || !is_numeric($v)) {
+                return null;
+            }
+            $p = (int)max(1, min(100, round((float)$v)));
+            return $p >= $max ? null : (string)$p;
+        };
+        $before = array_column($db->fetchAll(
+            "SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'daily\\_summary\\_view\\_pct%'"
+        ), 'setting_value', 'setting_key');
+        $after = [];
+        // every doctor's: blank (or 100) = the full amount
+        if (($g = $pctOf($_POST['view_pct_all'] ?? '', 100)) !== null) {
+            $after[DS_VIEW_PCT_KEY] = $g;
+        }
+        // a doctor's own: blank = the one for all doctors; 100 stays, so one
+        // doctor may see the whole while the others do not
+        $docIds = array_map('intval', array_column($db->fetchAll("SELECT id FROM users WHERE role = 'doctor'"), 'id'));
+        foreach ((array)($_POST['view_pct_doc'] ?? []) as $id => $v) {
+            if (in_array((int)$id, $docIds, true) && ($p = $pctOf($v, 101)) !== null) {
+                $after[DS_VIEW_PCT_KEY . '_d' . (int)$id] = $p;
+            }
+        }
+        foreach (array_diff_key($before, $after) as $key => $_) {
+            $db->query('DELETE FROM settings WHERE setting_key = :k', ['k' => $key]);
+        }
+        Settings::invalidate();
+        foreach ($after as $key => $value) {
+            if (($before[$key] ?? null) !== $value) {
+                Settings::set($key, $value, 'text', 'پوختەی ڕۆژانە: ڕێژەی ئەو پارەیەی دکتۆر لە پوختەی خۆیدا دەیبینێت (تەنها پیشاندان)');
+            }
+        }
+        if ($before != $after) {
+            AuditLog::log('daily_summary_view_percent', 'settings', null, $before, $after);
+        }
+        header('Location: ' . APP_URL . '/admin/settings.php?tab=doctor_income&saved=1');
+        exit;
     } elseif ($action === 'auto_approve_now') {
         // «ئێستا جێبەجێی بکە» — the nightly run, now, for everything sent so far.
         $autoResult = AutoApproval::run(date('Y-m-d H:i:s'), 'manual');
@@ -685,6 +732,11 @@ require_once __DIR__ . '/../includes/header.php';
         <button class="tab-settings <?= $activeTab === 'access' ? 'active' : '' ?>" onclick="location='?tab=access'">
             <i class="fas fa-user-shield"></i> دەستگەیشتن
         </button>
+        <?php if ($auth->isAdmin()): ?>
+        <button class="tab-settings <?= $activeTab === 'doctor_income' ? 'active' : '' ?>" onclick="location='?tab=doctor_income'">
+            <i class="fas fa-user-secret"></i> داهاتی دکتۆر
+        </button>
+        <?php endif; ?>
     </div>
 
     <!-- Access Settings (transition switch) -->
@@ -1167,6 +1219,64 @@ require_once __DIR__ . '/../includes/header.php';
             <button type="submit" class="btn btn-primary">
                 <i class="fas fa-save"></i> پاشەکەوتکردن
             </button>
+        </form>
+    </div>
+    <?php endif; ?>
+
+    <!-- «داهاتی دکتۆر»: what each doctor is shown of their own money -->
+    <?php if ($activeTab === 'doctor_income' && $auth->isAdmin()): ?>
+    <?php
+        require_once __DIR__ . '/../doctors/_daily_summary_lib.php';
+        $vpAll = Settings::get(DS_VIEW_PCT_KEY);
+        $vpDoctors = $db->fetchAll("SELECT id, full_name FROM users WHERE role = 'doctor' AND is_active = 1 ORDER BY full_name");
+        $vpMonth = [date('Y-m-01'), date('Y-m-t')];
+    ?>
+    <style>
+    .vp-note{background:#f4f8fc;border:1px solid #c7d7e6;border-radius:10px;padding:10px 14px;color:#334155;font-size:13px;line-height:1.7;margin-bottom:14px}
+    .vp-note i{color:#0078d4}
+    .vp-all{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;font-weight:700}
+    .vp-in{width:80px;height:34px;border:1px solid #9cafbd;border-radius:6px;text-align:center;font:inherit}
+    .vp-tbl{width:100%;max-width:760px;border-collapse:collapse}
+    .vp-tbl th{background:#eef2f5;text-align:right;padding:8px 10px;font-size:12.5px;border-bottom:1px solid #b9c6cf}
+    .vp-tbl td{padding:7px 10px;border-bottom:1px solid #eef2f5;font-size:13px}
+    .vp-tbl .eff b{color:#0f172a}
+    .vp-tbl .eff.full b{color:#94a3b8}
+    .vp-tbl a{color:#0067c0;text-decoration:none;font-weight:700;font-size:12.5px}
+    </style>
+    <div class="panel-body">
+        <form method="POST" action="">
+            <input type="hidden" name="action" value="save_doctor_view_pct">
+            <h4 class="mb-3">ڕێژەی پیشاندانی داهات بۆ دکتۆر</h4>
+            <div class="vp-note">
+                <i class="fas fa-user-secret"></i>
+                هەر دکتۆرێک لە <b>پوختەی ڕۆژانەم</b> (پەیج و PDF) تەنها ئەم ڕێژەیەی پارەکانی خۆی دەبینێت، بۆ نموونە 20%.
+                ژمارەی سەردان و ئیش و کاتەکان وەک خۆیان دەمێننەوە.
+                <b>تەنها پیشاندانە:</b> هیچ شتێک لە حساباتدا ناگۆڕێت، و ئەدمین و ژمێریار هەمیشە ژمارەی تەواو دەبینن.
+                هەمان ڕێکخستنە کە لە پوختەی ڕۆژانەدا هەیە؛ هەر لایەک بگۆڕیت، ئەویتریش دەگۆڕێت.
+            </div>
+
+            <label class="vp-all">
+                ڕێژە بۆ هەموو دکتۆرەکان:
+                <input type="number" class="vp-in" name="view_pct_all" min="1" max="100" step="1" placeholder="100" value="<?= htmlspecialchars((string)($vpAll ?? '')) ?>"> %
+                <span class="form-hint" style="font-weight:400">بەتاڵ = 100% (هەمووی دەبینێت)</span>
+            </label>
+
+            <table class="vp-tbl">
+                <thead><tr><th>دکتۆر</th><th>ڕێژەی تایبەت</th><th>ئەوەی دەیبینێت</th><th></th></tr></thead>
+                <tbody>
+                <?php foreach ($vpDoctors as $d): $id = (int)$d['id']; $own = Settings::get(DS_VIEW_PCT_KEY . '_d' . $id); $eff = ds_view_percent($id); ?>
+                    <tr>
+                        <td><?= htmlspecialchars($d['full_name']) ?></td>
+                        <td><input type="number" class="vp-in" name="view_pct_doc[<?= $id ?>]" min="1" max="100" step="1" placeholder="—" value="<?= htmlspecialchars((string)($own ?? '')) ?>"> %</td>
+                        <td class="eff<?= $eff >= 100 ? ' full' : '' ?>"><b><?= (int)round($eff) ?>%</b><?= ($own === null || $own === '') && $eff < 100 ? ' <small>(هی هەمووان)</small>' : '' ?></td>
+                        <td><a href="<?= APP_URL ?>/doctors/daily-summary.php?<?= htmlspecialchars(http_build_query(['from' => $vpMonth[0], 'to' => $vpMonth[1], 'doctor' => $id, 'as_doctor' => 1])) ?>" target="_blank"><i class="fas fa-user-md"></i> وەک دکتۆر ببینە</a></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+            <div class="form-hint" style="margin:8px 0 14px">ڕێژەی تایبەت بەتاڵ = ڕێژەی هەموو دکتۆرەکان. 100 = ئەم دکتۆرە هەمووی دەبینێت.</div>
+
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> پاشەکەوتکردن</button>
         </form>
     </div>
     <?php endif; ?>

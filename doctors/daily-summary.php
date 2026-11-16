@@ -20,6 +20,29 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['ds_style'])) 
 }
 $dsModern = Settings::get($dsStyleKey, 'classic') === 'modern';
 
+// ڕێژەی پیشاندان: only the admin sets how much of their money a doctor is
+// shown — this doctor alone, or every doctor (which clears their own ones).
+$dsCanSetPct = $authGate->isAdmin() && in_array($docUserId, array_map('intval', array_column($doctorList, 'id')), true);
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['ds_view_pct'])) {
+    Csrf::require();
+    if (!$dsCanSetPct) {
+        http_response_code(403);
+        exit('Forbidden');
+    }
+    $pct = (int)max(1, min(100, round((float)$_POST['ds_view_pct'])));
+    $all = ($_POST['ds_view_scope'] ?? '') === 'all';
+    if ($all) {
+        $db->query("DELETE FROM settings WHERE setting_key LIKE 'daily\_summary\_view\_pct\_d%'");
+        Settings::invalidate();
+        Settings::set(DS_VIEW_PCT_KEY, (string)$pct, 'text', 'پوختەی ڕۆژانە: ڕێژەی ئەو پارەیەی هەموو دکتۆرێک لە پوختەی خۆیدا دەیبینێت (تەنها پیشاندان)');
+    } else {
+        Settings::set(DS_VIEW_PCT_KEY . '_d' . $docUserId, (string)$pct, 'text', 'پوختەی ڕۆژانە: ڕێژەی ئەو پارەیەی ئەم دکتۆرە لە پوختەی خۆیدا دەیبینێت (تەنها پیشاندان)');
+    }
+    AuditLog::log('daily_summary_view_percent', 'users', $all ? null : $docUserId, ['percent' => $dsViewPct], ['percent' => $pct, 'scope' => $all ? 'all' : 'doctor']);
+    header('Location: ' . $dsLockSelf);
+    exit;
+}
+
 $pageTitle = 'پوختەی ڕۆژانەم';
 $breadcrumb = [
     ['title' => 'دکتۆرەکان'],
@@ -28,7 +51,9 @@ $breadcrumb = [
 
 require_once __DIR__ . '/../includes/header.php';
 
-$docQs = $isAdminView ? '&doctor=' . $docUserId : '';
+$docQs = $isAdminView ? '&doctor=' . $docUserId . ($dsAsDoctor ? '&as_doctor=1' : '') : '';
+/** The same sheet with the admin's «as the doctor sees it» on or off. */
+$dsAsDoctorUrl = fn(bool $on) => '?' . http_build_query(array_merge(array_diff_key($_GET, ['as_doctor' => 1]), $on ? ['as_doctor' => 1] : []));
 /** Link to the same sheet for another period. */
 $rangeQs = fn(string $f, string $t) => '?from=' . urlencode($f) . '&to=' . urlencode($t) . $docQs;
 $pdfUrl = APP_URL . '/doctors/daily-summary-pdf.php' . $rangeQs($from, $to);
@@ -153,6 +178,17 @@ $dsPatients = function () use ($patientRows, $patientTotals) {
 
 @media(max-width:1100px){.ds-grid.g3,.ds-grid.g2{grid-template-columns:1fr}.ds-days{margin-inline-start:0}}
 
+/* ڕێژەی پیشاندان — the admin's control (never shown to a doctor) */
+.ds-pct{margin-top:10px;border:1px solid #c7d7e6;background:#f4f8fc;border-radius:10px;padding:8px 12px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12.5px;color:#334155}
+.ds-pct > i{color:#0078d4}
+.ds-pct b{color:#0f172a}
+.ds-pct input{width:70px;height:30px;border:1px solid #9cafbd;border-radius:6px;padding:2px 6px;font:inherit;text-align:center}
+.ds-pct button{height:30px;border:1px solid #0078d4;background:#0078d4;color:#fff;border-radius:6px;padding:0 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.ds-pct button.alt{background:#fff;color:#0078d4}
+.ds-pct a{margin-inline-start:auto;color:#0067c0;font-weight:700;text-decoration:none}
+.ds-pct small{flex-basis:100%;color:#64748b}
+.ds-pct.is-preview{background:#fff7e6;border-color:#f0c36d}
+
 /* the switch between the two looks */
 .ds-style{margin:0;display:inline-flex;border:1px solid #9fbbd0;border-radius:999px;overflow:hidden}
 .ds-style button{background:transparent;color:#fff;border:0;padding:5px 12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
@@ -206,6 +242,7 @@ $dsPatients = function () use ($patientRows, $patientTotals) {
     <form method="get" class="ds-filter">
         <label>لە <input type="date" name="from" value="<?= dsEsc($from) ?>"></label>
         <label>بۆ <input type="date" name="to" value="<?= dsEsc($to) ?>"></label>
+        <?php if ($dsAsDoctor): ?><input type="hidden" name="as_doctor" value="1"><?php endif; ?>
         <?php if ($isAdminView): ?>
         <select name="doctor">
             <?php foreach ($doctorList as $d): ?>
@@ -222,6 +259,28 @@ $dsPatients = function () use ($patientRows, $patientTotals) {
             <a href="<?= dsEsc($rangeQs($nextFrom, $nextTo)) ?>" title="ماوەی داهاتوو">داهاتوو →</a>
         </div>
     </form>
+
+    <?php if ($dsCanSetPct): ?>
+    <form method="post" class="ds-pct<?= $dsAsDoctor ? ' is-preview' : '' ?>">
+        <?= Csrf::field() ?>
+        <i class="fas fa-user-secret"></i>
+        <?php if ($dsAsDoctor): ?>
+        <span>ئێستا وەک دکتۆرەکە دەیبینیت: تەنها <b><?= dsMoney($dsViewPct) ?>%</b> ی پارەکەی.</span>
+        <?php else: ?>
+        <span>دکتۆر لە پوختەی خۆیدا <b><?= dsMoney($dsViewPct) ?>%</b> ی پارەکەی دەبینێت<?= $dsViewPct < 100 && !ds_view_percent_is_own($docUserId) ? ' (ڕێژەی هەموو دکتۆرەکان)' : '' ?>.</span>
+        <?php endif; ?>
+        <label>ڕێژە <input type="number" name="ds_view_pct" min="1" max="100" step="1" value="<?= (int)round($dsViewPct) ?>" required> %</label>
+        <button type="submit" name="ds_view_scope" value="doctor">بۆ ئەم دکتۆرە</button>
+        <button type="submit" name="ds_view_scope" value="all" class="alt" onclick="return confirm('ئەم ڕێژەیە بۆ هەموو دکتۆرەکان دابنرێت؟ ڕێژەی تایبەتی هەر دکتۆرێک لادەچێت.')">بۆ هەموو دکتۆرەکان</button>
+        <?php if ($dsAsDoctor): ?>
+        <a href="<?= dsEsc($dsAsDoctorUrl(false)) ?>"><i class="fas fa-eye"></i> ژمارەی تەواو ببینە</a>
+        <?php else: ?>
+        <a href="<?= dsEsc($dsAsDoctorUrl(true)) ?>"><i class="fas fa-user-md"></i> وەک دکتۆرەکە ببینە</a>
+        <?php endif; ?>
+        <small>تەنها پیشاندانە: هەموو بڕە پارەکانی ئەم پەیجە و PDF ـەکەی بەم ڕێژەیە کەم دەکرێنەوە، ژمارە و کاتەکان وەک خۆیان دەمێننەوە. هیچ شتێک لە حساباتدا ناگۆڕێت، و ئەدمین و ژمێریار هەمیشە ژمارەی تەواو دەبینن.
+            هەموو دکتۆرەکان پێکەوە: <a href="<?= APP_URL ?>/admin/settings.php?tab=doctor_income" style="margin:0">ڕێکخستنەکان ← داهاتی دکتۆر</a></small>
+    </form>
+    <?php endif; ?>
 
     <?php if ($visitsLinkBroken): ?>
     <div class="ds-warn">

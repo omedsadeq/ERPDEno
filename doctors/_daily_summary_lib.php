@@ -29,6 +29,7 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/VisitReportStats.php';
 require_once __DIR__ . '/../classes/IncomeColumn.php';
+require_once __DIR__ . '/../classes/Settings.php';
 
 /** X-ray types as the clinic names them (the income sheet uses the same). */
 const DS_XRAY_TYPES = ['panoramic' => 'OPG', 'cbct' => 'CBCT', 'cephalometric' => 'Ceph', 'periapical' => 'P.A'];
@@ -688,4 +689,70 @@ function ds_row_lists(array $ds): array
             ['کۆی کاتی بەتال',   dsHours($ds['idleMinutes']), ''],
         ],
     ];
+}
+
+// ── ڕێژەی پیشاندان — what a doctor is shown of their own money ──────────
+// The admin may have a doctor see only a part of their money on this sheet
+// (20% …): for the tax, and so that whoever learns the doctor's password does
+// not learn what they earn. Display only — nothing stored changes, and the
+// admin and the accountant always see the whole. A doctor's own percentage,
+// else the one for all doctors, else 100.
+const DS_VIEW_PCT_KEY = 'daily_summary_view_pct';
+
+/** The percentage of their money a doctor is shown (1 … 100). */
+function ds_view_percent(int $doctorUserId): float
+{
+    $v = Settings::get(DS_VIEW_PCT_KEY . '_d' . $doctorUserId);
+    if ($v === null || $v === '') {
+        $v = Settings::get(DS_VIEW_PCT_KEY);
+    }
+    return ($v === null || $v === '') ? 100.0 : max(1.0, min(100.0, (float)$v));
+}
+
+/** Is a doctor's percentage their own (not the one for all doctors)? */
+function ds_view_percent_is_own(int $doctorUserId): bool
+{
+    $v = Settings::get(DS_VIEW_PCT_KEY . '_d' . $doctorUserId);
+    return $v !== null && $v !== '';
+}
+
+/**
+ * Every amount of money in ds_compute_range()'s result times $factor; counts
+ * and times stay as they are. All of it scales alike, so every total still
+ * adds up.
+ */
+function ds_scale_money(array $ds, float $factor): array
+{
+    foreach (['invoiceNet', 'invoiceDisc', 'grossBilled', 'treatmentCash', 'chairPending', 'newDebtToday',
+              'oldDebtCollected', 'advanceCollected', 'labExpense', 'storeExpense', 'storeOnDoctor',
+              'generalExpense', 'doctorExpenses', 'columnTotal', 'columnOnDoctor', 'columnCashOut', 'cashIn',
+              'netAfterExpenses', 'netBeforeStore', 'doctorShare', 'centerShare', 'treatmentAmount'] as $k) {
+        if (isset($ds[$k]) && is_numeric($ds[$k])) {
+            $ds[$k] = (float)$ds[$k] * $factor;
+        }
+    }
+    foreach (['storeByKind', 'storeOnDoctorByKind'] as $k) {
+        foreach ($ds[$k] ?? [] as $kind => $v) {
+            $ds[$k][$kind] = (float)$v * $factor;
+        }
+    }
+    foreach ($ds['columnCharges'] ?? [] as $i => $c) {
+        $ds['columnCharges'][$i]['amount'] = (float)($c['amount'] ?? 0) * $factor;
+    }
+    foreach ($ds['topTreatments'] ?? [] as $i => $t) {
+        $ds['topTreatments'][$i]['amt'] = (float)$t['amt'] * $factor;
+    }
+    foreach ($ds['patientRows'] ?? [] as $i => $r) {
+        foreach (['billed', 'chair', 'paid', 'received', 'left'] as $k) {
+            if (isset($r[$k])) {
+                $ds['patientRows'][$i][$k] = (float)$r[$k] * $factor;
+            }
+        }
+    }
+    foreach (['billed', 'paid', 'left'] as $k) {
+        if (isset($ds['patientTotals'][$k])) {
+            $ds['patientTotals'][$k] = (float)$ds['patientTotals'][$k] * $factor;
+        }
+    }
+    return $ds;
 }

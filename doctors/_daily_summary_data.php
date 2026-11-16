@@ -55,7 +55,16 @@ $rangePresets = ds_range_presets();
 
 // Every figure as a plain variable ($grossBilled, $work, $patientRows, …) —
 // the key list is the return array of ds_compute_range().
-extract(ds_compute_range($db, $docUserId, $from, $to));
+$dsData = ds_compute_range($db, $docUserId, $from, $to);
+// ڕێژەی پیشاندان: a doctor sees only the part of their money the admin set
+// (ds_view_percent); the admin/accountant see the whole, unless the admin
+// asks to see the sheet as the doctor does (?as_doctor=1).
+$dsViewPct = ds_view_percent($docUserId);
+$dsAsDoctor = $isAdminView && !empty($_GET['as_doctor']);
+if ((!$isAdminView || $dsAsDoctor) && $dsViewPct < 100) {
+    $dsData = ds_scale_money($dsData, $dsViewPct / 100);
+}
+extract($dsData);
 
 $dsLists = ds_row_lists(compact(
     'grossBilled', 'invoiceDisc', 'invoiceNet', 'treatmentCash', 'chairPending', 'newDebtToday',
