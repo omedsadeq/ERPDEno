@@ -357,6 +357,18 @@ require_once __DIR__ . '/../includes/header.php';
 .cmp-fx[hidden]{display:none}
 .cmp-fx b{color:#5eead4}
 .cmp-fx .err{color:#fca5a5;font-family:inherit}
+/* کلیکی ڕاست لەسەر ڕیز: the row menu, as in Excel */
+.cmp-ctx{position:fixed;z-index:70;min-width:220px;padding:5px;border-radius:12px;background:#fff;border:1px solid #ddd6fe;box-shadow:0 14px 34px -10px rgba(15,23,42,.4)}
+.cmp-ctx[hidden]{display:none}
+.cmp-ctx .hd{padding:4px 10px 6px;font-size:11.5px;color:#7c3aed;font-weight:700;border-bottom:1px solid #f1edff;margin-bottom:4px}
+.cmp-ctx button{display:flex;align-items:center;gap:10px;width:100%;padding:7px 10px;border:0;border-radius:8px;background:none;font:inherit;font-size:13px;color:#1e293b;text-align:start;cursor:pointer}
+.cmp-ctx button i{width:16px;text-align:center;color:#7c3aed}
+.cmp-ctx button:hover,.cmp-ctx button:focus{background:#f5f3ff;outline:none}
+.cmp-ctx button:disabled{opacity:.4;cursor:default;background:none}
+.cmp-ctx button.is-del,.cmp-ctx button.is-del i{color:#be123c}
+.cmp-ctx button.is-del:hover{background:#fff1f2}
+.cmp-ctx button kbd{margin-inline-start:auto;font:11px Consolas,Menlo,monospace;color:#94a3b8}
+.cmp-ctx .sep{height:1px;margin:4px 6px;background:#f1edff}
 .cmp-sheet:fullscreen{overflow:auto;margin:0;border-radius:0;padding:12px 18px;background:#fff}
 .cmp-sheet:fullscreen .cr{min-width:0}
 .cmp-sheet:fullscreen .cmp-scroll{overflow-x:auto}
@@ -434,7 +446,7 @@ require_once __DIR__ . '/../includes/header.php';
         <span class="cmp-editnote">دەستکاری وەک ئێکسڵ: خانە بگۆڕە، ڕیز بە ⠿ ڕاکێشە یان زیاد/دووبارە/ڕەش بکەوە (Alt+↑↓، Enter). ڕاپۆرتی ڕاستەقینە ناگۆڕێت.
             <br><b>ژمێردن:</b> <code>=</code> بنووسە — پیت ستوونە، ژمارە ڕیزە:
             <code>=B3+C3</code> <code>=SUM(B1:B5)</code> <code>=B3*20%</code> <code>=T1!B3-T2!B3</code>
-            · کرتە لە خانەیەک ناونیشانەکەی دەخاتە ناو فۆرمولەکە.</span>
+            · کرتە لە خانەیەک ناونیشانەکەی دەخاتە ناو فۆرمولەکە. <b>کلیکی ڕاست</b> لە هەر شوێنێکی خشتە: ڕیز یان ستوون زیاد/ڕەش بکە.</span>
         <button type="button" class="cmp-tool" id="cmpUndo" disabled title="گەڕاندنەوەی دوا کاری ڕیز (Ctrl+Z لە دەرەوەی خانە)"><i class="fas fa-rotate-left"></i> گەڕاندنەوە</button>
         <input type="text" name="title" maxlength="150" required placeholder="ناوی کۆپی، بۆ نموونە: بەراوردی مانگی 10 بۆ کۆبوونەوە"
                value="<?= dsEsc($copy['title'] ?? '') ?>">
@@ -443,6 +455,28 @@ require_once __DIR__ . '/../includes/header.php';
         <button type="button" class="cmp-tool" id="cmpCancel"><i class="fas fa-xmark"></i> پاشگەزبوونەوە</button>
     </form>
     <div class="cmp-fx" id="cmpFx" hidden></div>
+    <div class="cmp-ctx" id="cmpCtx" hidden role="menu">
+        <div class="hd"></div>
+        <div data-part="row">
+            <button type="button" data-ctx="above" role="menuitem"><i class="fas fa-arrow-up-from-bracket"></i> ڕیزێک لە سەرەوە زیاد بکە</button>
+            <button type="button" data-ctx="below" role="menuitem"><i class="fas fa-plus"></i> ڕیزێک لە خوارەوە زیاد بکە</button>
+            <button type="button" data-ctx="dup" role="menuitem"><i class="fas fa-clone"></i> دووبارەکردنەوەی ئەم ڕیزە</button>
+            <button type="button" data-ctx="up" role="menuitem"><i class="fas fa-arrow-up"></i> بۆ سەرەوە <kbd>Alt+↑</kbd></button>
+            <button type="button" data-ctx="down" role="menuitem"><i class="fas fa-arrow-down"></i> بۆ خوارەوە <kbd>Alt+↓</kbd></button>
+            <button type="button" data-ctx="del" class="is-del" role="menuitem"><i class="fas fa-trash"></i> ڕەشکردنەوەی ئەم ڕیزە</button>
+            <div class="sep"></div>
+        </div>
+        <div data-part="table">
+            <button type="button" data-ctx="top" role="menuitem"><i class="fas fa-angles-up"></i> ڕیزێک لە سەرەتای خشتە</button>
+            <button type="button" data-ctx="end" role="menuitem"><i class="fas fa-angles-down"></i> ڕیزێک لە کۆتایی خشتە</button>
+        </div>
+        <div data-part="col">
+            <div class="sep"></div>
+            <button type="button" data-ctx="colRight" role="menuitem"><i class="fas fa-arrow-right"></i> ستوونێک لە لای ڕاست</button>
+            <button type="button" data-ctx="colLeft" role="menuitem"><i class="fas fa-arrow-left"></i> ستوونێک لە لای چەپ</button>
+            <button type="button" data-ctx="colDel" class="is-del" role="menuitem"><i class="fas fa-trash"></i> ڕەشکردنەوەی ئەم ستوونە</button>
+        </div>
+    </div>
     <div class="cmp-rowtools" id="cmpRowTools" hidden>
         <button type="button" data-row="grip" class="is-grip" title="ڕاکێشان بۆ گواستنەوەی ڕیزەکە"><i class="fas fa-grip-vertical"></i></button>
         <button type="button" data-row="up" title="بۆ سەرەوە (Alt+↑)"><i class="fas fa-arrow-up"></i></button>
@@ -509,13 +543,19 @@ require_once __DIR__ . '/../includes/header.php';
         });
     };
 
+    // started from the button: the copy's name is asked and the sheet comes
+    // into view; from a right click on a row (quiet): it stays where it is
+    let quietStart = false;
     editBtn.addEventListener('click', function () {
+        const quiet = quietStart;
+        quietStart = false;
         sheet.classList.add('is-editing');
         bar.hidden = false;
         editBtn.disabled = true;
         sheet.querySelectorAll('.cr th, .cr td, .cr-title').forEach(function (c) { c.contentEditable = 'true'; });
         ensureIds();
         recompute();
+        if (quiet) return;
         bar.querySelector('input[name="title"]').focus();
         sheet.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -609,7 +649,7 @@ require_once __DIR__ . '/../includes/header.php';
         function primary() {
             const t = peek();
             if (t.k === 'n') { i++; return t.v; }
-            if (t.k === 'bad') throw new Error('#REF! — ئەو ڕیزە نەماوە');
+            if (t.k === 'bad') throw new Error('#REF! — ئەو ڕیز یان ستوونە نەماوە');
             if (t.k === 'ref') {
                 i++;
                 if (isOp(':')) {
@@ -640,7 +680,7 @@ require_once __DIR__ . '/../includes/header.php';
         // B1:D4 — the rows between the two as they stand now, in one table
         function range(a, b) {
             const ta = rowById(a.rid), tb = rowById(b.rid);
-            if (!ta || !tb) throw new Error('#REF! — ئەو ڕیزە نەماوە');
+            if (!ta || !tb) throw new Error('#REF! — ئەو ڕیز یان ستوونە نەماوە');
             if (ta.closest('table') !== tb.closest('table')) throw new Error('ماوە دەبێت لە یەک خشتەدا بێت');
             const rows = tableRows(ta.closest('table'));
             const r1 = Math.min(rows.indexOf(ta), rows.indexOf(tb)), r2 = Math.max(rows.indexOf(ta), rows.indexOf(tb));
@@ -663,7 +703,7 @@ require_once __DIR__ . '/../includes/header.php';
         const memo = new Map(), busy = new Set();
         const valueOf = function (rid, col, inRange) {
             const tr = rowById(rid);
-            if (!tr) throw new Error('#REF! — ئەو ڕیزە نەماوە');
+            if (!tr) throw new Error('#REF! — ئەو ڕیز یان ستوونە نەماوە');
             const cell = tr.cells[col];
             if (!cell) return inRange ? null : 0;
             if (cell.dataset.f) return compute(cell);
@@ -863,6 +903,159 @@ require_once __DIR__ . '/../includes/header.php';
         recompute();
     });
 
+    // ── کلیکی ڕاست لەسەر ڕیز: add above / below anywhere, as in Excel ──
+    // A right click on any row (the report too: it starts editing a copy)
+    // opens the menu; «لە سەرەوە» on row 14 makes the new row 14 and the old
+    // one 15. Formulas follow their rows, so nothing they read moves.
+    const ctx = document.getElementById('cmpCtx');
+    let ctxRow = null, ctxAt = null, ctxTable = null, ctxCol = null;
+    const ctxClose = function () { ctx.hidden = true; ctxRow = null; ctxTable = null; ctxCol = null; };
+    // a row to start from when the table has none left: one empty cell per column
+    const templateRow = function (table) {
+        const any = table.querySelector('tbody tr') || table.querySelector('tfoot tr');
+        if (any) return any;
+        const tr = document.createElement('tr');
+        table.querySelectorAll('thead th').forEach(function () { const td = document.createElement('td'); tr.appendChild(td); });
+        return tr;
+    };
+    const addRowAt = function (table, where) {
+        remember();
+        const r = blank(templateRow(table), 'ڕیزی نوێ');
+        r.className = '';
+        const body = table.tBodies[0] || table.appendChild(document.createElement('tbody'));
+        where === 'top' ? body.prepend(r) : body.appendChild(r);
+        retotal(table);
+        recompute();
+        pick(r);
+        r.cells[0].focus();
+        document.getSelection().selectAllChildren(r.cells[0]);
+    };
+    // a column in or out: every formula reading this table's columns at or past it moves with them
+    const shiftCols = function (table, at, delta) {
+        const ids = new Set(Array.from(table.querySelectorAll('tbody tr, tfoot tr')).map(function (tr) { return tr.dataset.r; }));
+        sheet.querySelectorAll('table.cr td[data-f]').forEach(function (cell) {
+            cell.dataset.f = cell.dataset.f.replace(/\[r(\d+)c(\d+)\]/g, function (m, rid, col) {
+                col = parseInt(col, 10);
+                if (!ids.has(rid) || col < at) return m;
+                if (delta < 0 && col === at) return '#REF!';
+                return '[r' + rid + 'c' + (col + delta) + ']';
+            });
+        });
+    };
+    const addCol = function (table, at) {
+        remember();
+        shiftCols(table, at, 1);
+        Array.from(table.rows).forEach(function (tr) {
+            const head = tr.parentNode.tagName === 'THEAD';
+            const c = document.createElement(head ? 'th' : 'td');
+            if (head) { c.textContent = 'ستوونی نوێ'; c.setAttribute('width', '5%'); }
+            else c.className = 'n';
+            c.contentEditable = 'true';
+            c.classList.add('is-changed');
+            tr.insertBefore(c, tr.cells[at] || null);
+        });
+        recompute();
+        const th = table.querySelector('thead tr').cells[at];
+        th.focus();
+        document.getSelection().selectAllChildren(th);
+    };
+    const delCol = function (table, at) {
+        if (table.querySelector('thead tr').cells.length < 2) return;
+        remember();
+        shiftCols(table, at, -1);
+        Array.from(table.rows).forEach(function (tr) { if (tr.cells[at]) tr.deleteCell(at); });
+        recompute();
+    };
+    const addRow = function (tr, where, copyIt) {
+        remember();
+        const r = blank(tr, copyIt ? undefined : 'ڕیزی نوێ');
+        where === 'above' ? tr.before(r) : tr.after(r);
+        retotal(tr.closest('table'));
+        recompute();
+        pick(r);
+        r.cells[0].focus();
+        if (!copyIt) document.getSelection().selectAllChildren(r.cells[0]);
+    };
+    sheet.addEventListener('contextmenu', function (e) {
+        if (!e.target.closest) return;
+        const title = e.target.closest('.cr-title');
+        const cell = e.target.closest('table.cr th, table.cr td');
+        // the site wraps tables (responsive-table-wrapper): the title's table is the one in its own box
+        const table = cell ? cell.closest('table') : (title && title.closest('.cmp-scroll') ? title.closest('.cmp-scroll').querySelector('table.cr') : null);
+        if (!table) return;
+        e.preventDefault();
+        if (!sheet.classList.contains('is-editing')) { quietStart = true; editBtn.click(); }
+        const tr = cell && cell.parentNode.parentNode.tagName !== 'THEAD' ? cell.parentNode : null;
+        ctxRow = tr; ctxTable = table; ctxCol = cell ? cell.cellIndex : null;
+        pick(tr && tr.parentNode.tagName === 'TBODY' ? tr : null);
+        const t = tables().indexOf(table) + 1;
+        const colName = ctxCol !== null ? letter(ctxCol) : '';
+        if (tr) {
+            const n = Array.from(table.querySelectorAll('tbody tr, tfoot tr')).indexOf(tr) + 1;
+            ctx.querySelector('.hd').textContent = 'ڕیزی ' + n + ' · ستوونی ' + colName + ' — T' + t + ' · ' + (tr.cells[0] ? tr.cells[0].innerText.trim().slice(0, 24) : '');
+            ctx.querySelector('[data-ctx="up"]').disabled = !tr.previousElementSibling;
+            ctx.querySelector('[data-ctx="down"]').disabled = !tr.nextElementSibling;
+        } else {
+            ctx.querySelector('.hd').textContent = (cell ? 'ستوونی ' + colName + ' — ' : '') + 'خشتەی T' + t;
+        }
+        ctx.querySelector('[data-part="row"]').hidden = !tr;
+        ctx.querySelector('[data-part="col"]').hidden = ctxCol === null;
+        ctx.querySelector('[data-ctx="colDel"]').disabled = table.querySelector('thead tr').cells.length < 2;
+        ctx.hidden = false;
+        const w = ctx.offsetWidth, h = ctx.offsetHeight;
+        ctx.style.left = Math.max(4, Math.min(window.innerWidth - w - 4, e.clientX - (document.dir === 'rtl' || getComputedStyle(sheet).direction === 'rtl' ? w : 0))) + 'px';
+        ctx.style.top = Math.max(4, Math.min(window.innerHeight - h - 4, e.clientY)) + 'px';
+        ctxAt = { row: (tr || cell || title).getBoundingClientRect().top, menu: parseFloat(ctx.style.top), el: tr || cell || title };
+        ctx.querySelector('button:not(:disabled)').focus({ preventScroll: true });
+    });
+    ctx.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    ctx.addEventListener('click', function (e) {
+        const b = e.target.closest('button');
+        if (!b || b.disabled || !ctxTable) return;
+        const tr = ctxRow, table = ctxTable, col = ctxCol, act = b.dataset.ctx;
+        ctxClose();
+        if (act === 'top' || act === 'end') { addRowAt(table, act); return; }
+        if (act === 'colRight') { addCol(table, col); return; }       // RTL: the right is before it
+        if (act === 'colLeft') { addCol(table, col + 1); return; }
+        if (act === 'colDel') {
+            const th = table.querySelector('thead tr').cells[col];
+            if (confirm('ستوونی «' + (th ? th.innerText.trim() : letter(col)) + '» ڕەش بکرێتەوە؟ (گەڕاندنەوە دەیگەڕێنێتەوە)')) delCol(table, col);
+            return;
+        }
+        if (!tr) return;
+        if (act === 'above' || act === 'below') addRow(tr, act, false);
+        else if (act === 'dup') addRow(tr, 'below', true);
+        else if (act === 'up' || act === 'down') { move(tr, act === 'up' ? -1 : 1); pick(tr.parentNode.tagName === 'TBODY' ? tr : null); }
+        else if (act === 'del') {
+            remember();
+            const table = tr.closest('table'), next = tr.nextElementSibling || tr.previousElementSibling;
+            tr.remove();
+            if (row === tr) row = null;
+            pick(next && next.parentNode.tagName === 'TBODY' ? next : null);
+            retotal(table);
+            recompute();
+        }
+    });
+    document.addEventListener('mousedown', function (e) { if (!ctx.hidden && !ctx.contains(e.target)) ctxClose(); });
+    document.addEventListener('keydown', function (e) {
+        if (ctx.hidden) return;
+        if (e.key === 'Escape') { e.preventDefault(); ctxClose(); return; }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            const list = Array.from(ctx.querySelectorAll('button:not(:disabled)'));
+            const i = list.indexOf(document.activeElement);
+            list[(i + (e.key === 'ArrowDown' ? 1 : -1) + list.length) % list.length].focus();
+        }
+    });
+    // a scroll carries the menu with its row; it closes once the row leaves the window
+    window.addEventListener('scroll', function () {
+        if (ctx.hidden || !ctxAt) return;
+        const r = ctxAt.el.getBoundingClientRect();
+        if (!ctxAt.el.isConnected || r.bottom < 0 || r.top > window.innerHeight) { ctxClose(); return; }
+        ctx.style.top = (ctxAt.menu + r.top - ctxAt.row) + 'px';
+    }, true);
+    window.addEventListener('resize', ctxClose);
+
     // ⠿ held down: the row follows the pointer up and down its table
     tools.querySelector('[data-row="grip"]').addEventListener('pointerdown', function (e) {
         if (!row) return;
@@ -944,7 +1137,9 @@ require_once __DIR__ . '/../includes/header.php';
             });
         };
         const tables = Array.from(sheet.querySelectorAll('table.cr')).map(function (t) {
-            const title = t.previousElementSibling && t.previousElementSibling.classList.contains('cr-title') ? t.previousElementSibling.innerText.trim() : '';
+            // the title sits in the table's own box, not always right before it (the site wraps tables)
+            const box = t.closest('.cmp-scroll'), head = box && box.querySelector('.cr-title');
+            const title = head ? head.innerText.trim() : '';
             return {
                 title: title,
                 cols: Array.from(t.querySelectorAll('thead th')).map(function (th) { return { t: th.innerText.trim(), w: parseFloat(th.getAttribute('width')) || 4 }; }),
