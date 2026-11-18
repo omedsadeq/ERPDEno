@@ -321,7 +321,8 @@ require_once __DIR__ . '/../includes/header.php';
 .cmp-sheet.is-copy{outline:2px dashed #c4b5fd;outline-offset:-2px}
 .cmp-editbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:8px 0;padding:10px 12px;border-radius:12px;background:#f5f3ff;border:1px solid #ddd6fe;color:#5b21b6}
 .cmp-editbar[hidden]{display:none}
-.cmp-editnote{flex:1 1 260px;font-size:12px}
+.cmp-editnote{flex:1 1 260px;font-size:12px;line-height:1.9}
+.cmp-editnote code{display:inline-block;direction:ltr;padding:0 6px;border-radius:5px;background:#fff;border:1px solid #ddd6fe;color:#5b21b6;font:12px/18px Consolas,Menlo,monospace}
 .cmp-editbar input[type=text]{flex:1 1 220px;height:40px;border:1px solid #c4b5fd;border-radius:10px;padding:0 10px;font:inherit;font-size:13px;background:#fff}
 .cmp-sheet.is-editing [contenteditable]{cursor:text}
 .cmp-sheet.is-editing .cr td:hover,.cmp-sheet.is-editing .cr th:hover{box-shadow:inset 0 0 0 1px #a78bfa}
@@ -340,6 +341,22 @@ require_once __DIR__ . '/../includes/header.php';
 .cmp-sheet.is-editing .cr tbody tr.is-dragging{opacity:.75;box-shadow:inset 0 0 0 2px #7c3aed;background:#f5f3ff}
 .cmp-sheet.is-dragging-row,.cmp-sheet.is-dragging-row *{cursor:grabbing !important;user-select:none}
 /* the sheet over the whole screen */
+/* ژمێردن وەک ئێکسڵ: letters over the columns, numbers on the rows, T1/T2 on the tables */
+.cmp-sheet.is-editing{counter-reset:crtab}
+.cmp-sheet.is-editing .cr-title{counter-increment:crtab}
+.cmp-sheet.is-editing .cr-title::before{content:'T' counter(crtab);display:inline-block;margin-inline-end:8px;padding:0 6px;border-radius:6px;background:#7c3aed;color:#fff;font:700 11px/18px Consolas,Menlo,monospace}
+.cmp-sheet.is-editing table.cr{counter-reset:crcol crrow}
+.cmp-sheet.is-editing .cr thead th{counter-increment:crcol}
+.cmp-sheet.is-editing .cr thead th::before{content:counter(crcol, upper-alpha);display:block;margin-bottom:2px;color:#7c3aed;font:700 10.5px/1 Consolas,Menlo,monospace}
+.cmp-sheet.is-editing .cr tbody tr,.cmp-sheet.is-editing .cr tfoot tr{counter-increment:crrow}
+.cmp-sheet.is-editing .cr tbody tr>td:first-child::before,.cmp-sheet.is-editing .cr tfoot tr>td:first-child::before{content:counter(crrow);display:inline-block;min-width:16px;margin-inline-end:6px;padding:0 4px;border-radius:5px;background:#ede9fe;color:#6d28d9;font:700 10px/16px Consolas,Menlo,monospace;text-align:center}
+.cmp-sheet.is-editing .cr td[data-f]{background:#ecfdf5 !important;color:#065f46}
+.cmp-sheet.is-editing .cr td[data-f].is-err{background:#fef2f2 !important;color:#b91c1c}
+.cmp-sheet.is-editing .cr td.is-formula{direction:ltr;font-family:Consolas,Menlo,monospace;color:#0f172a;background:#fff !important}
+.cmp-fx{position:fixed;z-index:61;max-width:420px;padding:6px 10px;border-radius:9px;background:#0f172a;color:#e2e8f0;font:12px/1.5 Consolas,Menlo,monospace;direction:ltr;box-shadow:0 8px 20px -8px rgba(15,23,42,.5);pointer-events:none}
+.cmp-fx[hidden]{display:none}
+.cmp-fx b{color:#5eead4}
+.cmp-fx .err{color:#fca5a5;font-family:inherit}
 .cmp-sheet:fullscreen{overflow:auto;margin:0;border-radius:0;padding:12px 18px;background:#fff}
 .cmp-sheet:fullscreen .cr{min-width:0}
 .cmp-sheet:fullscreen .cmp-scroll{overflow-x:auto}
@@ -414,7 +431,10 @@ require_once __DIR__ . '/../includes/header.php';
         <?php foreach (['a_from' => $aFrom, 'a_to' => $aTo, 'b_from' => $bFrom, 'b_to' => $bTo] as $k => $v): ?><input type="hidden" name="<?= $k ?>" value="<?= dsEsc($v) ?>"><?php endforeach; ?>
         <?php if ($avg): ?><input type="hidden" name="avg" value="1"><?php endif; ?>
         <i class="fas fa-pen-to-square"></i>
-        <span class="cmp-editnote">دەستکاری لەسەر کۆپی وەک ئێکسڵ: کلیک لە هەر خانەیەک بکە و بیگۆڕە؛ ڕیزەکان بە ⠿ ڕاکێشە، یان ↑ ↓ (Alt+↑↓)، زیاد/دووبارە/ڕەش بکەوە. Enter: خانەی خوارەوە. کۆی گشتی خۆی دەژمێردرێتەوە. ڕاپۆرتی ڕاستەقینە ناگۆڕێت.</span>
+        <span class="cmp-editnote">دەستکاری وەک ئێکسڵ: خانە بگۆڕە، ڕیز بە ⠿ ڕاکێشە یان زیاد/دووبارە/ڕەش بکەوە (Alt+↑↓، Enter). ڕاپۆرتی ڕاستەقینە ناگۆڕێت.
+            <br><b>ژمێردن:</b> <code>=</code> بنووسە — پیت ستوونە، ژمارە ڕیزە:
+            <code>=B3+C3</code> <code>=SUM(B1:B5)</code> <code>=B3*20%</code> <code>=T1!B3-T2!B3</code>
+            · کرتە لە خانەیەک ناونیشانەکەی دەخاتە ناو فۆرمولەکە.</span>
         <button type="button" class="cmp-tool" id="cmpUndo" disabled title="گەڕاندنەوەی دوا کاری ڕیز (Ctrl+Z لە دەرەوەی خانە)"><i class="fas fa-rotate-left"></i> گەڕاندنەوە</button>
         <input type="text" name="title" maxlength="150" required placeholder="ناوی کۆپی، بۆ نموونە: بەراوردی مانگی 10 بۆ کۆبوونەوە"
                value="<?= dsEsc($copy['title'] ?? '') ?>">
@@ -422,6 +442,7 @@ require_once __DIR__ . '/../includes/header.php';
         <?php if ($copy): ?><button type="submit" class="cmp-tool" data-save name="as_new" value="1"><i class="fas fa-clone"></i> وەک کۆپیی نوێ</button><?php endif; ?>
         <button type="button" class="cmp-tool" id="cmpCancel"><i class="fas fa-xmark"></i> پاشگەزبوونەوە</button>
     </form>
+    <div class="cmp-fx" id="cmpFx" hidden></div>
     <div class="cmp-rowtools" id="cmpRowTools" hidden>
         <button type="button" data-row="grip" class="is-grip" title="ڕاکێشان بۆ گواستنەوەی ڕیزەکە"><i class="fas fa-grip-vertical"></i></button>
         <button type="button" data-row="up" title="بۆ سەرەوە (Alt+↑)"><i class="fas fa-arrow-up"></i></button>
@@ -460,9 +481,10 @@ require_once __DIR__ . '/../includes/header.php';
 
     // a cell's number: «1,925,000», «−12», «نیە» (none) → 0; anything else is not a number
     const num = function (t) {
-        t = t.replace(/[,\s‎‏]/g, '').replace('−', '-');
+        t = t.replace(/[,\s‎‏]/g, '').replace('−', '-').replace(/[٠-٩]/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'.indexOf(d); });
         if (t === '' || t === 'نیە' || t === 'نەبوو') return 0;
-        return /^-?\d+(\.\d+)?$/.test(t) ? parseFloat(t) : null;
+        if (/^[+-]?\d+(\.\d+)?%$/.test(t)) return parseFloat(t) / 100;   // 12% → 0.12, as in Excel
+        return /^[+-]?\d+(\.\d+)?$/.test(t) ? parseFloat(t) : null;
     };
     const fmt = function (v, decimals) {
         if (decimals) return (Math.round(v * 10) / 10).toString();
@@ -475,7 +497,7 @@ require_once __DIR__ . '/../includes/header.php';
         if (!tot) return;
         Array.from(tot.cells).forEach(function (cell, i) {
             const money = cell.classList.contains('n'), count = cell.classList.contains('c');
-            if (!money && !count) return;
+            if ((!money && !count) || cell.dataset.f) return;   // a formula there is the user's own
             let sum = 0, ok = false;
             table.querySelectorAll('tbody tr').forEach(function (tr) {
                 const td = tr.cells[i];
@@ -492,6 +514,8 @@ require_once __DIR__ . '/../includes/header.php';
         bar.hidden = false;
         editBtn.disabled = true;
         sheet.querySelectorAll('.cr th, .cr td, .cr-title').forEach(function (c) { c.contentEditable = 'true'; });
+        ensureIds();
+        recompute();
         bar.querySelector('input[name="title"]').focus();
         sheet.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -503,8 +527,253 @@ require_once __DIR__ . '/../includes/header.php';
         const td = e.target.closest('td');
         if (!td) return;
         td.classList.add('is-changed');
-        if (td.closest('tbody')) retotal(td.closest('table'));
+        if (td.classList.contains('is-formula') || td.innerText.trim().charAt(0) === '=') { showFx(td); return; }
+        recompute();
     });
+
+    // ── ژمێردن وەک ئێکسڵ ────────────────────────────────────────────
+    // A cell that starts with = is a formula. On screen its references are
+    // Excel's (B3 = column B, row 3 of the same table; T2!B3 = the second
+    // table); inside, data-f keeps them by row id — [r12c1] — so moving,
+    // adding or deleting rows never points a formula at the wrong row (a
+    // deleted one gives #REF!). Its value is what the cell shows and saves.
+    const fxBox = document.getElementById('cmpFx');
+    let nextRid = 1;
+    const allRows = function () { return Array.from(sheet.querySelectorAll('table.cr tbody tr, table.cr tfoot tr')); };
+    const tableRows = function (t) { return Array.from(t.querySelectorAll('tbody tr, tfoot tr')); };
+    const ensureIds = function () {
+        allRows().forEach(function (tr) { const r = parseInt(tr.dataset.r, 10); if (r >= nextRid) nextRid = r + 1; });
+        allRows().forEach(function (tr) { if (!tr.dataset.r) tr.dataset.r = nextRid++; });
+    };
+    const letter = function (i) { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+    const colIndex = function (s) { let n = 0; s.toUpperCase().split('').forEach(function (ch) { n = n * 26 + ch.charCodeAt(0) - 64; }); return n - 1; };
+    const rowById = function (id) { return sheet.querySelector('table.cr tr[data-r="' + id + '"]'); };
+    const plain = function (s) {   // Kurdish digits and signs as typed → the plain ones
+        return s.replace(/[٠-٩]/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'.indexOf(d); })
+            .replace(/×/g, '*').replace(/÷/g, '/').replace(/[−–]/g, '-').replace(/،/g, ',').replace(/٫/g, '.').replace(/٪/g, '%');
+    };
+    // B3 / T2!B3 → [r12c1]; a reference to no row is kept as #REF!
+    const toInternal = function (text, cell) {
+        const mine = cell.closest('table'), list = tables();
+        return plain(text).replace(/(?:\b[Tt](\d+)!)?\b([A-Za-z]{1,2})(\d+)\b/g, function (m, t, col, row) {
+            const table = t ? list[parseInt(t, 10) - 1] : mine;
+            const tr = table && tableRows(table)[parseInt(row, 10) - 1];
+            return tr ? '[r' + tr.dataset.r + 'c' + colIndex(col) + ']' : '#REF!';
+        });
+    };
+    // [r12c1] → B3 as the rows stand now
+    const toDisplay = function (f, cell) {
+        const mine = cell.closest('table'), list = tables();
+        return f.replace(/\[r(\d+)c(\d+)\]/g, function (m, rid, col) {
+            const tr = rowById(rid);
+            if (!tr) return '#REF!';
+            const table = tr.closest('table');
+            return (table === mine ? '' : 'T' + (list.indexOf(table) + 1) + '!') + letter(parseInt(col, 10)) + (tableRows(table).indexOf(tr) + 1);
+        });
+    };
+    const fmtV = function (v) {
+        if (Math.abs(v - Math.round(v)) < 1e-9) return fmt(v, false);
+        const s = (Math.round(Math.abs(v) * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
+        return v < 0 ? '−' + s : s;
+    };
+
+    // the reader: + − × ÷ ^, brackets, a trailing %, ranges (B1:B5) and SUM / AVERAGE / MIN / MAX / COUNT / ABS / ROUND
+    const FUNCS = {
+        SUM: function (a) { return a.reduce(function (x, y) { return x + y; }, 0); },
+        AVERAGE: function (a) { if (!a.length) throw new Error('AVERAGE بەتاڵە'); return a.reduce(function (x, y) { return x + y; }, 0) / a.length; },
+        MIN: function (a) { return a.length ? Math.min.apply(null, a) : 0; },
+        MAX: function (a) { return a.length ? Math.max.apply(null, a) : 0; },
+        COUNT: function (a) { return a.length; },
+        ABS: function (a) { return Math.abs(a[0] || 0); },
+        ROUND: function (a) { const p = Math.pow(10, a[1] || 0); return Math.round((a[0] || 0) * p) / p; },
+    };
+    FUNCS.AVG = FUNCS.AVERAGE; FUNCS.کۆ = FUNCS.SUM; FUNCS.تێکڕا = FUNCS.AVERAGE;
+    const evaluate = function (src, valueOf) {
+        const toks = [];
+        const re = /\s*(?:(\d+(?:\.\d+)?)|(\[r\d+c\d+\])|(#REF!)|([A-Za-z\u0600-\u06FF_]+)|(\S))/gy;
+        let m;
+        while (re.lastIndex < src.length && (m = re.exec(src))) {
+            if (m[0].trim() === '') break;
+            toks.push(m[1] ? { k: 'n', v: parseFloat(m[1]) } : m[2] ? { k: 'ref', v: m[2] } : m[3] ? { k: 'bad' } : m[4] ? { k: 'id', v: m[4] } : { k: 'op', v: m[5] });
+        }
+        let i = 0;
+        const peek = function () { return toks[i] || { k: 'end' }; };
+        const isOp = function (o) { const t = peek(); return t.k === 'op' && t.v === o; };
+        const need = function (o) { if (!isOp(o)) throw new Error('«' + o + '» نەدۆزرایەوە'); i++; };
+        const scalar = function (v) { if (Array.isArray(v)) throw new Error('ماوە (:) تەنها لە ناو SUM و ئەوانەدا'); return v; };
+        const cellRef = function (tok) { const p = /\[r(\d+)c(\d+)\]/.exec(tok); return { rid: p[1], col: parseInt(p[2], 10) }; };
+        function expr() { let a = term(); while (isOp('+') || isOp('-')) { const o = toks[i++].v; const b = term(); a = o === '+' ? scalar(a) + scalar(b) : scalar(a) - scalar(b); } return a; }
+        function term() { let a = power(); while (isOp('*') || isOp('/')) { const o = toks[i++].v; const b = scalar(power()); if (o === '/' && Math.abs(b) < 1e-12) throw new Error('دابەشکردن بەسەر سفر'); a = o === '*' ? scalar(a) * b : scalar(a) / b; } return a; }
+        function power() { const a = unary(); if (isOp('^')) { i++; return Math.pow(scalar(a), scalar(power())); } return a; }
+        function unary() { if (isOp('-')) { i++; return -scalar(unary()); } if (isOp('+')) { i++; return unary(); } let a = primary(); while (isOp('%')) { i++; a = scalar(a) / 100; } return a; }
+        function primary() {
+            const t = peek();
+            if (t.k === 'n') { i++; return t.v; }
+            if (t.k === 'bad') throw new Error('#REF! — ئەو ڕیزە نەماوە');
+            if (t.k === 'ref') {
+                i++;
+                if (isOp(':')) {
+                    i++;
+                    const e = peek();
+                    if (e.k !== 'ref') throw new Error('کۆتایی ماوەکە نییە');
+                    i++;
+                    return range(cellRef(t.v), cellRef(e.v));
+                }
+                const r = cellRef(t.v);
+                return valueOf(r.rid, r.col, false);
+            }
+            if (t.k === 'id') {
+                const name = t.v.toUpperCase(), fn = FUNCS[name] || FUNCS[t.v];
+                if (!fn) throw new Error('«' + t.v + '» ناناسرێت');
+                i++;
+                need('(');
+                const args = [];
+                if (!isOp(')')) {
+                    do { const v = expr(); Array.isArray(v) ? v.forEach(function (x) { args.push(x); }) : args.push(v); } while (isOp(',') && ++i);
+                }
+                need(')');
+                return fn(args);
+            }
+            if (isOp('(')) { i++; const v = expr(); need(')'); return v; }
+            throw new Error(t.k === 'end' ? 'فۆرمولەکە تەواو نییە' : 'لە «' + (t.v || '') + '» دا هەڵەیە');
+        }
+        // B1:D4 — the rows between the two as they stand now, in one table
+        function range(a, b) {
+            const ta = rowById(a.rid), tb = rowById(b.rid);
+            if (!ta || !tb) throw new Error('#REF! — ئەو ڕیزە نەماوە');
+            if (ta.closest('table') !== tb.closest('table')) throw new Error('ماوە دەبێت لە یەک خشتەدا بێت');
+            const rows = tableRows(ta.closest('table'));
+            const r1 = Math.min(rows.indexOf(ta), rows.indexOf(tb)), r2 = Math.max(rows.indexOf(ta), rows.indexOf(tb));
+            const c1 = Math.min(a.col, b.col), c2 = Math.max(a.col, b.col);
+            const out = [];
+            for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) {
+                const v = valueOf(rows[r].dataset.r, c, true);
+                if (v !== null) out.push(v);
+            }
+            return out;
+        }
+        const v = expr();
+        if (peek().k !== 'end') throw new Error('لە «' + (peek().v || '') + '» دا هەڵەیە');
+        return scalar(v);
+    };
+
+    // every formula worked out again, then کۆی گشتی, then the formulas once more
+    // (one may read the total). A circle of references is an error, not a hang.
+    const workOut = function () {
+        const memo = new Map(), busy = new Set();
+        const valueOf = function (rid, col, inRange) {
+            const tr = rowById(rid);
+            if (!tr) throw new Error('#REF! — ئەو ڕیزە نەماوە');
+            const cell = tr.cells[col];
+            if (!cell) return inRange ? null : 0;
+            if (cell.dataset.f) return compute(cell);
+            const v = num(cell.innerText);
+            return v === null ? (inRange ? null : 0) : v;
+        };
+        const compute = function (cell) {
+            if (memo.has(cell)) { const m = memo.get(cell); if (m instanceof Error) throw m; return m; }
+            if (busy.has(cell)) throw new Error('فۆرمولەکە بازنەیی دەبێتەوە (خۆی دەخوێنێتەوە)');
+            busy.add(cell);
+            try {
+                const f = cell.dataset.f;
+                const v = evaluate(f.charAt(0) === '#' && f.indexOf('#REF!') !== 0 ? f.slice(1) : f, valueOf);
+                if (!isFinite(v)) throw new Error('ئەنجام ژمارە نییە');
+                memo.set(cell, v);
+                return v;
+            } catch (err) {
+                memo.set(cell, err);
+                throw err;
+            } finally { busy.delete(cell); }
+        };
+        sheet.querySelectorAll('table.cr td[data-f]').forEach(function (cell) {
+            if (cell.classList.contains('is-formula')) return;   // being typed
+            try {
+                cell.textContent = fmtV(compute(cell));
+                cell.classList.remove('is-err');
+                cell.removeAttribute('data-err');
+            } catch (err) {
+                cell.textContent = '#هەڵە';
+                cell.classList.add('is-err');
+                cell.dataset.err = err.message;
+            }
+        });
+    };
+    const recompute = function () {
+        workOut();
+        tables().forEach(retotal);
+        workOut();
+    };
+
+    // the formula beside the cell being typed in or pointed at
+    const showFx = function (cell) {
+        if (!cell) { fxBox.hidden = true; return; }
+        const r = cell.getBoundingClientRect();
+        if (cell.classList.contains('is-formula')) {
+            fxBox.innerHTML = '';
+            fxBox.textContent = cell.innerText.trim();
+        } else if (cell.dataset.f) {
+            fxBox.innerHTML = '';
+            const b = document.createElement('b'); b.textContent = '=' + toDisplay(cell.dataset.f, cell);
+            fxBox.appendChild(b);
+            if (cell.dataset.err) { const s = document.createElement('div'); s.className = 'err'; s.textContent = cell.dataset.err; fxBox.appendChild(s); }
+        } else { fxBox.hidden = true; return; }
+        fxBox.hidden = false;
+        fxBox.style.left = Math.max(4, Math.min(window.innerWidth - fxBox.offsetWidth - 4, r.left)) + 'px';
+        fxBox.style.top = (r.bottom + 4) + 'px';
+    };
+    sheet.addEventListener('mouseover', function (e) {
+        if (!sheet.classList.contains('is-editing')) return;
+        const cell = e.target.closest && e.target.closest('td[data-f]');
+        const typing = sheet.querySelector('td.is-formula');
+        showFx(typing || cell);
+    });
+    // into a formula cell: its formula to edit; out of any cell: = makes it one
+    sheet.addEventListener('focusin', function (e) {
+        if (!sheet.classList.contains('is-editing')) return;
+        const cell = e.target.closest && e.target.closest('td');
+        if (!cell || !cell.dataset.f) return;
+        cell.classList.add('is-formula');
+        cell.textContent = '=' + toDisplay(cell.dataset.f, cell);
+        const sel = document.getSelection(), rg = document.createRange();
+        rg.selectNodeContents(cell); rg.collapse(false); sel.removeAllRanges(); sel.addRange(rg);
+        showFx(cell);
+    });
+    sheet.addEventListener('focusout', function (e) {
+        if (!sheet.classList.contains('is-editing')) return;
+        const cell = e.target.closest && e.target.closest('td');
+        if (!cell) return;
+        const text = cell.innerText.trim();
+        const had = cell.dataset.f;
+        cell.classList.remove('is-formula');
+        if (text.charAt(0) === '=') {
+            let f = toInternal(text.slice(1), cell);
+            cell.dataset.f = f;
+            if (f !== had) { cell.classList.add('is-changed'); }
+        } else if (had) {
+            delete cell.dataset.f;   // a plain value typed over the formula
+            cell.classList.remove('is-err');
+        }
+        fxBox.hidden = true;
+        recompute();
+    });
+    // while a formula is being typed, a click on another cell puts its address in (as in Excel)
+    sheet.addEventListener('mousedown', function (e) {
+        const typing = sheet.querySelector('td.is-formula') || (document.activeElement && document.activeElement.closest && document.activeElement.closest('td'));
+        if (!sheet.classList.contains('is-editing') || !typing || typing.innerText.trim().charAt(0) !== '=') return;
+        const target = e.target.closest && e.target.closest('table.cr tbody td, table.cr tfoot td');
+        if (!target || target === typing) return;
+        const text = typing.innerText.trim();
+        if (!/[=+\-*\/(,:^]\s*$/.test(text)) return;   // only where a reference may stand
+        e.preventDefault();
+        const table = target.closest('table'), list = tables();
+        const ref = (table === typing.closest('table') ? '' : 'T' + (list.indexOf(table) + 1) + '!') + letter(target.cellIndex) + (tableRows(table).indexOf(target.parentNode) + 1);
+        typing.textContent = text + ref;
+        typing.classList.add('is-formula', 'is-changed');
+        const sel = document.getSelection(), rg = document.createRange();
+        rg.selectNodeContents(typing); rg.collapse(false); sel.removeAllRanges(); sel.addRange(rg);
+        showFx(typing);
+    });
+    window.addEventListener('scroll', function () { fxBox.hidden = true; }, true);
 
     // ── rows as in Excel: drag ⠿, ↑ ↓, add, duplicate, delete — and گەڕاندنەوە ──
     const undoBtn = document.getElementById('cmpUndo');
@@ -521,6 +790,8 @@ require_once __DIR__ . '/../includes/header.php';
         tables().forEach(function (t, i) { t.innerHTML = last[i]; t.querySelectorAll('tr.is-row,tr.is-dragging').forEach(function (tr) { tr.classList.remove('is-row', 'is-dragging'); }); });
         undoBtn.disabled = !undo.length;
         pick(null);
+        ensureIds();
+        recompute();
     });
 
     const place = function () {      // the tools beside the chosen row (outside the table when there is room)
@@ -548,12 +819,15 @@ require_once __DIR__ . '/../includes/header.php';
         remember();
         dir < 0 ? other.before(tr) : other.after(tr);
         place();
+        recompute();
     };
     const blank = function (tr, label) {
         const r = tr.cloneNode(true);
         r.classList.remove('is-row', 'is-dragging');
+        r.dataset.r = nextRid++;
         Array.from(r.cells).forEach(function (c, i) {
-            if (label !== undefined) c.textContent = i === 0 ? label : '';
+            if (label !== undefined) { c.textContent = i === 0 ? label : ''; delete c.dataset.f; c.classList.remove('is-err'); }
+            c.classList.remove('is-formula');
             c.contentEditable = 'true';
             c.classList.add('is-changed');
         });
@@ -586,6 +860,7 @@ require_once __DIR__ . '/../includes/header.php';
             if (act === 'add') document.getSelection().selectAllChildren(r.cells[0]);
         }
         retotal(table);
+        recompute();
     });
 
     // ⠿ held down: the row follows the pointer up and down its table
@@ -623,6 +898,7 @@ require_once __DIR__ . '/../includes/header.php';
             dragged.classList.remove('is-dragging');
             sheet.classList.remove('is-dragging-row');
             place();
+            if (moved) recompute();
         };
         grip.addEventListener('pointermove', onMove);
         grip.addEventListener('pointerup', onUp);
@@ -660,8 +936,10 @@ require_once __DIR__ . '/../includes/header.php';
     bar.addEventListener('submit', function () {
         const rows = function (list) {
             return Array.from(list).map(function (tr) {
-                return { c: tr.className.replace('is-changed', '').trim(), cells: Array.from(tr.cells).map(function (td) {
-                    return { t: td.innerText.trim(), c: td.className.replace('is-changed', '').trim() };
+                return { c: tr.className.replace('is-changed', '').trim(), r: parseInt(tr.dataset.r, 10) || 0, cells: Array.from(tr.cells).map(function (td) {
+                    const cell = { t: td.innerText.trim(), c: td.className.replace(/is-(changed|err|formula)/g, '').trim() };
+                    if (td.dataset.f) cell.f = td.dataset.f;
+                    return cell;
                 }) };
             });
         };

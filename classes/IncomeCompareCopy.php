@@ -8,6 +8,11 @@
  * rows of cells with their look (CELL_CLASSES / ROW_CLASSES) — and is drawn
  * again with the same markup as the live report, so the page's and the PDF's
  * styles apply to it unchanged.
+ *
+ * ژمێردن: a cell may hold a formula (f) as the page's editor keeps it — its
+ * references by row id ([r12c3] = row 12, column D), so moving or adding rows
+ * never breaks one — and every row its id (r). The cell's text (t) is the
+ * value the page worked out, which is what the page and the PDF show.
  */
 
 require_once __DIR__ . '/Database.php';
@@ -105,9 +110,19 @@ class IncomeCompareCopy
             foreach (array_slice(is_array($list) ? $list : [], 0, self::MAX_ROWS) as $row) {
                 $cells = [];
                 foreach (array_slice(is_array($row['cells'] ?? null) ? $row['cells'] : [], 0, self::MAX_CELLS) as $cell) {
-                    $cells[] = ['t' => $text($cell['t'] ?? ''), 'c' => $classes($cell['c'] ?? '', self::CELL_CLASSES)];
+                    $c = ['t' => $text($cell['t'] ?? ''), 'c' => $classes($cell['c'] ?? '', self::CELL_CLASSES)];
+                    $f = $text($cell['f'] ?? '');
+                    if ($f !== '') {
+                        $c['f'] = $f;
+                    }
+                    $cells[] = $c;
                 }
-                $out[] = ['c' => $classes($row['c'] ?? '', self::ROW_CLASSES), 'cells' => $cells];
+                $r = ['c' => $classes($row['c'] ?? '', self::ROW_CLASSES), 'cells' => $cells];
+                $id = (int)($row['r'] ?? 0);
+                if ($id > 0 && $id < 1000000) {
+                    $r['r'] = $id;
+                }
+                $out[] = $r;
             }
             return $out;
         };
@@ -126,9 +141,12 @@ class IncomeCompareCopy
     public static function tableHtml(array $t): string
     {
         $e = fn($v) => nl2br(htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'), false);
-        $cell = fn(array $c) => '<td' . ($c['c'] !== '' ? ' class="' . $c['c'] . '"' : '') . '>'
+        $attr = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        $cell = fn(array $c) => '<td' . ($c['c'] !== '' ? ' class="' . $c['c'] . '"' : '')
+            . (($c['f'] ?? '') !== '' ? ' data-f="' . $attr($c['f']) . '"' : '') . '>'
             . ($c['t'] === '' ? '' : '<bdi>' . $e($c['t']) . '</bdi>') . '</td>';
-        $row = fn(array $r) => '<tr' . ($r['c'] !== '' ? ' class="' . $r['c'] . '"' : '') . '>' . implode('', array_map($cell, $r['cells'])) . '</tr>';
+        $row = fn(array $r) => '<tr' . ($r['c'] !== '' ? ' class="' . $r['c'] . '"' : '')
+            . (!empty($r['r']) ? ' data-r="' . (int)$r['r'] . '"' : '') . '>' . implode('', array_map($cell, $r['cells'])) . '</tr>';
         $html = '<div class="cr-title">' . $e($t['title']) . '</div><table class="cr"><thead><tr>';
         foreach ($t['cols'] as $col) {
             $html .= '<th width="' . rtrim(rtrim(number_format($col['w'], 2, '.', ''), '0'), '.') . '%">' . $e($col['t']) . '</th>';
