@@ -4,54 +4,11 @@
  * its own icon and colour, the work types as chips. The same row lists as
  * the classic tables and the PDF (ds_row_lists), so the numbers never differ;
  * only the look does. Included by daily-summary.php when the viewer chose it.
+ * The cards' icons and colours are _daily_summary_cards.php's, which the
+ * modern PDF uses too.
  */
 
-/** A card's icon and colour, by its label (a label not listed gets the plain one). */
-function dsm_look(string $label): array
-{
-    static $map = [
-        'کۆی گشتی پارە'           => ['fa-coins', 'purple'],
-        'بڕی داشکێنراو'           => ['fa-minus-circle', 'pink'],
-        'ماوەی دوای داشکێنراو'    => ['fa-wallet', 'blue'],
-        'بڕی ماوە'                => ['fa-hand-holding-usd', 'orange'],
-        'بڕی وەرگیراو'            => ['fa-money-bill-wave', 'green'],
-        'وەرگیراوی چاوەڕوانی پەسەندکردن' => ['fa-hourglass-half', 'orange'],
-        'پارەی گەڕاوەی قەرزی کۆن' => ['fa-undo-alt', 'teal'],
-        'کۆی نەقدی وەرگیراو'      => ['fa-cash-register', 'green'],
-        'خەرجی تاقیگە'            => ['fa-flask', 'red'],
-        'خەرجی کۆگا'              => ['fa-dolly', 'teal'],
-        'خەرجی گشتی'              => ['fa-receipt', 'red'],
-        'ماوەی دوای خەرجی'        => ['fa-database', 'purple'],
-        'پشکی سەنتەر'             => ['fa-hospital', 'blue'],
-        'کۆی گشتی سەردانیکەران'   => ['fa-users', 'indigo'],
-        'کۆی گشتی ئیش'            => ['fa-briefcase-medical', 'green'],
-        'کۆی گشتی پشکنین'         => ['fa-stethoscope', 'blue'],
-        'پشکنینی داواکراو'        => ['fa-file-medical', 'pink'],
-        'پشکنینی دیاریکردنی تر'   => ['fa-random', 'slate'],
-        'پشکنینی نوێ'             => ['fa-user-plus', 'purple'],
-        'پشکنینی کۆن'             => ['fa-history', 'orange'],
-        'نەخۆشی نێردراو'          => ['fa-x-ray', 'indigo'],
-        'کۆی داواکاری'            => ['fa-clipboard-list', 'slate'],
-        'کاتژمێری هاتن'           => ['fa-clock', 'blue'],
-        'ڕۆژی هاتن'               => ['fa-calendar-check', 'purple'],
-        'کۆی کاتی ئیشکردن'        => ['fa-business-time', 'purple'],
-        'کۆی کاتی پشکنین'         => ['fa-stethoscope', 'teal'],
-        'کۆی کاتی بەتال'          => ['fa-couch', 'orange'],
-    ];
-    if (isset($map[$label])) {
-        return $map[$label];
-    }
-    if (strpos($label, 'پشکی دکتۆر') === 0) {
-        return ['fa-user-md', 'green'];
-    }
-    if (strpos($label, 'پشکنینی پێدراو') === 0) {
-        return ['fa-check-circle', 'teal'];
-    }
-    if (strpos($label, 'ئامانەتی وەرگیراو') === 0) {
-        return ['fa-piggy-bank', 'slate'];
-    }
-    return ['fa-circle', 'slate'];
-}
+require_once __DIR__ . '/_daily_summary_cards.php';
 
 /**
  * One list of rows as cards. A «— …» row (the store split into ئاسایی /
@@ -62,30 +19,10 @@ function dsm_look(string $label): array
  */
 function dsm_cards(array $rows): string
 {
-    $cards = [];
-    foreach ($rows as [$label, $value, $style]) {
-        if (strpos($label, '— ') === 0 && $cards) {
-            $cards[count($cards) - 1]['notes'][] = substr($label, strlen('— '));
-            continue;
-        }
-        $neg = false;
-        if (preg_match('/^\((.*)\)$/u', $value, $m)) {
-            $value = $m[1];
-            $neg = $style !== 'neg';
-        }
-        // a long label's «(…)» goes under it, smaller
-        $note = '';
-        if (preg_match('/^(.+?) \((.+)\)$/u', $label, $m) && mb_strlen($m[2]) > 6) {
-            [$label, $note] = [$m[1], $m[2]];
-        }
-        $cards[] = ['label' => $label, 'value' => ($neg ? '-' : '') . $value, 'neg' => $neg,
-                    'note' => $note, 'notes' => [], 'total' => $style === 'total'];
-    }
     $html = '';
-    foreach ($cards as $c) {
-        [$icon, $colour] = dsm_look($c['label']);
-        $html .= '<div class="dsm-card c-' . $colour . ($c['total'] ? ' is-total' : '') . '">'
-            . '<span class="dsm-ic"><i class="fas ' . $icon . '"></i></span>'
+    foreach (dsm_card_list($rows) as $c) {
+        $html .= '<div class="dsm-card c-' . $c['colour'] . ($c['total'] ? ' is-total' : '') . '">'
+            . '<span class="dsm-ic"><i class="fas ' . $c['icon'] . '"></i></span>'
             . '<b class="dsm-v' . ($c['neg'] ? ' is-neg' : '') . '"><bdi>' . dsEsc($c['value']) . '</bdi></b>'
             . '<span class="dsm-l">' . dsEsc($c['label']) . '</span>'
             . ($c['note'] !== '' ? '<small class="dsm-n">' . dsEsc($c['note']) . '</small>' : '');

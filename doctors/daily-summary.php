@@ -136,6 +136,8 @@ $dsPatients = function () use ($patientRows, $patientTotals) {
 .ds-bar .day{color:#cfe0ec;font-size:12.5px}
 .ds-pdf{margin-inline-start:auto;background:#fff;color:#244b68;padding:6px 14px;font-size:12px;font-weight:700;text-decoration:none;border-radius:3px}
 .ds-pdf:hover{background:#e3edf4}
+.ds-pdf.is-modern{margin-inline-start:0;background:linear-gradient(120deg,#e0f0fb,#d5f5f2);color:#0b5f8a}
+.ds-pdf.is-modern:hover{background:#fff}
 .ds-lockform{margin:0}
 .ds-lockform button{background:transparent;color:#fff;border:1px solid #9fbbd0;padding:5px 12px;font:inherit;font-size:12px;font-weight:700;border-radius:3px;cursor:pointer}
 .ds-lockform button:hover{background:#1b3a51}
@@ -228,8 +230,11 @@ $dsPatients = function () use ($patientRows, $patientTotals) {
             <button type="submit" name="ds_style" value="classic" class="<?= $dsModern ? '' : 'on' ?>"><i class="fas fa-table"></i> کلاسیک</button>
             <button type="submit" name="ds_style" value="modern" class="<?= $dsModern ? 'on' : '' ?>"><i class="fas fa-th-large"></i> مۆدێرن</button>
         </form>
-        <a class="ds-pdf" href="<?= dsEsc($pdfUrl) ?>" target="_blank">
+        <a class="ds-pdf" href="<?= dsEsc($pdfUrl) ?>" target="_blank" title="PDF بە خشتە">
             <i class="fas fa-file-pdf"></i> ڕاپۆرتی PDF
+        </a>
+        <a class="ds-pdf is-modern" href="<?= dsEsc($pdfUrl . '&style=modern') ?>" target="_blank" title="PDF بە کارت و ئایکۆن، وەک شێوازی مۆدێرن">
+            <i class="fas fa-file-pdf"></i> PDF ـی مۆدێرن
         </a>
         <form method="post" class="ds-lockform">
             <?= Csrf::field() ?>

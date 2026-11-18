@@ -7,6 +7,9 @@
  * access rules too: a doctor gets only their own sheet.
  *
  * Laid out with tables rather than CSS grid — mPDF does not do grid/flex.
+ *
+ * ?style=modern: the page's «مۆدێرن» look — cards with icons and colours
+ * (_daily_summary_pdf_modern.php); the same figures, the same patients' table.
  */
 
 require_once __DIR__ . '/_daily_summary_data.php';
@@ -137,6 +140,7 @@ if (!$topTreatments) {
 $html .= '</tbody></table>';
 
 // ── patients ──
+$patientsStart = strlen($html);
 $html .= '<div class="sec-h">نەخۆشەکان (' . dsMoney(count($patientRows)) . ' کەیس)</div>
 <table class="tbl">
     <thead><tr>
@@ -163,8 +167,16 @@ if (!$patientRows) {
         . '<td class="n neg">' . dsMoney($patientTotals['left']) . '</td></tr>';
 }
 $html .= '</tbody></table>';
+$patientsHtml = substr($html, $patientsStart);
+
+// «مۆدێرن»: the cards instead, the patients' table kept
+$dsPdfModern = ($_GET['style'] ?? '') === 'modern';
+if ($dsPdfModern) {
+    require __DIR__ . '/_daily_summary_pdf_modern.php';
+}
 
 $pdf = new InvoicePdfService([
+    'icon_font'        => $dsPdfModern,
     'orientation'      => 'P',
     'format'           => 'A4',
     'show_header'      => 0,
@@ -182,4 +194,4 @@ $pdf->getMpdf()->SetHTMLFooter(
     . '<td style="text-align:left;direction:ltr;">{PAGENO} / {nbpg}</td></tr></table>'
 );
 $pdf->setContent($html);
-$pdf->output('daily-summary-' . $docUserId . '-' . $from . ($isSingleDay ? '' : '_' . $to) . '.pdf', 'I');
+$pdf->output('daily-summary-' . ($dsPdfModern ? 'modern-' : '') . $docUserId . '-' . $from . ($isSingleDay ? '' : '_' . $to) . '.pdf', 'I');

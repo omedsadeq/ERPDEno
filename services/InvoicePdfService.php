@@ -118,6 +118,13 @@ class InvoicePdfService
             'autoScriptToLang' => true,
         ];
 
+        // 'icon_font' => true: Font Awesome (solid) as the face «fa», for a
+        // page that draws icons (doctors/_daily_summary_pdf_modern.php)
+        if (!empty($this->settings['icon_font'])) {
+            $config['fontDir'][] = __DIR__ . '/../assets/vendor/fontawesome/webfonts';
+            $config['fontdata']['fa'] = ['R' => 'fa-solid-900.ttf'];
+        }
+
         $this->mpdf = new Mpdf($config);
 
         // Set text direction
