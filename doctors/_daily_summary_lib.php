@@ -30,6 +30,7 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/VisitReportStats.php';
 require_once __DIR__ . '/../classes/IncomeColumn.php';
 require_once __DIR__ . '/../classes/Settings.php';
+require_once __DIR__ . '/../classes/IncomeFormula.php';
 
 /** X-ray types as the clinic names them (the income sheet uses the same). */
 const DS_XRAY_TYPES = ['panoramic' => 'OPG', 'cbct' => 'CBCT', 'cephalometric' => 'Ceph', 'periapical' => 'P.A'];
@@ -360,10 +361,24 @@ function ds_compute_range(Database $db, int $docUserId, string $from, string $to
         $storeOnDoctorByKind[$kind] = $amount * (float)$storeRate / 100;
         $storeOnDoctor += $storeOnDoctorByKind[$kind];
     }
-    // A column marked «هەمووی لەسەر دکتۆر» is wholly his.
-    $doctorShare = $doctorRate !== null
-        ? ds_doctor_share($netAfterExpenses, $doctorRate, $columns['onDoctor'], $storeExpense, $storeOnDoctor)
-        : null;
+    // A column marked «هەمووی لەسەر دکتۆر» is wholly his. A doctor with a
+    // formula of his own (IncomeFormula, the «fx» on the income sheet) is
+    // split by it instead — percentage or not.
+    $storeRates = [];
+    foreach (['normal', 'implant'] as $kind) {
+        $storeRates[$kind] = (float)($docRow[$kind === 'implant' ? 'store_share_implant' : 'store_share_normal'] ?? $doctorRate ?? 0);
+    }
+    $doctorFormula = IncomeFormula::forDoctor($docUserId);
+    $doctorFormulaError = null;
+    $doctorShare = null;
+    if ($doctorRate !== null || $doctorFormula !== null) {
+        $doctorShare = ds_doctor_share_of($doctorFormula, ds_share_figures([
+            'cashIn' => $cashIn, 'generalExpense' => $generalExpense, 'labExpense' => $labExpense,
+            'storeByKind' => $storeByKind, 'storeOnDoctorByKind' => $storeOnDoctorByKind,
+            'columnTotal' => $columns['total'], 'columnOnDoctor' => $columns['onDoctor'],
+            'doctorRate' => $doctorRate, 'storeRates' => $storeRates,
+        ]), $doctorFormulaError);
+    }
 
     // ── Patients sent to x-ray (statistics only) ─────────────────────
     // X-ray is its own department and its money is the centre's, so no fee
@@ -548,6 +563,9 @@ function ds_compute_range(Database $db, int $docUserId, string $from, string $to
         // own percentages
         'netBeforeStore'    => $netAfterExpenses + $storeExpense,
         'doctorRate'        => $doctorRate,
+        'doctorFormula'     => $doctorFormula,
+        'doctorFormulaError' => $doctorFormulaError,
+        'storeRates'        => $storeRates,
         'doctorShare'       => $doctorShare,
         'centerShare'       => $doctorShare !== null ? $netAfterExpenses - $doctorShare : null,
         'xrayCount'         => $xrayCount,
@@ -599,6 +617,58 @@ function ds_doctor_share(float $net, float $rate, float $whole, float $backForSp
 }
 
 /**
+ * The figures a share is worked out from (ds_doctor_share_of), the income
+ * sheet's way: only the expense kinds in $expSel (lab / store / general)
+ * count, so the sheet's chips and a formula agree. $ds is ds_compute_range's
+ * result, or the same keys. The names are IncomeFormula::vars()'s.
+ */
+function ds_share_figures(array $ds, array $expSel = ['lab', 'store', 'general']): array
+{
+    $lab = in_array('lab', $expSel, true) ? (float)$ds['labExpense'] : 0.0;
+    $general = in_array('general', $expSel, true) ? (float)$ds['generalExpense'] : 0.0;
+    $store = in_array('store', $expSel, true);
+    $normal = $store ? (float)($ds['storeByKind']['normal'] ?? 0) : 0.0;
+    $implant = $store ? (float)($ds['storeByKind']['implant'] ?? 0) : 0.0;
+    $columns = (float)($ds['columnTotal'] ?? 0);
+    return [
+        'amount'       => (float)$ds['cashIn'],
+        'general'      => $general,
+        'lab'          => $lab,
+        'normal'       => $normal,
+        'implant'      => $implant,
+        'store'        => $normal + $implant,
+        'columns'      => $columns,
+        'on_doctor'    => (float)($ds['columnOnDoctor'] ?? 0),
+        'net'          => (float)$ds['cashIn'] - $general - $lab - $normal - $implant - $columns,
+        'rate'         => (float)($ds['doctorRate'] ?? 0),
+        'normal_rate'  => (float)($ds['storeRates']['normal'] ?? 0),
+        'implant_rate' => (float)($ds['storeRates']['implant'] ?? 0),
+        // his part of each store kind by its percentage — the sheet's rule needs them
+        'normal_doc'   => $store ? (float)($ds['storeOnDoctorByKind']['normal'] ?? 0) : 0.0,
+        'implant_doc'  => $store ? (float)($ds['storeOnDoctorByKind']['implant'] ?? 0) : 0.0,
+    ];
+}
+
+/**
+ * The doctor's share of those figures: his own formula (IncomeFormula) when
+ * he has one, else the owner's sheet (ds_doctor_share). A formula that cannot
+ * be worked out on them (a division by zero) falls back to the sheet and
+ * says why in $error.
+ */
+function ds_doctor_share_of(?string $formula, array $f, ?string &$error = null): float
+{
+    $error = null;
+    if ($formula !== null && $formula !== '') {
+        try {
+            return round(IncomeFormula::evaluate($formula, $f));
+        } catch (InvalidArgumentException $e) {
+            $error = $e->getMessage();
+        }
+    }
+    return ds_doctor_share($f['net'], $f['rate'], $f['on_doctor'], $f['normal'] + $f['implant'], $f['normal_doc'] + $f['implant_doc']);
+}
+
+/**
  * The daily summary's printed rows: [label, value, style], style being
  * '' | 'pos' | 'neg' | 'total'. Both the page and its PDF walk these lists.
  */
@@ -633,7 +703,8 @@ function ds_row_lists(array $ds): array
         $amount = (float)($ds['storeByKind'][$kind] ?? 0);
         if ($amount > 0.5) {
             $onDoctor = (float)($ds['storeOnDoctorByKind'][$kind] ?? 0);
-            $money[] = ['— ' . $label . ': دکتۆر ' . dsMoney($onDoctor) . ' · لێزان ' . dsMoney($amount - $onDoctor),
+            // under a formula of his own the division by percentage says nothing
+            $money[] = ['— ' . $label . (empty($ds['doctorFormula']) ? ': دکتۆر ' . dsMoney($onDoctor) . ' · لێزان ' . dsMoney($amount - $onDoctor) : ''),
                 '(' . dsMoney($amount) . ')', ''];
         }
     }
@@ -644,9 +715,11 @@ function ds_row_lists(array $ds): array
         $money[] = [$charge['name'], '(' . dsMoney($charge['amount']) . ')', 'neg'];
     }
     $money[] = ['ماوەی دوای خەرجی', $signed($ds['netAfterExpenses']), 'total'];
-    if ($ds['doctorRate'] !== null) {
-        $rate = rtrim(rtrim(number_format($ds['doctorRate'], 2, '.', ''), '0'), '.');
-        $money[] = ['پشکی دکتۆر (' . $rate . '%)', $signed($ds['doctorShare']), 'pos'];
+    if ($ds['doctorShare'] !== null) {
+        $how = !empty($ds['doctorFormula'])
+            ? (empty($ds['doctorFormulaError']) ? 'فۆرمولی تایبەت' : 'فۆرمولەکە کار ناکات، بە ڕێژە')
+            : rtrim(rtrim(number_format((float)$ds['doctorRate'], 2, '.', ''), '0'), '.') . '%';
+        $money[] = ['پشکی دکتۆر (' . $how . ')', $signed($ds['doctorShare']), 'pos'];
         $money[] = ['پشکی سەنتەر',               $signed($ds['centerShare']), ''];
     }
     $money[] = ['ئامانەتی وەرگیراو (تەنها زانیاری؛ ناچێتە داهات)', dsMoney($ds['advanceCollected'] ?? 0), ''];

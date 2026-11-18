@@ -38,7 +38,7 @@ class IncomeSettlement
         'grossBilled', 'invoiceDisc', 'invoiceNet', 'newDebtToday', 'treatmentCash', 'chairPending',
         'oldDebtCollected', 'advanceCollected',
         'cashIn', 'labExpense', 'storeExpense', 'generalExpense', 'columnCharges', 'columnTotal', 'columnCashOut',
-        'netAfterExpenses', 'doctorRate', 'doctorShare', 'centerShare',
+        'netAfterExpenses', 'doctorRate', 'doctorFormula', 'doctorShare', 'centerShare',
         'work', 'checkupBreakdown', 'attendanceMinutes', 'attendedDay', 'workMinutes', 'examMinutes', 'idleMinutes',
         'treatmentCount', 'treatmentAmount', 'topTreatments', 'xrayCount', 'xrayPatients', 'xrayByType',
     ];

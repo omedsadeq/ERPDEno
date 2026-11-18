@@ -124,6 +124,31 @@ body.inc-full-open{overflow:hidden}
 .inc-tbl tr.tot td.ctr{background:#ccfbf1}
 .inc-sh{display:flex;align-items:center;justify-content:space-between;gap:6px}
 .inc-rt{flex:0 0 auto;padding:1px 6px;border-radius:999px;font-size:10.5px;font-weight:700;color:#6d28d9;background:#ede9fe}
+/* فۆرمولی تایبەت — the «fx» beside a doctor's name and its badge */
+.inc-rt.fx{color:#0f766e;background:#ccfbf1;font-family:Georgia,serif;font-style:italic}
+.inc-fx{margin-inline-start:6px;padding:0 7px;height:18px;border:1px solid #99f6e4;border-radius:999px;background:#f0fdfa;color:#0f766e;font:italic 700 11px Georgia,serif;line-height:16px;cursor:pointer;vertical-align:middle}
+.inc-fx.on{background:#0f766e;border-color:#0f766e;color:#fff}
+.inc-fx.err{background:#fef2f2;border-color:#fca5a5;color:#b91c1c}
+.inc-fx:disabled{cursor:default;opacity:.85}
+.inc-note-err{border-color:#fca5a5;background:#fff5f5}
+.inc-fxd .dialog{max-width:720px}
+.inc-fxd-intro{margin:0 0 10px;font-size:12.5px;color:#475569;line-height:1.7}
+.inc-fxd-intro code,.inc-fxd-ex code{direction:ltr;display:inline-block;background:#eef2f5;padding:1px 6px;border-radius:5px;font-size:12px}
+.inc-fxd textarea{width:100%;min-height:72px;direction:ltr;text-align:left;font:14px/1.5 Consolas,Menlo,monospace;padding:8px 10px;border:1px solid #9cafbd;border-radius:8px;resize:vertical;box-sizing:border-box}
+.inc-fxd textarea.bad{border-color:#dc2626}
+.inc-fxd-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.inc-fxd-chips button{border:1px solid #c7d7e6;background:#f4f8fc;border-radius:999px;padding:3px 9px;font:inherit;font-size:12px;cursor:pointer;display:inline-flex;gap:6px;align-items:center;color:#1e293b}
+.inc-fxd-chips button:hover{background:#e0f0fb;border-color:#0078d4}
+.inc-fxd-chips button b{font-family:Consolas,Menlo,monospace;direction:ltr;color:#0f766e}
+.inc-fxd-chips button small{color:#64748b;direction:ltr;font-variant-numeric:tabular-nums}
+.inc-fxd-chips button.op{font-family:Consolas,Menlo,monospace;font-weight:700;padding:3px 11px;font-size:13px}
+.inc-fxd-prev{margin-top:10px;border:1px solid #c7d7e6;border-radius:10px;padding:10px 12px;background:#f8fafc;font-size:13px;line-height:1.8;color:#0f172a}
+.inc-fxd-prev b{font-variant-numeric:tabular-nums;color:#0f766e}
+.inc-fxd-prev small{color:#64748b}
+.inc-fxd-prev.bad{border-color:#fca5a5;background:#fff5f5;color:#b91c1c}
+.inc-fxd-ex{font-size:12px;color:#475569;margin-top:10px;line-height:1.9}
+.inc-fxd-ex code{cursor:pointer}
+.inc-fxd-ex code:hover{background:#e0f0fb}
 .inc-rt.none{color:#b45309;background:#fef3c7;cursor:help}
 .inc-note{display:flex;align-items:flex-start;gap:8px;margin:0 0 10px;padding:9px 12px;border-radius:10px;
     background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12.5px;line-height:1.7}
@@ -231,6 +256,15 @@ body.inc-full-open{overflow:hidden}
         <?php if (isset($_GET['sheet_cols'])): ?>
         <div class="alert alert-success" data-auto-hide><i class="fas fa-check-circle alert-icon"></i> کۆڵۆمەکانی خشتە پاشەکەوت کران — PDF ـیش هەروا دەبێت.</div>
         <?php endif; ?>
+        <?php if ($formulaErrors): ?>
+        <div class="inc-note inc-note-err">
+            <i class="fas fa-superscript" style="margin-top:4px;"></i>
+            <div>
+                فۆرمولی تایبەتی ئەم <?= count($formulaErrors) === 1 ? 'دکتۆرە' : 'دکتۆرانە' ?> لەم ماوەیەدا کار ناکات، بۆیە بە ڕێژە دابەش کرا<?= count($formulaErrors) === 1 ? '' : 'ن' ?>:
+                <?= implode('، ', array_map(fn($name, $err) => '<b>' . dsEsc($name) . '</b> (' . dsEsc($err) . ')', array_keys($formulaErrors), $formulaErrors)) ?>.
+            </div>
+        </div>
+        <?php endif; ?>
         <?php if ($doctorsWithoutRate): ?>
         <div class="inc-note">
             <i class="fas fa-percent" style="margin-top:4px;"></i>
@@ -291,7 +325,14 @@ body.inc-full-open{overflow:hidden}
                         <?php if ($r['kind'] === 'doctor'): ?>
                         <td class="lb"><?php if ($canDoctorDetail): ?>
                             <a href="<?= APP_URL ?>/doctors/daily-summary.php?doctor=<?= (int)$r['id'] . $detailQs ?>" title="پوختەی ڕۆژانەی دکتۆر"><?= dsEsc($r['label']) ?></a>
-                            <?php else: ?><?= dsEsc($r['label']) ?><?php endif; ?></td>
+                            <?php else: ?><?= dsEsc($r['label']) ?><?php endif; ?>
+                            <?php if ($canSetFormula || $r['formula'] !== null): ?>
+                            <!-- فۆرمولی تایبەت: his own way of splitting (classes/IncomeFormula.php) -->
+                            <button type="button" class="inc-fx<?= $r['formula'] !== null ? ' on' : '' ?><?= $r['formulaError'] !== null ? ' err' : '' ?>"
+                                    data-doctor="<?= (int)$r['id'] ?>" data-name="<?= dsEsc($r['label']) ?>" data-formula="<?= dsEsc((string)$r['formula']) ?>"
+                                    data-vars="<?= dsEsc(json_encode($r['shareFigures'])) ?>"
+                                    title="<?= $r['formula'] !== null ? 'فۆرمولی تایبەت: ' . dsEsc($r['formula']) . ($r['formulaError'] !== null ? ' — ' . dsEsc($r['formulaError']) : '') : 'فۆرمولی تایبەت بۆ پشکی ئەم دکتۆرە' ?>"<?= $canSetFormula ? '' : ' disabled' ?>>fx</button>
+                            <?php endif; ?></td>
                         <?php elseif (isset($r['manualAmount'])): ?>
                         <td class="lb en">
                             <div class="inc-dept" dir="rtl">
@@ -347,9 +388,12 @@ body.inc-full-open{overflow:hidden}
                             <?php if ($r['kind'] === 'doctor'): ?>
                             <div class="inc-sh">
                                 <span><?= incCell($r['doctorShare']) ?></span>
+                                <?php if ($r['formula'] !== null && $r['formulaError'] === null): ?>
+                                <span class="inc-rt fx" title="بە فۆرمولی تایبەت: <?= dsEsc($r['formula']) ?>">fx</span>
+                                <?php endif; ?>
                                 <?php if ($r['rate'] !== null): ?>
                                 <span class="inc-rt"><?= rtrim(rtrim(number_format($r['rate'], 2, '.', ''), '0'), '.') ?>%</span>
-                                <?php else: ?>
+                                <?php elseif ($r['formula'] === null): ?>
                                 <span class="inc-rt none" title="ڕێژەی دکتۆر دیاری نەکراوە">؟</span>
                                 <?php endif; ?>
                             </div>
@@ -669,6 +713,29 @@ body.inc-full-open{overflow:hidden}
             <button type="submit" name="action" value="save" class="inc-mp-save">پاشەکەوت</button>
         </div>
     </form>
+</div></div>
+<?php endif; ?>
+
+<?php if ($canSetFormula): ?>
+<!-- فۆرمولی تایبەتی پشکی دکتۆر (classes/IncomeFormula.php, accountant/income-formula.php) -->
+<div class="dialog-overlay inc-fxd" id="incFormulaDialog"><div class="dialog inc-dlg" role="dialog" aria-modal="true" aria-labelledby="inc-fx-title">
+    <div class="dialog-header"><h3 class="dialog-title" id="inc-fx-title">فۆرمولی پشکی دکتۆر</h3><button type="button" class="dialog-close" onclick="closeDialog('incFormulaDialog')" aria-label="داخستن"><i class="fas fa-times"></i></button></div>
+    <div class="dialog-body">
+        <p class="inc-fxd-intro">پشکی ئەم دکتۆرە بەم فۆرمولە دەژمێردرێت لە جیاتی ڕێژە و دابەشکردنی کۆگا — لێرە، لە پوختەی ڕۆژانەی و لە دابەشکردنی داهات. پشکی سەنتەر = سافی − پشکی دکتۆر. وەک خانەیەکی Excel بینووسە؛ <code>%</code> واتە ÷100، بۆ نموونە <code>rate%</code>.</p>
+        <textarea class="inc-fxd-in" rows="3" spellcheck="false" placeholder="(amount - general - lab - normal / 2 - implant) * rate%"></textarea>
+        <div class="inc-fxd-chips inc-fxd-ops"></div>
+        <div class="inc-fxd-chips inc-fxd-vars"></div>
+        <div class="inc-fxd-prev"></div>
+        <div class="inc-fxd-ex">
+            نموونە: <code data-ex="(amount - general - lab - normal / 2 - implant) * rate%">(amount - general - lab - normal / 2 - implant) * rate%</code> — خەرجی گشتی و تاقیگە و نیوەی ئاسایی و هەموو Implant لە بڕی دەردەکرێن، پاشان ڕێژەکەی لێدەدرێت.<br>
+            ڕێسای خشتەکە خۆی: <code data-ex="<?= dsEsc(IncomeFormula::DEFAULT_TEXT) ?>"><?= dsEsc(IncomeFormula::DEFAULT_TEXT) ?></code>
+        </div>
+    </div>
+    <div class="dialog-footer">
+        <button type="button" class="inc-mp-cancel inc-fxd-clear" hidden>لابردنی فۆرمول (بە ڕێژە)</button>
+        <button type="button" class="inc-mp-cancel" onclick="closeDialog('incFormulaDialog')">پاشگەزبوونەوە</button>
+        <button type="button" class="inc-mp-save inc-fxd-save">پاشەکەوت</button>
+    </div>
 </div></div>
 <?php endif; ?>
 
@@ -1242,6 +1309,109 @@ body.inc-full-open{overflow:hidden}
     });
 })();
 </script>
+
+<?php if ($canSetFormula): ?>
+<script>
+// فۆرمولی تایبەتی پشکی دکتۆر — the «fx» beside a doctor's name opens the
+// dialog; the figures are read on the server (accountant/income-formula.php)
+// so the preview is exactly what the sheet will show.
+(function () {
+    var dlg = document.getElementById('incFormulaDialog'); if (!dlg) return;
+    var ta = dlg.querySelector('.inc-fxd-in'), prev = dlg.querySelector('.inc-fxd-prev'), title = document.getElementById('inc-fx-title');
+    var saveBtn = dlg.querySelector('.inc-fxd-save'), clearBtn = dlg.querySelector('.inc-fxd-clear');
+    var vars = <?= json_encode(IncomeFormula::vars(), JSON_UNESCAPED_UNICODE) ?>;
+    var period = <?= json_encode(['from' => $from, 'to' => $to, 'x' => array_values($expSel)]) ?>;
+    var url = <?= json_encode(APP_URL . '/accountant/income-formula.php') ?>;
+    var fmt = new Intl.NumberFormat('en-US', {maximumFractionDigits: 0});
+    var money = function (v) { return v < 0 ? '(' + fmt.format(-v) + ')' : fmt.format(v); };
+    var doctor = 0, timer = null, seq = 0;
+
+    function insert(text) {
+        var s = ta.selectionStart, e = ta.selectionEnd, v = ta.value;
+        var before = v.slice(0, s), after = v.slice(e);
+        var pad = before && !/[\s(]$/.test(before) ? ' ' : '';
+        var head = before + pad + text;
+        ta.value = head + (after && !/^[\s)]/.test(after) ? ' ' : '') + after;
+        ta.setSelectionRange(head.length, head.length);
+        ta.focus();
+        preview();
+    }
+    // the signs, then the names with this period's figures of the doctor
+    function chips(figures) {
+        var ops = dlg.querySelector('.inc-fxd-ops'), box = dlg.querySelector('.inc-fxd-vars');
+        ops.innerHTML = ''; box.innerHTML = '';
+        ['+', '-', '*', '/', '(', ')', '%'].forEach(function (o) {
+            var b = document.createElement('button'); b.type = 'button'; b.className = 'op';
+            b.textContent = o === '*' ? '×' : o === '/' ? '÷' : o;
+            b.addEventListener('click', function () { insert(o); });
+            ops.appendChild(b);
+        });
+        Object.keys(vars).forEach(function (name) {
+            var b = document.createElement('button'); b.type = 'button';
+            var v = figures && figures[name] !== undefined ? figures[name] : null;
+            var bb = document.createElement('b'); bb.textContent = name;
+            var sp = document.createElement('span'); sp.textContent = vars[name][0];
+            b.appendChild(bb); b.appendChild(sp);
+            if (v !== null) { var sm = document.createElement('small'); sm.textContent = /rate$/.test(name) ? v + '%' : fmt.format(v); b.appendChild(sm); }
+            b.addEventListener('click', function () { insert(name); });
+            box.appendChild(b);
+        });
+    }
+    function post(data) {
+        var body = new URLSearchParams(data);
+        body.append('doctor_id', doctor);
+        body.append('from', period.from); body.append('to', period.to); body.append('xs', '1');
+        period.x.forEach(function (k) { body.append('x[]', k); });
+        return fetch(url, {method: 'POST', body: body, headers: {'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json'}})
+            .then(function (r) { return r.json(); });
+    }
+    function preview() {
+        clearTimeout(timer);
+        var mine = ++seq;
+        timer = setTimeout(function () {
+            var f = ta.value.trim();
+            prev.className = 'inc-fxd-prev'; prev.textContent = 'دەژمێردرێت…';
+            post({action: 'preview', formula: f}).then(function (d) {
+                if (mine !== seq) return;
+                ta.classList.toggle('bad', !d.ok);
+                if (!d.ok) { prev.className = 'inc-fxd-prev bad'; prev.textContent = d.error || 'هەڵە'; return; }
+                prev.innerHTML = (f ? 'بەم فۆرمولە' : 'بێ فۆرمول (بە ڕێژە و دابەشکردنی کۆگا)') + ' لەم ماوەیەدا: پشکی دکتۆر <b>' + money(d.doctor) + '</b> · پشکی سەنتەر <b>' + money(d.center) + '</b>'
+                    + (f ? '<br><small>بە ڕێژە و دابەشکردنی کۆگا دەبوو بە: دکتۆر ' + money(d.default) + ' · سەنتەر ' + money(d.net - d.default) + '</small>' : '');
+            }).catch(function () { if (mine === seq) { prev.className = 'inc-fxd-prev bad'; prev.textContent = 'هەڵەیەک ڕوویدا لە پەیوەندیکردن'; } });
+        }, 350);
+    }
+    ta.addEventListener('input', preview);
+    dlg.querySelectorAll('.inc-fxd-ex code').forEach(function (c) {
+        c.addEventListener('click', function () { ta.value = c.getAttribute('data-ex'); ta.focus(); preview(); });
+    });
+    function save(formula) {
+        saveBtn.disabled = clearBtn.disabled = true;
+        post({action: 'save', formula: formula}).then(function (d) {
+            if (!d.ok) { prev.className = 'inc-fxd-prev bad'; prev.textContent = d.error || 'سەرنەکەوت'; saveBtn.disabled = clearBtn.disabled = false; return; }
+            location.reload();
+        }).catch(function () { prev.className = 'inc-fxd-prev bad'; prev.textContent = 'هەڵەیەک ڕوویدا لە پەیوەندیکردن'; saveBtn.disabled = clearBtn.disabled = false; });
+    }
+    saveBtn.addEventListener('click', function () { save(ta.value.trim()); });
+    clearBtn.addEventListener('click', function () {
+        if (confirm('فۆرمولی تایبەت لاببرێت؟ ئەم دکتۆرە دەگەڕێتەوە سەر ڕێژە و دابەشکردنی کۆگا.')) save('');
+    });
+    document.addEventListener('click', function (ev) {
+        var b = ev.target.closest('.inc-fx'); if (!b || b.disabled) return;
+        doctor = +b.getAttribute('data-doctor');
+        title.textContent = 'فۆرمولی پشکی دکتۆر — ' + b.getAttribute('data-name');
+        ta.value = b.getAttribute('data-formula') || ''; ta.classList.remove('bad');
+        var figures = null;
+        try { figures = JSON.parse(b.getAttribute('data-vars') || 'null'); } catch (e) {}
+        chips(figures);
+        clearBtn.hidden = !ta.value;
+        saveBtn.disabled = clearBtn.disabled = false;
+        openDialog('incFormulaDialog');
+        preview();
+        setTimeout(function () { ta.focus(); }, 50);
+    });
+})();
+</script>
+<?php endif; ?>
 
 <?php income_detail_shell($from, $to); ?>
 

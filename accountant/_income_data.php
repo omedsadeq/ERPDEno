@@ -166,6 +166,9 @@ foreach ($db->fetchAll(
         'colOnDoctor' => $ds['columnOnDoctor'],
         // ڕێژەی دکتۆر — null until it is set on the doctor's account.
         'rate'   => (float)$u['commission_rate'] > 0 ? min(100.0, (float)$u['commission_rate']) : null,
+        // فۆرمولی تایبەت (IncomeFormula) and what it is worked out from
+        'formula' => $ds['doctorFormula'],
+        'shareBase' => array_intersect_key($ds, array_flip(['cashIn', 'generalExpense', 'labExpense', 'storeByKind', 'storeOnDoctorByKind', 'columnTotal', 'columnOnDoctor', 'doctorRate', 'storeRates'])),
     ];
 }
 
@@ -266,6 +269,7 @@ foreach ([
 // him so it can be set.
 $rows = array_merge($doctorRows, $deptRows);
 $doctorsWithoutRate = [];
+$formulaErrors = [];
 foreach ($rows as &$r) {
     $r['net'] = $r['amount'] - ($r['colTotal'] ?? 0.0);
     foreach ($colSel as $k) {
@@ -281,11 +285,24 @@ foreach ($rows as &$r) {
     $r['pool'] = $r['net'] + $r['storeNormal'] + $r['storeImplant'];
     // A column marked «هەمووی لەسەر دکتۆر» comes off his share, not off the net
     // the percentage is of: the rule of ds_compute_range.
-    $r['doctorShare'] = $r['rate'] !== null
-        ? ds_doctor_share($r['net'], $r['rate'], $r['colOnDoctor'] ?? 0.0, $r['storeNormal'] + $r['storeImplant'], $r['storeNormalDoc'] + $r['storeImplantDoc'])
-        : 0.0;
+    // A doctor with a formula of his own (IncomeFormula, the «fx» beside his
+    // name) is split by it, under the same chips; the rest the sheet's way.
+    $r['formula'] = $r['formula'] ?? null;
+    $r['formulaError'] = null;
+    $r['shareFigures'] = null;
+    $r['doctorShare'] = 0.0;
+    if ($r['kind'] === 'doctor') {
+        $r['shareFigures'] = ds_share_figures($r['shareBase'], $expSel);
+        $r['shareFigures']['net'] = $r['net'];
+        if ($r['rate'] !== null || $r['formula'] !== null) {
+            $r['doctorShare'] = ds_doctor_share_of($r['formula'], $r['shareFigures'], $r['formulaError']);
+            if ($r['formulaError'] !== null) {
+                $formulaErrors[$r['label']] = $r['formulaError'];
+            }
+        }
+    }
     $r['centerShare'] = $r['net'] - $r['doctorShare'];
-    if ($r['kind'] === 'doctor' && $r['rate'] === null && abs($r['net']) >= 0.5) {
+    if ($r['kind'] === 'doctor' && $r['rate'] === null && $r['formula'] === null && abs($r['net']) >= 0.5) {
         $doctorsWithoutRate[] = $r['label'];
     }
 }
@@ -371,3 +388,5 @@ $centerAfterExpenses = $totals['centerShare'] - $expensesAll;
 $canDoctorDetail = Permission::getInstance()->can('page.doctor_report');
 // The percentages live on the doctors' accounts, which only an admin edits.
 $canSetRates = $auth->isAdmin();
+// فۆرمولی تایبەت: only the admin writes one (accountant/income-formula.php)
+$canSetFormula = $auth->isAdmin();

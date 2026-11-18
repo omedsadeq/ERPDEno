@@ -69,7 +69,7 @@ extract($dsData);
 $dsLists = ds_row_lists(compact(
     'grossBilled', 'invoiceDisc', 'invoiceNet', 'treatmentCash', 'chairPending', 'newDebtToday',
     'labExpense', 'storeExpense', 'storeByKind', 'storeOnDoctorByKind', 'generalExpense', 'columnCharges', 'netAfterExpenses', 'oldDebtCollected', 'advanceCollected',
-    'cashIn', 'doctorRate', 'doctorShare', 'centerShare',
+    'cashIn', 'doctorRate', 'doctorFormula', 'doctorFormulaError', 'doctorShare', 'centerShare',
     'xrayCount', 'xrayPatients', 'xrayByType', 'work', 'checkupBreakdown',
     'attendanceMinutes', 'attendedDay', 'workMinutes', 'examMinutes', 'idleMinutes'
 ));
