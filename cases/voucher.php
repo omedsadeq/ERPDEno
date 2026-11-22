@@ -74,7 +74,10 @@ $scopeCovered = (float)($financial['paid'] ?? 0);
 $patientDue = (float)($financial['balance'] ?? 0);
 
 $voucherNo   = (string)($payment['payment_number'] ?? $payment['id']);
-$voucherDate = date('Y/n/j', strtotime($payment['payment_date'] ?? 'now'));
+$voucherStamp = strtotime($payment['payment_date'] ?? 'now') ?: time();
+$voucherDate = date('Y/n/j', $voucherStamp);
+// the time beside the date; a date saved with no time (00:00) prints none
+$voucherTime = date('H:i:s', $voucherStamp) === '00:00:00' ? '' : date('H:i', $voucherStamp);
 
 $methodLabels = ['cash' => 'نەقد', 'card' => 'کارت', 'transfer' => 'گواستنەوە', 'other' => 'تر', 'advance' => 'لە ئامانەت'];
 $typeLabels   = ['cash' => 'نەقد', 'credit' => 'قەرز', 'installment' => 'قیست'];
@@ -309,7 +312,7 @@ body.is-embedded .sheet { margin: 0 auto; box-shadow: none; }
             </div>
             <div class="rc-row">
                 <span class="rc-label">ڕێکەوت :</span>
-                <span class="rc-fill"><?= htmlspecialchars($voucherDate) ?></span>
+                <span class="rc-fill"><bdi dir="ltr"><?= htmlspecialchars($voucherDate) ?><?php if ($voucherTime !== ''): ?> &nbsp;·&nbsp; <?= htmlspecialchars($voucherTime) ?><?php endif; ?></bdi></span>
             </div>
         </div>
         <div>
