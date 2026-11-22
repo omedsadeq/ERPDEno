@@ -1424,10 +1424,12 @@ class ApprovalQueue
             'patient_id' => isset($request['patient_id']) ? (int)$request['patient_id'] : null,
             'is_approved' => $isApproved,
             'approved_money' => $money,
-            'can_edit_approved' => $isApproved && !empty($money['editable']) && Settings::allowEditApprovedInvoice(),
-            'edit_block_reason' => ($isApproved && $money && empty($money['editable']))
-                ? 'ئەم داواکارییە بێ بەرامبەرە یان پارەکەی گەڕێندراوەتەوە — پارەکەی ناگۆڕدرێت'
-                : null,
+            // the date, the type and the note change on any approved request;
+            // the money only where there is money (money_editable)
+            'can_edit_approved' => $isApproved && Settings::allowEditApprovedInvoice(),
+            'money_editable' => $isApproved && !empty($money['editable']),
+            'xray_types' => XrayManager::TYPES,
+            'edit_block_reason' => null,
             'approved_edits' => $isApproved
                 ? $this->approvedEditTrail('xray_requests', $id, 'xray_approved_edited')
                 : ['count' => 0, 'last_at' => null, 'last_by' => null],

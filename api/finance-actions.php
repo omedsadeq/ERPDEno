@@ -602,16 +602,25 @@ try {
                     }
                 }
 
+                // «ڕێکەوت و کاتی پارەدان»: the day the patient really paid, when
+                // the approval comes later; empty = now.
+                try {
+                    $paidAt = XrayManager::parseMoneyDate($_POST['paid_at'] ?? '');
+                } catch (InvalidArgumentException $e) {
+                    echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+                    break;
+                }
+
                 if ($received === null) {
                     $result = $decision === 'approve_payment'
-                        ? $xrayManager->approvePaymentAndSendToXray($xrayId, $actorId, $role, $note)
+                        ? $xrayManager->approvePaymentAndSendToXray($xrayId, $actorId, $role, $note, $paidAt)
                         : $xrayManager->approveDebtAndSendToXray($xrayId, $actorId, $role, $note);
                 } elseif ($received >= $finalAmount - 0.009) {
-                    $result = $xrayManager->approvePaymentAndSendToXray($xrayId, $actorId, $role, $note);
+                    $result = $xrayManager->approvePaymentAndSendToXray($xrayId, $actorId, $role, $note, $paidAt);
                 } elseif ($received <= 0.009) {
                     $result = $xrayManager->approveDebtAndSendToXray($xrayId, $actorId, $role, $note);
                 } else {
-                    $result = $xrayManager->approvePartialAndSendToXray($xrayId, $received, $actorId, $role, $note);
+                    $result = $xrayManager->approvePartialAndSendToXray($xrayId, $received, $actorId, $role, $note, $paidAt);
                 }
             }
 
@@ -627,21 +636,41 @@ try {
         // corrected in place; it stays approved with its approval date and its
         // X-ray workflow status (XrayManager::editApprovedSettlement, gated
         // there on the approved-records switch).
+        // Its own details too — the request's date, the type, the note
+        // (editApprovedDetails) — and the money's date (paid_at), any of them
+        // without deleting and making it again.
         case 'edit_approved_xray': {
             require_once __DIR__ . '/../classes/XrayManager.php';
             $xrayManager = new XrayManager();
+            $xrayId = (int)($_POST['id'] ?? 0);
+            $role = $_SESSION['role'] ?? ROLE_ACCOUNTANT;
+            $details = [];
+            foreach (['requested_at', 'xray_type', 'notes'] as $key) {
+                if (array_key_exists($key, $_POST)) {
+                    $details[$key] = $_POST[$key];
+                }
+            }
+            if ($details) {
+                $result = $xrayManager->editApprovedDetails($xrayId, $details, $actorId, $role);
+                if (empty($result['success'])) {
+                    echo json_encode(['ok' => false, 'error' => $result['message'] ?? 'داواکارییەکە نەگۆڕدرا'], JSON_UNESCAPED_UNICODE);
+                    break;
+                }
+            }
             $fields = [];
-            foreach (['new_amount', 'discount_amount', 'discount_reason', 'received_amount', 'note'] as $key) {
+            foreach (['new_amount', 'discount_amount', 'discount_reason', 'received_amount', 'paid_at', 'note'] as $key) {
                 if (array_key_exists($key, $_POST)) {
                     $fields[$key] = $_POST[$key];
                 }
             }
-            $result = $xrayManager->editApprovedSettlement(
-                (int)($_POST['id'] ?? 0), $fields, $actorId, $_SESSION['role'] ?? ROLE_ACCOUNTANT
-            );
-            if (empty($result['success'])) {
-                echo json_encode(['ok' => false, 'error' => $result['message'] ?? 'داواکارییەکە نەگۆڕدرا'], JSON_UNESCAPED_UNICODE);
-                break;
+            // a free request has no money: only its details change
+            $money = $xrayManager->approvedMoneyState($xrayId);
+            if (array_key_exists('new_amount', $fields) && !empty($money['editable'])) {
+                $result = $xrayManager->editApprovedSettlement($xrayId, $fields, $actorId, $role);
+                if (empty($result['success'])) {
+                    echo json_encode(['ok' => false, 'error' => $result['message'] ?? 'داواکارییەکە نەگۆڕدرا'], JSON_UNESCAPED_UNICODE);
+                    break;
+                }
             }
             echo json_encode(['ok' => true], JSON_UNESCAPED_UNICODE);
             break;

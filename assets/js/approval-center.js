@@ -1958,6 +1958,13 @@
      * @param {{canEdit:boolean, editing:boolean, blockReason:?string,
      *          approvedOn:string, trail:?Object}} o
      */
+    /** A stored date-time → the value of an <input type="datetime-local">; empty → now. */
+    function dtLocal(s) {
+        if (s) return String(s).replace(' ', 'T').slice(0, 16);
+        const d = new Date(), p = (n) => String(n).padStart(2, '0');
+        return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+
     function approvedEditBarHtml(o) {
         const trail = o.trail || {};
         const trailHtml = Number(trail.count || 0) > 0
@@ -2496,6 +2503,10 @@
                 // attribute: esc() does not escape a double quote, which would
                 // break out of value="…".
                 + '<div class="ac-fld is-wide"><label>هۆکاری داشکاندن</label><input type="text" id="xsReason" placeholder="تەنها ئەگەر داشکاندن هەیە"></div>'
+                // the day the patient really paid — when it is approved a day later
+                + '<div class="ac-fld is-wide"><label for="xsPaidAt"><i class="far fa-calendar-alt"></i> ڕێکەوت و کاتی پارەدان</label>'
+                + '<input type="datetime-local" id="xsPaidAt" value="' + dtLocal('') + '" max="' + dtLocal('') + '">'
+                + '<small class="ac-fld-hint">ئەگەر نەخۆش لە ڕۆژێکی پێشوو پارەی داوە، ئەو ڕۆژە دابنێ — پارەکە دەچێتە سەر ئەو ڕۆژە</small></div>'
                 + '<div class="ac-fld is-wide"><label>تێبینی ژمێریار</label><textarea id="xsNote" rows="2" placeholder="تێبینی ئارەزوومەندانە..."></textarea></div>'
                 + '</div>'
                 + '<div class="ac-xray-settle-hint" id="xsHint"></div>'
@@ -2514,6 +2525,9 @@
         const editingX = isApprovedX && !!data.can_edit_approved && isEditingApproved('xray', r.id);
         const money = data.approved_money || {};
         const later = Number(money.later || 0);
+        const moneyX = !!data.money_editable;
+        const typeOptions = Object.entries(data.xray_types || {}).map(([k, label]) =>
+            '<option value="' + esc(k) + '"' + (k === r.xray_type ? ' selected' : '') + '>' + esc(label) + '</option>').join('');
         if (isApprovedX) {
             html += approvedEditBarHtml({
                 canEdit: !!data.can_edit_approved,
@@ -2524,8 +2538,19 @@
             });
         }
         if (editingX) {
-            html += '<div class="ac-xray-action"><div class="ac-xray-action-head"><span><i class="fas fa-pen"></i> تەعدیلی پارەی ئێکسڕەی</span><small>پەسەندکراو دەمێنێتەوە و بەرواری پەسەندکردن ناگۆڕێت</small></div>'
+            html += '<div class="ac-xray-action"><div class="ac-xray-action-head"><span><i class="fas fa-pen"></i> تەعدیلی ئێکسڕەی</span><small>پەسەندکراو دەمێنێتەوە؛ بەروار، جۆر، تێبینی و پارە ڕاستدەکرێنەوە بێ سڕینەوە</small></div>'
                 + '<div class="ac-xray-edit-grid">'
+                // the request itself
+                + '<div class="ac-fld"><label for="xeRequestedAt"><i class="far fa-calendar-alt"></i> ڕێکەوتی داواکاری</label>'
+                + '<input type="datetime-local" id="xeRequestedAt" value="' + dtLocal(r.created_at) + '" max="' + dtLocal('') + '"></div>'
+                + '<div class="ac-fld"><label for="xeType">جۆری ئێکسڕەی</label><select id="xeType">' + typeOptions + '</select></div>'
+                + '<div class="ac-fld is-wide"><label for="xeNotes">تێبینی داواکاری</label><textarea id="xeNotes" rows="2"></textarea></div>'
+                + '</div>';
+            if (moneyX) html += '<div class="ac-xray-edit-grid" style="margin-top:8px;">'
+                // the day the counter cash counts on
+                + '<div class="ac-fld is-wide"><label for="xePaidAt"><i class="fas fa-money-bill-wave"></i> ڕێکەوت و کاتی پارەدان</label>'
+                + '<input type="datetime-local" id="xePaidAt" value="' + dtLocal(money.money_at || r.accountant_approved_at) + '" max="' + dtLocal('') + '">'
+                + '<small class="ac-fld-hint">ئەو ڕۆژەی نەخۆش بە کردەیی پارەکەی داوە؛ پارەکە لە ژمێریاریی ڕۆژانەدا دەچێتە سەر ئەم ڕۆژە</small></div>'
                 + '<div class="ac-fld"><label for="xeAmount">کۆی گشتی</label><input type="number" id="xeAmount" step="1000" min="0" value="' + Number(r.amount || 0) + '"></div>'
                 + '<div class="ac-fld"><label for="xeDiscount">داشکاندن</label><input type="number" id="xeDiscount" step="1000" min="0" value="' + Number(r.discount_amount || 0) + '"></div>'
                 + '<div class="ac-fld"><label for="xeReceived">وەرگیراو لە کاتی پەسەندکردن</label><input type="number" id="xeReceived" step="1000" min="0" value="' + Number(money.received || 0) + '"></div>'
@@ -2535,9 +2560,9 @@
                     : '')
                 // Reason set as .value after render — see xsReason above.
                 + '<div class="ac-fld is-wide"><label>هۆکاری داشکاندن</label><input type="text" id="xeReason" placeholder="تەنها ئەگەر داشکاندن هەیە"></div>'
-                + '<div class="ac-fld is-wide"><label>هۆکاری تەعدیل (ئارەزوومەندانە)</label><textarea id="xeNote" rows="2" placeholder="بۆچی دەگۆڕدرێت..."></textarea></div>'
                 + '</div>'
-                + '<div class="ac-xray-settle-hint" id="xeHint"></div>'
+                + '<div class="ac-xray-settle-hint" id="xeHint"></div>';
+            html += '<div class="ac-xray-edit-grid" style="margin-top:8px;"><div class="ac-fld is-wide"><label>هۆکاری تەعدیل (ئارەزوومەندانە)</label><textarea id="xeNote" rows="2" placeholder="بۆچی دەگۆڕدرێت..."></textarea></div></div>'
                 + '<div class="ac-form-actions"><button type="button" class="btn btn-primary" id="xeSave"><i class="fas fa-save"></i> پاشەکەوت</button></div>'
                 + '<div class="ac-err" id="acDrawerErr"></div></div>';
         }
@@ -2561,12 +2586,14 @@
 
         wireApprovedEditBar('xray', r.id, editingX, () => renderXrayDrawer(data));
         if (editingX) {
-            $('xeReason').value = r.discount_reason || '';
+            $('xeNotes').value = r.notes || '';
+            if ($('xeReason')) $('xeReason').value = r.discount_reason || '';
             // The same one-source-of-truth rule as the settle form below, plus
             // what was collected after approval, which is fixed money: ماوە =
             // پوختە − وەرگیراو − کۆکراوەی دواتر, and وەرگیراو can never push
             // past what is left for it.
             const syncEdit = () => {
+                if (!moneyX) return;
                 const net = Math.max(0, Number($('xeAmount').value || 0) - Number($('xeDiscount').value || 0));
                 const room = Math.max(0, net - later);
                 let received = Number($('xeReceived').value || 0);
@@ -2589,23 +2616,32 @@
                     hint.innerHTML = '<i class="fas fa-coins"></i> دراو: ' + nf(received + later) + ' — ماوە بۆ قەرز: ' + nf(remaining);
                 }
             };
-            ['xeAmount', 'xeDiscount', 'xeReceived'].forEach((id) => $(id).addEventListener('input', syncEdit));
+            if (moneyX) ['xeAmount', 'xeDiscount', 'xeReceived'].forEach((id) => $(id).addEventListener('input', syncEdit));
             syncEdit();
 
             $('xeSave').addEventListener('click', async () => {
                 syncEdit();
-                const disc = Number($('xeDiscount').value || 0);
-                const reason = $('xeReason').value.trim();
-                if (disc > Number($('xeAmount').value || 0) + 0.009) { showDrawerErr('داشکاندن ناتوانێت لە کۆی گشتی زیاتر بێت'); return; }
-                if (disc > 0 && reason === '') { showDrawerErr('تکایە هۆکاری داشکاندن بنووسە'); return; }
-                const res = await postFinanceAction('edit_approved_xray', {
+                const payload = {
                     id: r.id,
-                    new_amount: $('xeAmount').value,
-                    discount_amount: $('xeDiscount').value,
-                    discount_reason: reason,
-                    received_amount: $('xeReceived').value,
+                    requested_at: $('xeRequestedAt').value,
+                    xray_type: $('xeType').value,
+                    notes: $('xeNotes').value,
                     note: $('xeNote').value,
-                }, $('xeSave'));
+                };
+                if (moneyX) {
+                    const disc = Number($('xeDiscount').value || 0);
+                    const reason = $('xeReason').value.trim();
+                    if (disc > Number($('xeAmount').value || 0) + 0.009) { showDrawerErr('داشکاندن ناتوانێت لە کۆی گشتی زیاتر بێت'); return; }
+                    if (disc > 0 && reason === '') { showDrawerErr('تکایە هۆکاری داشکاندن بنووسە'); return; }
+                    Object.assign(payload, {
+                        new_amount: $('xeAmount').value,
+                        discount_amount: $('xeDiscount').value,
+                        discount_reason: reason,
+                        received_amount: $('xeReceived').value,
+                        paid_at: $('xePaidAt').value,
+                    });
+                }
+                const res = await postFinanceAction('edit_approved_xray', payload, $('xeSave'));
                 finishApprovedEdit(res);
             });
         }
@@ -2684,6 +2720,7 @@
                     discount_amount: $('xsDiscount').value,
                     discount_reason: reason,
                     received_amount: $('xsReceived').value,
+                    paid_at: $('xsPaidAt') ? $('xsPaidAt').value : '',
                     note: $('xsNote').value,
                 };
             };

@@ -357,12 +357,44 @@ class XrayManager {
         }
     }
 
-    public function approvePaymentAndSendToXray($requestId, $userId, $role, $note = '') {
+    /** The X-ray types, as the clinic names them (xray_requests.xray_type). */
+    public const TYPES = ['panoramic' => 'OPG (Panoramic)', 'cbct' => 'CBCT', 'cephalometric' => 'Ceph', 'periapical' => 'P.A'];
+
+    /**
+     * «ڕێکەوت و کاتی پارەدان» as typed (Y-m-d H:i, or the browser's Y-m-dTH:i)
+     * → 'Y-m-d H:i:00'; null when empty. Never in the future: the money date
+     * is the day the patient really paid, which may be before the accountant
+     * approved it — never after today.
+     */
+    public static function parseMoneyDate($raw, string $what = 'پارەدان'): ?string
+    {
+        $raw = trim(str_replace('T', ' ', (string)$raw));
+        if ($raw === '') {
+            return null;
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
+            $raw .= ' 12:00';
+        }
+        $d = DateTime::createFromFormat('!Y-m-d H:i', substr($raw, 0, 16));
+        if (!$d || $d->format('Y-m-d H:i') !== substr($raw, 0, 16) || $d->format('Y') < '2000') {
+            throw new InvalidArgumentException('ڕێکەوت و کاتی ' . $what . ' نادروستە');
+        }
+        if ($d->getTimestamp() > time() + 60) {
+            throw new InvalidArgumentException('ڕێکەوتی ' . $what . ' نابێت لە داهاتوودا بێت');
+        }
+        return $d->format('Y-m-d H:i:00');
+    }
+
+    /**
+     * $paidAt: when the patient really paid (parseMoneyDate), if not now — the
+     * cash counts on that day; the approval itself is still stamped now.
+     */
+    public function approvePaymentAndSendToXray($requestId, $userId, $role, $note = '', ?string $paidAt = null) {
         $now = date('Y-m-d H:i:s');
         $result = $this->transitionWorkflow($requestId, 'pending_xray', 'paid', 'payment_collected', $note, $userId, $role, [
             'accountant_id' => $userId,
             'accountant_approved_at' => $now,
-            'paid_at' => $now,
+            'paid_at' => $paidAt ?: $now,
             'paid_by' => $userId,
             'settled_at' => $now,
             'settled_by' => $userId,
@@ -443,7 +475,7 @@ class XrayManager {
      *
      * @param float $receivedAmount cash taken now; must be > 0 and < final.
      */
-    public function approvePartialAndSendToXray($requestId, $receivedAmount, $userId, $role, $note = '') {
+    public function approvePartialAndSendToXray($requestId, $receivedAmount, $userId, $role, $note = '', ?string $paidAt = null) {
         $requestId = intval($requestId);
         $received = round(max(0, floatval($receivedAmount)), 2);
 
@@ -480,15 +512,18 @@ class XrayManager {
                 'amount'           => $final,
                 'remaining_amount' => $remaining,
                 'status'           => 'partial',
-                'notes'            => $note !== '' ? $note : null
+                'notes'            => $note !== '' ? $note : null,
+                'created_at'       => $paidAt ?: $now,
             ]);
 
+            // the cash taken, on the day the patient paid it
             $this->db->insert('xray_debt_payments', [
                 'debt_id'        => $debtId,
                 'amount'         => $received,
                 'payment_method' => 'cash',
                 'received_by'    => $userId,
-                'notes'          => 'وەرگیراو لە کاتی پەسەندکردن' . ($note !== '' ? ' — ' . $note : '')
+                'notes'          => 'وەرگیراو لە کاتی پەسەندکردن' . ($note !== '' ? ' — ' . $note : ''),
+                'created_at'     => $paidAt ?: $now,
             ]);
 
             $result = $this->transitionWorkflow($requestId, 'pending_xray', 'debt_approved', 'debt_approved', $note, $userId, $role, [
@@ -542,8 +577,13 @@ class XrayManager {
      * A free (not_required) or refunded request has no money to correct here.
      * Gated on Settings::allowEditApprovedInvoice(); callers own the role check.
      *
+     * The money's DATE may be corrected too (paid_at): the day the counter
+     * cash counts on — paid_at for a cash request, the approval-time
+     * xray_debt_payments row for a part-paid one. accountant_approved_at is
+     * never moved: it is when the accountant really approved it.
+     *
      * @param array $fields new_amount, discount_amount, discount_reason,
-     *                      received_amount, note — each optional
+     *                      received_amount, paid_at, note — each optional
      */
     public function editApprovedSettlement($requestId, array $fields, $userId, $role) {
         require_once __DIR__ . '/Settings.php';
@@ -622,6 +662,17 @@ class XrayManager {
                     }
                 }
             }
+            // The day the counter cash counts on, and the one asked for.
+            $oldMoneyAt = (string)($r['paid_at'] ?: ($approvalRow['created_at'] ?? null) ?: $r['accountant_approved_at']);
+            $moneyAt = $oldMoneyAt;
+            if (array_key_exists('paid_at', $fields)) {
+                $asked = self::parseMoneyDate($fields['paid_at']);
+                if ($asked !== null && substr($asked, 0, 16) !== substr($oldMoneyAt, 0, 16)) {
+                    $moneyAt = $asked;
+                }
+            }
+            $moneyMoved = $moneyAt !== $oldMoneyAt;
+
             $oldFinal = round((float)($r['final_amount'] ?: $r['amount']), 2);
             if ($debt) {
                 $oldReceived = $approvalRow ? round((float)$approvalRow['amount'], 2) : 0.0;
@@ -668,7 +719,7 @@ class XrayManager {
                     $this->db->delete('patient_xray_debts', 'id = :id', ['id' => (int)$debt['id']]);
                 }
                 $changes['payment_status'] = 'paid';
-                $changes['paid_at'] = $r['paid_at'] ?: $approvalAt;
+                $changes['paid_at'] = $moneyAt;
                 $changes['paid_by'] = $r['paid_by'] ?: $counterBy;
             } elseif ($later <= 0.009 && $received <= 0.009) {
                 // DEBT — nothing taken; final_amount itself is what is owed.
@@ -696,18 +747,19 @@ class XrayManager {
                     $debtId = (int)$this->db->insert('patient_xray_debts', [
                         'patient_id' => $r['patient_id'], 'request_id' => $requestId,
                         'amount' => $final, 'remaining_amount' => $remaining, 'status' => $debtStatus,
-                        'notes' => $note !== '' ? $note : null, 'created_at' => $approvalAt,
+                        'notes' => $note !== '' ? $note : null, 'created_at' => $moneyAt,
                     ]);
                 }
                 if ($received > 0.009) {
                     if ($approvalRow) {
-                        $this->db->update('xray_debt_payments', ['amount' => $received], 'id = :id', ['id' => (int)$approvalRow['id']]);
+                        $this->db->update('xray_debt_payments', ['amount' => $received] + ($moneyMoved ? ['created_at' => $moneyAt] : []),
+                            'id = :id', ['id' => (int)$approvalRow['id']]);
                     } else {
-                        // Dated at the approval, where the cash really came in.
+                        // Dated on the money's day, where the cash really came in.
                         $this->db->insert('xray_debt_payments', [
                             'debt_id' => $debtId, 'amount' => $received, 'payment_method' => 'cash',
                             'received_by' => $counterBy, 'notes' => 'وەرگیراو لە کاتی پەسەندکردن',
-                            'created_at' => $approvalAt,
+                            'created_at' => $moneyAt,
                         ]);
                     }
                 } elseif ($approvalRow) {
@@ -716,7 +768,7 @@ class XrayManager {
                 if ($remaining <= 0.009) {
                     $changes['payment_status'] = 'paid';
                     // Settled by money that already came in — its latest day.
-                    $changes['paid_at'] = $r['paid_at'] ?: ($lastLaterAt ?: $approvalAt);
+                    $changes['paid_at'] = $r['paid_at'] ?: ($lastLaterAt ?: $moneyAt);
                     $changes['paid_by'] = $r['paid_by'] ?: $counterBy;
                 } else {
                     $changes['payment_status'] = 'debt_approved';
@@ -725,15 +777,16 @@ class XrayManager {
                 }
             }
 
-            $before = array_intersect_key($r, $changes) + ['received_at_counter' => $oldReceived];
-            $after = $changes + ['received_at_counter' => $received, 'collected_later' => $later, 'remaining' => $remaining];
+            $before = array_intersect_key($r, $changes) + ['received_at_counter' => $oldReceived, 'money_at' => $oldMoneyAt];
+            $after = $changes + ['received_at_counter' => $received, 'collected_later' => $later, 'remaining' => $remaining,
+                                 'money_at' => $moneyAt];
             $unchanged = true;
             foreach ($changes as $k => $v) {
                 $old = $r[$k] ?? null;
                 $same = (is_numeric($old) && is_numeric($v)) ? abs((float)$old - (float)$v) < 0.005 : (string)$old === (string)$v;
                 if (!$same) { $unchanged = false; break; }
             }
-            if ($unchanged && abs($oldReceived - $received) < 0.005) {
+            if ($unchanged && !$moneyMoved && abs($oldReceived - $received) < 0.005) {
                 $this->db->rollback();
                 return ['success' => true, 'unchanged' => true];
             }
@@ -745,6 +798,7 @@ class XrayManager {
                 'accountant_edited',
                 'کۆی کۆتایی: ' . number_format($oldFinal) . ' → ' . number_format($final)
                     . ' — وەرگیراو: ' . number_format($oldReceived) . ' → ' . number_format($received)
+                    . ($moneyMoved ? ' — ڕێکەوتی پارە: ' . substr($oldMoneyAt, 0, 16) . ' → ' . substr($moneyAt, 0, 16) : '')
                     . ($note !== '' ? ' — ' . $note : ''),
                 $userId, $role
             );
@@ -756,6 +810,84 @@ class XrayManager {
             $this->db->rollback();
             if ($e instanceof PDOException) {
                 error_log('XrayManager::editApprovedSettlement failed: ' . $e->getMessage());
+                return ['success' => false, 'message' => 'هەڵەیەک ڕوویدا، دووبارە هەوڵبدەرەوە'];
+            }
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Correct an APPROVED X-ray's own details in place — the request's date,
+     * its type and its note — while it stays approved (the money is
+     * editApprovedSettlement's). Any approved request, free ones too.
+     * Gated on Settings::allowEditApprovedInvoice(); callers own the role check.
+     *
+     * @param array $fields requested_at, xray_type, notes — each optional
+     */
+    public function editApprovedDetails($requestId, array $fields, $userId, $role) {
+        require_once __DIR__ . '/Settings.php';
+        require_once __DIR__ . '/AuditLog.php';
+        if (!Settings::allowEditApprovedInvoice()) {
+            return ['success' => false, 'message' => 'دەستکاریکردنی تۆماری پەسەندکراو ناچالاکە — لە ڕێکخستنەکان چالاکی بکە'];
+        }
+        $requestId = intval($requestId);
+        $this->db->beginTransaction();
+        try {
+            $r = $this->db->fetch("SELECT * FROM xray_requests WHERE id = :id FOR UPDATE", ['id' => $requestId]);
+            if (!$r) {
+                throw new RuntimeException('داواکاری نەدۆزرایەوە');
+            }
+            $decided = !empty($r['accountant_approved_at'])
+                && !in_array($r['request_status'], ['pending_accountant', 'returned_to_accountant', 'cancelled'], true);
+            if (!$decided) {
+                throw new RuntimeException('تەنها داواکاری پەسەندکراو بەم شێوەیە دەگۆڕدرێت');
+            }
+            $changes = [];
+            if (array_key_exists('requested_at', $fields)) {
+                $at = self::parseMoneyDate($fields['requested_at'], 'داواکاری');
+                if ($at !== null && substr($at, 0, 16) !== substr((string)$r['created_at'], 0, 16)) {
+                    $changes['created_at'] = $at;
+                }
+            }
+            if (array_key_exists('xray_type', $fields) && (string)$fields['xray_type'] !== '') {
+                if (!isset(self::TYPES[$fields['xray_type']])) {
+                    throw new InvalidArgumentException('جۆری ئێکسڕەی نادروستە');
+                }
+                if ($fields['xray_type'] !== $r['xray_type']) {
+                    $changes['xray_type'] = $fields['xray_type'];
+                }
+            }
+            if (array_key_exists('notes', $fields)) {
+                $notes = trim((string)$fields['notes']);
+                if ($notes !== trim((string)($r['notes'] ?? ''))) {
+                    $changes['notes'] = $notes !== '' ? $notes : null;
+                }
+            }
+            if (!$changes) {
+                $this->db->rollback();
+                return ['success' => true, 'unchanged' => true];
+            }
+            $said = [];
+            if (isset($changes['created_at'])) {
+                $said[] = 'ڕێکەوتی داواکاری: ' . substr((string)$r['created_at'], 0, 16) . ' → ' . substr($changes['created_at'], 0, 16);
+            }
+            if (isset($changes['xray_type'])) {
+                $said[] = 'جۆر: ' . (self::TYPES[$r['xray_type']] ?? $r['xray_type']) . ' → ' . self::TYPES[$changes['xray_type']];
+            }
+            if (array_key_exists('notes', $changes)) {
+                $said[] = 'تێبینی گۆڕدرا';
+            }
+            $this->db->update('xray_requests', $changes + ['last_updated_at' => date('Y-m-d H:i:s')], 'id = :id', ['id' => $requestId]);
+            $this->logHistory($requestId, $r['request_status'], $r['request_status'], $r['payment_status'], $r['payment_status'],
+                'accountant_edited_details', implode(' — ', $said), $userId, $role);
+            AuditLog::log('xray_approved_details_edited', 'xray_requests', $requestId,
+                array_intersect_key($r, $changes), $changes, (int)$userId);
+            $this->db->commit();
+            return ['success' => true, 'changed' => array_keys($changes)];
+        } catch (Throwable $e) {
+            $this->db->rollback();
+            if ($e instanceof PDOException) {
+                error_log('XrayManager::editApprovedDetails failed: ' . $e->getMessage());
                 return ['success' => false, 'message' => 'هەڵەیەک ڕوویدا، دووبارە هەوڵبدەرەوە'];
             }
             return ['success' => false, 'message' => $e->getMessage()];
@@ -777,14 +909,16 @@ class XrayManager {
         $final = round((float)($r['final_amount'] ?: $r['amount']), 2);
         $received = 0.0;
         $later = 0.0;
+        $moneyAt = $r['paid_at'] ?: null;
         $debt = ($this->db->tableExists('patient_xray_debts') && $this->db->tableExists('xray_debt_payments'))
             ? $this->db->fetch("SELECT * FROM patient_xray_debts WHERE request_id = :id ORDER BY id LIMIT 1", ['id' => (int)$r['id']])
             : null;
         if ($debt) {
             $seenApproval = false;
-            foreach ($this->db->fetchAll("SELECT amount, notes FROM xray_debt_payments WHERE debt_id = :d ORDER BY id", ['d' => (int)$debt['id']]) as $p) {
+            foreach ($this->db->fetchAll("SELECT amount, notes, created_at FROM xray_debt_payments WHERE debt_id = :d ORDER BY id", ['d' => (int)$debt['id']]) as $p) {
                 if (!$seenApproval && strpos((string)$p['notes'], 'وەرگیراو لە کاتی پەسەندکردن') === 0) {
                     $received = round((float)$p['amount'], 2);
+                    $moneyAt = $p['created_at'];
                     $seenApproval = true;
                 } else {
                     $later = round($later + (float)$p['amount'], 2);
@@ -799,6 +933,8 @@ class XrayManager {
             'later'     => $later,
             'remaining' => round(max(0, $final - $received - $later), 2),
             'editable'  => in_array($r['payment_status'], ['paid', 'debt', 'debt_approved'], true),
+            // the day the counter cash counts on (null: nothing taken yet)
+            'money_at'  => $received > 0.009 ? ($moneyAt ?: $r['accountant_approved_at']) : null,
         ];
     }
 
