@@ -79,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             Settings::ALLOW_EDIT_APPROVED_INVOICE,
             Settings::DOCTOR_RECEIVED_LOCKED,
             Settings::PRIOR_PAID_ON_LOCKED_INVOICES,
+            Settings::RECEIPT_SHOWS_PREVIOUS_DEBT,
             AutoApproval::ENABLED,
             CashboxLedger::SPLIT_SETTING,
             Settings::WAITING_CALL_RESTRICTED,
@@ -931,6 +932,34 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="access-note">
                     <i class="fas fa-shield-alt"></i>
                     <span>هەر گۆڕینێکی ئەم ئۆپشنە، و هەر گۆڕینێکی دراوی پێشوو لە وەسڵی نێردراو یان پەسەندکراو، لە تۆماری چالاکییەکاندا هەڵدەگیرێت.</span>
+                </div>
+            </div>
+
+            <h4 class="mb-3" style="margin-top:26px;">قەرزی پێشوو لەسەر پسوولە</h4>
+
+            <div class="access-card">
+                <div class="access-card-main">
+                    <div class="access-card-text">
+                        <div class="access-card-title">
+                            <i class="fas fa-file-invoice-dollar"></i>
+                            پسوولەی سەردان <b>قەرزی پێشوو</b>ی نەخۆش و <b>کۆی گشتی قەرزی ماوە</b>ش چاپ دەکات
+                        </div>
+                        <div class="access-card-desc">
+                            کاتێک <b>چالاک</b> بێت (بنەڕەت)، لەژێر ژمارەکانی پسوولەکە (کۆی گشتی، داشکاندن، وەرگیراو، ماوە)
+                            دوو دێڕی تر دێن: <b>قەرزی پێشوو</b> — ئەوەی لە پسوولەکانی پێشوو، ئێکسڕەی و قەرزی کۆن ماوەتەوە،
+                            بە کەمکردنەوەی ئەمانەتی نەخۆش — و <b>کۆی گشتی قەرزی ماوە</b> = ماوەی ئەمڕۆ + قەرزی پێشوو.
+                            بەم شێوەیە یەک پسوولە هەموو حسابی نەخۆش دەگرێتەوە و قەرزی کۆن بیر ناچێت.
+                            <br>
+                            کاتێک <b>ناچالاک</b> بێت، هەر پسوولەیەک تەنها ژمارەکانی خۆی چاپ دەکات.
+                        </div>
+                    </div>
+                    <div class="toggle-switch">
+                        <input type="hidden" name="settings[receipt_shows_previous_debt]" value="0">
+                        <input type="checkbox" id="receiptShowsPreviousDebt"
+                               name="settings[receipt_shows_previous_debt]" value="1"
+                               <?= Settings::receiptShowsPreviousDebt() ? 'checked' : '' ?>>
+                        <span class="toggle-slider"></span>
+                    </div>
                 </div>
             </div>
 

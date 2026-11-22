@@ -57,6 +57,14 @@ class Settings
     const PRIOR_PAID_ON_LOCKED_INVOICES = 'prior_paid_on_locked_invoices';
 
     /**
+     * قەرزی پێشوو on a visit receipt: ON (default) — under the receipt's own
+     * figures the sheet prints what the patient still owes from earlier
+     * receipts (PatientFinance::previousDebt) and the grand total owed, so one
+     * paper carries the whole account. OFF — the receipt shows only itself.
+     */
+    const RECEIPT_SHOWS_PREVIOUS_DEBT = 'receipt_shows_previous_debt';
+
+    /**
      * Waiting room «بانگکردن»: OFF (default) — every doctor may call their own
      * patients in. ON — only the doctors listed in WAITING_CALL_DOCTOR_IDS may;
      * for the rest reception/admin calls the patient.
@@ -195,6 +203,12 @@ class Settings
     public static function priorPaidOnLockedInvoices(): bool
     {
         return self::getBool(self::PRIOR_PAID_ON_LOCKED_INVOICES, false);
+    }
+
+    /** Whether a visit receipt also prints the patient's earlier debt and the grand total owed. Default ON. */
+    public static function receiptShowsPreviousDebt(): bool
+    {
+        return self::getBool(self::RECEIPT_SHOWS_PREVIOUS_DEBT, true);
     }
 
     /** Whether a doctor is kept from writing «وەرگیراو» on a receipt. Default ON. */

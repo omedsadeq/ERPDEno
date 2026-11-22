@@ -94,6 +94,90 @@ class PatientFinance
     }
 
     // ================================================================
+    // previousDebt()
+    // ================================================================
+
+    /**
+     * قەرزی پێشوو — what the patient still owes the clinic APART from the
+     * receipt being printed, so a visit receipt can carry the whole account
+     * (cases/receipt.php). Clinic-wide on purpose: the patient owes the clinic,
+     * not one doctor. Same figures as summary(): every approved invoice's
+     * remaining_amount (AccountingLedger), x-ray debt, the pre-system opening
+     * balance (PatientLedger), minus the patient's credit.
+     *
+     * $excludeInvoiceId — the receipt's own invoice, whose remaining is already
+     * printed as «ماوە»; $excludeCaseId — the whole case, for a whole-case sheet.
+     *
+     * @return array ['cases'=>float,'xray'=>float,'opening'=>float,'credit'=>float,
+     *   'total'=>float (never negative), 'invoices'=>int (unsettled receipts counted)]
+     */
+    public function previousDebt(int $patientId, ?int $excludeInvoiceId = null, ?int $excludeCaseId = null): array
+    {
+        // Every line is named, so the sheet can say exactly WHAT the earlier
+        // debt is: which receipt (number, work day, doctor), an x-ray, the old
+        // pre-system debt, or the credit taken off.
+        $items = [];
+        $cases = 0.0;
+        $invoices = 0;
+        foreach ($this->scopedCaseIds($patientId, null) as $caseId) {
+            if ($excludeCaseId !== null && $caseId === $excludeCaseId) {
+                continue;
+            }
+            foreach ($this->ledger->getInvoices($caseId, false) as $inv) {
+                if (($inv['accounting_status'] ?? '') !== 'approved') {
+                    continue;
+                }
+                if ($excludeInvoiceId !== null && (int)$inv['id'] === $excludeInvoiceId) {
+                    continue;
+                }
+                $due = (float)($inv['remaining_amount'] ?? 0);
+                if ($due > 0.009) {
+                    $cases += $due;
+                    $invoices++;
+                    $items[] = [
+                        'kind'   => 'invoice',
+                        'label'  => 'پسوولە ' . (string)($inv['invoice_no'] ?? $inv['id']),
+                        'date'   => !empty($inv['work_date']) ? date('Y/n/j', strtotime($inv['work_date'])) : '',
+                        'detail' => trim((string)($inv['doctor_name'] ?? '')),
+                        'amount' => $due,
+                    ];
+                }
+            }
+        }
+        $xray = (float)$this->xrayManager->getPatientXrayDebt($patientId);
+        if ($xray > 0.009) {
+            $items[] = ['kind' => 'xray', 'label' => 'ئێکسڕەی', 'date' => '', 'detail' => '', 'amount' => $xray];
+        }
+        $opening = 0.0;
+        if ($this->db->tableExists('patient_opening_balances')) {
+            $row = $this->db->fetch('SELECT amount, as_of_date FROM patient_opening_balances WHERE patient_id = :id', ['id' => $patientId]);
+            $opening = max(0.0, (float)($row['amount'] ?? 0));
+            if ($opening > 0.009) {
+                $items[] = [
+                    'kind'   => 'opening',
+                    'label'  => 'قەرزی کۆن (پێش سیستەم)',
+                    'date'   => !empty($row['as_of_date']) ? date('Y/n/j', strtotime($row['as_of_date'])) : '',
+                    'detail' => '',
+                    'amount' => $opening,
+                ];
+            }
+        }
+        $credit = max(0.0, (float)$this->debtPayment->getPatientCredit($patientId));
+        if ($credit > 0.009) {
+            $items[] = ['kind' => 'credit', 'label' => 'ئەمانەتی نەخۆش (کەم دەکرێتەوە)', 'date' => '', 'detail' => '', 'amount' => -$credit];
+        }
+        return [
+            'cases'    => $cases,
+            'xray'     => $xray,
+            'opening'  => $opening,
+            'credit'   => $credit,
+            'invoices' => $invoices,
+            'items'    => $items,
+            'total'    => max(0.0, $cases + $xray + $opening - $credit),
+        ];
+    }
+
+    // ================================================================
     // statement()
     // ================================================================
 

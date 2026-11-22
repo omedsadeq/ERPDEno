@@ -175,6 +175,26 @@ if ($invoice) {
     $invoiceRemaining = max(0, $invoiceNet - $invoicePaid - $invoicePrior);
 }
 
+// قەرزی پێشوو — what the patient still owes from EARLIER receipts (other
+// approved invoices of any of their cases, x-ray debt, the pre-system opening
+// balance, less their credit). The staff used to print a second sheet for it
+// and often forgot, so the patient left believing nothing else was owed. It is
+// read live (as of printing), never a snapshot, and prints only when > 0.
+// The sheet's own remaining is excluded so nothing is counted twice.
+$prevDebt = null;
+if (Settings::receiptShowsPreviousDebt() && (int)($case['patient_id'] ?? 0) > 0) {
+    require_once __DIR__ . '/../classes/PatientFinance.php';
+    $prevDebt = (new PatientFinance())->previousDebt(
+        (int)$case['patient_id'],
+        $invoice ? (int)$invoice['id'] : null,
+        $invoiceScope === 'all' ? $caseId : null
+    );
+    if ($prevDebt['total'] <= 0.009) {
+        $prevDebt = null;
+    }
+}
+$sheetRemaining = $invoiceScope === 'all' ? max(0, $remaining) : $invoiceRemaining;
+
 // Clinic letterhead — shared with the قەبز so the two documents match.
 require __DIR__ . '/../includes/clinic_branding.php';
 
@@ -392,6 +412,17 @@ html, body {
 }
 .rc-total-box.is-due  { color: #c62026; }
 .rc-total-box.is-paid { color: #14713b; }
+/* قەرزی پێشوو + the grand total owed: set apart from the sheet's own figures. */
+.rc-debt { margin-top: 3px; padding-top: 3px; border-top: 1px dashed #8aa8c4; }
+.rc-debt .rc-label { color: #7a1f23; }
+/* What the earlier debt is made of: one line per receipt / x-ray / old debt / credit. */
+.rc-debt-list { width: 100%; border-collapse: collapse; margin: 1px 0 3px; font-size: 8pt; }
+.rc-debt-list td { padding: .5px 3px; border-bottom: .2mm dotted #b8c6d4; line-height: 1.45; color: #3b4a5a; }
+.rc-debt-list td.n { width: 24mm; text-align: center; direction: ltr; font-weight: 700; color: #c62026; white-space: nowrap; }
+.rc-debt-list td.n.cr { color: #14713b; }
+.rc-debt-list .dt { color: #6b7a8a; font-size: 7pt; margin-inline-start: 3px; }
+.rc-grand .rc-label { font-weight: 700; }
+.rc-grand .rc-total-box { border-width: 2px; background: #fff3f3; font-size: 12pt; }
 
 /* ── Terms strip ── */
 .rc-terms {
@@ -674,6 +705,33 @@ ob_start();
             <div class="rc-total-row">
                 <span class="rc-label">ماوە :</span>
                 <span class="rc-total-box<?= $invoiceRemaining > 0.009 ? ' is-due' : '' ?>"><?= number_format($invoiceRemaining) ?></span>
+            </div>
+            <?php endif; ?>
+            <?php if ($prevDebt): ?>
+            <!-- The patient's earlier debt, so one sheet carries the whole account. -->
+            <div class="rc-debt">
+                <div class="rc-total-row">
+                    <span class="rc-label">قەرزی پێشوو :</span>
+                    <span class="rc-total-box is-due"><?= number_format($prevDebt['total']) ?></span>
+                </div>
+                <?php if (!empty($prevDebt['items'])): ?>
+                <table class="rc-debt-list">
+                    <?php foreach ($prevDebt['items'] as $it): ?>
+                    <tr>
+                        <td>
+                            <?= htmlspecialchars($it['label']) ?>
+                            <?php if ($it['date'] !== ''): ?><span class="dt"><?= htmlspecialchars($it['date']) ?></span><?php endif; ?>
+                            <?php if ($it['detail'] !== ''): ?><span class="dt"><?= htmlspecialchars($it['detail']) ?></span><?php endif; ?>
+                        </td>
+                        <td class="n<?= $it['amount'] < 0 ? ' cr' : '' ?>"><?= $it['amount'] < 0 ? '−' : '' ?><?= number_format(abs($it['amount'])) ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </table>
+                <?php endif; ?>
+                <div class="rc-total-row rc-grand">
+                    <span class="rc-label">کۆی قەرزی ماوە :</span>
+                    <span class="rc-total-box is-due"><?= number_format($sheetRemaining + $prevDebt['total']) ?></span>
+                </div>
             </div>
             <?php endif; ?>
         </div>
