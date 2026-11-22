@@ -3,10 +3,13 @@
  * The work tray under a tooth chart — cases/view.php and treatment-plans/view.php.
  *
  * Every treatment of the catalog as a cell, the legend's look. Teeth picked on
- * the chart, a click ticks a work (several for the same tooth, numbered in
- * click order), and the basket above the list shows the teeth, the works and
- * the total; «زیادکردن» (or Enter) puts them all on through the page's own
- * quickAddTreatments(). Works may be ticked before or after the teeth.
+ * the chart, one click on a work puts it on all of them at once — no second
+ * button (and any works ticked before the teeth go in with it). Ctrl / Shift +
+ * click only ticks a work (several for the same teeth, numbered in click
+ * order); the basket above the list shows the teeth, the works and the total,
+ * and «زیادکردن» (or Enter) puts them all on through the page's own
+ * quickAddTreatments(). With no teeth picked, a click ticks the work, which
+ * goes in on the first click once teeth are picked.
  *
  * work_tray_html() is the markup under the chart; work_tray_assets() prints
  * the style and the script once. The page provides: treatmentCatalog,
@@ -48,6 +51,7 @@ function work_tray_assets(): void
 .wt-head { margin-bottom: 8px; }
 .wt-prompt { font-size: 13px; font-weight: 700; color: #64748b; display: inline-flex; align-items: center; gap: 6px; }
 .wt-prompt i { color: #94a3b8; }
+.wt-hint { font-size: 11.5px; font-weight: 600; color: #64748b; }
 .work-tray.is-ready .wt-prompt { color: #0f766e; }
 .work-tray.is-ready .wt-prompt i { color: #14b8a6; }
 /* A light table of four columns: hairlines between the cells; each cell the
@@ -220,8 +224,10 @@ function renderWorkTrayState() {
     const prompt = document.getElementById('wtPrompt');
     if (prompt) {
         prompt.innerHTML = picked.length
-            ? '<i class="fas fa-hand-pointer"></i> ئیشەکان هەڵبژێرە — یەک یان چەندێک، پاشان «زیادکردن»'
-            : '<i class="fas fa-tooth"></i> ددان لە چارتەکە هەڵبژێرە، پاشان ئیشەکان';
+            ? '<i class="fas fa-hand-pointer"></i> کلیک لە ئیشێک بکە — ڕاستەوخۆ دەچێتە سەر '
+              + (picked.length === 1 ? 'ددانی ' + escapeHtml(String(palmerOf(picked[0]))) : picked.length + ' ددان')
+              + ' <small class="wt-hint">(Ctrl + کلیک: چەند ئیشێک پێکەوە)</small>'
+            : '<i class="fas fa-tooth"></i> ددان لە چارتەکە هەڵبژێرە، پاشان کلیک لە ئیشەکە بکە';
     }
     renderWorkBasket();
 }
@@ -314,7 +320,20 @@ document.addEventListener('click', function (e) {
     if (e.target.closest('#wtClear')) { wtPicked = []; renderWorkBasket(); return; }
     if (e.target.closest('#wtAdd')) { workTrayAddPicked(); return; }
     const chip = e.target.closest('#workTray .wt-chip');
-    if (chip) { wtToggle(parseInt(chip.dataset.wt, 10)); return; }
+    if (chip) {
+        const id = parseInt(chip.dataset.wt, 10);
+        const teeth = (typeof bulkSelected !== 'undefined' && bulkSelected) ? bulkSelected : [];
+        // teeth picked and a plain click: straight on, with whatever was ticked before
+        if (teeth.length && !(e.ctrlKey || e.metaKey || e.shiftKey)) {
+            if (quickAddBusy) return;
+            if (!wtPicked.includes(id)) wtPicked.push(id);
+            renderWorkBasket();
+            workTrayAddPicked();
+            return;
+        }
+        wtToggle(id);
+        return;
+    }
     if (e.target.closest('#wtMore')) {
         const tray = document.getElementById('workTray');
         const open = !tray.classList.contains('is-open');
