@@ -88,7 +88,7 @@ if (!function_exists('dh_can_touch_appointment')) {
 if (!function_exists('dh_appointment_return_url')) {
     function dh_appointment_return_url($date, $view, $doctor, $workType, $callStatus, $flag = '') {
         $query = ['date' => $date];
-        if (in_array($view, ['week', 'month'], true)) {
+        if (in_array($view, ['week', 'month', 'upcoming'], true)) {
             $query['view'] = $view;
         }
         if ((string)$doctor !== '') {
@@ -537,8 +537,16 @@ if ($viewMode === 'week') {
     $months = ['کانوونی دووەم', 'شوبات', 'ئازار', 'نیسان', 'ئایار', 'حوزەیران', 'تەممووز', 'ئاب', 'ئەیلوول', 'تشرینی یەکەم', 'تشرینی دووەم', 'کانوونی یەکەم'];
     $monthName = $months[date('n', strtotime($viewDate)) - 1];
     $viewDateRange = $monthName . ' ' . date('Y', strtotime($viewDate));
+} elseif ($viewMode === 'upcoming') {
+    // «هەموو داهاتوو»: from today on, whatever day — not one day or week
+    $startDate = date('Y-m-d');
+    $endDate = date('Y-m-d', strtotime('+3 years'));
+    $appointments = $appointmentManager->getByWeek($startDate, $endDate, $selectedDoctor ?: null);
+    $viewTitle = 'داهاتوو';
+    $viewDateRange = 'لە ' . $startDate . ' بەدواوە';
 } else {
     // Day view (default)
+    $viewMode = 'day';
     $appointments = $appointmentManager->getByDate($viewDate, $selectedDoctor ?: null);
     $viewTitle = null;
     $viewDateRange = null;
@@ -591,6 +599,9 @@ if ($selectedCallStatus === 'called') {
         fn($a) => empty($a['called_to_center_at'])
     ));
 }
+
+// A list of many days shows the date column and a heading row per day
+$aptManyDays = in_array($viewMode, ['week', 'month', 'upcoming'], true);
 
 // Query string that carries the active filters across every navigation link
 $aptFilterQs = '&doctor=' . urlencode((string)$selectedDoctor)
@@ -1392,6 +1403,39 @@ require_once __DIR__ . '/includes/case-button.php';
     display: block;
 }
 
+/* tidy-ups: names on one or two lines, not three; a heading row per day */
+.appointments-table td:has(> .patient-name-apt) { min-width: 140px; }
+.appointments-table .time-cell-apt,
+.appointments-table .duration-cell-apt { white-space: nowrap; }
+.appointments-table td.apt-doc-cell { white-space: nowrap; }
+.apt-day-sep > td { background: #eef4fc !important; text-align: right !important; padding: 7px 12px !important;
+    font-size: 13px !important; color: #1e293b !important; border-top: 2px solid #cfe3f7; }
+.apt-day-sep i { color: var(--win-accent, #0078d4); margin-left: 6px; }
+.apt-day-sep-date { color: #64748b; margin: 0 6px; direction: ltr; unicode-bidi: isolate; }
+.apt-day-sep-rel { background: #dbeafe; color: #1d4ed8; border-radius: 10px; padding: 1px 9px; font-size: 11.5px; font-weight: 700; }
+.apt-day-sep.is-today > td { background: #ecfdf5 !important; border-top-color: #a7f3d0; }
+.apt-day-sep.is-today .apt-day-sep-rel { background: #bbf7d0; color: #15803d; }
+.apt-day-sep-n { float: left; color: #64748b; font-size: 12px; }
+.appointments-table tbody tr.apt-day-sep:hover { box-shadow: none; }
+.appointments-table td.apt-date-cell { white-space: nowrap; }
+@media (min-width: 768px) {
+    /* a wide table scrolls in its own box (the menus are position:fixed, so
+       nothing is clipped) and «کردار» stays pinned on the left, always in reach */
+    .table-container { overflow-x: auto !important; }
+    .appointments-table thead th:last-child,
+    .appointments-table tbody tr:not(.apt-day-sep) > td:last-child {
+        position: sticky; left: 0; z-index: 1; background: #fff;
+        box-shadow: 6px 0 8px -6px rgba(15, 23, 42, .18);
+    }
+    .appointments-table thead th:last-child { background: #f3f5f7; }
+}
+@media (max-width: 1500px) and (min-width: 1025px) {
+    /* a laptop screen: the side panels go under the list, side by side, so the table has the width */
+    #tableView { grid-template-columns: minmax(0, 1fr) !important; }
+    #tableView > div:last-child { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; align-items: start; }
+    #tableView > div:last-child > * { margin-bottom: 0 !important; }
+}
+
 #tableView.hidden {
     display: none;
 }
@@ -1885,160 +1929,247 @@ $dayName = $days[$dayNum];
     </div>
 </div>
 
-<!-- Filters Panel -->
-<div class="filters-panel-appointments">
-    <div class="filter-chips-appointments">
-        <a href="?date=<?= date('Y-m-d') ?><?= $aptFilterQs ?>" class="filter-chip-apt <?= $viewDate === date('Y-m-d') && !isset($_GET['view']) ? 'active' : '' ?>">
-            <i class="fas fa-calendar-day"></i>
-            ئەمڕۆ
-            <?php if ($viewDate === date('Y-m-d') && $totalToday > 0): ?>
-            <span class="chip-badge-apt"><?= $totalToday ?></span>
-            <?php endif; ?>
-        </a>
-        <a href="?date=<?= date('Y-m-d', strtotime('+1 day')) ?><?= $aptFilterQs ?>" class="filter-chip-apt <?= $viewDate === date('Y-m-d', strtotime('+1 day')) && !isset($_GET['view']) ? 'active' : '' ?>">
-            <i class="fas fa-calendar-plus"></i>
-            سبەینێ
-        </a>
-        <a href="?view=week<?= $aptFilterQs ?>" class="filter-chip-apt <?= ($viewMode === 'week' && isset($_GET['view'])) ? 'active' : '' ?>">
-            <i class="fas fa-calendar-week"></i>
-            ئەم هەفتەیە
-        </a>
-        <a href="?view=month<?= $aptFilterQs ?>" class="filter-chip-apt <?= ($viewMode === 'month' && isset($_GET['view'])) ? 'active' : '' ?>">
-            <i class="fas fa-calendar-alt"></i>
-            ئەم مانگە
-        </a>
-        <button type="button" class="filter-chip-apt" onclick="openDialog('cancelledListDialog')"
-                style="background: #ffebee; color: #c62828; border-color: #ffcdd2; cursor: pointer; border: 1px solid #ffcdd2;">
-            <i class="fas fa-calendar-times"></i>
-            هەڵوەشاندنەوەکان
-            <?php if ($cancelledCount > 0): ?>
-            <span class="chip-badge-apt" style="background: #c62828;"><?= $cancelledCount ?></span>
-            <?php endif; ?>
-        </button>
-        <?php $rescheduledCount = count(array_filter($appointments, fn($a) => $a['status'] === 'rescheduled')); ?>
-        <button type="button" class="filter-chip-apt" onclick="openDialog('rescheduledListDialog')"
-                style="background: #fff3e0; color: #e65100; border-color: #ffe0b2; cursor: pointer; border: 1px solid #ffe0b2;">
-            <i class="fas fa-calendar-alt"></i>
-            دواخستنەکان
-            <?php if ($rescheduledCount > 0): ?>
-            <span class="chip-badge-apt" style="background: #e65100;"><?= $rescheduledCount ?></span>
-            <?php endif; ?>
-        </button>
-        <?php if ($selectedWorkType > 0): ?>
-        <span class="filter-chip-apt active-work-type-chip" style="background: #eef4fb; color: #0d47a1; border: 1px solid #90caf9;">
-            <i class="fas fa-briefcase-medical"></i>
-            <?= htmlspecialchars($selectedWorkTypeName) ?>
-            <span class="chip-badge-apt" style="background: #0d47a1;"><?= $totalToday ?></span>
-            <a href="?<?= $aptViewQs ?>date=<?= $viewDate ?>&doctor=<?= urlencode((string)$selectedDoctor) ?><?= $selectedCallStatus !== 'all' ? '&call_status=' . urlencode($selectedCallStatus) : '' ?>"
-               title="لابردنی پاڵاوتن" style="color: #0d47a1; margin-right: 4px; text-decoration: none;">
-                <i class="fas fa-times"></i>
-            </a>
-        </span>
-        <?php endif; ?>
-    </div>
-
-    <div class="filters-grid-appointments">
-        <div class="calendar-nav-modern">
-            <?php if ($viewMode === 'week'): ?>
-                <a href="?view=week&date=<?= date('Y-m-d', strtotime($viewDate . ' -7 days')) ?><?= $aptFilterQs ?>" class="calendar-nav-btn">
-                    <i class="fas fa-chevron-right"></i>
-                </a>
-                <span class="calendar-nav-date">
-                    <?= $viewDateRange ?>
-                </span>
-                <a href="?view=week&date=<?= date('Y-m-d', strtotime($viewDate . ' +7 days')) ?><?= $aptFilterQs ?>" class="calendar-nav-btn">
-                    <i class="fas fa-chevron-left"></i>
-                </a>
-            <?php elseif ($viewMode === 'month'): ?>
-                <a href="?view=month&date=<?= date('Y-m-d', strtotime($viewDate . ' -1 month')) ?><?= $aptFilterQs ?>" class="calendar-nav-btn">
-                    <i class="fas fa-chevron-right"></i>
-                </a>
-                <span class="calendar-nav-date">
-                    <?= $viewDateRange ?>
-                </span>
-                <a href="?view=month&date=<?= date('Y-m-d', strtotime($viewDate . ' +1 month')) ?><?= $aptFilterQs ?>" class="calendar-nav-btn">
-                    <i class="fas fa-chevron-left"></i>
-                </a>
-            <?php else: ?>
-                <a href="?date=<?= date('Y-m-d', strtotime($viewDate . ' -1 day')) ?><?= $aptFilterQs ?>" class="calendar-nav-btn">
-                    <i class="fas fa-chevron-right"></i>
-                </a>
-                <span class="calendar-nav-date">
-                    <?= $dayName ?> - <?= $viewDate ?>
-                </span>
-                <a href="?date=<?= date('Y-m-d', strtotime($viewDate . ' +1 day')) ?><?= $aptFilterQs ?>" class="calendar-nav-btn">
-                    <i class="fas fa-chevron-left"></i>
-                </a>
-            <?php endif; ?>
-        </div>
-
-        <div class="apt-filter-actions">
-            <?php if ($hasFullAccess): ?>
-            <select class="filter-control-appointments" onchange="location='?<?= $aptViewQs ?>date=<?= $viewDate ?><?= $selectedWorkType > 0 ? '&work_type=' . $selectedWorkType : '' ?><?= $selectedCallStatus !== 'all' ? '&call_status=' . urlencode($selectedCallStatus) : '' ?>&doctor='+this.value" style="min-width: 160px;">
-                <option value="">هەموو دکتۆرەکان</option>
-                <?php foreach ($doctors as $doc): ?>
-                <option value="<?= $doc['id'] ?>" <?= $selectedDoctor == $doc['id'] ? 'selected' : '' ?>>
-                    د. <?= htmlspecialchars($doc['full_name']) ?>
-                </option>
-                <?php endforeach; ?>
-            </select>
-            <?php endif; ?>
-
-            <!-- Work type (ئیش) filter -->
-            <select class="filter-control-appointments<?= $selectedWorkType > 0 ? ' filter-active-apt' : '' ?>"
-                    id="workTypeFilter"
-                    onchange="location='?<?= $aptViewQs ?>date=<?= $viewDate ?>&doctor=<?= urlencode((string)$selectedDoctor) ?><?= $selectedCallStatus !== 'all' ? '&call_status=' . urlencode($selectedCallStatus) : '' ?>&work_type='+this.value"
-                    style="min-width: 150px;" title="پاڵاوتن بەپێی ئیش">
-                <option value="">هەموو ئیشەکان</option>
-                <?php foreach ($workTypes as $wt): ?>
-                <option value="<?= $wt['id'] ?>" <?= $selectedWorkType === (int)$wt['id'] ? 'selected' : '' ?>>
-                    <?= htmlspecialchars($wt['work_name']) ?>
-                </option>
-                <?php endforeach; ?>
-            </select>
-
-            <select class="filter-control-appointments call-filter-control<?= $selectedCallStatus !== 'all' ? ' filter-active-apt' : '' ?>"
-                    id="callStatusFilter"
-                    onchange="location='?<?= $aptViewQs ?>date=<?= $viewDate ?>&doctor=<?= urlencode((string)$selectedDoctor) ?><?= $selectedWorkType > 0 ? '&work_type=' . $selectedWorkType : '' ?>&call_status='+this.value"
-                    style="min-width: 165px;" title="پاڵاوتن بەپێی بانگکردن">
-                <option value="all" <?= $selectedCallStatus === 'all' ? 'selected' : '' ?>>هەموو بانگەکان (<?= count($callFilterAppointments) ?>)</option>
-                <option value="called" <?= $selectedCallStatus === 'called' ? 'selected' : '' ?>>بانگکراوەکان (<?= $calledCount ?>)</option>
-                <option value="not_called" <?= $selectedCallStatus === 'not_called' ? 'selected' : '' ?>>بانگ‌نەکراوەکان (<?= $notCalledCount ?>)</option>
-            </select>
-
-            <input type="date" class="filter-control-appointments" value="<?= $viewDate ?>"
-                   onchange="location='?date='+this.value+'<?= $aptFilterQs ?>'">
-
-            <!-- View Toggle -->
-            <div class="view-toggle">
-                <button type="button" class="view-toggle-btn active" id="tableViewBtn" onclick="switchView('table')">
-                    <i class="fas fa-table"></i> تەیبڵ
-                </button>
-                <button type="button" class="view-toggle-btn" id="calendarViewBtn" onclick="switchView('calendar')">
-                    <i class="fas fa-calendar"></i> کالێندەر
-                </button>
-            </div>
-
-            <a href="<?= APP_URL ?>/appointments-by-type.php" class="btn" style="padding: 8px 16px; font-size: 13px; border-radius: 8px; font-weight: 600; margin-left: 6px; background: #0ea5e9; border-color: #0ea5e9; color: #fff;">
-                <i class="fas fa-filter"></i> بەپێی جۆر
-            </a>
-            <a href="<?= APP_URL ?>/appointments-analytics.php" class="btn" style="padding: 8px 16px; font-size: 13px; border-radius: 8px; font-weight: 600; margin-left: 6px; background: #7c3aed; border-color: #7c3aed; color: #fff;">
-                <i class="fas fa-chart-pie"></i> ئامارەکان
-            </a>
-            <a href="<?= APP_URL ?>/today-appointments.php" class="btn btn-success" style="padding: 8px 16px; font-size: 13px; border-radius: 8px; font-weight: 600; margin-left: 6px;">
-                <i class="fas fa-calendar-day"></i> مەوعیدەکانی ئەمڕۆ
-            </a>
+<!-- Filters Panel: three rows — search + new; the period and its day; the filters and links -->
+<?php
+$aptToday = date('Y-m-d');
+$aptTomorrow = date('Y-m-d', strtotime('+1 day'));
+$aptIsDay = !isset($_GET['view']) || $viewMode === 'day';
+$aptPeriods = [
+    ['today',    'ئەمڕۆ',        'fa-calendar-day',  '?date=' . $aptToday . $aptFilterQs,    $aptIsDay && $viewDate === $aptToday],
+    ['tomorrow', 'سبەینێ',       'fa-calendar-plus', '?date=' . $aptTomorrow . $aptFilterQs, $aptIsDay && $viewDate === $aptTomorrow],
+    ['week',     'ئەم هەفتەیە',  'fa-calendar-week', '?view=week' . $aptFilterQs,            $viewMode === 'week'],
+    ['month',    'ئەم مانگە',    'fa-calendar-alt',  '?view=month' . $aptFilterQs,           $viewMode === 'month'],
+    ['upcoming', 'هەموو داهاتوو', 'fa-forward',       '?view=upcoming' . $aptFilterQs,        $viewMode === 'upcoming'],
+];
+$rescheduledCount = count(array_filter($appointments, fn($a) => $a['status'] === 'rescheduled'));
+// the arrows: a day, a week or a month back and on
+$aptStep = ['week' => '7 days', 'month' => '1 month'][$viewMode] ?? '1 day';
+$aptStepQs = in_array($viewMode, ['week', 'month'], true) ? 'view=' . $viewMode . '&' : '';
+?>
+<div class="filters-panel-appointments apf">
+    <div class="apf-top">
+        <?php require __DIR__ . '/includes/appointment_search.php'; ?>
+        <div class="apf-cta">
+            <a href="<?= APP_URL ?>/today-appointments.php" class="apf-btn is-green" title="لیستی مەوعیدەکانی ئەمڕۆ"><i class="fas fa-clipboard-list"></i> مەوعیدەکانی ئەمڕۆ</a>
+            <a href="<?= APP_URL ?>/appointments-by-type.php" class="apf-btn is-sky" title="مەوعیدەکان بەپێی جۆری ئیش"><i class="fas fa-filter"></i> بەپێی جۆر</a>
+            <a href="<?= APP_URL ?>/appointments-analytics.php" class="apf-btn is-purple" title="ئاماری مەوعیدەکان"><i class="fas fa-chart-pie"></i> ئامارەکان</a>
             <?php if (!$hasFullAccess): ?>
-            <button class="btn" onclick="openSendToReceptionDialog()" style="padding: 8px 16px; font-size: 13px; border-radius: 8px; font-weight: 600; margin-left: 6px; background: #0d9488; border-color: #0d9488; color: #fff;">
+            <button type="button" class="apf-btn is-teal" onclick="openSendToReceptionDialog()">
                 <i class="fas fa-paper-plane"></i> ناردن بۆ ڕیسێپشن
             </button>
             <?php endif; ?>
-            <button class="btn btn-primary" onclick="openDialog('newAppointmentDialog')" style="padding: 8px 16px; font-size: 13px; border-radius: 8px; font-weight: 600;">
+            <button type="button" class="apf-btn is-primary" onclick="openDialog('newAppointmentDialog')">
                 <i class="fas fa-plus"></i> مەوعیدی نوێ
             </button>
         </div>
     </div>
+
+    <div class="apf-row">
+        <nav class="apf-seg" aria-label="ماوە">
+            <?php foreach ($aptPeriods as [$key, $label, $icon, $href, $on]): ?>
+            <a href="<?= htmlspecialchars($href) ?>" class="<?= $on ? 'is-on' : '' ?>"<?= $key === 'upcoming' ? ' title="هەموو مەوعیدەکان لە ئەمڕۆوە بەدواوە، هەر ڕۆژێک بن"' : '' ?>>
+                <i class="fas <?= $icon ?>"></i> <?= $label ?>
+                <?php if ($on && $totalToday > 0): ?><b><?= $totalToday ?></b><?php endif; ?>
+            </a>
+            <?php endforeach; ?>
+        </nav>
+
+        <div class="apf-nav">
+            <?php if ($viewMode === 'upcoming'): ?>
+            <span class="apf-date is-static"><i class="fas fa-forward"></i> <?= htmlspecialchars($viewDateRange) ?></span>
+            <?php else: ?>
+            <a class="apf-arrow" href="?<?= $aptStepQs ?>date=<?= date('Y-m-d', strtotime($viewDate . ' -' . $aptStep)) ?><?= $aptFilterQs ?>" title="پێشوو"><i class="fas fa-chevron-right"></i></a>
+            <label class="apf-date" title="هەڵبژاردنی بەروار" onclick="aptPickDate(event, this)">
+                <i class="fas fa-calendar-alt"></i>
+                <?php if ($viewMode === 'week' || $viewMode === 'month'): ?>
+                <span><?= htmlspecialchars($viewDateRange) ?></span>
+                <?php else: ?>
+                <span><b><?= $dayName ?></b> <bdi dir="ltr"><?= htmlspecialchars($viewDate) ?></bdi></span>
+                <?php endif; ?>
+                <input type="date" value="<?= htmlspecialchars($viewDate) ?>" onchange="aptGo('date', this.value)" tabindex="-1" aria-label="بەروار">
+            </label>
+            <a class="apf-arrow" href="?<?= $aptStepQs ?>date=<?= date('Y-m-d', strtotime($viewDate . ' +' . $aptStep)) ?><?= $aptFilterQs ?>" title="دواتر"><i class="fas fa-chevron-left"></i></a>
+            <?php endif; ?>
+        </div>
+
+        <div class="view-toggle apf-view">
+            <button type="button" class="view-toggle-btn active" id="tableViewBtn" onclick="switchView('table')" title="تەیبڵ">
+                <i class="fas fa-table"></i> <span>تەیبڵ</span>
+            </button>
+            <button type="button" class="view-toggle-btn" id="calendarViewBtn" onclick="switchView('calendar')" title="کالێندەر">
+                <i class="fas fa-calendar"></i> <span>کالێندەر</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="apf-row apf-filters">
+        <?php if ($hasFullAccess): ?>
+        <label class="apf-sel<?= $selectedDoctor !== '' ? ' is-on' : '' ?>" title="پاڵاوتن بەپێی دکتۆر">
+            <i class="fas fa-user-md"></i>
+            <select onchange="aptGo('doctor', this.value)">
+                <option value="">هەموو دکتۆرەکان</option>
+                <?php foreach ($doctors as $doc): ?>
+                <option value="<?= $doc['id'] ?>" <?= $selectedDoctor == $doc['id'] ? 'selected' : '' ?>>د. <?= htmlspecialchars($doc['full_name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <?php endif; ?>
+
+        <label class="apf-sel<?= $selectedWorkType > 0 ? ' is-on' : '' ?>" title="پاڵاوتن بەپێی ئیش">
+            <i class="fas fa-briefcase-medical"></i>
+            <select id="workTypeFilter" onchange="aptGo('work_type', this.value)">
+                <option value="">هەموو ئیشەکان</option>
+                <?php foreach ($workTypes as $wt): ?>
+                <option value="<?= $wt['id'] ?>" <?= $selectedWorkType === (int)$wt['id'] ? 'selected' : '' ?>><?= htmlspecialchars($wt['work_name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <?php if ($selectedWorkType > 0): ?>
+            <button type="button" class="apf-x" onclick="event.preventDefault(); aptGo('work_type', '')" title="لابردنی پاڵاوتن"><i class="fas fa-times"></i></button>
+            <?php endif; ?>
+        </label>
+
+        <label class="apf-sel<?= $selectedCallStatus !== 'all' ? ' is-on' : '' ?>" title="پاڵاوتن بەپێی بانگکردن">
+            <i class="fas fa-phone-alt"></i>
+            <select id="callStatusFilter" onchange="aptGo('call_status', this.value)">
+                <option value="all" <?= $selectedCallStatus === 'all' ? 'selected' : '' ?>>هەموو بانگەکان (<?= count($callFilterAppointments) ?>)</option>
+                <option value="called" <?= $selectedCallStatus === 'called' ? 'selected' : '' ?>>بانگکراوەکان (<?= $calledCount ?>)</option>
+                <option value="not_called" <?= $selectedCallStatus === 'not_called' ? 'selected' : '' ?>>بانگ‌نەکراوەکان (<?= $notCalledCount ?>)</option>
+            </select>
+            <?php if ($selectedCallStatus !== 'all'): ?>
+            <button type="button" class="apf-x" onclick="event.preventDefault(); aptGo('call_status', '')" title="لابردنی پاڵاوتن"><i class="fas fa-times"></i></button>
+            <?php endif; ?>
+        </label>
+
+        <span class="apf-div" aria-hidden="true"></span>
+
+        <button type="button" class="apf-pill is-red" onclick="openDialog('cancelledListDialog')">
+            <i class="fas fa-calendar-times"></i> هەڵوەشاندنەوەکان
+            <?php if ($cancelledCount > 0): ?><b><?= $cancelledCount ?></b><?php endif; ?>
+        </button>
+        <button type="button" class="apf-pill is-orange" onclick="openDialog('rescheduledListDialog')">
+            <i class="fas fa-history"></i> دواخستنەکان
+            <?php if ($rescheduledCount > 0): ?><b><?= $rescheduledCount ?></b><?php endif; ?>
+        </button>
+
+    </div>
 </div>
+
+<style>
+.apf { padding: 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.apf > * { min-width: 0; }
+.apf-top { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+.apf-top .aps { flex: 1 1 380px; min-width: 0; margin: 0; }
+.apf-cta { display: flex; gap: 6px; flex: none; flex-wrap: wrap; }
+.apf-cta .apf-btn { height: 50px; padding: 0 13px; border-radius: 12px; }
+.apf-cta .apf-btn.is-primary { padding: 0 18px; font-size: 14px; }
+
+.apf-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.apf-row + .apf-row { padding-top: 12px; border-top: 1px dashed #e2e8f0; }
+
+/* the period: one segmented control */
+.apf-seg { display: inline-flex; background: #eef2f7; border-radius: 12px; padding: 4px; gap: 2px; }
+.apf-seg a { display: inline-flex; align-items: center; gap: 5px; padding: 7px 10px; border-radius: 9px; color: #475569;
+    font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap; transition: background .15s, color .15s; }
+.apf-seg a i { font-size: 12px; opacity: .8; }
+.apf-seg a:hover { background: #fff; color: #0f172a; }
+.apf-seg a.is-on { background: var(--win-accent, #0078d4); color: #fff; box-shadow: 0 2px 6px rgba(0, 120, 212, .3); }
+.apf-seg a.is-on i { opacity: 1; }
+.apf-seg b, .apf-pill b { font-size: 11px; line-height: 1; padding: 3px 7px; border-radius: 9px; background: rgba(255, 255, 255, .28); }
+
+/* the day, with its arrows; the date opens a picker */
+.apf-nav { display: inline-flex; align-items: center; gap: 4px; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 3px; }
+.apf-arrow { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px;
+    color: var(--win-accent, #0078d4); text-decoration: none; font-size: 12px; }
+.apf-arrow:hover { background: #eef4fc; }
+.apf-date { position: relative; display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 8px;
+    font-size: 13.5px; font-weight: 700; color: #1e293b; cursor: pointer; white-space: nowrap; }
+.apf-date:hover { background: #f1f5f9; }
+.apf-date > i { color: var(--win-accent, #0078d4); }
+.apf-date bdi { color: #475569; font-weight: 600; margin-inline-start: 4px; }
+.apf-date.is-static { cursor: default; }
+.apf-date.is-static:hover { background: none; }
+.apf-date input { position: absolute; inset: 0; opacity: 0; pointer-events: none; width: 100%; }
+
+.apf-view { margin-inline-start: auto; border-radius: 10px; }
+.apf-view .view-toggle-btn { padding: 0 10px; height: 34px; font-weight: 600; }
+@media (min-width: 768px) and (max-width: 1500px) {
+    /* a laptop: the two views as icons, so the period and its day keep one line */
+    .apf-view .view-toggle-btn span { display: none; }
+    .apf-view .view-toggle-btn { padding: 0 12px; }
+}
+
+/* the filters: one look for all three */
+.apf-sel { position: relative; display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 10px;
+    background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px; cursor: pointer; transition: border-color .15s; min-width: 0; }
+.apf-sel:hover { border-color: #cbd5e1; }
+.apf-sel:focus-within { border-color: var(--win-accent, #0078d4); box-shadow: 0 0 0 3px rgba(0, 120, 212, .12); }
+.apf-sel > i { color: #94a3b8; font-size: 13px; }
+.apf-sel select { border: 0; outline: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 600;
+    color: #334155; cursor: pointer; max-width: 190px; min-width: 0; padding: 0; }
+.apf-sel.is-on { background: #eef6ff; border-color: #93c5fd; }
+.apf-sel.is-on > i, .apf-sel.is-on select { color: #0b5cad; }
+.apf-x { border: 0; background: #dbeafe; color: #1d4ed8; width: 20px; height: 20px; border-radius: 50%; font-size: 10px;
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.apf-x:hover { background: #fecaca; color: #b91c1c; }
+.apf-div { width: 1px; height: 24px; background: #e2e8f0; margin: 0 2px; }
+
+.apf-pill { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 17px; border: 1px solid;
+    font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.apf-pill.is-red { background: #fff1f2; color: #be123c; border-color: #fecdd3; }
+.apf-pill.is-red:hover { background: #ffe4e6; }
+.apf-pill.is-red b { background: #e11d48; color: #fff; }
+.apf-pill.is-orange { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.apf-pill.is-orange:hover { background: #ffedd5; }
+.apf-pill.is-orange b { background: #ea580c; color: #fff; }
+
+.apf-links { margin-inline-start: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.apf-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 36px; padding: 0 13px;
+    border-radius: 10px; border: 1px solid transparent; font: inherit; font-size: 13px; font-weight: 700;
+    text-decoration: none; white-space: nowrap; cursor: pointer; transition: filter .15s, background .15s; }
+.apf-btn.is-primary { background: var(--win-accent, #0078d4); color: #fff; box-shadow: 0 3px 10px rgba(0, 120, 212, .28); }
+.apf-btn.is-primary:hover { filter: brightness(1.08); }
+.apf-btn.is-teal { background: #0d9488; color: #fff; }
+.apf-btn.is-teal:hover { filter: brightness(1.08); }
+.apf-btn.is-green { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.apf-btn.is-sky { background: #f0f9ff; color: #0369a1; border-color: #bae6fd; }
+.apf-btn.is-purple { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
+.apf-btn.is-green:hover { background: #dcfce7; }
+.apf-btn.is-sky:hover { background: #e0f2fe; }
+.apf-btn.is-purple:hover { background: #ede9fe; }
+
+@media (max-width: 767px) {
+    .apf { padding: 12px; gap: 10px; }
+    .apf-top { flex-direction: column; align-items: stretch; }
+    .apf-top .aps { flex: none; }
+    .apf-row > * { max-width: 100%; }
+    .apf-cta .apf-btn { flex: 1; height: 44px; }
+    .apf-seg { width: 100%; overflow-x: auto; scrollbar-width: none; }
+    .apf-seg a { flex: 1 0 auto; justify-content: center; }
+    .apf-nav { width: 100%; justify-content: space-between; }
+    .apf-view { margin-inline-start: 0; width: 100%; }
+    .apf-sel { width: 100%; }
+    .apf-sel select { max-width: none; flex: 1; }
+    .apf-div { display: none; }
+    .apf-pill { flex: 1; justify-content: center; }
+    .apf-cta .apf-btn:not(.is-primary) { flex: 1 1 30%; height: 38px; padding: 0 6px; font-size: 12px; }
+    .apf-cta .apf-btn.is-primary { order: -1; flex: 1 1 100%; }
+}
+</style>
+<script>
+/** The list again with one filter changed (the others kept, one-off flags dropped). */
+function aptGo(key, value) {
+    const cur = new URLSearchParams(location.search), next = new URLSearchParams();
+    ['view', 'date', 'doctor', 'work_type', 'call_status'].forEach(k => { if (cur.get(k)) next.set(k, cur.get(k)); });
+    if (value === '' || value == null || (key === 'call_status' && value === 'all')) next.delete(key); else next.set(key, value);
+    location.search = next.toString();
+}
+/** The date label opens the browser's own picker. */
+function aptPickDate(e, label) {
+    e.preventDefault();
+    const input = label.querySelector('input');
+    try { input.showPicker(); } catch (err) { input.style.pointerEvents = 'auto'; input.focus(); input.click(); }
+}
+</script>
 
 <!-- FullCalendar View -->
 <div id="calendarView" class="panel" style="margin-bottom: 16px;">
@@ -2053,7 +2184,7 @@ $dayName = $days[$dayNum];
     </div>
 </div>
 
-<div id="tableView" style="display: grid; grid-template-columns: 1fr 280px; gap: 16px;">
+<div id="tableView" style="display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px;">
     <!-- Appointments Table -->
     <div class="panel">
         <div class="panel-header">
@@ -2091,7 +2222,7 @@ $dayName = $days[$dayNum];
             <div class="empty-state-appointments">
                 <i class="fas fa-calendar-check"></i>
                 <h3>هیچ مەوعیدێک نییە</h3>
-                <p>بۆ ئەم ڕۆژە هیچ مەوعیدێک داڕێژرا نیە</p>
+                <p><?= $viewMode === 'upcoming' ? 'هیچ مەوعیدێکی داهاتوو داڕێژراو نییە' : 'بۆ ئەم ڕۆژە هیچ مەوعیدێک داڕێژرا نیە' ?></p>
                 <button class="btn btn-primary" onclick="openDialog('newAppointmentDialog')" style="padding: 10px 20px; font-size: 14px; border-radius: 8px;">
                     <i class="fas fa-plus"></i> زیادکردنی مەوعید
                 </button>
@@ -2101,7 +2232,7 @@ $dayName = $days[$dayNum];
                 <table class="appointments-table">
                     <thead>
                         <tr>
-                            <?php if ($viewMode === 'week' || $viewMode === 'month'): ?>
+                            <?php if ($aptManyDays): ?>
                             <th>بەروار</th>
                             <?php endif; ?>
                             <th>کات</th>
@@ -2119,6 +2250,11 @@ $dayName = $days[$dayNum];
                         </tr>
                     </thead>
                     <tbody>
+                        <?php
+                        // many days in one list: a heading row when the day changes
+                        $aptDayCounts = $aptManyDays ? array_count_values(array_column($appointments, 'appointment_date')) : [];
+                        $aptLastDay = null;
+                        ?>
                         <?php foreach ($appointments as $apt):
                             $statusLabels = [
                                 'scheduled' => ['', 'داڕێژراو', '#ff8c00'],
@@ -2132,9 +2268,26 @@ $dayName = $days[$dayNum];
                             ];
                             $st = $statusLabels[$apt['status']] ?? ['', $apt['status'], '#666'];
                         ?>
+                        <?php if ($aptManyDays && $apt['appointment_date'] !== $aptLastDay):
+                            $aptLastDay = $apt['appointment_date'];
+                            $aptSepTs = strtotime($aptLastDay);
+                            $aptSepRel = (int)round(($aptSepTs - strtotime(date('Y-m-d'))) / 86400);
+                        ?>
+                        <tr class="apt-day-sep<?= $aptSepRel === 0 ? ' is-today' : '' ?>">
+                            <td colspan="13" data-label=" ">
+                                <i class="fas fa-calendar-day"></i>
+                                <b><?= $days[(int)date('w', $aptSepTs)] ?></b>
+                                <span class="apt-day-sep-date"><?= htmlspecialchars($aptLastDay) ?></span>
+                                <?php if ($aptSepRel === 0): ?><span class="apt-day-sep-rel">ئەمڕۆ</span>
+                                <?php elseif ($aptSepRel === 1): ?><span class="apt-day-sep-rel">سبەینێ</span>
+                                <?php elseif ($aptSepRel > 1): ?><span class="apt-day-sep-rel"><?= $aptSepRel ?> ڕۆژی تر</span><?php endif; ?>
+                                <span class="apt-day-sep-n"><?= (int)($aptDayCounts[$aptLastDay] ?? 0) ?> مەوعید</span>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
                         <tr data-appointment-id="<?= (int)$apt['id'] ?>" data-call-status="<?= !empty($apt['called_to_center_at']) ? 'called' : 'not_called' ?>">
-                            <?php if ($viewMode === 'week' || $viewMode === 'month'): ?>
-                            <td>
+                            <?php if ($aptManyDays): ?>
+                            <td class="apt-date-cell">
                                 <?php
                                     $aptDate = strtotime($apt['appointment_date']);
                                     $aptDayNum = date('w', $aptDate);
@@ -2156,7 +2309,7 @@ $dayName = $days[$dayNum];
                                 <div style="margin-top: 5px;"><?= case_button((int)$apt['patient_id'], ['size' => 'sm', 'doctor' => (int)$apt['doctor_id']]) ?></div>
                                 <?php endif; ?>
                             </td>
-                            <td style="font-size: 12px; color: #546e7a;">
+                            <td class="apt-doc-cell" style="font-size: 12px; color: #546e7a;">
                                 د. <?= htmlspecialchars($apt['doctor_name']) ?>
                             </td>
                             <td>
