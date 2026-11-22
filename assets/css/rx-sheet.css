@@ -94,6 +94,9 @@ body { background: #dfe5eb; font-family: 'NRT', Tahoma, Arial, sans-serif; color
 .rx-it:last-child { border-bottom: 0; }
 .rx-it .nm { direction: ltr; text-align: right; font-weight: 700; font-family: 'Segoe UI', Arial, 'NRT', sans-serif; font-size: 1.05em; }
 .rx-it .nm i { font-style: normal; font-weight: 600; color: var(--rx-blue); font-size: .82em; margin-left: 1.6mm; }
+/* the group between the name and the form: Amoclan 625mg · Antibiotic · Tablet */
+.rx-it .nm i.gp { color: #4a5a6a; }
+.rx-it .nm i.gp + i::before, .rx-it .nm bdi + i.gp::before, .rx-it .nm bdi + i::before { content: "· "; color: #9aa9b8; }
 .rx-it .no { color: #8aa0b5; font-weight: 400; margin-left: 1.2mm; font-size: .85em; }
 .rx-it .qt { white-space: nowrap; font-weight: 700; font-size: .95em; }
 .rx-it .qt small { font-weight: 400; color: #556; font-size: .82em; }

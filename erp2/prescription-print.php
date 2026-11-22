@@ -37,17 +37,43 @@ if (!$pr) {
     http_response_code(404);
     exit('ڕەچەتە نەدۆزرایەوە');
 }
+// Each line with its group as the doctor saw it on the sheet: the column the
+// item stands in (the admin may move an item to another column) under the
+// column's name on the sheet (the admin may rename it).
 $items = $db->fetchAll(
-    "SELECT i.product_id, i.product_name, i.quantity, i.dosage, i.notes,
-            t.name AS type_name, un.name AS unit_name
+    "SELECT i.product_id, i.product_name, i.is_outside, i.quantity, i.dosage, i.notes,
+            t.name AS type_name, un.name AS unit_name,
+            COALESCE(NULLIF(lg.label, ''), c.name) AS group_name
      FROM erp2_prescription_items i
      LEFT JOIN erp2_products p ON p.id = i.product_id
      LEFT JOIN erp2_product_types t ON t.id = p.type_id
      LEFT JOIN erp2_units un ON un.id = p.unit_id
+     LEFT JOIN erp2_rx_sheet_layout li ON li.kind = 'item' AND li.ref_id = p.id
+     LEFT JOIN erp2_categories c ON c.id = COALESCE(li.group_id, p.category_id)
+     LEFT JOIN erp2_rx_sheet_layout lg ON lg.kind = 'group' AND lg.ref_id = c.id
      WHERE i.prescription_id = :id
      ORDER BY i.id",
     ['id' => $id]
 );
+// A دەرمانی دەرەوە ticked on the sheet: the column it was added to (by its name).
+$outsideGroup = [];
+if ($db->tableExists('erp2_rx_sheet_outside')) {
+    foreach ($db->fetchAll(
+        "SELECT o.name, COALESCE(NULLIF(lg.label, ''), c.name) AS group_name
+         FROM erp2_rx_sheet_outside o
+         JOIN erp2_categories c ON c.id = o.group_id
+         LEFT JOIN erp2_rx_sheet_layout lg ON lg.kind = 'group' AND lg.ref_id = c.id
+         ORDER BY o.id"
+    ) as $o) {
+        $outsideGroup[mb_strtolower(trim((string)$o['name']))] ??= (string)$o['group_name'];
+    }
+}
+$group = function (array $it) use ($outsideGroup): string {
+    if (!empty($it['is_outside']) && empty($it['product_id'])) {
+        return $outsideGroup[mb_strtolower(trim((string)$it['product_name']))] ?? '';
+    }
+    return trim((string)($it['group_name'] ?? ''));
+};
 
 // Sold: what each medicine came to on the invoice that sold it.
 $sold = null;
@@ -86,7 +112,9 @@ rx_sheet_page([
     'patient' => ['name' => $pr['patient_name'], 'age' => $age],
     'date'    => substr((string)$pr['created_at'], 0, 10),
     'items'   => array_map(fn($it) => [
+        // read as: the medicine, its group, its form — Amoclan 625mg · Antibiotic · Tablet
         'name'   => $it['product_name'],
+        'group'  => $group($it),
         'form'   => $form($it),
         'qty'    => $qty($it['quantity']),
         'unit'   => (string)($it['unit_name'] ?? ''),

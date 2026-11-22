@@ -141,6 +141,7 @@ if (!$rxCanPrescribe && !$rxCanSee) {
 .rx-out { color:#c62828; font-weight:700; }
 .rx-preset { display:block; width:100%; margin-top:4px; border:1px solid #c7d2fe; border-radius:6px; padding:4px 6px; font:12px inherit; background:#f5f7ff; color:#3730a3; }
 .rx-form { display:inline-block; margin-inline-start:6px; font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; background:#e0f2fe; color:#0369a1; }
+.rx-form.rx-grp { background:#f1f5f9; color:#475569; }
 
 /* the paper prescription sheet — laid out left to right exactly like the
    printed one: Antibiotic, Analgesic, Toothpaste, Brush, Mouth Wash, Other */
@@ -437,7 +438,7 @@ button.rx-card-print { cursor:pointer; padding:0; }
                         </div>
                         <?php // پاکێجی دەرمان: medicines that go together, ticked in one click ?>
                         <div class="rxk" id="rxPackages">
-                            <span class="rxk-label"><i class="fas fa-box-open"></i> پاکێجەکان</span>
+                            <span class="rxk-label"><i class="fas fa-box-open"></i> پاکێجەکانم</span>
                             <div class="rxk-list" id="rxPkgList"></div>
                             <button type="button" class="rxk-save" id="rxPkgSave" disabled
                                     title="ئەو دەرمانانەی ئێستا هەڵبژێردراون، بە بڕ و دۆزەوە، وەک پاکێجێک هەڵبگرە">
@@ -570,6 +571,12 @@ button.rx-card-print { cursor:pointer; padding:0; }
     }
     /** What a line is sent as: its own form, else the group's circled one. */
     function lineForm(l) { return l.outside ? '' : (l.type_name || (formOf(l.group_id) || {}).name || l.note || ''); }
+    /** The group a line is printed with: its column on the sheet (none for «بێ گرووپ»). */
+    function lineGroup(l) {
+        let g = l.group_id ? groups.find(x => x.id === l.group_id) : null;
+        if (!g && l.product_id) { const hit = findItem(Number(l.product_id)); g = hit ? hit.g : null; }
+        return g && g.id !== 0 ? g.name : '';
+    }
 
     /* ---------- the sheet ---------- */
     async function loadSheet() {
@@ -731,8 +738,19 @@ button.rx-card-print { cursor:pointer; padding:0; }
      * click ticks them all (with the package's quantity and dose) and the chip
      * turns green; a second click takes them off again. The doctor adds or
      * removes as usual — the package itself does not change. «پاشەکەوت وەک
-     * پاکێج» keeps what is ticked now; the same name again changes it. */
+     * پاکێج» keeps what is ticked now; the same name again changes it.
+     * Each doctor's own: the prescription's doctor's packages only (written for
+     * a doctor by someone else, that doctor's), never another doctor's. */
     let packages = [];
+    let packagesFor = null;   // the doctor the list was loaded for
+    const pkgWho = () => 'doctor_id=' + encodeURIComponent(RX_DOCTOR_ID || 0) + '&case_id=' + encodeURIComponent(RX_CASE_ID || 0);
+    const pkgForm = action => {
+        const fd = new FormData();
+        fd.append('action', action);
+        fd.append('doctor_id', RX_DOCTOR_ID || 0);
+        fd.append('case_id', RX_CASE_ID || 0);
+        return fd;
+    };
     const pkgKey = it => it.product_id ? 'p' + it.product_id : 'o' + String(it.name || '').trim().toLowerCase();
     const pkgOn = k => {
         const have = new Set(lines.map(pkgKey));
@@ -740,11 +758,17 @@ button.rx-card-print { cursor:pointer; padding:0; }
     };
     async function loadPackages() {
         if (!$('rxPkgList')) return;
+        packagesFor = pkgWho();
+        let owner = '';
         try {
-            const res = await fetch(RX_API + '?action=packages');
+            const res = await fetch(RX_API + '?action=packages&' + packagesFor);
             const data = await res.json();
             packages = (data && data.ok && data.packages) || [];
+            owner = (data && data.owner_name) || '';
         } catch (e) { packages = []; }
+        // written for another doctor: say whose packages these are
+        const label = document.querySelector('#rxPackages .rxk-label');
+        if (label) label.innerHTML = '<i class="fas fa-box-open"></i> ' + (owner ? 'پاکێجەکانی ' + esc(owner) : 'پاکێجەکانم');
         renderPackages();
     }
     function renderPackages() {
@@ -758,7 +782,7 @@ button.rx-card-print { cursor:pointer; padding:0; }
                 + '<i class="fas ' + (on ? 'fa-check' : 'fa-box') + '"></i>' + esc(k.name) + ' <em>' + k.items.length + '</em></button>'
                 + (k.can_delete ? '<button type="button" class="rxk-del" data-pkg-del="' + k.id + '" title="سڕینەوەی پاکێج" aria-label="سڕینەوەی ' + esc(k.name) + '"><i class="fas fa-xmark"></i></button>' : '')
                 + '</span>';
-        }).join('') : '<span class="rxk-none">هێشتا پاکێج نییە — دەرمانەکان هەڵبژێرە، پاشان «پاشەکەوت وەک پاکێج»</span>';
+        }).join('') : '<span class="rxk-none">هێشتا پاکێج نییە — دەرمانەکان هەڵبژێرە، پاشان «پاشەکەوت وەک پاکێج». هەر دکتۆرێک تەنها پاکێجەکانی خۆی دەبینێت.</span>';
         const save = $('rxPkgSave');
         if (save) save.disabled = !lines.length;
     }
@@ -797,8 +821,7 @@ button.rx-card-print { cursor:pointer; padding:0; }
         renderSheet();
         render();
         msg(missing.length ? 'ئەمانە لە پەڕەکەدا نەماون و دانەنران: ' + missing.join('، ') : '', missing.length ? 'warn' : '');
-        const fd = new FormData();
-        fd.append('action', 'package_use');
+        const fd = pkgForm('package_use');
         fd.append('id', id);
         fetch(RX_API, { method: 'POST', body: fd }).catch(() => {});
     }
@@ -807,8 +830,7 @@ button.rx-card-print { cursor:pointer; padding:0; }
         const name = (prompt('ناوی پاکێج (نموونە: دوای کێشانی ددان):', '') || '').trim();
         if (!name) return;
         if (packages.some(k => k.name === name) && !confirm('پاکێجی «' + name + '» هەیە. بەم دەرمانانە بیگۆڕم؟')) return;
-        const fd = new FormData();
-        fd.append('action', 'package_save');
+        const fd = pkgForm('package_save');
         fd.append('name', name);
         fd.append('items', JSON.stringify(lines.map(l => ({
             product_id: l.product_id || null, outside: !!l.outside, name: String(l.name || '').trim(),
@@ -829,8 +851,7 @@ button.rx-card-print { cursor:pointer; padding:0; }
         if (del) {
             const k = packages.find(x => x.id === Number(del.dataset.pkgDel));
             if (!k || !confirm('پاکێجی «' + k.name + '» بسڕدرێتەوە؟ (ڕەچەتەکان ناگۆڕێن)')) return;
-            const fd = new FormData();
-            fd.append('action', 'package_delete');
+            const fd = pkgForm('package_delete');
             fd.append('id', k.id);
             try {
                 const d = await (await fetch(RX_API, { method: 'POST', body: fd })).json();
@@ -980,10 +1001,11 @@ button.rx-card-print { cursor:pointer; padding:0; }
                 body.appendChild(tr);
                 return;
             }
-            const form = lineForm(l);
+            // as it prints: the medicine, its group, its form
+            const form = lineForm(l), grp = lineGroup(l);
             tr.innerHTML =
                 '<td style="color:#999">' + (i + 1) + '</td>' +
-                '<td>' + esc(l.name) + (form ? '<span class="rx-form">' + esc(form) + '</span>' : '') + '</td>' +
+                '<td>' + esc(l.name) + (grp ? '<span class="rx-form rx-grp">' + esc(grp) + '</span>' : '') + (form ? '<span class="rx-form">' + esc(form) + '</span>' : '') + '</td>' +
                 '<td><input type="number" min="0.001" step="any" value="' + l.quantity + '" data-i="' + i + '" data-f="quantity"></td>' +
                 '<td><input type="text" value="' + esc(l.dosage) + '" data-i="' + i + '" data-f="dosage" placeholder="ڕۆژانە ٢ جار…">' +
                     ((l.doses || []).length > 1
@@ -1801,6 +1823,7 @@ button.rx-card-print { cursor:pointer; padding:0; }
             RX_CASE_ID   = Number(ctx.caseId) || 0;
             RX_DOCTOR_ID = Number(ctx.doctorId) || 0;
             RX_DOCTOR    = String(ctx.doctorName || '');
+            if (packagesFor !== null && packagesFor !== pkgWho()) loadPackages();   // another doctor's patient: their packages
             const nm = $('rxPatientName');
             if (nm) nm.textContent = ctx.patientName || '';
             if (groups.length) renderSheet();

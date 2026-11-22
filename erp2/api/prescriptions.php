@@ -173,6 +173,35 @@ function erp2_presc_editable(Database $db, int $id, int $actor): ?array
     return ($mine && erp2_can('erp2.prescriptions.create')) ? $pr : null;
 }
 
+/**
+ * Whose پاکێجی دەرمان the sheet shows and saves: each doctor has their own.
+ * A doctor: their own. Someone else writing for a doctor (the reception, the
+ * admin): that doctor's — the one the page sends, else the case's doctor —
+ * the same doctor the prescription will be saved under. Nobody to write for:
+ * the user's own.
+ */
+function erp2_rx_package_owner(Database $db, int $actor): int
+{
+    if (($_SESSION['role'] ?? '') === 'doctor') {
+        return $actor;
+    }
+    $hint = (int)($_GET['doctor_id'] ?? $_POST['doctor_id'] ?? 0);
+    if ($hint > 0 && $db->fetch("SELECT id FROM users WHERE id = :id AND role = 'doctor'", ['id' => $hint])) {
+        return $hint;
+    }
+    $caseId = (int)($_GET['case_id'] ?? $_POST['case_id'] ?? 0);
+    if ($caseId > 0) {
+        $row = $db->fetch(
+            'SELECT pf.doctor_id FROM cases c JOIN patient_folders pf ON pf.id = c.folder_id WHERE c.id = :id',
+            ['id' => $caseId]
+        );
+        if (!empty($row['doctor_id'])) {
+            return (int)$row['doctor_id'];
+        }
+    }
+    return $actor;
+}
+
 function erp2_rx_layout_row(Database $db, string $kind, int $id): array
 {
     $r = $db->fetch(
@@ -674,8 +703,9 @@ try {
         }
 
         /* ---------- پاکێجی دەرمان: medicines that go together, one click on the sheet ----------
-         * Shared by every prescriber, most used first. Saved with the same name
-         * again = changed; deleted by whoever made it, or the admin (erp2.delete). */
+         * Each doctor's own (erp2_rx_package_owner): a doctor never sees another
+         * doctor's. Most used first. Saved with the same name again = changed;
+         * deleted by its doctor, whoever made it, or the admin (erp2.delete). */
         case 'packages': {
             if (!erp2_can('erp2.prescriptions.create')) {
                 erp2_presc_json(['ok' => false, 'error' => 'Forbidden'], 403);
@@ -683,20 +713,24 @@ try {
             if (!$db->tableExists('erp2_rx_packages')) {
                 erp2_presc_json(['ok' => true, 'packages' => []]);
             }
+            $owner = erp2_rx_package_owner($db, $actor);
             $rows = $db->fetchAll(
                 'SELECT k.id, k.name, k.items, k.use_count, k.created_by, u.full_name AS created_by_name
                  FROM erp2_rx_packages k LEFT JOIN users u ON u.id = k.created_by
-                 ORDER BY k.use_count DESC, k.name'
+                 WHERE k.doctor_id = :o
+                 ORDER BY k.use_count DESC, k.name',
+                ['o' => $owner]
             );
             $mayDelete = erp2_can('erp2.delete');
             foreach ($rows as &$r) {
                 $r['items'] = json_decode((string)$r['items'], true) ?: [];
                 $r['id'] = (int)$r['id'];
-                $r['can_delete'] = $mayDelete || (int)$r['created_by'] === $actor;
+                $r['can_delete'] = $mayDelete || $owner === $actor || (int)$r['created_by'] === $actor;
                 unset($r['created_by']);
             }
             unset($r);
-            erp2_presc_json(['ok' => true, 'packages' => $rows]);
+            $ownerName = $owner !== $actor ? (string)($db->fetch('SELECT full_name FROM users WHERE id = :id', ['id' => $owner])['full_name'] ?? '') : '';
+            erp2_presc_json(['ok' => true, 'packages' => $rows, 'owner_name' => $ownerName]);
         }
         case 'package_save': {
             if (!erp2_can('erp2.prescriptions.create')) {
@@ -729,24 +763,26 @@ try {
                 erp2_presc_json(['ok' => false, 'error' => 'هیچ دەرمانێک لە پاکێجەکەدا نییە'], 422);
             }
             $json = json_encode($items, JSON_UNESCAPED_UNICODE);
-            $old = $db->fetch('SELECT id FROM erp2_rx_packages WHERE name = :n', ['n' => $name]);
+            $owner = erp2_rx_package_owner($db, $actor);
+            $old = $db->fetch('SELECT id FROM erp2_rx_packages WHERE doctor_id = :o AND name = :n', ['o' => $owner, 'n' => $name]);
             if ($old) {
                 $db->update('erp2_rx_packages', ['items' => $json, 'updated_by' => $actor ?: null], 'id = :id', ['id' => (int)$old['id']]);
                 $id = (int)$old['id'];
             } else {
-                $id = (int)$db->insert('erp2_rx_packages', ['name' => $name, 'items' => $json, 'created_by' => $actor ?: null]);
+                $id = (int)$db->insert('erp2_rx_packages', ['name' => $name, 'doctor_id' => $owner ?: null, 'items' => $json, 'created_by' => $actor ?: null]);
             }
             Erp2Audit::log($old ? 'rx_package_updated' : 'rx_package_created', 'RX_PACKAGE', $id, $name, null, ['items' => count($items)]);
             erp2_presc_json(['ok' => true, 'id' => $id, 'updated' => (bool)$old]);
         }
         case 'package_delete': {
             $id = (int)($_POST['id'] ?? 0);
-            $row = $db->fetch('SELECT id, name, created_by FROM erp2_rx_packages WHERE id = :id', ['id' => $id]);
+            $row = $db->fetch('SELECT id, name, doctor_id, created_by FROM erp2_rx_packages WHERE id = :id', ['id' => $id]);
             if (!$row) {
                 erp2_presc_json(['ok' => false, 'error' => 'پاکێج نەدۆزرایەوە'], 404);
             }
-            if (!erp2_can('erp2.delete') && !(erp2_can('erp2.prescriptions.create') && (int)$row['created_by'] === $actor)) {
-                erp2_presc_json(['ok' => false, 'error' => 'تەنها دروستکەرەکەی یان بەڕێوەبەر دەتوانێت بیسڕێتەوە'], 403);
+            $own = (int)$row['doctor_id'] === $actor || (int)$row['created_by'] === $actor;
+            if (!erp2_can('erp2.delete') && !(erp2_can('erp2.prescriptions.create') && $own)) {
+                erp2_presc_json(['ok' => false, 'error' => 'تەنها دکتۆرەکەی خۆی یان بەڕێوەبەر دەتوانێت بیسڕێتەوە'], 403);
             }
             $db->delete('erp2_rx_packages', 'id = :id', ['id' => $id]);
             Erp2Audit::log('rx_package_deleted', 'RX_PACKAGE', $id, (string)$row['name'], null, null);
@@ -755,7 +791,8 @@ try {
         case 'package_use': {
             // most used first on the sheet
             if (erp2_can('erp2.prescriptions.create')) {
-                $db->query('UPDATE erp2_rx_packages SET use_count = use_count + 1 WHERE id = :id', ['id' => (int)($_POST['id'] ?? 0)]);
+                $db->query('UPDATE erp2_rx_packages SET use_count = use_count + 1 WHERE id = :id AND doctor_id = :o',
+                    ['id' => (int)($_POST['id'] ?? 0), 'o' => erp2_rx_package_owner($db, $actor)]);
             }
             erp2_presc_json(['ok' => true]);
         }

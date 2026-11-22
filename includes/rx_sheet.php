@@ -14,7 +14,8 @@
  *   template  RxTemplate::get() result (optional: the saved one)
  *   patient   ['name' => , 'age' => ]
  *   date      Y-m-d
- *   items     [['name','form','qty','unit','dosage','price','total'], …]
+ *   items     [['name','group','form','qty','unit','dosage','price','total'], …]
+ *             a line reads: the medicine, its group, its form (Amoclan 625mg · Antibiotic · Tablet)
  *   notes     the doctor's note, or ''
  *   rx_id     int|null           — the number under the barcode
  *   barcode   string|null        — RxProfile::barcode()
@@ -127,7 +128,7 @@ function rx_sheet_page(array $ctx): void
             <ol class="rx-items">
                 <?php foreach ($ctx['items'] as $n => $it): ?>
                 <li class="rx-it">
-                    <div class="nm"><bdi><?= $e($it['name']) ?></bdi><?php if (($it['form'] ?? '') !== ''): ?><i><?= $e($it['form']) ?></i><?php endif; ?><span class="no"><?= $n + 1 ?>.</span></div>
+                    <div class="nm"><bdi><?= $e($it['name']) ?></bdi><?php if (($it['group'] ?? '') !== ''): ?><i class="gp"><?= $e($it['group']) ?></i><?php endif; ?><?php if (($it['form'] ?? '') !== ''): ?><i><?= $e($it['form']) ?></i><?php endif; ?><span class="no"><?= $n + 1 ?>.</span></div>
                     <div class="qt"><?= $e($it['qty']) ?> <small><?= $e($it['unit'] ?? '') ?></small></div>
                     <?php if ($sold): ?><div class="pr"><?= $e($it['total'] ?? '') ?></div><?php endif; ?>
                     <?php if (trim((string)($it['dosage'] ?? '')) !== ''): ?><div class="ds"><?= $e($it['dosage']) ?></div><?php endif; ?>
@@ -170,8 +171,8 @@ function rx_sample_ctx(): array
         'patient' => ['name' => 'نموونەی ناوی نەخۆش', 'age' => '32'],
         'date'    => date('Y-m-d'),
         'items'   => [
-            ['name' => 'AMOXICILLIN 500MG', 'form' => 'Capsule', 'qty' => '2', 'unit' => 'پاکەت', 'dosage' => 'ڕۆژانە ٣ جار، هەر ٨ کاتژمێر جارێک، بۆ ماوەی ٥ ڕۆژ'],
-            ['name' => 'IBUPROFEN 400MG', 'form' => 'Tab', 'qty' => '1', 'unit' => 'پاکەت', 'dosage' => 'لە کاتی ئازاردا، دوای نانخواردن'],
+            ['name' => 'AMOXICILLIN 500MG', 'group' => 'Antibiotic', 'form' => 'Capsule', 'qty' => '2', 'unit' => 'پاکەت', 'dosage' => 'ڕۆژانە ٣ جار، هەر ٨ کاتژمێر جارێک، بۆ ماوەی ٥ ڕۆژ'],
+            ['name' => 'IBUPROFEN 400MG', 'group' => 'Analgesic', 'form' => 'Tab', 'qty' => '1', 'unit' => 'پاکەت', 'dosage' => 'لە کاتی ئازاردا، دوای نانخواردن'],
             ['name' => 'Chlorhexidine 0.12%', 'form' => 'Mouth Wash', 'qty' => '1', 'unit' => 'بوتڵ', 'dosage' => 'ڕۆژانە ٢ جار دەم بشۆ'],
         ],
         'notes'   => '',
