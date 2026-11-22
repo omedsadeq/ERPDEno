@@ -382,7 +382,7 @@ if (in_array($currentPage, ['appointments', 'reception-call-lists', 'doctor-sche
         <?php endif; ?>
 
         <!-- X-Ray Section - Collapsible -->
-        <?php if ($permission->can('page.xray') || $permission->can('page.xray_request') || $permission->can('page.xray_payments') || $permission->can('page.xray_history') || ($isXrayDepartment && $permission->can('page.cashboxes'))): ?>
+        <?php if ($permission->can('page.xray') || $permission->can('page.xray_request') || $permission->can('page.xray_payments') || $permission->can('page.xray_history') || $permission->can('page.xray_report') || ($isXrayDepartment && $permission->can('page.cashboxes'))): ?>
         <div class="nav-group <?= $activeSection === 'xray' ? 'open' : '' ?>">
             <div class="nav-group-header" onclick="toggleNavGroup(this)">
                 <span class="nav-item-icon icon-xray"><i class="fas fa-x-ray"></i></span>
@@ -426,6 +426,12 @@ if (in_array($currentPage, ['appointments', 'reception-call-lists', 'doctor-sche
                 <a href="<?= APP_URL ?>/xray/payment-history.php" class="nav-item <?= ($currentDir === 'xray' && $currentPage === 'payment-history') ? 'active' : '' ?>">
                     <span class="nav-item-icon icon-xray-history"><i class="fas fa-history"></i></span>
                     <span class="nav-item-text">مێژووی پارەدان</span>
+                </a>
+                <?php endif; ?>
+                <?php if ($permission->can('page.xray_report')): ?>
+                <a href="<?= APP_URL ?>/xray/report.php" class="nav-item <?= ($currentDir === 'xray' && $currentPage === 'report') ? 'active' : '' ?>">
+                    <span class="nav-item-icon" style="color:#0e9f9a;background:#e0f7f5;"><i class="fas fa-chart-bar"></i></span>
+                    <span class="nav-item-text">ڕاپۆرتی ئێکسڕەی</span>
                 </a>
                 <?php endif; ?>
                 <?php if ($isXrayDepartment && $permission->can('page.cashboxes')): ?>
