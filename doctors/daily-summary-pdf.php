@@ -23,10 +23,12 @@ require __DIR__ . '/../includes/clinic_branding.php';
 function dsPdfRows(array $rows)
 {
     $html = '';
-    foreach ($rows as [$label, $value, $style]) {
+    foreach ($rows as $row) {
+        [$label, $value, $style] = $row;
         $cls = $style === 'total' ? ' class="tot"' : '';
         $vcls = $style === 'pos' ? 'v pos' : ($style === 'neg' ? 'v neg' : 'v');
-        $html .= '<tr' . $cls . '><td class="k">' . dsEsc($label) . '</td>'
+        $html .= '<tr' . $cls . '><td class="k">' . dsEsc($label)
+            . (($row[3] ?? '') !== '' ? ' <span style="font-size:7pt;color:#7a8b98;font-weight:normal;">' . dsEsc($row[3]) . '</span>' : '') . '</td>'
             . '<td class="' . $vcls . '">' . dsEsc($value) . '</td></tr>';
     }
     return $html;
@@ -105,19 +107,14 @@ $html .= '
             <tr><td colspan="2" class="card-h">سەردان و پشکنین</td></tr>'
             . dsPdfRows($dsVisitRows)
             . '<tr class="sub"><td colspan="2">ناردن بۆ ئێکسڕەی — داهاتەکەی هی سەنتەرە</td></tr>'
-            . dsPdfRows($dsXrayRows) . '
+            . dsPdfRows($dsXrayRows)
+            . '<tr class="sub"><td colspan="2">ناردن بۆ دەرمانخانە — داهاتەکەی هی سەنتەرە</td></tr>'
+            . dsPdfRows($dsPharmacyRows) . '
         </table>
     </td>
     <td class="col" valign="top">
         <table class="kv">
             <tr><td colspan="2" class="card-h">کات</td></tr>' . dsPdfRows($dsTimeRows);
-if (!empty($attendance['check_in_time'])) {
-    $html .= '<tr class="sub"><td>هاتن / ڕۆیشتن</td><td class="v">'
-        . dsEsc(date('H:i', strtotime($attendance['check_in_time'])))
-        . ' → '
-        . (!empty($attendance['check_out_time']) ? dsEsc(date('H:i', strtotime($attendance['check_out_time']))) : '—')
-        . '</td></tr>';
-}
 $html .= '</table>
     </td>
 </tr></table>';
@@ -125,17 +122,18 @@ $html .= '</table>
 // ── work types ──
 $html .= '<div class="sec-h">جۆری ئیشەکان (' . dsMoney($treatmentCount) . ')</div>
 <table class="tbl">
-    <thead><tr><th style="width:7mm;">#</th><th>جۆر</th><th class="n" style="width:22mm;">ژمارە</th><th class="n" style="width:35mm;">بڕ</th></tr></thead>
+    <thead><tr><th style="width:7mm;">#</th><th>جۆر</th><th class="n" style="width:22mm;">ژمارە</th><th class="n" style="width:35mm;">بڕ</th><th class="n" style="width:35mm;">وەرگیراو</th></tr></thead>
     <tbody>';
 if (!$topTreatments) {
-    $html .= '<tr><td colspan="4" class="empty">هیچ ئیشێک تۆمار نەکراوە</td></tr>';
+    $html .= '<tr><td colspan="5" class="empty">هیچ ئیشێک تۆمار نەکراوە</td></tr>';
 } else {
     foreach ($topTreatments as $i => $t) {
         $html .= '<tr><td class="i">' . ($i + 1) . '</td><td>' . dsEsc($t['treatment_name']) . '</td>'
-            . '<td class="n">' . dsMoney($t['cnt']) . '</td><td class="n">' . dsMoney($t['amt']) . '</td></tr>';
+            . '<td class="n">' . dsMoney($t['cnt']) . '</td><td class="n">' . dsMoney($t['amt']) . '</td>'
+            . '<td class="n pos">' . dsMoney($t['received'] ?? 0) . '</td></tr>';
     }
     $html .= '<tr class="tot"><td></td><td>کۆ</td><td class="n">' . dsMoney($treatmentCount)
-        . '</td><td class="n">' . dsMoney($treatmentAmount) . '</td></tr>';
+        . '</td><td class="n">' . dsMoney($treatmentAmount) . '</td><td class="n pos">' . dsMoney($treatmentReceived ?? 0) . '</td></tr>';
 }
 $html .= '</tbody></table>';
 
@@ -182,7 +180,7 @@ $pdf = new InvoicePdfService([
     'show_header'      => 0,
     'show_footer'      => 0,
     'margin_top_mm'    => 10,
-    'margin_bottom_mm' => 20,
+    'margin_bottom_mm' => $dsPdfModern ? 12 : 20,
     'margin_left_mm'   => 10,
     'margin_right_mm'  => 10,
 ]);

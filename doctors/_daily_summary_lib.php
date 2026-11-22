@@ -13,9 +13,10 @@
  * If these sheets and that report ever disagreed about one day's cash, the
  * clinic would be worse off than with no report at all.
  *
- * X-ray is its own department and its income is the centre's: a doctor only
- * SENDS patients there. So the doctor's sheets count the patients he sent and
- * never show x-ray money.
+ * X-ray and the pharmacy are departments of their own and their income is the
+ * centre's: a doctor only SENDS patients there. The sheets count who he sent
+ * and, beside it, what those requests brought in — information only, never
+ * part of his money or his share.
  *
  * ── The doctor foreign keys are NOT consistent (checked against the schema) ──
  *   patient_folders.doctor_id   -> users.id
@@ -31,6 +32,7 @@ require_once __DIR__ . '/../includes/VisitReportStats.php';
 require_once __DIR__ . '/../classes/IncomeColumn.php';
 require_once __DIR__ . '/../classes/Settings.php';
 require_once __DIR__ . '/../classes/IncomeFormula.php';
+require_once __DIR__ . '/../classes/XrayManager.php';
 
 /** X-ray types as the clinic names them (the income sheet uses the same). */
 const DS_XRAY_TYPES = ['panoramic' => 'OPG', 'cbct' => 'CBCT', 'cephalometric' => 'Ceph', 'periapical' => 'P.A'];
@@ -384,9 +386,11 @@ function ds_compute_range(Database $db, int $docUserId, string $from, string $to
     // X-ray is its own department and its money is the centre's, so no fee
     // appears here — only how many patients this doctor sent, and for what.
     // Every request he made counts, free ones too; cancelled ones never went.
+    // Beside the count, what those requests really brought in (ds_xray_received_sql):
+    // the centre's money, shown for information only.
     $xrayRows = $db->fetchAll(
-        "SELECT xr.xray_type, COUNT(*) AS cnt
-         FROM xray_requests xr
+        "SELECT xr.xray_type, COUNT(*) AS cnt, COALESCE(SUM(" . ds_xray_received_sql() . "), 0) AS received
+         FROM xray_requests xr " . ds_xray_debt_join_sql() . "
          WHERE xr.requested_by = :uid
            AND DATE(xr.created_at) BETWEEN :f AND :t
            AND COALESCE(xr.request_status, '') <> 'cancelled'
@@ -395,11 +399,34 @@ function ds_compute_range(Database $db, int $docUserId, string $from, string $to
         ['uid' => $docUserId, 'f' => $from, 't' => $to]
     );
     $xrayCount = 0;
+    $xrayReceived = 0.0;
     $xrayByType = array_fill_keys(array_values(DS_XRAY_TYPES), 0);
+    $xrayReceivedByType = array_fill_keys(array_values(DS_XRAY_TYPES), 0.0);
     foreach ($xrayRows as $r) {
         $xrayCount += (int)$r['cnt'];
+        $xrayReceived += (float)$r['received'];
         $label = DS_XRAY_TYPES[$r['xray_type']] ?? (string)$r['xray_type'];
         $xrayByType[$label] = ($xrayByType[$label] ?? 0) + (int)$r['cnt'];
+        $xrayReceivedByType[$label] = ($xrayReceivedByType[$label] ?? 0) + (float)$r['received'];
+    }
+
+    // ── Patients sent to the pharmacy (statistics only) ─────────────
+    // The prescriptions he wrote (erp2_prescriptions.doctor_id is users.id)
+    // and what the pharmacy took for the ones it sold — its own money.
+    $pharmacy = ['count' => 0, 'sold' => 0, 'billed' => 0.0, 'received' => 0.0];
+    if ($withPatients && $db->tableExists('erp2_prescriptions')) {
+        $rx = $db->fetch(
+            "SELECT COUNT(*) AS cnt, COALESCE(SUM(rx.status = 'sold'), 0) AS sold,
+                    COALESCE(SUM(CASE WHEN rx.status = 'sold' THEN si.grand_total ELSE 0 END), 0) AS billed,
+                    COALESCE(SUM(CASE WHEN rx.status = 'sold' THEN si.paid_amount ELSE 0 END), 0) AS received
+             FROM erp2_prescriptions rx
+             LEFT JOIN erp2_sales_invoices si ON si.id = rx.invoice_id AND COALESCE(si.status, '') <> 'cancelled'
+             WHERE rx.doctor_id = :uid AND DATE(rx.created_at) BETWEEN :f AND :t
+               AND COALESCE(rx.status, '') <> 'cancelled'",
+            ['uid' => $docUserId, 'f' => $from, 't' => $to]
+        );
+        $pharmacy = ['count' => (int)($rx['cnt'] ?? 0), 'sold' => (int)($rx['sold'] ?? 0),
+                     'billed' => (float)($rx['billed'] ?? 0), 'received' => (float)($rx['received'] ?? 0)];
     }
     // A patient sent for two kinds of image is still one patient.
     $xrayPatients = $xrayCount === 0 ? 0 : (int)($db->fetch(
@@ -432,25 +459,52 @@ function ds_compute_range(Database $db, int $docUserId, string $from, string $to
         $treatmentCount += (int)$t['cnt'];
         $treatmentAmount += (float)$t['amt'];
     }
+    // وەرگیراو for each work: its receipt's money so far, shared over the
+    // receipt's lines by their price (ds_treatment_received).
+    $treatmentReceived = 0.0;
+    if ($withPatients && $topTreatments) {
+        $received = ds_treatment_received($db, $docUserId, $from, $to);
+        foreach ($topTreatments as $i => $t) {
+            $topTreatments[$i]['received'] = $received[$t['treatment_name']] ?? 0.0;
+            $treatmentReceived += $topTreatments[$i]['received'];
+        }
+    }
 
     // ── Attendance and time ──────────────────────────────────────────
     // Real clock-in/out (doctor_attendance), never backdated. One row per
     // doctor per day: over a range the minutes add up and every day with a
     // clock-in counts once. null minutes = no completed day in the range.
     $attRows = $db->fetchAll(
-        "SELECT check_in_time, check_out_time FROM doctor_attendance
+        "SELECT attendance_date, check_in_time, check_out_time FROM doctor_attendance
          WHERE doctor_id = :uid AND attendance_date BETWEEN :f AND :t",
         ['uid' => $docUserId, 'f' => $from, 't' => $to]
     );
-    $attendanceMinutes = null;
-    $attendedDays = 0;
+    // One entry a day. The fingerprint device (the HR section's punches, for
+    // the hr_employees row linked to this account) is what the clinic really
+    // records, so where it has the day it is used; the doctor's own
+    // «هاتنەژوورەوە» buttons cover the days it has not.
+    $attendanceDays = [];
     foreach ($attRows as $a) {
-        if (!empty($a['check_in_time'])) {
-            $attendedDays++;
+        if (empty($a['check_in_time'])) {
+            continue;
         }
-        if (!empty($a['check_in_time']) && !empty($a['check_out_time'])) {
-            $attendanceMinutes = ($attendanceMinutes ?? 0)
-                + max(0, (strtotime($a['check_out_time']) - strtotime($a['check_in_time'])) / 60);
+        $attendanceDays[$a['attendance_date']] = [
+            'in' => $a['check_in_time'], 'out' => $a['check_out_time'] ?: null, 'source' => 'manual',
+            'minutes' => !empty($a['check_out_time'])
+                ? max(0, (strtotime($a['check_out_time']) - strtotime($a['check_in_time'])) / 60) : null,
+        ];
+    }
+    if ($withPatients) {
+        foreach (ds_device_attendance($db, $docUserId, $from, $to) as $date => $day) {
+            $attendanceDays[$date] = $day;
+        }
+        ksort($attendanceDays);
+    }
+    $attendanceMinutes = null;
+    $attendedDays = count($attendanceDays);
+    foreach ($attendanceDays as $day) {
+        if ($day['minutes'] !== null) {
+            $attendanceMinutes = ($attendanceMinutes ?? 0) + $day['minutes'];
         }
     }
     // The day's own row, for the daily summary's clock-in/out widget.
@@ -571,10 +625,15 @@ function ds_compute_range(Database $db, int $docUserId, string $from, string $to
         'xrayCount'         => $xrayCount,
         'xrayPatients'      => $xrayPatients,
         'xrayByType'        => $xrayByType,
+        'xrayReceived'      => $xrayReceived,
+        'xrayReceivedByType' => $xrayReceivedByType,
+        'pharmacy'          => $pharmacy,
         'topTreatments'     => $topTreatments,
         'treatmentCount'    => $treatmentCount,
         'treatmentAmount'   => $treatmentAmount,
+        'treatmentReceived' => $treatmentReceived,
         'attendance'        => $attendance,
+        'attendanceDays'    => $attendanceDays,
         'attendanceMinutes' => $attendanceMinutes,
         'attendedDay'       => $attendedDays,
         'workMinutes'       => $workMinutes,
@@ -583,6 +642,130 @@ function ds_compute_range(Database $db, int $docUserId, string $from, string $to
         'patientRows'       => $patientRows,
         'patientTotals'     => $patientTotals,
     ];
+}
+
+/**
+ * What an x-ray request really brought in: a request in the debt channel
+ * (patient_xray_debts) its amount less what is still owed; else its amount
+ * once paid; a free or unpaid one nothing. Needs ds_xray_debt_join_sql() on
+ * xray_requests xr.
+ */
+function ds_xray_received_sql(): string
+{
+    return Database::getInstance()->tableExists('patient_xray_debts')
+        ? "CASE WHEN pxd.request_id IS NOT NULL THEN GREATEST(0, xr.final_amount - pxd.rem)
+                WHEN xr.payment_status = 'paid' THEN xr.final_amount ELSE 0 END"
+        : "CASE WHEN xr.payment_status = 'paid' THEN xr.final_amount ELSE 0 END";
+}
+
+function ds_xray_debt_join_sql(): string
+{
+    return Database::getInstance()->tableExists('patient_xray_debts') ? XrayManager::remainingAmountJoinSql('xr', 'pxd') : '';
+}
+
+/**
+ * The money that came in on each receipt so far (a receipt cancelled counts
+ * nothing): taken at the chair once approved, paid before the system, an
+ * advance, and every approved payment allocated to it — never more than its
+ * net. [invoice_id => ['covered' => …, 'total' => total before discount]]
+ */
+function ds_invoice_coverage(Database $db, array $invoiceIds): array
+{
+    $invoiceIds = array_values(array_unique(array_filter(array_map('intval', $invoiceIds))));
+    if (!$invoiceIds) {
+        return [];
+    }
+    $in = implode(',', $invoiceIds);
+    $out = [];
+    foreach ($db->fetchAll(
+        "SELECT ci.id, ci.total_amount, ci.discount_amount,
+                COALESCE(ci.prior_paid_amount, 0) + COALESCE(ci.advance_paid_amount, 0)
+                + CASE WHEN ci.accounting_status = 'approved' THEN COALESCE(ci.draft_received_amount, 0) ELSE 0 END
+                + COALESCE((SELECT SUM(pa.allocated_amount) FROM payment_allocations pa
+                            JOIN payments p ON p.id = pa.payment_id AND p.status = 'approved'
+                            WHERE pa.invoice_id = ci.id), 0) AS covered
+         FROM case_invoices ci
+         WHERE ci.id IN ({$in}) AND ci.accounting_status <> 'cancelled'"
+    ) as $r) {
+        $net = max(0, (float)$r['total_amount'] - (float)$r['discount_amount']);
+        $out[(int)$r['id']] = ['covered' => min($net, (float)$r['covered']), 'total' => (float)$r['total_amount']];
+    }
+    return $out;
+}
+
+/** A treatment line's part of its receipt's money: by its price, out of the receipt's total. */
+function ds_line_received(float $price, ?array $coverage): float
+{
+    if (!$coverage || $coverage['total'] <= 0) {
+        return 0.0;
+    }
+    return $coverage['covered'] * min(1, max(0, $price) / $coverage['total']);
+}
+
+/** وەرگیراو for each work type of the period: [treatment_name => amount]. */
+function ds_treatment_received(Database $db, int $docUserId, string $from, string $to): array
+{
+    $lines = $db->fetchAll(
+        "SELECT ct.treatment_name, ct.final_price, ct.invoice_id
+         FROM case_treatments ct
+         JOIN cases c ON c.id = ct.case_id
+         JOIN patient_folders pf ON pf.id = c.folder_id
+         WHERE pf.doctor_id = :uid
+           AND DATE(COALESCE(ct.performed_date, ct.created_at)) BETWEEN :f AND :t
+           AND (ct.status IS NULL OR ct.status <> 'cancelled')",
+        ['uid' => $docUserId, 'f' => $from, 't' => $to]
+    );
+    $coverage = ds_invoice_coverage($db, array_column($lines, 'invoice_id'));
+    $out = [];
+    foreach ($lines as $l) {
+        $out[$l['treatment_name']] = ($out[$l['treatment_name']] ?? 0.0)
+            + ds_line_received((float)$l['final_price'], $coverage[(int)$l['invoice_id']] ?? null);
+    }
+    return $out;
+}
+
+/**
+ * The fingerprint device's days for a doctor (HR section, HrAttendance): the
+ * first in, the last out and the hours of the complete in/out pairs — today,
+ * while still in, the time since the first in. [date => [in, out, minutes, source]]
+ */
+function ds_device_attendance(Database $db, int $docUserId, string $from, string $to): array
+{
+    if (!$db->tableExists('hr_employees') || !is_file(__DIR__ . '/../classes/HrAttendance.php')) {
+        return [];
+    }
+    $emp = $db->fetch(
+        "SELECT id FROM hr_employees WHERE user_id = :uid ORDER BY (status = 'active') DESC, id LIMIT 1",
+        ['uid' => $docUserId]
+    );
+    if (!$emp) {
+        return [];
+    }
+    require_once __DIR__ . '/../classes/HrAttendance.php';
+    $hr = new HrAttendance();
+    $emps = $hr->employees(['ids' => [(int)$emp['id']], 'status' => '']);
+    if (!$emps) {
+        return [];
+    }
+    $today = HrAttendance::currentWorkDate();
+    $out = [];
+    foreach ($hr->period($emps, $from, $to)[(int)$emp['id']]['days'] ?? [] as $date => $d) {
+        if (empty($d['punches']) || empty($d['first_in'])) {
+            continue;
+        }
+        $minutes = $d['hours'] > 0 ? $d['hours'] * 60 : null;
+        $stillIn = $date === $today && ($d['status'] ?? '') === 'missing_out';
+        if ($stillIn) {
+            // in now: the time since the first in, on top of any closed pairs
+            $last = end($d['pairs']);
+            $minutes = ($minutes ?? 0) + max(0, (time() - strtotime($last['in']['time'] ?? $d['first_in'])) / 60);
+        }
+        $out[$date] = [
+            'in' => $d['first_in'], 'out' => $stillIn ? null : $d['last_out'],
+            'minutes' => $minutes, 'source' => 'device',
+        ];
+    }
+    return $out;
 }
 
 /** Did anything happen this day? Quiet doctors are left off the overview. */
@@ -725,18 +908,25 @@ function ds_row_lists(array $ds): array
     $money[] = ['ئامانەتی وەرگیراو (تەنها زانیاری؛ ناچێتە داهات)', dsMoney($ds['advanceCollected'] ?? 0), ''];
     return [
         'money' => $money,
-        // ناردن بۆ ئێکسڕەی — counts only; the income is the centre's.
+        // ناردن بۆ ئێکسڕەی — who he sent, and what it brought in (the centre's).
         'xray' => array_merge(
             [
                 ['نەخۆشی نێردراو',  dsMoney($ds['xrayPatients']), 'total'],
                 ['کۆی داواکاری',    dsMoney($ds['xrayCount']), ''],
+                ['پارەی وەرگیراوی ئێکسڕەی', dsMoney($ds['xrayReceived'] ?? 0), 'pos'],
             ],
             array_map(
-                fn($label, $n) => [$label, dsMoney($n), ''],
+                fn($label, $n) => [$label, dsMoney($n), '', 'وەرگیراو: ' . dsMoney($ds['xrayReceivedByType'][$label] ?? 0)],
                 array_keys(array_filter($ds['xrayByType'])),
                 array_filter($ds['xrayByType'])
             )
         ),
+        // ناردن بۆ دەرمانخانە — the same for the pharmacy.
+        'pharmacy' => [
+            ['ڕەچەتەی نووسراو',          dsMoney($ds['pharmacy']['count'] ?? 0), 'total'],
+            ['ڕەچەتەی فرۆشراو',          dsMoney($ds['pharmacy']['sold'] ?? 0), ''],
+            ['پارەی وەرگیراوی دەرمانخانە', dsMoney($ds['pharmacy']['received'] ?? 0), 'pos'],
+        ],
         // Same rows as the visits report's matrix for this one doctor.
         'visit' => array_merge(
             [
@@ -755,13 +945,66 @@ function ds_row_lists(array $ds): array
             ]
         ),
         'time' => [
-            ['کاتژمێری هاتن',    dsHours($ds['attendanceMinutes']), 'total'],
+            ['کاتژمێری هاتن',    dsHours($ds['attendanceMinutes']), 'total', ds_attendance_note($ds['attendanceDays'] ?? [])],
             ['ڕۆژی هاتن',        dsMoney($ds['attendedDay']), ''],
             ['کۆی کاتی ئیشکردن', dsHours($ds['workMinutes']), ''],
             ['کۆی کاتی پشکنین',  dsHours($ds['examMinutes']), ''],
             ['کۆی کاتی بەتال',   dsHours($ds['idleMinutes']), ''],
         ],
     ];
+}
+
+/**
+ * The list behind a row (daily-summary-detail.php ?kind=), by its label; null
+ * for a row that is a sum of others (the shares, the net).
+ */
+function ds_detail_kind(string $label): ?string
+{
+    static $map = [
+        'کۆی گشتی پارە' => 'invoices', 'بڕی داشکێنراو' => 'invoices', 'ماوەی دوای داشکێنراو' => 'invoices',
+        'بڕی ماوە' => 'invoices', 'بڕی وەرگیراو' => 'invoices', 'وەرگیراوی چاوەڕوانی پەسەندکردن' => 'invoices',
+        'پارەی گەڕاوەی قەرزی کۆن' => 'payments', 'کۆی نەقدی وەرگیراو' => 'payments',
+        'خەرجی تاقیگە' => 'lab', 'خەرجی کۆگا' => 'store', 'خەرجی گشتی' => 'general',
+        'کۆی گشتی سەردانیکەران' => 'visits', 'کۆی گشتی ئیش' => 'visits:treatment', 'کۆی گشتی پشکنین' => 'visits:checkup',
+        'پشکنینی داواکراو' => 'visits:checkup', 'پشکنینی دیاریکردنی تر' => 'visits:checkup',
+        'پشکنینی نوێ' => 'visits:checkup', 'پشکنینی کۆن' => 'visits:checkup',
+        'نەخۆشی نێردراو' => 'xray', 'کۆی داواکاری' => 'xray', 'پارەی وەرگیراوی ئێکسڕەی' => 'xray',
+        'ڕەچەتەی نووسراو' => 'pharmacy', 'ڕەچەتەی فرۆشراو' => 'pharmacy', 'پارەی وەرگیراوی دەرمانخانە' => 'pharmacy',
+        'کاتژمێری هاتن' => 'attendance', 'ڕۆژی هاتن' => 'attendance',
+        'کۆی کاتی ئیشکردن' => 'sessions', 'کۆی کاتی پشکنین' => 'sessions', 'کۆی کاتی بەتال' => 'sessions',
+    ];
+    if (isset($map[$label])) {
+        return $map[$label];
+    }
+    if (in_array($label, DS_XRAY_TYPES, true)) {
+        return 'xray:' . $label;
+    }
+    if (strpos($label, 'پشکنینی پێدراو') === 0) {
+        return 'visits:checkup';
+    }
+    if (strpos($label, 'ئامانەتی وەرگیراو') === 0) {
+        return 'advances';
+    }
+    return null;
+}
+
+/**
+ * Under «کاتژمێری هاتن»: one day's in → out, and where it came from (the
+ * fingerprint device or the doctor's own button); over a range, the source.
+ */
+function ds_attendance_note(array $days): string
+{
+    if (!$days) {
+        return '';
+    }
+    $device = count(array_filter($days, fn($d) => $d['source'] === 'device'));
+    $from = $device === count($days) ? 'پەنجەمۆر' : ($device ? 'پەنجەمۆر و دەستی' : 'دەستی');
+    if (count($days) === 1) {
+        $d = reset($days);
+        return date('H:i', strtotime($d['in'])) . ' ← ' . (!empty($d['out']) ? date('H:i', strtotime($d['out'])) : 'هێشتا لێرەیە')
+            . ' · ' . $from;
+    }
+    return 'لە ' . $from;
 }
 
 // ── ڕێژەی پیشاندان — what a doctor is shown of their own money ──────────
@@ -799,12 +1042,13 @@ function ds_scale_money(array $ds, float $factor): array
     foreach (['invoiceNet', 'invoiceDisc', 'grossBilled', 'treatmentCash', 'chairPending', 'newDebtToday',
               'oldDebtCollected', 'advanceCollected', 'labExpense', 'storeExpense', 'storeOnDoctor',
               'generalExpense', 'doctorExpenses', 'columnTotal', 'columnOnDoctor', 'columnCashOut', 'cashIn',
-              'netAfterExpenses', 'netBeforeStore', 'doctorShare', 'centerShare', 'treatmentAmount'] as $k) {
+              'netAfterExpenses', 'netBeforeStore', 'doctorShare', 'centerShare', 'treatmentAmount',
+              'treatmentReceived', 'xrayReceived'] as $k) {
         if (isset($ds[$k]) && is_numeric($ds[$k])) {
             $ds[$k] = (float)$ds[$k] * $factor;
         }
     }
-    foreach (['storeByKind', 'storeOnDoctorByKind'] as $k) {
+    foreach (['storeByKind', 'storeOnDoctorByKind', 'xrayReceivedByType'] as $k) {
         foreach ($ds[$k] ?? [] as $kind => $v) {
             $ds[$k][$kind] = (float)$v * $factor;
         }
@@ -814,6 +1058,14 @@ function ds_scale_money(array $ds, float $factor): array
     }
     foreach ($ds['topTreatments'] ?? [] as $i => $t) {
         $ds['topTreatments'][$i]['amt'] = (float)$t['amt'] * $factor;
+        if (isset($t['received'])) {
+            $ds['topTreatments'][$i]['received'] = (float)$t['received'] * $factor;
+        }
+    }
+    foreach (['billed', 'received'] as $k) {
+        if (isset($ds['pharmacy'][$k])) {
+            $ds['pharmacy'][$k] = (float)$ds['pharmacy'][$k] * $factor;
+        }
     }
     foreach ($ds['patientRows'] ?? [] as $i => $r) {
         foreach (['billed', 'chair', 'paid', 'received', 'left'] as $k) {

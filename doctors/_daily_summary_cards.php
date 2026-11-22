@@ -17,6 +17,7 @@ const DSM_GLYPHS = [
     'fa-couch' => 0xf4b8, 'fa-user-md' => 0xf0f0, 'fa-check-circle' => 0xf058, 'fa-piggy-bank' => 0xf4d3,
     'fa-circle' => 0xf111, 'fa-tooth' => 0xf5c9, 'fa-calendar-alt' => 0xf073, 'fa-user-injured' => 0xf728,
     'fa-list-alt' => 0xf03a, 'fa-stopwatch' => 0xf2f2, 'fa-folder-open' => 0xf07c,
+    'fa-pills' => 0xf484, 'fa-file-prescription' => 0xf572, 'fa-fingerprint' => 0xf577,
 ];
 
 /** The colours: name => [line / icon, tint]. */
@@ -57,6 +58,11 @@ function dsm_look(string $label): array
         'کۆی کاتی ئیشکردن'        => ['fa-business-time', 'purple'],
         'کۆی کاتی پشکنین'         => ['fa-stethoscope', 'teal'],
         'کۆی کاتی بەتال'          => ['fa-couch', 'orange'],
+        'پارەی وەرگیراوی ئێکسڕەی' => ['fa-money-bill-wave', 'green'],
+        'OPG' => ['fa-x-ray', 'blue'], 'CBCT' => ['fa-x-ray', 'purple'], 'Ceph' => ['fa-x-ray', 'teal'], 'P.A' => ['fa-x-ray', 'orange'],
+        'ڕەچەتەی نووسراو'          => ['fa-file-prescription', 'indigo'],
+        'ڕەچەتەی فرۆشراو'          => ['fa-pills', 'teal'],
+        'پارەی وەرگیراوی دەرمانخانە' => ['fa-money-bill-wave', 'green'],
     ];
     if (isset($map[$label])) {
         return $map[$label];
@@ -74,7 +80,9 @@ function dsm_look(string $label): array
 }
 
 /**
- * One list of rows as cards: [label, value, neg, note, notes[], total, icon, colour].
+ * One list of rows as cards: [label, value, neg, note, notes[], total, icon, colour, detail].
+ * A row's optional fourth item is a note under it (x-ray: what it brought in).
+ * detail is the list a click opens (ds_detail_kind), null for none.
  * A «— …» row (the store split into ئاسایی / Implant) is a note on the card
  * before it, not a card of its own. An expense is printed «(1,000)» in the
  * tables; on a card it is just the amount, as the label already says it is
@@ -83,7 +91,8 @@ function dsm_look(string $label): array
 function dsm_card_list(array $rows): array
 {
     $cards = [];
-    foreach ($rows as [$label, $value, $style]) {
+    foreach ($rows as $row) {
+        [$label, $value, $style] = $row;
         if (strpos($label, '— ') === 0 && $cards) {
             $cards[count($cards) - 1]['notes'][] = substr($label, strlen('— '));
             continue;
@@ -100,7 +109,8 @@ function dsm_card_list(array $rows): array
         }
         [$icon, $colour] = dsm_look($label);
         $cards[] = ['label' => $label, 'value' => ($neg ? '-' : '') . $value, 'neg' => $neg,
-                    'note' => $note, 'notes' => [], 'total' => $style === 'total', 'icon' => $icon, 'colour' => $colour];
+                    'note' => $note, 'notes' => ($row[3] ?? '') !== '' ? [$row[3]] : [], 'total' => $style === 'total',
+                    'icon' => $icon, 'colour' => $colour, 'detail' => ds_detail_kind($row[0])];
     }
     return $cards;
 }

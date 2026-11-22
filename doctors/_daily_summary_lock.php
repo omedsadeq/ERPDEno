@@ -42,6 +42,14 @@ if (is_array($dsUnlock)
 }
 unset($_SESSION['ds_unlock']);
 
+// A list opened from the sheet (daily-summary-detail.php) gets a plain answer
+if (!empty($dsLockJson)) {
+    http_response_code(423);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => false, 'locked' => true, 'message' => 'پەڕەکە قفڵ کراوە — پەڕەکە نوێ بکەرەوە و وشەی نهێنی بنووسە'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // Wrong passwords go to login_attempts under their own identifier, so
 // guessing here never blocks the real login form and vice versa.
 $dsLockIdent = 'ds_unlock|' . $viewerUserId;

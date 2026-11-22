@@ -57,13 +57,18 @@ $dsAsDoctorUrl = fn(bool $on) => '?' . http_build_query(array_merge(array_diff_k
 /** Link to the same sheet for another period. */
 $rangeQs = fn(string $f, string $t) => '?from=' . urlencode($f) . '&to=' . urlencode($t) . $docQs;
 $pdfUrl = APP_URL . '/doctors/daily-summary-pdf.php' . $rangeQs($from, $to);
+// the list behind a card or a row (daily-summary-detail.php), «&kind=» added by the script
+$detailUrl = APP_URL . '/doctors/daily-summary-detail.php' . $rangeQs($from, $to);
 
-/** One compact key/value table — the same row lists the PDF prints. */
+/** One compact key/value table — the same row lists the PDF prints; a row with a list behind it opens on a click. */
 function dsRows(array $rows)
 {
-    foreach ($rows as [$label, $value, $style]) {
-        echo '<tr class="' . ($style === 'total' ? 'is-total' : '') . '">'
-            . '<td>' . dsEsc($label) . '</td>'
+    foreach ($rows as $row) {
+        [$label, $value, $style] = $row;
+        $kind = ds_detail_kind($label);
+        echo '<tr class="' . ($style === 'total' ? 'is-total' : '') . ($kind ? ' is-link' : '') . '"'
+            . ($kind ? ' data-ds-detail="' . dsEsc($kind) . '" tabindex="0" title="کلیک بکە بۆ وردەکاری"' : '') . '>'
+            . '<td>' . dsEsc($label) . (($row[3] ?? '') !== '' ? ' <span class="ds-note">' . dsEsc($row[3]) . '</span>' : '') . '</td>'
             . '<td class="v ' . ($style === 'pos' || $style === 'neg' ? $style : '') . '">' . dsEsc($value) . '</td>'
             . '</tr>';
     }
@@ -191,6 +196,29 @@ $dsPatients = function () use ($patientRows, $patientTotals) {
 .ds-pct small{flex-basis:100%;color:#64748b}
 .ds-pct.is-preview{background:#fff7e6;border-color:#f0c36d}
 
+/* a row or a card with a list behind it */
+.ds [data-ds-detail]{cursor:pointer}
+.ds-kv tr.is-link:hover td,.ds-tbl tr.is-link:hover td{background:#eef6fd}
+.ds-kv tr.is-link td:first-child::after,.ds-tbl tr.is-link td:nth-child(2)::after{content:'\203A';color:#9cb3c4;margin-inline-start:6px;font-weight:700}
+.ds [data-ds-detail]:focus-visible{outline:2px solid #0078d4;outline-offset:-2px}
+
+/* the details window */
+.dsd{position:fixed;inset:0;z-index:1200;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:16px}
+.dsd[hidden]{display:none}
+.dsd-box{background:#fff;border-radius:16px;width:min(980px,100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column;
+    box-shadow:0 24px 60px rgba(15,23,42,.35);direction:rtl;overflow:hidden}
+.dsd-head{display:flex;align-items:center;gap:10px;padding:12px 16px;background:linear-gradient(120deg,var(--win-accent,#0078d4),#0e9f9a);color:#fff}
+.dsd-head h3{margin:0;font-size:16px;font-weight:800}
+.dsd-head small{color:#dff4f7;font-size:12px}
+.dsd-head button{margin-inline-start:auto;border:0;background:rgba(255,255,255,.2);color:#fff;width:32px;height:32px;border-radius:9px;cursor:pointer;font-size:15px}
+.dsd-head button:hover{background:rgba(255,255,255,.35)}
+.dsd-body{overflow:auto;padding:0}
+.dsd-body .ds-tbl th{position:sticky;top:0;z-index:1}
+.dsd-body .ds-tbl th.n{text-align:left}
+.dsd-body .ds-tbl td a{color:#0067c0;font-weight:700;text-decoration:none}
+.dsd-msg{padding:28px;text-align:center;color:#64748b}
+.dsd-note{padding:8px 16px;font-size:12px;color:#64748b;background:#f8fafc;border-top:1px solid #eef2f5}
+
 /* the switch between the two looks */
 .ds-style{margin:0;display:inline-flex;border:1px solid #9fbbd0;border-radius:999px;overflow:hidden}
 .ds-style button{background:transparent;color:#fff;border:0;padding:5px 12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
@@ -310,6 +338,8 @@ $dsPatients = function () use ($patientRows, $patientTotals) {
                 <!-- X-ray is the centre's own department: only who was sent. -->
                 <tr class="sub"><td colspan="2"><i class="fas fa-x-ray"></i> ناردن بۆ ئێکسڕەی <span class="ds-note">— داهاتەکەی هی سەنتەرە</span></td></tr>
                 <?php dsRows($dsXrayRows); ?>
+                <tr class="sub"><td colspan="2"><i class="fas fa-pills"></i> ناردن بۆ دەرمانخانە <span class="ds-note">— داهاتەکەی هی سەنتەرە</span></td></tr>
+                <?php dsRows($dsPharmacyRows); ?>
             </table>
         </div>
 
@@ -325,22 +355,24 @@ $dsPatients = function () use ($patientRows, $patientTotals) {
             <h2><span><i class="fas fa-tooth"></i> جۆری ئیشەکان</span><small><?= dsMoney($treatmentCount) ?></small></h2>
             <div class="ds-scroll">
                 <table class="ds-tbl">
-                    <thead><tr><th class="i">#</th><th>جۆر</th><th>ژمارە</th><th>بڕ</th></tr></thead>
+                    <thead><tr><th class="i">#</th><th>جۆر</th><th>ژمارە</th><th>بڕ</th><th>وەرگیراو</th></tr></thead>
                     <tbody>
                     <?php if (!$topTreatments): ?>
-                        <tr><td colspan="4" class="empty">هیچ ئیشێک تۆمار نەکراوە</td></tr>
+                        <tr><td colspan="5" class="empty">هیچ ئیشێک تۆمار نەکراوە</td></tr>
                     <?php else: foreach ($topTreatments as $i => $t): ?>
-                        <tr>
+                        <tr class="is-link" data-ds-detail="<?= dsEsc('treatment:' . $t['treatment_name']) ?>" tabindex="0" title="کلیک بکە بۆ وردەکاری">
                             <td class="i"><?= $i + 1 ?></td>
                             <td><?= dsEsc($t['treatment_name']) ?></td>
                             <td class="n"><?= dsMoney($t['cnt']) ?></td>
                             <td class="n"><?= dsMoney($t['amt']) ?></td>
+                            <td class="n pos"><?= dsMoney($t['received'] ?? 0) ?></td>
                         </tr>
                     <?php endforeach; ?>
                         <tr class="is-total">
                             <td></td><td>کۆ</td>
                             <td class="n"><?= dsMoney($treatmentCount) ?></td>
                             <td class="n"><?= dsMoney($treatmentAmount) ?></td>
+                            <td class="n pos"><?= dsMoney($treatmentReceived ?? 0) ?></td>
                         </tr>
                     <?php endif; ?>
                     </tbody>
@@ -357,7 +389,82 @@ $dsPatients = function () use ($patientRows, $patientTotals) {
 
 </div>
 
+<div class="dsd" id="dsDetail" hidden role="dialog" aria-modal="true" aria-labelledby="dsDetailTitle">
+    <div class="dsd-box">
+        <div class="dsd-head">
+            <i class="fas fa-list-ul"></i>
+            <div><h3 id="dsDetailTitle"></h3><small id="dsDetailPeriod"></small></div>
+            <button type="button" data-ds-close title="داخستن (Esc)"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="dsd-body" id="dsDetailBody"></div>
+        <div class="dsd-note" id="dsDetailNote" hidden></div>
+    </div>
+</div>
+
 <script>
+// A card or a row with a list behind it: the list in a window (daily-summary-detail.php)
+(function () {
+    var url = <?= json_encode($detailUrl) ?>;
+    var win = document.getElementById('dsDetail');
+    var body = document.getElementById('dsDetailBody');
+    var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]; }); };
+    var num = function (s) { return parseFloat(String(s).replace(/,/g, '')) || 0; };
+    var fmt = function (n) { return Math.round(n).toLocaleString('en-US'); };
+    var seq = 0;
+    function close() { win.hidden = true; document.body.style.overflow = ''; }
+    function open(kind, label) {
+        var mine = ++seq;
+        win.hidden = false;
+        document.body.style.overflow = 'hidden';
+        document.getElementById('dsDetailTitle').textContent = label || '';
+        document.getElementById('dsDetailPeriod').textContent = '';
+        document.getElementById('dsDetailNote').hidden = true;
+        body.innerHTML = '<div class="dsd-msg"><i class="fas fa-spinner fa-spin"></i> باردەکرێت…</div>';
+        fetch(url + '&kind=' + encodeURIComponent(kind), {credentials: 'same-origin'})
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (mine !== seq) return;
+                if (!d.success) { body.innerHTML = '<div class="dsd-msg">' + esc(d.message || 'هەڵەیەک ڕوویدا') + '</div>'; return; }
+                document.getElementById('dsDetailTitle').textContent = d.title;
+                document.getElementById('dsDetailPeriod').textContent = d.period + ' · ' + d.rows.length + ' دانە';
+                if (d.note) { var n = document.getElementById('dsDetailNote'); n.textContent = d.note; n.hidden = false; }
+                if (!d.rows.length) { body.innerHTML = '<div class="dsd-msg">هیچ شتێک لەم ماوەیەدا نییە</div>'; return; }
+                var sums = d.cols.map(function () { return 0; });
+                var html = '<table class="ds-tbl"><thead><tr><th class="i">#</th>'
+                    + d.cols.map(function (c) { return '<th' + (c.n ? ' class="n"' : '') + '>' + esc(c.t) + '</th>'; }).join('') + '</tr></thead><tbody>';
+                d.rows.forEach(function (r, i) {
+                    html += '<tr><td class="i">' + (i + 1) + '</td>' + r.map(function (cell, k) {
+                        var t = cell && typeof cell === 'object' ? cell.t : cell;
+                        if (d.cols[k].sum) sums[k] += num(t);
+                        var inner = cell && typeof cell === 'object' && cell.href ? '<a href="' + esc(cell.href) + '" target="_blank">' + esc(t) + '</a>' : esc(t);
+                        return '<td' + (d.cols[k].n ? ' class="n"' : '') + '>' + inner + '</td>';
+                    }).join('') + '</tr>';
+                });
+                if (d.cols.some(function (c) { return c.sum; })) {
+                    html += '<tr class="is-total"><td></td>' + d.cols.map(function (c, k) {
+                        return '<td' + (c.n ? ' class="n"' : '') + '>' + (c.sum ? fmt(sums[k]) : (k === 0 ? 'کۆ' : '')) + '</td>';
+                    }).join('') + '</tr>';
+                }
+                body.innerHTML = html + '</tbody></table>';
+            })
+            .catch(function () { if (mine === seq) body.innerHTML = '<div class="dsd-msg">هەڵەیەک ڕوویدا — پەڕەکە نوێ بکەرەوە</div>'; });
+    }
+    document.addEventListener('click', function (e) {
+        if (e.target.closest('[data-ds-close]') || e.target === win) { close(); return; }
+        var el = e.target.closest('[data-ds-detail]');
+        if (!el || e.target.closest('a')) return;
+        var label = el.querySelector('.dsm-l, td:first-child:not(.i), td:nth-child(2), span:not(.dsm-ic)');
+        open(el.dataset.dsDetail, label ? label.textContent.trim() : '');
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !win.hidden) { close(); return; }
+        if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-ds-detail]')) {
+            e.preventDefault();
+            e.target.click();
+        }
+    });
+})();
+
 (function () {
     var box = document.getElementById('ds-att');
     if (!box) return;

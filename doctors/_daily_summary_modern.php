@@ -21,7 +21,8 @@ function dsm_cards(array $rows): string
 {
     $html = '';
     foreach (dsm_card_list($rows) as $c) {
-        $html .= '<div class="dsm-card c-' . $c['colour'] . ($c['total'] ? ' is-total' : '') . '">'
+        $html .= '<div class="dsm-card c-' . $c['colour'] . ($c['total'] ? ' is-total' : '') . '"'
+            . ($c['detail'] ? ' data-ds-detail="' . dsEsc($c['detail']) . '" tabindex="0" role="button" title="کلیک بکە بۆ وردەکاری"' : '') . '>'
             . '<span class="dsm-ic"><i class="fas ' . $c['icon'] . '"></i></span>'
             . '<b class="dsm-v' . ($c['neg'] ? ' is-neg' : '') . '"><bdi>' . dsEsc($c['value']) . '</bdi></b>'
             . '<span class="dsm-l">' . dsEsc($c['label']) . '</span>'
@@ -51,6 +52,16 @@ $dsmChipColours = ['green', 'blue', 'purple', 'orange', 'teal', 'pink', 'indigo'
      box-shadow:0 1px 3px rgba(15,23,42,.08),0 4px 14px rgba(15,23,42,.05);padding:14px 10px 12px;
      display:flex;flex-direction:column;align-items:center;text-align:center;gap:5px;min-width:0}
 .dsm-card.is-total{box-shadow:0 0 0 1.5px var(--c) inset,0 4px 14px rgba(15,23,42,.07)}
+.dsm-card[data-ds-detail],.dsm-chip[data-ds-detail]{transition:transform .15s ease,box-shadow .15s ease}
+.dsm-card[data-ds-detail]:hover,.dsm-chip[data-ds-detail]:hover{transform:translateY(-2px);box-shadow:0 2px 4px rgba(15,23,42,.08),0 10px 22px rgba(15,23,42,.1)}
+.dsm-chip .dsm-rcv{color:#15803d;font-weight:700}
+.dsm-pat{background:#fff;border-radius:14px;box-shadow:0 1px 3px rgba(15,23,42,.08);overflow:hidden}
+.dsm-pat summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:11px 14px;font-weight:700;color:#0b5f8a}
+.dsm-pat summary::-webkit-details-marker{display:none}
+.dsm-pat summary i.chev{margin-inline-start:auto;transition:transform .2s}
+.dsm-pat[open] summary i.chev{transform:rotate(180deg)}
+.dsm-pat[open] summary{border-bottom:1px solid #eef2f5}
+@media(prefers-reduced-motion:reduce){.dsm-card[data-ds-detail],.dsm-chip[data-ds-detail]{transition:none}.dsm-card[data-ds-detail]:hover{transform:none}}
 .dsm-ic{width:40px;height:40px;border-radius:11px;background:var(--t);color:var(--c);display:flex;align-items:center;justify-content:center;font-size:18px}
 .dsm-v{font-size:21px;font-weight:800;color:#0f172a;direction:ltr;font-variant-numeric:tabular-nums;line-height:1.25;word-break:break-all}
 .dsm-v.is-neg{color:#dc2626}
@@ -107,18 +118,23 @@ $dsmChipColours = ['green', 'blue', 'purple', 'orange', 'teal', 'pink', 'indigo'
     </section>
 
     <section class="dsm-sec">
-        <h2><i class="fas fa-folder-open"></i> جۆری ئیشەکان <small><?= dsMoney($treatmentCount) ?> ئیش · <?= dsMoney($treatmentAmount) ?></small></h2>
+        <h2><i class="fas fa-pills"></i> ناردن بۆ دەرمانخانە <small>داهاتەکەی هی سەنتەرە</small></h2>
+        <div class="dsm-grid"><?= dsm_cards($dsPharmacyRows) ?></div>
+    </section>
+
+    <section class="dsm-sec">
+        <h2><i class="fas fa-folder-open"></i> جۆری ئیشەکان <small><?= dsMoney($treatmentCount) ?> ئیش · <?= dsMoney($treatmentAmount) ?> · وەرگیراو <?= dsMoney($treatmentReceived ?? 0) ?></small></h2>
         <?php if (!$topTreatments): ?>
             <div class="dsm-empty">هیچ ئیشێک تۆمار نەکراوە</div>
         <?php else: ?>
         <div class="dsm-chips">
             <?php foreach ($topTreatments as $i => $t): ?>
-            <div class="dsm-chip c-<?= $dsmChipColours[$i % count($dsmChipColours)] ?>">
+            <div class="dsm-chip c-<?= $dsmChipColours[$i % count($dsmChipColours)] ?>" data-ds-detail="<?= dsEsc('treatment:' . $t['treatment_name']) ?>" tabindex="0" role="button" title="کلیک بکە بۆ وردەکاری">
                 <span class="dsm-ic"><i class="fas fa-tooth"></i></span>
                 <div>
                     <b><?= dsMoney($t['cnt']) ?></b>
                     <span title="<?= dsEsc($t['treatment_name']) ?>"><?= dsEsc($t['treatment_name']) ?></span>
-                    <small><?= dsMoney($t['amt']) ?></small>
+                    <small><?= dsMoney($t['amt']) ?> · <span class="dsm-rcv">وەرگیراو <?= dsMoney($t['received'] ?? 0) ?></span></small>
                 </div>
             </div>
             <?php endforeach; ?>
@@ -127,7 +143,10 @@ $dsmChipColours = ['green', 'blue', 'purple', 'orange', 'teal', 'pink', 'indigo'
     </section>
 
     <section class="dsm-sec">
-        <h2><i class="fas fa-list-alt"></i> نەخۆشەکان <small><?= dsMoney(count($patientRows)) ?> کەیس</small></h2>
-        <div class="dsm-box"><?php $dsPatients(); ?></div>
+        <?php // the list only when asked for: a click opens it ?>
+        <details class="dsm-pat">
+            <summary><i class="fas fa-list-alt"></i> نەخۆشەکان — <?= dsMoney(count($patientRows)) ?> کەیس <small style="color:#64748b;font-weight:600">(کلیک بکە بۆ پیشاندان)</small><i class="fas fa-chevron-down chev"></i></summary>
+            <?php $dsPatients(); ?>
+        </details>
     </section>
 </div>

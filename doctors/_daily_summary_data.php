@@ -70,10 +70,11 @@ $dsLists = ds_row_lists(compact(
     'grossBilled', 'invoiceDisc', 'invoiceNet', 'treatmentCash', 'chairPending', 'newDebtToday',
     'labExpense', 'storeExpense', 'storeByKind', 'storeOnDoctorByKind', 'generalExpense', 'columnCharges', 'netAfterExpenses', 'oldDebtCollected', 'advanceCollected',
     'cashIn', 'doctorRate', 'doctorFormula', 'doctorFormulaError', 'doctorShare', 'centerShare',
-    'xrayCount', 'xrayPatients', 'xrayByType', 'work', 'checkupBreakdown',
-    'attendanceMinutes', 'attendedDay', 'workMinutes', 'examMinutes', 'idleMinutes'
+    'xrayCount', 'xrayPatients', 'xrayByType', 'xrayReceived', 'xrayReceivedByType', 'pharmacy', 'work', 'checkupBreakdown',
+    'attendanceMinutes', 'attendanceDays', 'attendedDay', 'workMinutes', 'examMinutes', 'idleMinutes'
 ));
 $dsMoneyRows = $dsLists['money'];
 $dsXrayRows  = $dsLists['xray'];
 $dsVisitRows = $dsLists['visit'];
 $dsTimeRows  = $dsLists['time'];
+$dsPharmacyRows = $dsLists['pharmacy'];
