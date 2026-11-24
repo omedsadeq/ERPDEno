@@ -68,74 +68,16 @@ if ($action === 'compute') {
         exit;
     }
 
-    // Load all prices for this type keyed by mode
-    $rows = $db->fetchAll(
-        "SELECT pricing_mode, price FROM xray_pricing WHERE xray_type = :t AND is_active = 1",
-        ['t' => $type]
-    );
-    $priceMap = [];
-    foreach ($rows as $r) { $priceMap[$r['pricing_mode']] = (float)$r['price']; }
-
-    $price = 0;
-    $mode  = null;
+    // The one rule, shared with the request form (XrayManager::computePrice).
+    require_once __DIR__ . '/../classes/XrayManager.php';
     $cbctOption = (string)($input['cbct_option'] ?? $_POST['cbct_option'] ?? '');
-
-    if ($type === 'cbct' && isset(XRAY_CBCT_OPTIONS[$cbctOption])) {
-        // A chosen CBCT option has its own fixed price; teeth/area do not change it.
-        if (isset($priceMap['cbct_' . $cbctOption])) {
-            $mode  = 'cbct_' . $cbctOption;
-            $price = $priceMap[$mode];
-        }
-    } elseif ($fullMouth) {
-        // No full-mouth price → fall through to the type's own price below.
-        if (isset($priceMap['full_mouth'])) {
-            $mode = 'full_mouth';
-            $price = $priceMap['full_mouth'];
-        }
-    } else {
-        // Normalize determine text to detect side
-        $hint = mb_strtolower(trim($determine));
-        $sideGuess = null;
-        if     (str_contains($hint, 'left'))  $sideGuess = 'left_side';
-        elseif (str_contains($hint, 'right')) $sideGuess = 'right_side';
-        elseif (str_contains($hint, 'upper')) $sideGuess = 'upper_arch';
-        elseif (str_contains($hint, 'lower')) $sideGuess = 'lower_arch';
-
-        // Parse selected teeth
-        $toothList = array_values(array_filter(array_map('trim', explode(',', (string)$teeth)), fn($x) => $x !== ''));
-        $count = count($toothList);
-
-        if ($sideGuess && isset($priceMap[$sideGuess])) {
-            $mode = $sideGuess;
-            $price = $priceMap[$sideGuess];
-        } elseif ($count > 0) {
-            // Use per_tooth × count if available, otherwise single price
-            if (isset($priceMap['per_tooth'])) {
-                $mode = 'per_tooth';
-                $price = $priceMap['per_tooth'] * $count;
-            } elseif (isset($priceMap['single'])) {
-                $mode = 'single';
-                $price = $priceMap['single'];
-            }
-        } elseif (isset($priceMap['single'])) {
-            $mode = 'single';
-            $price = $priceMap['single'];
-        }
-    }
-
-    // 'single' is the type's own price (set in «نرخی هەر جۆرێک» on
-    // admin/xray-pricing.php). Use it whenever no more specific price
-    // applies — e.g. Full Mouth or a side chosen with no price for that mode.
-    if ($mode === null && !($type === 'cbct' && isset(XRAY_CBCT_OPTIONS[$cbctOption])) && isset($priceMap['single'])) {
-        $mode = 'single';
-        $price = $priceMap['single'];
-    }
+    $priced = XrayManager::computePrice($type, $cbctOption !== '' ? $cbctOption : null, $fullMouth, (string)$determine, (string)$teeth);
 
     echo json_encode([
         'success' => true,
         'type'    => $type,
-        'mode'    => $mode,
-        'price'   => round($price),
+        'mode'    => $priced['mode'],
+        'price'   => round($priced['price']),
     ]);
     exit;
 }

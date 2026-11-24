@@ -124,7 +124,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ? $paymentReasonLabel . ' — ' . $paymentReasonNote
             : $paymentReasonLabel;
     }
-    $amount = floatval($_POST['amount'] ?? 0);
     $priority = $_POST['priority'] ?? 'normal';
     $notes = trim($_POST['notes'] ?? '');
     $fullMouth = isset($_POST['full_mouth']) ? 1 : 0;
@@ -158,6 +157,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!in_array($xrayReason, $allowedXrayReasons, true)) $errors['xray_reason'] = 'Reason is required';
     if ($paymentType === 'dont_cash' && $paymentReason === '') $errors['payment_reason'] = 'Reason is required for Don\'t Cash';
 
+    // بڕی پارە is the pricing table's own figure for this selection — the box on
+    // the form is read-only and the posted value is not trusted, so a doctor
+    // cannot lower the fee by hand. Only when nothing is priced for the
+    // selection (the box unlocks then) does a typed amount count.
+    // داشکاندن is kept apart: the fee stays as it is (amount / original_amount),
+    // the discount is its own figure, and final_amount is what is asked for —
+    // so the reports still see the real fee and what was taken off it.
+    $priced = in_array($xrayType, $allowedXrayTypes, true)
+        ? XrayManager::computePrice($xrayType, $cbctOption, (bool)$fullMouth, $determineDetails, $selectedTeeth)
+        : ['mode' => null, 'price' => 0.0];
+    $amount = $priced['mode'] !== null ? $priced['price'] : max(0, floatval($_POST['amount'] ?? 0));
+    $discountAmount = $paymentType === 'dont_cash' ? 0.0 : max(0, floatval($_POST['discount_amount'] ?? 0));
+    if ($discountAmount > $amount) {
+        $errors['discount'] = 'داشکاندن نابێت لە بڕی پارە زیاتر بێت';
+    }
+    $discountReason = mb_substr(trim((string)($_POST['discount_reason'] ?? '')), 0, 255);
+    if ($discountAmount <= 0) {
+        $discountReason = '';
+    }
+    $finalAmount = max(0, $amount - $discountAmount);
+
     $initialRequestStatus = 'pending_accountant';
     $initialPaymentStatus = 'pending_payment';
     if ($paymentType === 'dont_cash') {
@@ -181,7 +201,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'payment_reason' => $paymentReason,
             'amount' => $amount,
             'original_amount' => $amount,
-            'final_amount' => $amount,
+            'discount_amount' => $discountAmount,
+            'discount_reason' => $discountReason !== '' ? $discountReason : null,
+            'final_amount' => $finalAmount,
             'request_status' => $initialRequestStatus,
             'payment_status' => $initialPaymentStatus,
             'status' => 'pending',
@@ -197,6 +219,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($result['success']) {
             $newRequestId = $result['request_id'];
+            // A discount given at request time is on the record like one the
+            // accountant applies (XrayManager::applyDiscount): who, how much, why.
+            if ($discountAmount > 0) {
+                try {
+                    $xrayManager->createPaymentLog([
+                        'request_id'      => $newRequestId,
+                        'action'          => 'discount_applied',
+                        'original_amount' => $amount,
+                        'discount_amount' => $discountAmount,
+                        'final_amount'    => $finalAmount,
+                        'notes'           => 'داشکاندن لە کاتی داواکردن' . ($discountReason !== '' ? ': ' . $discountReason : ''),
+                        'performed_by'    => intval($currentUser['id']),
+                    ]);
+                } catch (Throwable $e) {
+                    error_log('xray request discount log: ' . $e->getMessage());
+                }
+            }
 
             $xrayManager->logHistory($newRequestId, null, $initialRequestStatus, null, $initialPaymentStatus, 'request_created', "X-Ray request created. Payment type: {$paymentType}", $currentUser['id'], $_SESSION['role'] ?? 'doctor');
             $routeAction = $initialRequestStatus === 'pending_accountant' ? 'sent_to_accountant' : 'sent_to_xray';
@@ -1752,8 +1791,11 @@ $xrayReasons = [
 
                 <div class="amount-field" style="flex-wrap:wrap; gap:6px;">
                     <label>بڕی پارە:</label>
-                    <input type="number" name="amount" id="amountInput" value="<?= $_POST['amount'] ?? '0' ?>" min="0" step="1000">
-                    <span class="currency"></span>
+                    <!-- The pricing table's figure: read-only (the server recomputes it too).
+                         It unlocks only when nothing is priced for the selection. -->
+                    <input type="number" name="amount" id="amountInput" value="<?= $_POST['amount'] ?? '0' ?>" min="0" step="1000" readonly
+                           title="نرخی جۆرەکە لە خشتەی نرخەکانەوە دێت و دەستکاری ناکرێت — بۆ کەمکردنەوە خانەی داشکاندن بەکاربهێنە">
+                    <span class="currency"><i class="fas fa-lock xr-lock" title="نرخ قوفڵە"></i></span>
                     <?php if ($auth->isAdmin()): ?>
                     <a href="<?= APP_URL ?>/admin/xray-pricing.php" target="_blank" title="بەڕێوەبردنی نرخەکان"
                        style="padding: 4px 10px; background: var(--win-accent, #0078d4); color: #fff; border-radius: 6px; text-decoration: none; font-size: 12px; display: inline-flex; align-items: center; gap: 4px;">
@@ -1764,6 +1806,31 @@ $xrayReasons = [
                         <i class="fas fa-tag"></i> <span id="priceHintText">جۆری ئێکسڕەی هەڵبژێرە بۆ پیشاندانی نرخ</span>
                     </span>
                 </div>
+                <!-- داشکاندن: its own figure beside the locked fee; the net is what is asked for. -->
+                <div class="amount-field xr-discount-row" id="xrDiscountRow" style="flex-wrap:wrap; gap:6px; margin-top:8px;">
+                    <label for="discountInput">داشکاندن:</label>
+                    <input type="number" name="discount_amount" id="discountInput" value="<?= htmlspecialchars((string)($_POST['discount_amount'] ?? '')) ?>" min="0" step="500" placeholder="0">
+                    <input type="text" name="discount_reason" id="discountReason" class="form-input xr-discount-reason" maxlength="255"
+                           placeholder="هۆکاری داشکاندن (ئارەزوومەندانە)" value="<?= htmlspecialchars((string)($_POST['discount_reason'] ?? '')) ?>">
+                    <span class="xr-net" id="xrNet"><i class="fas fa-equals"></i> کۆی داواکراو: <b id="xrNetValue">0</b> <small>IQD</small></span>
+                    <?php if (isset($errors['discount'])): ?>
+                    <span class="form-error" style="color: #f44336; font-size: 12px; flex-basis: 100%;"><?= htmlspecialchars($errors['discount']) ?></span>
+                    <?php endif; ?>
+                </div>
+                <style>
+                .amount-field input[readonly] { background: #f3f5f8; color: #243447; cursor: not-allowed; font-weight: 700; }
+                .amount-field input[readonly]:focus { outline: none; box-shadow: none; }
+                .xr-lock { color: #7a8794; font-size: 12px; }
+                .xr-discount-row input[type="number"] { border-color: #f0c9a8; }
+                .xr-discount-row input[type="number"]:focus { border-color: #e08a3c; outline: none; box-shadow: 0 0 0 2px rgba(224,138,60,.18); }
+                .xr-discount-reason { width: 240px; max-width: 100%; padding: 8px 12px; font-size: 13px; }
+                .xr-discount-row:not(.has-discount) .xr-discount-reason { display: none; }
+                .xr-net { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 700;
+                          background: #eef6ff; color: #0b57a4; border: 1px solid #c7deff; }
+                .xr-net b { font-size: 15px; direction: ltr; }
+                .xr-net.is-cut { background: #fff4e5; color: #9a4b00; border-color: #f0d4a8; }
+                .payment-box:has(input[name="payment_type"][value="dont_cash"]:checked) #xrDiscountRow { display: none; }
+                </style>
                 <style>
                 .xray-price-tag {
                     display: inline-flex; align-items: center; gap: 6px;
@@ -1834,7 +1901,15 @@ $xrayReasons = [
                         var typeName = label ? label.textContent.trim() : typeEl.value;
                         var r = compute(typeEl.value);
                         // Cash, debt or free — the x-ray has a value, so the box always shows it.
-                        if (amount) amount.value = r.price;
+                        // The box stays locked on a priced selection; it opens only when
+                        // nothing is priced, so a fee can still be written then.
+                        if (amount) {
+                            amount.value = r.price;
+                            amount.readOnly = !!r.mode;
+                            var lock = document.querySelector('.xr-lock');
+                            if (lock) lock.style.display = r.mode ? '' : 'none';
+                        }
+                        updateNet();
                         if (r.mode) {
                             text.textContent = typeName + ' — ' + Number(r.price).toLocaleString('en-US') + ' (' + (MODE_LABELS[r.mode] || r.mode) + ')';
                             tag.classList.add('is-priced');
@@ -1844,6 +1919,24 @@ $xrayReasons = [
                         }
                     }
 
+                    // داشکاندن never exceeds the fee; the net is fee − discount.
+                    function updateNet() {
+                        var amount = document.getElementById('amountInput');
+                        var disc = document.getElementById('discountInput');
+                        var row = document.getElementById('xrDiscountRow');
+                        var net = document.getElementById('xrNet');
+                        var val = document.getElementById('xrNetValue');
+                        if (!amount || !disc || !net || !val) return;
+                        var fee = Math.max(0, parseFloat(amount.value) || 0);
+                        var d = Math.max(0, parseFloat(disc.value) || 0);
+                        if (d > fee) { d = fee; disc.value = fee > 0 ? fee : ''; }
+                        disc.max = fee;
+                        val.textContent = Number(fee - d).toLocaleString('en-US');
+                        net.classList.toggle('is-cut', d > 0);
+                        if (row) row.classList.toggle('has-discount', d > 0);
+                    }
+                    window.updateXrayNet = updateNet;
+
                     var timer = null;
                     function schedule() { clearTimeout(timer); timer = setTimeout(update, 60); }
                     window.updateXrayPrice = update;
@@ -1851,16 +1944,15 @@ $xrayReasons = [
                     document.addEventListener('change', function (ev) {
                         var t = ev.target;
                         if (!t || !t.name && !t.id) return;
-                        if (t.name === 'xray_type' || t.name === 'cbct_option' || t.id === 'fullMouthCheckbox' || t.id === 'determine_checkbox') {
+                        if (t.name === 'xray_type' || t.name === 'cbct_option' || t.id === 'fullMouthCheckbox' || t.id === 'determine_checkbox'
+                            || t.name === 'payment_type') {
                             schedule();
-                        } else if (t.name === 'payment_type') {
-                            // Only refill an empty box, so a hand-typed amount survives a payment switch.
-                            var amount = document.getElementById('amountInput');
-                            if (amount && !(parseFloat(amount.value) > 0)) schedule();
                         }
                     });
                     document.addEventListener('input', function (ev) {
-                        if (ev.target && ev.target.id === 'determineDetailsInput') schedule();
+                        if (!ev.target) return;
+                        if (ev.target.id === 'determineDetailsInput') schedule();
+                        if (ev.target.id === 'discountInput' || ev.target.id === 'amountInput') updateNet();
                     });
                     // Teeth and area chips update the hidden teeth field in their own handlers; read it after them.
                     document.addEventListener('click', function (ev) {

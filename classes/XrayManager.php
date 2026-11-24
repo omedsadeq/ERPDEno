@@ -84,6 +84,74 @@ class XrayManager {
         }
     }
 
+    // ── The price of a request ─────────────────────────────────────────
+
+    /**
+     * The fee the pricing table gives one selection — the one rule for the
+     * request form (xray/request.php, which no longer trusts a posted amount),
+     * api/xray-pricing.php «compute» and the form's own script.
+     *
+     *   CBCT: the chosen option's own price; teeth and area do not change it.
+     *   Full mouth: its price if set.
+     *   A side/arch named in the determine text (left/right/upper/lower): that
+     *   price if set; else teeth picked × per_tooth if set.
+     *   Otherwise, and whenever nothing more specific is priced, 'single' — the
+     *   type's own price (admin/xray-pricing.php «نرخی هەر جۆرێک»).
+     *
+     * @return array ['mode' => string|null, 'price' => float] — mode null when
+     *   nothing is priced for this selection (price 0).
+     */
+    public static function computePrice(string $type, ?string $cbctOption, bool $fullMouth, string $determineDetails, string $teeth): array
+    {
+        $rows = Database::getInstance()->fetchAll(
+            "SELECT pricing_mode, price FROM xray_pricing WHERE xray_type = :t AND is_active = 1",
+            ['t' => $type]
+        );
+        $priceMap = [];
+        foreach ($rows as $r) {
+            $priceMap[$r['pricing_mode']] = (float)$r['price'];
+        }
+        $mode = null;
+        $price = 0.0;
+        $cbctChosen = $type === 'cbct' && $cbctOption !== null && isset(XRAY_CBCT_OPTIONS[$cbctOption]);
+        if ($cbctChosen) {
+            if (isset($priceMap['cbct_' . $cbctOption])) {
+                $mode = 'cbct_' . $cbctOption;
+                $price = $priceMap[$mode];
+            }
+        } elseif ($fullMouth) {
+            if (isset($priceMap['full_mouth'])) {
+                $mode = 'full_mouth';
+                $price = $priceMap['full_mouth'];
+            }
+        } else {
+            $hint = mb_strtolower(trim($determineDetails));
+            $side = null;
+            if (str_contains($hint, 'left')) {
+                $side = 'left_side';
+            } elseif (str_contains($hint, 'right')) {
+                $side = 'right_side';
+            } elseif (str_contains($hint, 'upper')) {
+                $side = 'upper_arch';
+            } elseif (str_contains($hint, 'lower')) {
+                $side = 'lower_arch';
+            }
+            $count = count(array_filter(array_map('trim', explode(',', $teeth)), fn($x) => $x !== ''));
+            if ($side && isset($priceMap[$side])) {
+                $mode = $side;
+                $price = $priceMap[$side];
+            } elseif ($count > 0 && isset($priceMap['per_tooth'])) {
+                $mode = 'per_tooth';
+                $price = $priceMap['per_tooth'] * $count;
+            }
+        }
+        if ($mode === null && !$cbctChosen && isset($priceMap['single'])) {
+            $mode = 'single';
+            $price = $priceMap['single'];
+        }
+        return ['mode' => $mode, 'price' => (float)round($price)];
+    }
+
     // ── Income helpers ─────────────────────────────────────────────────
     // X-ray money is NOT stored in the `payments` table — cash settlements
     // live in xray_requests and debt collections in xray_debt_payments. The
