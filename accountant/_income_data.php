@@ -381,6 +381,24 @@ foreach (['lab' => 'تاقیگەی بێ دکتۆر', 'store' => 'کۆگای بێ
 $sheetTotal = $totals['net'];
 $expensesAll = array_sum($expenseLines);
 $remaining = $sheetTotal - $expensesAll;
+// خەرجی گشتی — the expense columns' totals as the table's کۆ row has them (lab,
+// store, general, and the sheet's own columns): everything taken off the gross
+// داهات before it is split. So the bottom reads as the accountant adds it up:
+//   کۆی گشتی (داهات) − خەرجی گشتی = ماوە (the کۆی گشتی column), then the two
+//   shares, the centre's own expenses, and what the centre keeps.
+require_once __DIR__ . '/../classes/IncomeSheetColumns.php';
+$columnExpenseLines = [];   // label => amount, shown under خەرجی گشتی
+foreach ($colSel as $k) {
+    if (abs($totals[$k]) >= 0.5) {
+        $columnExpenseLines[IncomeSheetColumns::label($k)] = $totals[$k];
+    }
+}
+foreach ($incColumns as $c) {
+    if (abs($totals['cols'][$c['id']]) >= 0.5) {
+        $columnExpenseLines[$c['name']] = $totals['cols'][$c['id']];
+    }
+}
+$columnExpenses = $totals['amount'] - $sheetTotal;
 // The centre carries the clinic-wide expenses, so what it really keeps is its
 // share less خەرجیات (= ماوە − the doctors' shares).
 $centerAfterExpenses = $totals['centerShare'] - $expensesAll;

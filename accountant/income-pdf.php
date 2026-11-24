@@ -69,11 +69,12 @@ body { font-family: nrt; direction: rtl; font-size: 10pt; color: #0f172a; }
 .tbl td.lb { text-align: center; }
 .tbl tr.tot td { background: #e0f2fe; font-weight: bold; }
 .foot { width: 100%; border-collapse: collapse; margin-top: 3mm; }
-.foot td { vertical-align: top; }
-.fbox { width: 100%; border-collapse: collapse; }
-.fbox td.k { font-weight: bold; width: 27mm; padding: 1mm 1mm; font-size: 9.5pt; white-space: nowrap; }
-.fbox td.v { border: 1px solid #7fb3d0; padding: 1.1mm 2.5mm; height: 6.5mm; text-align: left; direction: ltr; font-weight: bold; font-size: 10.5pt; }
-.fbox td.gap { height: 1mm; }
+.foot td { vertical-align: top; padding: 0.6mm 1mm; }
+.foot td.k { font-weight: bold; width: 30mm; font-size: 9.5pt; white-space: nowrap; padding-top: 1.6mm; }
+.foot td.v { border: 1px solid #7fb3d0; padding: 1.1mm 2.5mm; height: 6.5mm; text-align: left; direction: ltr; font-weight: bold; font-size: 10.5pt; width: 62mm; }
+.foot td.subcell { font-size: 7.5pt; color: #64748b; direction: rtl; text-align: right; padding: 0.3mm 2.5mm 0.8mm; }
+.foot td.sp { width: 10mm; }
+.foot td.box { border: 1px solid #7fb3d0; }
 </style>
 
 <table class="datebar"><tr>
@@ -149,34 +150,48 @@ $html .= '<tr class="tot">
     </tbody>
 </table>
 
-<table class="foot"><tr>
-    <td style="width:48%;">
-        <table class="fbox">
-            <tr><td class="k">کۆی گشتی :</td><td class="v">' . ($sheetTotal < 0 ? '(' . dsMoney(abs($sheetTotal)) . ')' : dsMoney($sheetTotal)) . '</td></tr>
-            <tr><td colspan="2" class="gap"></td></tr>
-            <tr><td class="k">ماوە :</td><td class="v">' . ($remaining < 0 ? '(' . dsMoney(abs($remaining)) . ')' : dsMoney($remaining)) . '</td></tr>
-            <tr><td colspan="2" style="height:2mm;"></td></tr>
-            <tr><td class="k">پشکی دکتۆران :</td><td class="v" style="color:#5b21b6;">' . ($money($totals['doctorShare']) ?: '0') . '</td></tr>
-            <tr><td colspan="2" class="gap"></td></tr>
-            <tr><td class="k">پشکی سەنتەر :</td><td class="v" style="color:#0f766e;">' . ($money($totals['centerShare']) ?: '0') . '</td></tr>
-            <tr><td colspan="2" class="gap"></td></tr>
-            <tr><td class="k">خەرجیات :</td><td class="v" style="color:#c2410c;">' . dsMoney($expensesAll) . '</td></tr>
-            <tr><td colspan="2" class="gap"></td></tr>
-            <tr><td class="k">سافی سەنتەر :</td><td class="v" style="color:' . ($centerAfterExpenses < 0 ? '#dc2626' : '#047857') . ';">'
-                . ($centerAfterExpenses < 0 ? '(' . dsMoney(abs($centerAfterExpenses)) . ')' : dsMoney($centerAfterExpenses)) . '</td></tr>
-        </table>
-    </td>
-    <td style="width:4%;"></td>
-    <td style="width:48%;">
-        <!-- Table cells, not divs: mPDF drops the height of an empty div, which
-             left these two write-in boxes as bare labels. -->
-        <table class="fbox">
-            <tr><td class="k">تێبینی :</td><td class="v" style="height:13mm;"></td></tr>
-            <tr><td colspan="2" class="gap"></td></tr>
-            <tr><td class="k">وەرگر :</td><td class="v" style="height:13mm;"></td></tr>
-        </table>
-    </td>
-</tr></table>';
+';
+
+// The bottom, as the accountant adds it up: داهات − the expense columns = ماوە,
+// then the split of ماوە, the centre's own expenses and what the centre keeps.
+// ONE flat table: the figures on the right, the تێبینی / وەرگر write-in boxes on
+// the left spanning its rows. Nested tables came apart in mPDF on the clinic's
+// server (labels in one box, figures in the other); cells, not divs, because
+// mPDF drops the height of an empty div.
+$signed = fn(float $v) => $v < 0 ? '(' . dsMoney(abs($v)) . ')' : dsMoney($v);
+$footRows = [
+    ['کۆی گشتی', $signed($totals['amount']), ''],
+    ['خەرجی گشتی', $signed($columnExpenses), 'color:#c2410c;'],
+];
+if ($columnExpenseLines) {
+    // what خەرجی گشتی is made of, as the columns add up
+    $footRows[] = ['', '<span class="sub">' . dsEsc(implode(' + ', array_map(
+        fn($l, $v) => $l . ' ' . dsMoney($v), array_keys($columnExpenseLines), $columnExpenseLines))) . '</span>', 'sub'];
+}
+$footRows[] = ['ماوە', $signed($sheetTotal), 'color:' . ($sheetTotal < 0 ? '#dc2626' : '#0369a1') . ';'];
+$footRows[] = ['پشکی دکتۆران', $money($totals['doctorShare']) ?: '0', 'color:#5b21b6;'];
+$footRows[] = ['پشکی سەنتەر', $money($totals['centerShare']) ?: '0', 'color:#0f766e;'];
+$footRows[] = ['خەرجیاتی سەنتەر', dsMoney($expensesAll), 'color:#c2410c;'];
+$footRows[] = ['سافی سەنتەر', $signed($centerAfterExpenses), 'color:' . ($centerAfterExpenses < 0 ? '#dc2626' : '#047857') . ';'];
+$nFoot = count($footRows);
+$noteSpan = intdiv($nFoot, 2);
+$html .= '<table class="foot">';
+foreach ($footRows as $i => [$label, $value, $style]) {
+    $html .= '<tr>';
+    if ($style === 'sub') {
+        $html .= '<td class="k"></td><td class="subcell">' . $value . '</td>';
+    } else {
+        $html .= '<td class="k">' . dsEsc($label) . ' :</td><td class="v"' . ($style !== '' ? ' style="' . $style . '"' : '') . '>' . $value . '</td>';
+    }
+    $html .= '<td class="sp"></td>';
+    if ($i === 0) {
+        $html .= '<td class="k" rowspan="' . $noteSpan . '">تێبینی :</td><td class="box" rowspan="' . $noteSpan . '"></td>';
+    } elseif ($i === $noteSpan) {
+        $html .= '<td class="k" rowspan="' . ($nFoot - $noteSpan) . '">وەرگر :</td><td class="box" rowspan="' . ($nFoot - $noteSpan) . '"></td>';
+    }
+    $html .= '</tr>';
+}
+$html .= '</table>';
 
 $pdf = new InvoicePdfService([
     'orientation'      => $landscape ? 'L' : 'P',

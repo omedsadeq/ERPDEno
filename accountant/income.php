@@ -166,7 +166,6 @@ body.inc-full-open{overflow:hidden}
 .inc-box.left.neg{background:#fef2f2;border-color:#fecaca}
 .inc-box.left.neg .v{color:#dc2626}
 .inc-split{margin-top:10px}
-.inc-foot.inc-two{grid-template-columns:repeat(2,1fr)}
 .inc-foot.inc-split{grid-template-columns:repeat(4,1fr)}
 @media(max-width:1100px){.inc-foot.inc-split{grid-template-columns:repeat(2,1fr)}}
 .inc-box.doc{background:#faf8ff;border-color:#ddd6fe}
@@ -177,7 +176,7 @@ body.inc-full-open{overflow:hidden}
 .inc-box.cnet .v{color:#047857}
 .inc-box.cnet.neg{background:#fef2f2;border-color:#fecaca}
 .inc-box.cnet.neg .v{color:#dc2626}
-@media(max-width:760px){.inc-foot,.inc-foot.inc-two,.inc-foot.inc-split{grid-template-columns:1fr}.inc-head{grid-template-columns:1fr}.inc-head .en{text-align:right}.inc-days{margin-inline-start:0}}
+@media(max-width:760px){.inc-foot,.inc-foot.inc-split{grid-template-columns:1fr}.inc-head{grid-template-columns:1fr}.inc-head .en{text-align:right}.inc-days{margin-inline-start:0}}
 </style>
 
 <div class="inc">
@@ -421,37 +420,44 @@ body.inc-full-open{overflow:hidden}
             </table>
         </div>
 
-        <div class="inc-foot inc-two">
+        <!-- The bottom, as the accountant adds it up: داهات − the expense
+             columns = ماوە; then the split of ماوە, the centre's own expenses
+             and what the centre keeps. -->
+        <div class="inc-foot">
             <div class="inc-box total">
                 <div class="k">کۆی گشتی</div>
-                <div class="v"><?= $sheetTotal < 0 ? '(' . dsMoney(abs($sheetTotal)) . ')' : dsMoney($sheetTotal) ?></div>
-                <?php $incLess = array_merge(array_map(fn($k) => IncomeSheetColumns::label($k), $colSel), array_column(array_filter($incColumns, fn($c) => $c['period_total'] > 0), 'name')); ?>
-                <?php if ($incLess): ?>
-                <div class="s">داهات <?= dsMoney($totals['amount']) ?> − <?= dsEsc(implode('، ', $incLess)) ?></div>
-                <?php endif; ?>
+                <div class="v"><?= $totals['amount'] < 0 ? '(' . dsMoney(abs($totals['amount'])) . ')' : dsMoney($totals['amount']) ?></div>
+                <div class="s">کۆی ستوونی «<?= dsEsc(IncomeSheetColumns::label('amount')) ?>»</div>
             </div>
-            <div class="inc-box left<?= $remaining < 0 ? ' neg' : '' ?>">
+            <div class="inc-box exp">
+                <div class="k">خەرجی گشتی</div>
+                <div class="v"><?= $columnExpenses < 0 ? '(' . dsMoney(abs($columnExpenses)) . ')' : dsMoney($columnExpenses) ?></div>
+                <div class="s"><?= $columnExpenseLines
+                    ? implode(' + ', array_map(fn($l, $v) => '<span class="inc-xl">' . dsEsc($l) . ' ' . dsMoney($v) . '</span>', array_keys($columnExpenseLines), $columnExpenseLines))
+                    : 'ستوونەکانی خەرجی لەم ماوەیەدا بەتاڵن' ?></div>
+            </div>
+            <div class="inc-box left<?= $sheetTotal < 0 ? ' neg' : '' ?>">
                 <div class="k">ماوە</div>
-                <div class="v"><?= $remaining < 0 ? '(' . dsMoney(abs($remaining)) . ')' : dsMoney($remaining) ?></div>
-                <div class="s">کۆی گشتی − خەرجیات</div>
+                <div class="v"><?= $sheetTotal < 0 ? '(' . dsMoney(abs($sheetTotal)) . ')' : dsMoney($sheetTotal) ?></div>
+                <div class="s">کۆی گشتی − خەرجی گشتی = پشکی دکتۆران + پشکی سەنتەر</div>
             </div>
         </div>
 
-        <!-- دابەشکردن: کۆی گشتی = پشکی دکتۆران + پشکی سەنتەر; the centre then
-             carries خەرجیات, which stands between its share and what is left of it. -->
+        <!-- دابەشکردن: ماوە = پشکی دکتۆران + پشکی سەنتەر; the centre then
+             carries its own خەرجیات, which stands between its share and what is left of it. -->
         <div class="inc-foot inc-split">
             <div class="inc-box doc">
                 <div class="k">پشکی دکتۆران</div>
                 <div class="v"><?= $totals['doctorShare'] < 0 ? '(' . dsMoney(abs($totals['doctorShare'])) . ')' : dsMoney($totals['doctorShare']) ?></div>
-                <div class="s">ڕێژەی هەر دکتۆرێک لە کۆی ماوە دوای خەرجی − بەشی لە کۆگا (ئاسایی + Implant)</div>
+                <div class="s">پشکی دکتۆران لە ماوە — ڕێژەی هەر دکتۆرێک − بەشی لە کۆگا (ئاسایی + Implant)</div>
             </div>
             <div class="inc-box ctr">
                 <div class="k">پشکی سەنتەر</div>
                 <div class="v"><?= $totals['centerShare'] < 0 ? '(' . dsMoney(abs($totals['centerShare'])) . ')' : dsMoney($totals['centerShare']) ?></div>
-                <div class="s">ماوەی دکتۆران + بەشەکانی تر</div>
+                <div class="s">پشکی سەنتەر لە ماوە — ماوەی دکتۆران + بەشەکانی تر</div>
             </div>
             <div class="inc-box exp">
-                <div class="k">خەرجیات</div>
+                <div class="k">خەرجیاتی سەنتەر</div>
                 <div class="v"><?= dsMoney($expensesAll) ?></div>
                 <div class="s"><?php
                     // each line, and what stands behind the centre's general expenses
@@ -466,7 +472,7 @@ body.inc-full-open{overflow:hidden}
             <div class="inc-box cnet<?= $centerAfterExpenses < 0 ? ' neg' : '' ?>">
                 <div class="k">سافی سەنتەر</div>
                 <div class="v"><?= $centerAfterExpenses < 0 ? '(' . dsMoney(abs($centerAfterExpenses)) . ')' : dsMoney($centerAfterExpenses) ?></div>
-                <div class="s">پشکی سەنتەر − خەرجیات</div>
+                <div class="s">پشکی سەنتەر − خەرجیاتی سەنتەر</div>
             </div>
         </div>
     </div>
