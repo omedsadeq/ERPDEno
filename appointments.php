@@ -101,7 +101,9 @@ if (!function_exists('dh_appointment_return_url')) {
             $query['call_status'] = $callStatus;
         }
         if ($flag !== '') {
-            $query[$flag] = 1;
+            // 'created' → created=1; 'apt_del=err' keeps its own value
+            [$flagKey, $flagValue] = array_pad(explode('=', $flag, 2), 2, '1');
+            $query[$flagKey] = $flagValue;
         }
         return APP_URL . '/appointments.php?' . http_build_query($query);
     }
@@ -111,6 +113,13 @@ if (!function_exists('dh_appointment_return_url')) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     Csrf::require();
     $action = $_POST['action'];
+    // Every form posts to the page's own URL (action=""), so the filters the
+    // user had — view, doctor, work, call status — arrive in $_GET and go back
+    // into the redirect: after a save the list stays on the same doctor and day
+    // instead of falling back to everyone. $date is the day to show afterwards.
+    $aptBack = fn(string $date, string $flag = '') => dh_appointment_return_url(
+        $date, $viewMode, $selectedDoctor, $selectedWorkType, $selectedCallStatus, $flag
+    );
 
     if ($action === 'create') {
         $postedDoctorId = intval($_POST['doctor_id']);
@@ -147,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $result['appointment_id'] ?? 0, $data['appointment_date'], $data['appointment_time'],
                     (int)$currentUser['id']
                 );
-                header('Location: ' . APP_URL . '/appointments.php?date=' . $data['appointment_date'] . '&created=1');
+                header('Location: ' . $aptBack($data['appointment_date'], 'created'));
                 exit;
             }
         }
@@ -208,7 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     (int)$currentUser['id']
                 );
             }
-            header('Location: ' . APP_URL . '/appointments.php?date=' . $updateData['appointment_date'] . '&updated=1');
+            header('Location: ' . $aptBack($updateData['appointment_date'], 'updated'));
             exit;
         }
     } elseif ($action === 'update_status') {
@@ -220,7 +229,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             exit;
         }
         if (!in_array($status, $APPOINTMENT_STATUSES, true)) {
-            header('Location: ' . APP_URL . '/appointments.php?date=' . $viewDate);
+            header('Location: ' . $aptBack($viewDate));
             exit;
         }
         $statusData = ['status' => $status, 'updated_by' => (int)$currentUser['id']];
@@ -239,7 +248,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     (int)$currentUser['id']
                 );
             }
-            header('Location: ' . APP_URL . '/appointments.php?date=' . $viewDate . '&updated=1');
+            header('Location: ' . $aptBack($viewDate, 'updated'));
             exit;
         }
     } elseif ($action === 'mark_called_to_center') {
@@ -349,7 +358,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     (int)$apt['doctor_id'], $apt['patient_name'] ?? '', $waitingId, (int)$currentUser['id']
                 );
             }
-            header('Location: ' . APP_URL . '/appointments.php?date=' . $viewDate . '&checked_in=1');
+            header('Location: ' . $aptBack($viewDate, 'checked_in'));
             exit;
         }
     } elseif ($action === 'cancel_with_reason') {
@@ -377,7 +386,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 (int)$currentUser['id']
             );
 
-            header('Location: ' . APP_URL . '/appointments.php?date=' . $viewDate . '&cancelled=1');
+            header('Location: ' . $aptBack($viewDate, 'cancelled'));
             exit;
         }
     } elseif ($action === 'delete_appointment') {
@@ -412,12 +421,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         } catch (Exception $e) {
             $db->rollback();
             error_log('delete_appointment failed for #' . $appointmentId . ': ' . $e->getMessage());
-            header('Location: ' . APP_URL . '/appointments.php?date=' . $viewDate . '&apt_del=err');
+            header('Location: ' . $aptBack($viewDate, 'apt_del=err'));
             exit;
         }
 
         AuditLog::log('delete_appointment', 'appointments', $appointmentId, $apt, null);
-        header('Location: ' . APP_URL . '/appointments.php?date=' . $viewDate . '&apt_del=1');
+        header('Location: ' . $aptBack($viewDate, 'apt_del'));
         exit;
     } elseif ($action === 'reschedule') {
         $appointmentId = intval($_POST['appointment_id']);
@@ -445,7 +454,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     'updated', (int)$apt['doctor_id'], $apt['patient_name'] ?? '',
                     $appointmentId, $newDate, $newTime, (int)$currentUser['id']
                 );
-                header('Location: ' . APP_URL . '/appointments.php?date=' . $newDate . '&rescheduled=1');
+                header('Location: ' . $aptBack($newDate, 'rescheduled'));
                 exit;
             }
         }
@@ -459,7 +468,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $listDate = $_POST['list_date'] ?? '';
         $listNote = trim($_POST['list_note'] ?? '');
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $listDate)) {
-            header('Location: ' . APP_URL . '/appointments.php?rl_sent=bad_date');
+            header('Location: ' . $aptBack($viewDate, 'rl_sent=bad_date'));
             exit;
         }
         $totalCount = (int)($db->fetch(
@@ -469,7 +478,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             ['d' => (int)$currentUser['id'], 'dt' => $listDate]
         )['c'] ?? 0);
         if ($totalCount === 0) {
-            header('Location: ' . APP_URL . '/appointments.php?date=' . $listDate . '&rl_sent=empty');
+            header('Location: ' . $aptBack($listDate, 'rl_sent=empty'));
             exit;
         }
 
@@ -493,7 +502,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $selectedIds = array_map(fn($r) => (int)$r['id'], $validRows);
             }
             if (empty($selectedIds)) {
-                header('Location: ' . APP_URL . '/appointments.php?date=' . $listDate . '&rl_sent=empty');
+                header('Location: ' . $aptBack($listDate, 'rl_sent=empty'));
                 exit;
             }
             if (count($selectedIds) >= $totalCount) {
@@ -512,7 +521,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         AuditLog::log('send_reception_call_list', 'appointments', null, null,
             ['date' => $listDate, 'count' => $listCount, 'note' => $listNote,
              'ids' => $selectedIds, 'raw' => $selectedRaw, 'total' => $totalCount]);
-        header('Location: ' . APP_URL . '/appointments.php?date=' . $listDate . '&rl_sent=1');
+        header('Location: ' . $aptBack($listDate, 'rl_sent'));
         exit;
     }
 }
@@ -616,6 +625,9 @@ $availableSlots = $appointmentManager->getAvailableSlots($selectedDoctor ?: $cur
 // NOW include header (which outputs HTML)
 $pageTitle = 'مەوعیدەکان';
 $breadcrumb = [['title' => 'مەوعیدەکان']];
+// The list has thirteen columns: the menu starts closed here (icons only, as on
+// the case page) so the table has the width. The user can still open it.
+$navCompactPage = true;
 require_once __DIR__ . '/includes/header.php';
 require_once __DIR__ . '/includes/case-button.php';
 ?>
@@ -1403,11 +1415,9 @@ require_once __DIR__ . '/includes/case-button.php';
     display: block;
 }
 
-/* tidy-ups: names on one or two lines, not three; a heading row per day */
-.appointments-table td:has(> .patient-name-apt) { min-width: 140px; }
-.appointments-table .time-cell-apt,
-.appointments-table .duration-cell-apt { white-space: nowrap; }
-.appointments-table td.apt-doc-cell { white-space: nowrap; }
+/* a heading row per day. The cells wrap as they always did — no nowrap or
+   minimum widths here: with 13 columns they pushed the table past the screen,
+   and تێبینی could only be reached by zooming out. */
 .apt-day-sep > td { background: #eef4fc !important; text-align: right !important; padding: 7px 12px !important;
     font-size: 13px !important; color: #1e293b !important; border-top: 2px solid #cfe3f7; }
 .apt-day-sep i { color: var(--win-accent, #0078d4); margin-left: 6px; }
@@ -1417,18 +1427,6 @@ require_once __DIR__ . '/includes/case-button.php';
 .apt-day-sep.is-today .apt-day-sep-rel { background: #bbf7d0; color: #15803d; }
 .apt-day-sep-n { float: left; color: #64748b; font-size: 12px; }
 .appointments-table tbody tr.apt-day-sep:hover { box-shadow: none; }
-.appointments-table td.apt-date-cell { white-space: nowrap; }
-@media (min-width: 768px) {
-    /* a wide table scrolls in its own box (the menus are position:fixed, so
-       nothing is clipped) and «کردار» stays pinned on the left, always in reach */
-    .table-container { overflow-x: auto !important; }
-    .appointments-table thead th:last-child,
-    .appointments-table tbody tr:not(.apt-day-sep) > td:last-child {
-        position: sticky; left: 0; z-index: 1; background: #fff;
-        box-shadow: 6px 0 8px -6px rgba(15, 23, 42, .18);
-    }
-    .appointments-table thead th:last-child { background: #f3f5f7; }
-}
 @media (max-width: 1500px) and (min-width: 1025px) {
     /* a laptop screen: the side panels go under the list, side by side, so the table has the width */
     #tableView { grid-template-columns: minmax(0, 1fr) !important; }
@@ -5085,6 +5083,26 @@ document.addEventListener('DOMContentLoaded', function() {
     if (urlParams.get('calendar') === '1') {
         switchView('calendar');
     }
+
+    // After a save the page comes back (?created=1, updated=1, …) with the
+    // filters kept in the URL by the redirect; the scroll position is put back
+    // too, so the list does not jump to the top and the row stays in view.
+    // The page scrolls inside .page-content (the shell), not the window.
+    var aptScroller = document.querySelector('.page-content') || document.scrollingElement;
+    document.querySelectorAll('form[method="post" i]').forEach(function (f) {
+        f.addEventListener('submit', function () {
+            try { sessionStorage.setItem('aptScrollY', String(aptScroller.scrollTop)); } catch (e) {}
+        });
+    });
+    try {
+        var backY = sessionStorage.getItem('aptScrollY');
+        if (backY !== null) {
+            sessionStorage.removeItem('aptScrollY');
+            if (['created', 'updated', 'checked_in', 'cancelled', 'apt_del', 'rescheduled', 'call_marked', 'call_cleared'].some(function (k) { return urlParams.has(k); })) {
+                aptScroller.scrollTop = parseInt(backY, 10) || 0;
+            }
+        }
+    } catch (e) {}
 });
 </script>
 
